@@ -4,7 +4,7 @@
 // through the pages in this order — the same keys that move between tabs in
 // the terminal dash.
 import {
-  IconActivity, IconAppWindow, IconBox, IconBrandGithub, IconBrandDocker, IconBriefcase, IconCalendarTime, IconChartBar, IconCoin,
+  IconActivity, IconAppWindow, IconApps, IconBox, IconDeviceDesktop, IconBrandGithub, IconBrandDocker, IconBriefcase, IconCalendarTime, IconChartBar, IconCoin,
   IconFileText, IconGauge, IconGitBranch, IconHeartbeat, IconHome, IconInbox, IconKey, IconLayoutGrid, IconLayoutKanban, IconListCheck, IconMicroscope, IconListDetails, IconLogs,
   IconMail, IconPencil, IconPlayerPlay, IconPlugConnected, IconReceipt, IconRepeat, IconRoute, IconRoadSign, IconSearch, IconSettings,
   IconTerminal2, IconTool, IconTools, IconTopologyStar3, IconUser, IconFlask, IconSparkles, type Icon,
@@ -51,6 +51,8 @@ export const NAV: NavSection[] = [
     label: 'Fleet',
     items: [
       { label: 'Projects', to: '/projects', icon: IconAppWindow, hint: 'every registry project — the TUI’s Apps view' },
+      { label: 'Desktop', to: '/desktop', icon: IconDeviceDesktop, hint: 'the bashOS desktop: an icon per app, each in a window with the same controls' },
+      { label: 'Apps', to: '/apps', icon: IconApps, hint: 'every fleet frontend, opened here: the live site or a local stack' },
       { label: 'Inbox', to: '/inbox', icon: IconInbox, hint: 'flagged issues, PRs and failing workflows' },
       { label: 'Roadmap', to: '/roadmap', icon: IconRoadSign, hint: 'feature specs across the fleet' },
       { label: 'Features', to: '/features', icon: IconListCheck, hint: 'what each repo does and what proves it' },

@@ -1,0 +1,512 @@
+{
+  "id": "apps",
+  "title": "The Apps page lists every fleet frontend and opens one without sending a visitor's browser anywhere unasked",
+  "features": [
+    "HUB-NEW:app-portal"
+  ],
+  "path": "verify/scenarios/apps.yml",
+  "started": "2026-11-05T04:09:39.421Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/apps",
+          "ok": true,
+          "ms": 694
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Open here"
+          },
+          "ok": true,
+          "ms": 19
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "gitorio"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "tools/dash apps"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "main a[href*='/apps/']",
+              "min": 10
+            }
+          },
+          "ok": true,
+          "value": 23,
+          "ms": 1
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "off_site_requests",
+            "script": "(() => { const n = performance.getEntriesByType('resource').filter((e) => !e.name.startsWith(location.origin)).length; if (n) throw new Error(n + ' off-site request(s) from the list'); return n; })()"
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "apps-list",
+          "ok": true,
+          "file": "test/evidence/apps/desktop-apps-list.png",
+          "ms": 47
+        },
+        {
+          "step": "click",
+          "arg": "text=Other surfaces",
+          "ok": true,
+          "ms": 68
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=zpl-viewer"
+          },
+          "ok": true,
+          "ms": 34
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "no address yet"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "goto",
+          "arg": "/apps/zpl-viewer/",
+          "ok": true,
+          "ms": 547
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=has no address the console can open"
+          },
+          "ok": true,
+          "ms": 11
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "VS Code"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "app-without-an-address",
+          "ok": true,
+          "file": "test/evidence/apps/desktop-app-without-an-address.png",
+          "ms": 17
+        },
+        {
+          "step": "goto",
+          "arg": "/apps/gitorio/?target=local",
+          "ok": true,
+          "ms": 536
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=A local stack answers only on the machine that runs it."
+          },
+          "ok": true,
+          "ms": 11
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "not checked"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "iframe",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "tools/dash dev up gitorio"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "app-local-asks-first",
+          "ok": true,
+          "file": "test/evidence/apps/desktop-app-local-asks-first.png",
+          "ms": 23
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/apps/desktop-apps-list.png",
+        "test/evidence/apps/desktop-app-without-an-address.png",
+        "test/evidence/apps/desktop-app-local-asks-first.png"
+      ],
+      "evals": {
+        "off_site_requests": 0
+      },
+      "final_url": "http://127.0.0.1:5113/apps/gitorio/?target=local"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/apps",
+          "ok": true,
+          "ms": 618
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Open here"
+          },
+          "ok": true,
+          "ms": 16
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "gitorio"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "tools/dash apps"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "main a[href*='/apps/']",
+              "min": 10
+            }
+          },
+          "ok": true,
+          "value": 23,
+          "ms": 2
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "off_site_requests",
+            "script": "(() => { const n = performance.getEntriesByType('resource').filter((e) => !e.name.startsWith(location.origin)).length; if (n) throw new Error(n + ' off-site request(s) from the list'); return n; })()"
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "apps-list",
+          "ok": true,
+          "file": "test/evidence/apps/mobile-apps-list.png",
+          "ms": 28
+        },
+        {
+          "step": "click",
+          "arg": "text=Other surfaces",
+          "ok": true,
+          "ms": 28
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=zpl-viewer"
+          },
+          "ok": true,
+          "ms": 4
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "no address yet"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 2
+        },
+        {
+          "step": "goto",
+          "arg": "/apps/zpl-viewer/",
+          "ok": true,
+          "ms": 545
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=has no address the console can open"
+          },
+          "ok": true,
+          "ms": 10
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "VS Code"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "app-without-an-address",
+          "ok": true,
+          "file": "test/evidence/apps/mobile-app-without-an-address.png",
+          "ms": 10
+        },
+        {
+          "step": "goto",
+          "arg": "/apps/gitorio/?target=local",
+          "ok": true,
+          "ms": 554
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=A local stack answers only on the machine that runs it."
+          },
+          "ok": true,
+          "ms": 10
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "not checked"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "iframe",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "tools/dash dev up gitorio"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "app-local-asks-first",
+          "ok": true,
+          "file": "test/evidence/apps/mobile-app-local-asks-first.png",
+          "ms": 14
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/apps/mobile-apps-list.png",
+        "test/evidence/apps/mobile-app-without-an-address.png",
+        "test/evidence/apps/mobile-app-local-asks-first.png"
+      ],
+      "evals": {
+        "off_site_requests": 0
+      },
+      "final_url": "http://127.0.0.1:5113/apps/gitorio/?target=local"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-11-05T04:09:43.466Z",
+  "base": "http://127.0.0.1:5113"
+}

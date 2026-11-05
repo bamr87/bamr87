@@ -1,0 +1,32 @@
+# The bashOS desktop on the published site: an icon per app, the whole fleet in one window, and nothing fetched until asked.
+id: desktop
+feature: HUB-NEW:bashos-desktop-shell
+title: "The Desktop shows an icon for every fleet app and a window for every repo, at desktop and phone widths"
+description: "/desktop is the bashOS OS shell in the browser: one icon per fleet frontend, each opening in a window that carries the common App Shell. The Fleet window lists every repo in the registry by the frontend component it has or is owed, and a repo with no frontend opens a window that says which component it gets next. The public build fetches nothing from another origin while the desktop is on screen. At a phone's width the desktop is a home screen that opens one app at a time. Nothing scrolls sideways."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_"]
+steps:
+  - goto: /desktop
+  - expect: { status: 200 }
+  - wait: { selector: "nav[aria-label='Apps']" }
+  - expect: { title: "Desktop · bashOS" }
+  - expect: { count: { selector: "nav[aria-label='Apps'] button", min: 10 } }
+  - expect: { text: "gitorio" }
+  - expect: { text: "classic console" }
+  # The desktop is icons and ids: it has asked no fleet site anything.
+  - eval: { name: off_site_requests, script: "(() => { const n = performance.getEntriesByType('resource').filter((e) => !e.name.startsWith(location.origin)).length; if (n) throw new Error(n + ' off-site request(s) from the desktop'); return n; })()" }
+  - expect: { count: { selector: "iframe", max: 0 } }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: desktop
+  - click: "nav[aria-label='Apps'] button:has-text('Fleet')"
+  - wait: { selector: "text=No frontend yet" }
+  - expect: { text: "In the shell" }
+  - expect: { text: "A surface a browser cannot host" }
+  - expect: { text: "kvlite" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: fleet-window
+  - click: "button:has-text('kvlite')"
+  - wait: { selector: "text=No frontend component yet." }
+  - expect: { text: "the generated repo app (F1)" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: repo-window

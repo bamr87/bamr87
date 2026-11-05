@@ -7,7 +7,7 @@ import { api } from './client';
 import { STATIC } from './backend';
 import { manifest } from './static';
 import type {
-  AuthDoc, Capabilities, ConfigDoc, DockerView, FleetView, Job, LakeLine, LakeRun, Op,
+  AppsDoc, AuthDoc, Capabilities, ConfigDoc, DockerView, FleetView, Job, LakeLine, LakeRun, Op,
   ProjectDetail, StateDoc, TuiStatus, Dict, GithubStatus, GhRepo, GhRepoDetail, GhAction, GhIssue,
   SiteIndex, SitePage, SitePost, GithubFleet, PullSpecs, WorkBoard, WorkItemDetail, WorkPlan,
   WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint, RefineDoc, EvidenceDoc, TextFile, AssistDoc, JobTail,
@@ -48,6 +48,34 @@ export const useFleet = (f: FleetQuery = {}) =>
     },
     placeholderData: keepPreviousData,
     staleTime: 30_000,
+  });
+
+/** The app launcher: every registry frontend with its live and local addresses. */
+export const useApps = () => useQuery({ queryKey: ['apps'], queryFn: () => api<AppsDoc>('/api/apps'), staleTime: 5 * minute });
+
+/**
+ * Does this address answer from where the reader sits? A no-cors fetch
+ * resolves for any HTTP response and rejects when nothing listens, which is
+ * the question a frame asks: "answers", never "healthy".
+ */
+export const useReach = (url: string | null | undefined, enabled = true) =>
+  useQuery({
+    queryKey: ['reach', url],
+    enabled: Boolean(url) && enabled,
+    staleTime: 30_000,
+    retry: false,
+    queryFn: async () => {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 6000);
+      try {
+        await fetch(url as string, { mode: 'no-cors', cache: 'no-store', credentials: 'omit', signal: ctl.signal });
+        return true;
+      } catch {
+        return false;
+      } finally {
+        clearTimeout(timer);
+      }
+    },
   });
 
 export const useDocker = () => useQuery({ queryKey: ['docker'], queryFn: () => api<DockerView>('/api/fleet/docker'), staleTime: 15_000 });

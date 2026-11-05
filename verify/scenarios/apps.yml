@@ -1,0 +1,36 @@
+# The app portal on the published site: every fleet frontend listed, one opened, and a visitor's machine left alone.
+id: apps
+feature: HUB-NEW:app-portal
+title: "The Apps page lists every fleet frontend and opens one without sending a visitor's browser anywhere unasked"
+description: "/apps lists every frontend the registry declares with its live and local addresses and filters them by kind; the public build asks none of those addresses anything while the list is on screen. A frontend with no browser surface says why it cannot be opened, and a local dev stack is checked only after the reader asks, because a public page must not reach into a visitor's own machine on load. Nothing scrolls sideways."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_"]
+steps:
+  - goto: /apps
+  - expect: { status: 200 }
+  - wait: { selector: "text=Open here" }
+  - expect: { text: "gitorio" }
+  - expect: { text: "tools/dash apps" }
+  - expect: { count: { selector: "main a[href*='/apps/']", min: 10 } }
+  # The list is addresses only: the page has fetched nothing from another origin.
+  - eval: { name: off_site_requests, script: "(() => { const n = performance.getEntriesByType('resource').filter((e) => !e.name.startsWith(location.origin)).length; if (n) throw new Error(n + ' off-site request(s) from the list'); return n; })()" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: apps-list
+  - click: "text=Other surfaces"
+  - wait: { selector: "text=zpl-viewer" }
+  - expect: { text: "no address yet" }
+  - expect: { no_horizontal_scroll: true }
+  - goto: /apps/zpl-viewer/
+  - expect: { status: 200 }
+  - wait: { selector: "text=has no address the console can open" }
+  - expect: { text: "VS Code" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: app-without-an-address
+  - goto: "/apps/gitorio/?target=local"
+  - expect: { status: 200 }
+  - wait: { selector: "text=A local stack answers only on the machine that runs it." }
+  - expect: { text: "not checked" }
+  - expect: { count: { selector: "iframe", max: 0 } }
+  - expect: { text: "tools/dash dev up gitorio" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: app-local-asks-first

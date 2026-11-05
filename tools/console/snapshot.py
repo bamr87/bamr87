@@ -60,6 +60,7 @@ sys.path.insert(0, str(HERE.parent))
 import core  # noqa: E402
 import github_link as ghl  # noqa: E402
 import site_docs  # noqa: E402
+from fleetcore import apps as fapps  # noqa: E402
 from fleetcore import fleet as fl  # noqa: E402
 from fleetcore import keys as fkeys  # noqa: E402
 from fleetcore import theme as ftheme  # noqa: E402
@@ -82,6 +83,8 @@ STATIC_ROUTES: dict[str, tuple[str, str]] = {
     "portfolio": ("Portfolio", "Every project in the fleet, featured first, with its live health."),
     "blog": ("Writing", "Notes on enterprise architecture, DevOps, cloud and practical AI workflows."),
     "projects": ("Projects", "Every registry project with health, triage and CI state."),
+    "desktop": ("Desktop", "The bashOS desktop: an icon for every fleet app, each opened in a window with the same controls."),
+    "apps": ("Apps", "Every fleet frontend in one place: open the live site or a local stack inside the console, at any device size."),
     "inbox": ("Inbox", "Flagged issues, pull requests and failing workflows across the fleet."),
     "roadmap": ("Roadmap", "Planned features across the fleet, by status and priority."),
     "work": ("Work board", "Every open issue, PR, roadmap spec and backlog item, in the order the loops take them."),
@@ -235,6 +238,9 @@ def documents() -> dict[str, object]:
                          "dispatchable": core.dispatchable()},
         "github/log": [],
         "site": site_docs.site_index(include_drafts=False),
+        # Addresses from the two registries: nothing here was probed, so there
+        # is no laptop's port state to keep out of the public build.
+        "apps": fapps.apps_view(core.REPO_ROOT),
     }
     for sort, view in fleet_views().items():
         docs[f"fleet/{sort}"] = view
@@ -275,6 +281,8 @@ def routes(docs: dict) -> dict[str, tuple[str, str]]:
             out[f"github/{m.group(1)}"] = (m.group(1), f"Issues, pull requests, runs and workflows of {m.group(1)}.")
     hub = str(docs["github/fleet"]["hub"].get("repo") or HUB)
     out.setdefault(f"github/{hub}", (hub, f"Issues, pull requests, runs and workflows of {hub}."))
+    for a in docs["apps"]["apps"]:
+        out[f"apps/{a['id']}"] = (f"{a['name']} · app", str(a.get("description") or ""))
     for wf in docs["workflows"]["workflows"]:
         out[f"workflows/{wf['id']}"] = (f"{wf['name']} · workflow", str(wf.get("purpose_text") or ""))
     for act in docs["workflows"]["actions"]:

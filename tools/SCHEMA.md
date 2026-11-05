@@ -38,8 +38,9 @@ coverage: listed
 | `devtools.conf` | file | Shared config for the devtools scripts | |
 | `fanout.sh` | file | Shared fan-out engine — clone→branch→seed→commit→PR loop with dry-run and external-upstream guard (called by .github/workflows/fanout.yml for every kit, and by dash harnesses/verify deploy) | |
 | `backlog_fanout.py` | file | The backlog fan-out routine (HUB-027, FR22) — pending hub issues / unserved PRD requirements / unshipped features → idempotent `backlog/<item>` PRs in the repos they apply to via `fanout.sh --kit backlog`; dry-run default, never merges (backlog-fanout.yml; docs/BACKLOG-FANOUT.md) | |
-| `frontend_registry.py` | file | The § 18 frontend registry: lints every `_data/projects.yml` `frontend:` block (drift check (o)) and generates the shell launcher manifest and the registry table (docs/FRONTEND-PLATFORM.md) | |
-| `test_frontend_registry.py` | file | Tests for the frontend registry lint and launcher | |
+| `frontend_registry.py` | file | The § 18 frontend registry: lints every `_data/projects.yml` `frontend:` block (drift check (o)), prints the shell launcher manifest (`fleetcore/apps.py`) and the registry table, and `probe` asks each registry address whether it answers and whether the shell can frame it (docs/FRONTEND-PLATFORM.md) | |
+| `test_frontend_registry.py` | file | Tests for the frontend registry lint, the launcher, the frame-policy reading and the probe (against a loopback server) | |
+| `test_fleetcore_apps.py` | file | Tests for `fleetcore/apps.py` — live and local targets, the case-blind ports join, compose-hosted only, embed rules, address resolution, the hub launcher's coherence, the `dash apps` CLI | |
 | `test_conformance_frontend.py` | file | Fixture tests for UPS-FE-70..73 (tiers, N/A, warn-then-fail, forks) | |
 | `fleet_activity.py` | file | Fire-and-forget fleet activity log client (FR23) — event schema from the activity-log PRD (#409), bounded redacted JSONL spool, best-effort flush; never raises | |
 | `test_backlog_fanout.py` | file | Fixture tests for backlog_fanout.py + fleet_activity.py — mapping, idempotent update, cadence, cap, retries, graceful degradation of the activity log (run by python-tests.yml) | |

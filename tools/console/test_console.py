@@ -347,6 +347,67 @@ def test_embed_urls_and_frame_src_come_from_the_contract():
         assert src.startswith("http://127.0.0.1:"), f"{src} is not loopback — the planes are local-only"
 
 
+def test_the_policy_names_exactly_the_origins_the_apps_page_frames():
+    """The Apps page frames a fleet frontend and asks its address whether it
+    answers. An origin missing from frame-src or connect-src fails the same
+    silent way an observability embed does; an origin too many is a hole in
+    the policy. Both lists are the launcher's own, and nothing wider."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from fleetcore import apps as fapps
+
+    doc = fapps.apps_view(core.REPO_ROOT)
+    wanted = fapps.origins(doc["apps"])
+    assert wanted, "the launcher frames nothing"
+    assert fapps.target_origins(core.REPO_ROOT) == wanted
+    for a in doc["apps"]:
+        for t in a["targets"]:
+            if a["embed"] == "frame":
+                assert fapps.origin(t["url"]) in wanted, f"{a['id']}:{t['id']} would be refused by the policy"
+    for o in wanted:
+        assert re.match(r"^https://[a-z0-9.\-]+$|^http://127\.0\.0\.1:\d{2,5}$", o), \
+            f"{o}: a framed origin is an https site or a loopback dev port"
+    # A registry value cannot smuggle a directive, a wildcard or credentials in.
+    for crafted in ("https://x.test; script-src *", "https://x.test script-src", "https://user:pw@x.test/",
+                    "https://*.x.test/", "javascript:alert(1)", "//x.test/", "ftp://x.test/", "", None):
+        assert fapps.origin(crafted) is None, crafted
+    try:
+        from fastapi.testclient import TestClient  # noqa: F401
+    except ImportError:
+        print("    (policy header skipped: fastapi not installed)")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+
+    policy = dict(d.strip().split(" ", 1) for d in console_app.content_policy("/apps", "127.0.0.1:4001").split(";"))
+    for directive in ("frame-src", "connect-src"):
+        listed = policy[directive].split()
+        missing = [o for o in wanted if o not in listed]
+        assert not missing, f"{directive} lacks {missing}"
+        assert "*" not in policy[directive], f"{directive} carries a wildcard"
+    extra = set(policy["frame-src"].split()) - set(wanted) - set(core.frame_src()) - {"'self'"}
+    assert not extra, f"frame-src allows origins no registry declares: {sorted(extra)}"
+    assert policy["script-src"] == "'self'" and policy["frame-ancestors"] == "'none'"
+
+
+def test_the_apps_route_serves_the_launcher():
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    r = client.get("/api/apps")
+    assert r.status_code == 200, r.text
+    doc = r.json()
+    assert doc["schema"] == "fleet-launcher/v1" and doc["summary"]["apps"] == len(doc["apps"]) > 0
+    assert [v["id"] for v in doc["viewports"]] == list(core.load_yaml(core.REPO_ROOT / "verify" / "verify.yml")["viewports"])
+    # Addresses only: nothing in the document says what a port answered.
+    assert not ({"ok", "status_code", "reachable", "frameable"} & {k for a in doc["apps"] for t in a["targets"] for k in t})
+
+
 def test_the_observability_contract_block_is_editable_from_the_config_tab():
     keys = [s["key"] for s in core.CONFIG_SECTIONS]
     assert "observability" in keys, "retention would be terminal-only to change"
