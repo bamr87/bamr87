@@ -1,0 +1,2131 @@
+schema: pm-review/v1
+generated_at: '2026-11-05T01:37:16Z'
+project:
+  available: true
+  title: Fleet
+  url: https://github.com/users/bamr87/projects/14
+  items: 88
+  truncated: false
+scope:
+  repos: 41
+  unreachable: []
+  private: 0
+coverage:
+  open_items: 522
+  on_board: 57
+  fielded: 44
+  pct: 10.9
+  by_repo:
+  - repo: bamr87/bamr87
+    open: 187
+    on_board: 35
+  - repo: bamr87/zer0-mistakes
+    open: 40
+    on_board: 0
+  - repo: bamr87/law-ai
+    open: 25
+    on_board: 0
+  - repo: bamr87/bashos
+    open: 24
+    on_board: 14
+  - repo: bamr87/bashcrawl
+    open: 22
+    on_board: 0
+  - repo: bamr87/fredgar-ai
+    open: 21
+    on_board: 0
+  - repo: bamr87/it-journey
+    open: 21
+    on_board: 0
+  - repo: bamr87/bamr87.github.io
+    open: 20
+    on_board: 0
+  - repo: bash-365/bash-365.com
+    open: 19
+    on_board: 0
+  - repo: year-of-ai/year-of-ai.github.io
+    open: 18
+    on_board: 1
+  - repo: bamr87/djangoerp
+    open: 15
+    on_board: 0
+  - repo: bamr87/zer0-CMS
+    open: 14
+    on_board: 1
+  - repo: bamr87/gitorio
+    open: 12
+    on_board: 2
+  - repo: bamr87/lifehacker.dev
+    open: 10
+    on_board: 0
+  - repo: ai-world-view/ai-world-view.github.io
+    open: 9
+    on_board: 0
+  - repo: bamr87/godotgo
+    open: 8
+    on_board: 0
+  - repo: bamr87/githubai
+    open: 7
+    on_board: 2
+  - repo: bamr87/rewind-arcade
+    open: 6
+    on_board: 0
+  - repo: bamr87/cv-pro
+    open: 5
+    on_board: 0
+  - repo: bamr87/fleet-infra
+    open: 5
+    on_board: 0
+  - repo: bamr87/fleet-mobile
+    open: 4
+    on_board: 0
+  - repo: bamr87/README
+    open: 3
+    on_board: 0
+  - repo: bamr87/edgar-pipeline
+    open: 3
+    on_board: 0
+  - repo: bamr87/fleet-observe
+    open: 3
+    on_board: 0
+  - repo: bamr87/ragio-ai
+    open: 3
+    on_board: 0
+  - repo: bamr87/zpl-viewer
+    open: 3
+    on_board: 0
+  - repo: bamr87/amrchy
+    open: 2
+    on_board: 2
+  - repo: bamr87/kvlite
+    open: 2
+    on_board: 0
+  - repo: bamr87/ocrmd
+    open: 2
+    on_board: 0
+  - repo: bamr87/scripts
+    open: 2
+    on_board: 0
+  - repo: bamr87/netprobe
+    open: 1
+    on_board: 0
+  - repo: bamr87/outbox
+    open: 1
+    on_board: 0
+  - repo: bamr87/schema-lang
+    open: 1
+    on_board: 0
+  - repo: bamr87/sensor-mesh
+    open: 1
+    on_board: 0
+  - repo: bamr87/vs-sonic-pi
+    open: 1
+    on_board: 0
+  - repo: bamr87/zer0-id
+    open: 1
+    on_board: 0
+  - repo: bash-365/bash-365-apex
+    open: 1
+    on_board: 0
+findings:
+  total: 627
+  new: 0
+  private_omitted: 0
+  by_lane:
+    project: 531
+    roadmap: 23
+    release: 3
+    hygiene: 70
+  by_kind:
+    closed_not_done: 28
+    pr_ci_red: 12
+    pr_conflicting: 6
+    pr_state_not_mirrored: 5
+    priority_conflict: 5
+    priority_missing: 13
+    release_pr_waiting: 1
+    release_unreleased: 2
+    roadmap_proposed_aging: 1
+    roadmap_shipped: 1
+    roadmap_unlinked: 18
+    roadmap_untracked_epic: 3
+    status_behind: 3
+    status_missing: 12
+    unlabelled: 52
+    untracked: 465
+  by_severity:
+    medium: 528
+    low: 98
+    info: 1
+  items:
+  - id: 55e5cd4c13
+    lane: project
+    kind: priority_missing
+    severity: medium
+    ref: bamr87/bamr87#268
+    title: 'fix(ci): rewind-arcade Pages deploy blocked by account Actions billing, not a workflow defect'
+    why: on the project with no Priority (§ 10.4)
+    proposal: Priority → P1 from label P1
+    planned: true
+    new: false
+  - id: 04f9195d4b
+    lane: project
+    kind: priority_missing
+    severity: medium
+    ref: bamr87/bamr87#588
+    title: 'Backlog: project-management harness and loop via GitHub Projects (Fleet project), standard in githubai'
+    why: on the project with no Priority (§ 10.4)
+    proposal: Priority → P2 from the default (no priority label)
+    planned: true
+    new: false
+  - id: 301a39294e
+    lane: project
+    kind: priority_missing
+    severity: medium
+    ref: bamr87/bamr87#590
+    title: Fleet Docker image and container management (dev and production)
+    why: on the project with no Priority (§ 10.4)
+    proposal: Priority → P2 from the default (no priority label)
+    planned: true
+    new: false
+  - id: 09fdec2ee2
+    lane: project
+    kind: priority_missing
+    severity: medium
+    ref: bamr87/bamr87#626
+    title: 'P0 · Harness protocol contract: loop model, event schema, ADR and conformance fixtures'
+    why: on the project with no Priority (§ 10.4)
+    proposal: Priority → P2 from label P2
+    planned: true
+    new: false
+  - id: 3b385b433e
+    lane: project
+    kind: priority_missing
+    severity: medium
+    ref: bamr87/bamr87#627
+    title: 'P1 · Console and harness API core on the loop model: tasks, sessions, event stream, interrupts, budgets'
+    why: on the project with no Priority (§ 10.4)
+    proposal: Priority → P2 from label P2
+    planned: true
+    new: false
+  - id: eaba9792f2
+    lane: project
+    kind: priority_missing
+    severity: medium
+    ref: bamr87/bamr87#628
+    title: P2 · OTel GenAI span tree per task to Phoenix
+    why: on the project with no Priority (§ 10.4)
+    proposal: Priority → P2 from label P2
+    planned: true
+    new: false
+  - id: 93d62ee071
+    lane: project
+    kind: priority_missing
+    severity: medium
+    ref: bamr87/bamr87#629
+    title: P3 · Harmonize existing harnesses onto the contract
+    why: on the project with no Priority (§ 10.4)
+    proposal: Priority → P2 from label P2
+    planned: true
+    new: false
+  - id: 27f35db46b
+    lane: project
+    kind: priority_missing
+    severity: medium
+    ref: bamr87/bamr87#630
+    title: P4 · Optional Unified Harness Protocol (UHP) adapter
+    why: on the project with no Priority (§ 10.4)
+    proposal: Priority → P2 from label P2
+    planned: true
+    new: false
+  - id: 821e782369
+    lane: project
+    kind: priority_missing
+    severity: medium
+    ref: bamr87/bamr87#631
+    title: 'P5 · External interface: A2A server/client (later), AG-UI and ACP options'
+    why: on the project with no Priority (§ 10.4)
+    proposal: Priority → P2 from label P2
+    planned: true
+    new: false
+  - id: c5e9e777c6
+    lane: project
+    kind: priority_missing
+    severity: medium
+    ref: bamr87/amrchy#1
+    title: Add an AI-assisted upstream sync
+    why: on the project with no Priority (§ 10.4)
+    proposal: Priority → P2 from the default (no priority label)
+    planned: true
+    new: false
+  - id: e5dec67b03
+    lane: project
+    kind: priority_missing
+    severity: medium
+    ref: bamr87/amrchy#2
+    title: 'Upstream sync: 625 changes to quattro@175e63b6'
+    why: on the project with no Priority (§ 10.4)
+    proposal: Priority → P2 from the default (no priority label)
+    planned: true
+    new: false
+  - id: e49ce18bbc
+    lane: project
+    kind: priority_missing
+    severity: medium
+    ref: bamr87/githubai#134
+    title: 'Feature: GitHub Projects project-management loop as a standard githubai capability'
+    why: on the project with no Priority (§ 10.4)
+    proposal: Priority → P2 from the default (no priority label)
+    planned: true
+    new: false
+  - id: 8c81b8cb70
+    lane: project
+    kind: priority_missing
+    severity: medium
+    ref: year-of-ai/year-of-ai.github.io#60
+    title: Secret Expiry Watch — credential degraded
+    why: on the project with no Priority (§ 10.4)
+    proposal: Priority → P2 from the default (no priority label)
+    planned: true
+    new: false
+  - id: 96d86357fb
+    lane: project
+    kind: status_missing
+    severity: medium
+    ref: bamr87/bamr87#268
+    title: 'fix(ci): rewind-arcade Pages deploy blocked by account Actions billing, not a workflow defect'
+    why: on the project with no Status (§ 10.4)
+    proposal: Status → Hold
+    planned: true
+    new: false
+  - id: 99a0366c30
+    lane: project
+    kind: status_missing
+    severity: medium
+    ref: bamr87/bamr87#588
+    title: 'Backlog: project-management harness and loop via GitHub Projects (Fleet project), standard in githubai'
+    why: on the project with no Status (§ 10.4)
+    proposal: Status → Triage
+    planned: true
+    new: false
+  - id: 627e784401
+    lane: project
+    kind: status_missing
+    severity: medium
+    ref: bamr87/bamr87#626
+    title: 'P0 · Harness protocol contract: loop model, event schema, ADR and conformance fixtures'
+    why: on the project with no Status (§ 10.4)
+    proposal: Status → Triage
+    planned: true
+    new: false
+  - id: 974fd03656
+    lane: project
+    kind: status_missing
+    severity: medium
+    ref: bamr87/bamr87#627
+    title: 'P1 · Console and harness API core on the loop model: tasks, sessions, event stream, interrupts, budgets'
+    why: on the project with no Status (§ 10.4)
+    proposal: Status → Triage
+    planned: true
+    new: false
+  - id: c71f8e7085
+    lane: project
+    kind: status_missing
+    severity: medium
+    ref: bamr87/bamr87#628
+    title: P2 · OTel GenAI span tree per task to Phoenix
+    why: on the project with no Status (§ 10.4)
+    proposal: Status → Triage
+    planned: true
+    new: false
+  - id: b5a6aec119
+    lane: project
+    kind: status_missing
+    severity: medium
+    ref: bamr87/bamr87#629
+    title: P3 · Harmonize existing harnesses onto the contract
+    why: on the project with no Status (§ 10.4)
+    proposal: Status → Triage
+    planned: true
+    new: false
+  - id: 43e383eda2
+    lane: project
+    kind: status_missing
+    severity: medium
+    ref: bamr87/bamr87#630
+    title: P4 · Optional Unified Harness Protocol (UHP) adapter
+    why: on the project with no Status (§ 10.4)
+    proposal: Status → Triage
+    planned: true
+    new: false
+  - id: 1007c7224e
+    lane: project
+    kind: status_missing
+    severity: medium
+    ref: bamr87/bamr87#631
+    title: 'P5 · External interface: A2A server/client (later), AG-UI and ACP options'
+    why: on the project with no Status (§ 10.4)
+    proposal: Status → Triage
+    planned: true
+    new: false
+  - id: 3961ef1562
+    lane: project
+    kind: status_missing
+    severity: medium
+    ref: bamr87/amrchy#1
+    title: Add an AI-assisted upstream sync
+    why: on the project with no Status (§ 10.4)
+    proposal: Status → In review
+    planned: true
+    new: false
+  - id: 4bc86c395e
+    lane: project
+    kind: status_missing
+    severity: medium
+    ref: bamr87/amrchy#2
+    title: 'Upstream sync: 625 changes to quattro@175e63b6'
+    why: on the project with no Status (§ 10.4)
+    proposal: Status → In review
+    planned: true
+    new: false
+  - id: fe56e26aaa
+    lane: project
+    kind: status_missing
+    severity: medium
+    ref: bamr87/githubai#134
+    title: 'Feature: GitHub Projects project-management loop as a standard githubai capability'
+    why: on the project with no Status (§ 10.4)
+    proposal: Status → Triage
+    planned: true
+    new: false
+  - id: 3432e94064
+    lane: project
+    kind: status_missing
+    severity: medium
+    ref: year-of-ai/year-of-ai.github.io#60
+    title: Secret Expiry Watch — credential degraded
+    why: on the project with no Status (§ 10.4)
+    proposal: Status → Triage
+    planned: true
+    new: false
+  - id: 37eb5b29df
+    lane: project
+    kind: untracked
+    severity: medium
+    ref: bamr87/bamr87#103
+    title: 'lifehacker.dev: content-factory''s ''tool'' leg is cancelled mid-agent every run, and its transcript is the one never uploa'
+    why: open issue is not on the Fleet project (§ 10.1)
+    proposal: add it to the project
+    planned: true
+    new: false
+  - id: 39a5abe839
+    lane: project
+    kind: untracked
+    severity: medium
+    ref: bamr87/bamr87#148
+    title: 🔑 Fleet credential rotation needs attention
+    why: open issue is not on the Fleet project (§ 10.1)
+    proposal: add it to the project
+    planned: true
+    new: false
+  - id: 129b857e05
+    lane: project
+    kind: untracked
+    severity: medium
+    ref: bamr87/bamr87#210
+    title: 'it-journey: CodeQL ''failure'' is collateral — cms-daily-loop merges its PR 4s after opening it'
+    why: open issue is not on the Fleet project (§ 10.1)
+    proposal: add it to the project
+    planned: true
+    new: false
+  - id: 30d3738e25
+    lane: project
+    kind: untracked
+    severity: medium
+    ref: bamr87/bamr87#211
+    title: 'barodybroject: maintenance.yml red for 8 straight weeks — 4 jobs, 4 independent causes (incl. 1 unpatched vulnerability)'
+    why: open issue is not on the Fleet project (§ 10.1)
+    proposal: add it to the project
+    planned: true
+    new: false
+  - id: e802ee06a7
+    lane: project
+    kind: untracked
+    severity: medium
+    ref: bamr87/bamr87#238
+    title: 'evolve pass: max_turns termination discards work even when is_error is false'
+    why: open issue is not on the Fleet project (§ 10.1)
+    proposal: add it to the project
+    planned: true
+    new: false
+  - id: f8358f663e
+    lane: project
+    kind: untracked
+    severity: medium
+    ref: bamr87/bamr87#250
+    title: 'it-journey/quest-perfection: engine exit 1 on the Stack Attack quest wipes the daily sweep (upstream it-journey#709)'
+    why: open issue is not on the Fleet project (§ 10.1)
+    proposal: add it to the project
+    planned: true
+    new: false
+  - id: 4362b153d7
+    lane: project
+    kind: untracked
+    severity: medium
+    ref: bamr87/bamr87#253
+    title: 'law-ai nightly-tests: 38/38 runs red — four independent faults block the whole gate'
+    why: open issue is not on the Fleet project (§ 10.1)
+    proposal: add it to the project
+    planned: true
+    new: false
+  - id: 9b50f33883
+    lane: project
+    kind: untracked
+    severity: medium
+    ref: bamr87/bamr87#267
+    title: 'it-journey: CMS daily loop burns a full gate every day on a change-check that can never be false'
+    why: open issue is not on the Fleet project (§ 10.1)
+    proposal: add it to the project
+    planned: true
+    new: false
+  - id: a3f820839c
+    lane: project
+    kind: untracked
+    severity: medium
+    ref: bamr87/bamr87#288
+    title: 'lifehacker.dev: pipeline/triage/nightly red — bad merge left _data/fleet/improvements.yml unparseable (+ duplicate DOC-0'
+    why: open issue is not on the Fleet project (§ 10.1)
+    proposal: add it to the project
+    planned: true
+    new: false
+  - id: f059cfcd3c
+    lane: project
+    kind: untracked
+    severity: medium
+    ref: bamr87/bamr87#293
+    title: 'it-journey Issue Autopilot + lifehacker.dev Issue Factory 1: revoked CLAUDE_CODE_OAUTH_TOKEN (re-seeded 09-30, confirm n'
+    why: open issue is not on the Fleet project (§ 10.1)
+    proposal: add it to the project
+    planned: true
+    new: false
+  - id: 8a6e394fa8
+    lane: project
+    kind: untracked
+    severity: medium
+    ref: bamr87/bamr87#294
+    title: 'lifehacker.dev auto-update: FLEET_TOKEN expired (secret dated 2026-08-05); not covered by token-rotation'
+    why: open issue is not on the Fleet project (§ 10.1)
+    proposal: add it to the project
+    planned: true
+    new: false
+  - id: bef461727a
+    lane: project
+    kind: untracked
+    severity: medium
+    ref: bamr87/bamr87#329
+    title: 'standard-ci can pass without testing anything: root-only stack detection, pytest exit 5 = pass (v2.0.0, with #310)'
+    why: open issue is not on the Fleet project (§ 10.1)
+    proposal: add it to the project
+    planned: true
+    new: false
+  - id: c46232001a
+    lane: project
+    kind: untracked
+    severity: medium
+    ref: bamr87/bamr87#332
+    title: QA-41 check should read sanctioned_dependabot from QUALITY.contract.yml
+    why: open issue is not on the Fleet project (§ 10.1)
+    proposal: add it to the project
+    planned: true
+    new: false
+  - id: 0fcbedd7aa
+    lane: project
+    kind: untracked
+    severity: medium
+    ref: bamr87/bamr87#335
+    title: 'fleet-pulse doctor: 2 of last 3 runs died on a Claude subscription 429 (session limit), not a workflow defect'
+    why: open issue is not on the Fleet project (§ 10.1)
+    proposal: add it to the project
+    planned: true
+    new: false
+  - id: 26b29efb5c
+    lane: project
+    kind: untracked
+    severity: medium
+    ref: bamr87/bamr87#337
+    title: 'bashconsultants pr-to-upstream: upstream moved to private bash-365/bash-365.com and fork link is gone'
+    why: open issue is not on the Fleet project (§ 10.1)
+    proposal: add it to the project
+    planned: true
+    new: false
+  - id: 96221bdf87
+    lane: project
+    kind: untracked
+    severity: medium
+    ref: bamr87/bamr87#348
+    title: 'issue-pipeline: Claude subscription session limit (HTTP 429) kills tiers 2–3 on busy mornings'
+    why: open issue is not on the Fleet project (§ 10.1)
+    proposal: add it to the project
+    planned: true
+    new: false
+  - id: 46bf9d3637
+    lane: project
+    kind: untracked
+    severity: medium
+    ref: bamr87/bamr87#359
+    title: 'fix(ci): lifehacker.dev ci.yml red is a merge-before-tag race on @v2, already self-resolved'
+    why: open issue is not on the Fleet project (§ 10.1)
+    proposal: add it to the project
+    planned: true
+    new: false
+  - id: 4e76b3fcb5
+    lane: project
+    kind: untracked
+    severity: medium
+    ref: bamr87/bamr87#364
+    title: 'Site quality: fleet WARN rollup — theme contrast, #dropdown-news target size, feed link name (19 sites, 2026-10-15)'
+    why: open issue is not on the Fleet project (§ 10.1)
+    proposal: add it to the project
+    planned: true
+    new: false
+  - id: 3939403f8a
+    lane: project
+    kind: untracked
+    severity: medium
+    ref: bamr87/bamr87#367
+    title: 'cv-builder-pro CI: red from account Actions billing block, not a workflow defect'
+    why: open issue is not on the Fleet project (§ 10.1)
+    proposal: add it to the project
+    planned: true
+    new: false
+  - id: 727bb7ac98
+    lane: project
+    kind: untracked
+    severity: medium
+    ref: bamr87/bamr87#368
+    title: 'gitorio CI: red/flaky from account Actions billing block, not a workflow defect'
+    why: open issue is not on the Fleet project (§ 10.1)
+    proposal: add it to the project
+    planned: true
+    new: false
+  - id: e62a698243
+    lane: roadmap
+    kind: roadmap_shipped
+    severity: medium
+    ref: FF-0005
+    title: ccusage reconciliation check and opt-in MCP burn-rate self-awareness for the AI-activity layer
+    why: bamr87/bamr87#130 is closed as completed, the roadmap says approved
+    proposal: status → shipped
+    planned: true
+    new: false
+  - id: 57b7a6488f
+    lane: roadmap
+    kind: roadmap_unlinked
+    severity: medium
+    ref: FF-0001
+    title: Future-Features pipeline — capture, spec, and backlog feature ideas
+    why: 'in-progress, with no issue: it is not an item on the Fleet project (§ 10.1)'
+    proposal: mirror it to an issue in its repo and set issue_url
+    planned: false
+    new: false
+  - id: a452a75e45
+    lane: roadmap
+    kind: roadmap_unlinked
+    severity: medium
+    ref: FF-0003
+    title: 'AI cost METRICS via OpenTelemetry — otel-collector + Prometheus into the existing Grafana (finance-ai Layer 2; log half '
+    why: 'in-progress, with no issue: it is not an item on the Fleet project (§ 10.1)'
+    proposal: mirror it to an issue in its repo and set issue_url
+    planned: false
+    new: false
+  - id: 21f28ca8c0
+    lane: roadmap
+    kind: roadmap_unlinked
+    severity: medium
+    ref: FF-0004
+    title: Per-run AI cost ledger and --max-budget-usd guardrails for headless agent invocations
+    why: 'in-progress, with no issue: it is not an item on the Fleet project (§ 10.1)'
+    proposal: mirror it to an issue in its repo and set issue_url
+    planned: false
+    new: false
+  - id: fe5b9c1cdc
+    lane: roadmap
+    kind: roadmap_unlinked
+    severity: medium
+    ref: FF-0006
+    title: Impact verification for actions-review issues — measure before/after waste per filed optimization
+    why: 'approved, with no issue: it is not an item on the Fleet project (§ 10.1)'
+    proposal: mirror it to an issue in its repo and set issue_url
+    planned: false
+    new: false
+  - id: 6f304ded98
+    lane: roadmap
+    kind: roadmap_unlinked
+    severity: medium
+    ref: FF-0007
+    title: Retain a rolling Actions-analytics history and flag regressions/anomalies day-over-day
+    why: 'approved, with no issue: it is not an item on the Fleet project (§ 10.1)'
+    proposal: mirror it to an issue in its repo and set issue_url
+    planned: false
+    new: false
+  - id: 7a133d1798
+    lane: roadmap
+    kind: roadmap_unlinked
+    severity: medium
+    ref: FF-0008
+    title: Let the Actions reviewer open high-confidence mechanical fix PRs into submodules (opt-in)
+    why: 'approved, with no issue: it is not an item on the Fleet project (§ 10.1)'
+    proposal: mirror it to an issue in its repo and set issue_url
+    planned: false
+    new: false
+  - id: 908c0faaff
+    lane: roadmap
+    kind: roadmap_unlinked
+    severity: medium
+    ref: FF-0009
+    title: Surface Actions waste and open actions-review issues on the /monitor/ attention board
+    why: 'approved, with no issue: it is not an item on the Fleet project (§ 10.1)'
+    proposal: mirror it to an issue in its repo and set issue_url
+    planned: false
+    new: false
+  - id: 6a6ada6551
+    lane: roadmap
+    kind: roadmap_unlinked
+    severity: medium
+    ref: FF-0018
+    title: issue-autopilot hub kit — extract the duplicated issue-triage engine into templates/, policy stays per-repo
+    why: 'approved, with no issue: it is not an item on the Fleet project (§ 10.1)'
+    proposal: mirror it to an issue in its repo and set issue_url
+    planned: false
+    new: false
+  - id: 60d910ed19
+    lane: roadmap
+    kind: roadmap_unlinked
+    severity: medium
+    ref: FF-0025
+    title: Fleet stack images — share containers across hub and submodules
+    why: 'backlog, with no issue: it is not an item on the Fleet project (§ 10.1)'
+    proposal: mirror it to an issue in its repo and set issue_url
+    planned: false
+    new: false
+  - id: 9faeb02a5e
+    lane: roadmap
+    kind: roadmap_unlinked
+    severity: medium
+    ref: FF-0026
+    title: Observability log plane — Elasticsearch/Logstash/Kibana + Grafana, fed by the lake, with a Console portal
+    why: 'in-progress, with no issue: it is not an item on the Fleet project (§ 10.1)'
+    proposal: mirror it to an issue in its repo and set issue_url
+    planned: false
+    new: false
+  - id: 8920fcaf93
+    lane: roadmap
+    kind: roadmap_unlinked
+    severity: medium
+    ref: FF-0010
+    title: Fleet facts parser — recurse into local composite actions and called reusable workflows
+    why: 'approved, with no issue: it is not an item on the Fleet project (§ 10.1)'
+    proposal: mirror it to an issue in its repo and set issue_url
+    planned: false
+    new: false
+  - id: 9dbd0a1915
+    lane: roadmap
+    kind: roadmap_unlinked
+    severity: medium
+    ref: FF-0011
+    title: Fleet-audit work orders — sweep open issues for the dedup marker before filing
+    why: 'approved, with no issue: it is not an item on the Fleet project (§ 10.1)'
+    proposal: mirror it to an issue in its repo and set issue_url
+    planned: false
+    new: false
+  - id: 3541ce98ef
+    lane: roadmap
+    kind: roadmap_unlinked
+    severity: medium
+    ref: FF-0012
+    title: Persist fleet scan results (ETags, facts, metrics) to localStorage for instant cockpit reopen
+    why: 'approved, with no issue: it is not an item on the Fleet project (§ 10.1)'
+    proposal: mirror it to an issue in its repo and set issue_url
+    planned: false
+    new: false
+  - id: ab18f71069
+    lane: roadmap
+    kind: roadmap_unlinked
+    severity: medium
+    ref: FF-0013
+    title: One-click kill-switch arm/disarm from the fleet Schedule board (confirmed mutation)
+    why: 'approved, with no issue: it is not an item on the Fleet project (§ 10.1)'
+    proposal: mirror it to an issue in its repo and set issue_url
+    planned: false
+    new: false
+  - id: 2b293a94c0
+    lane: roadmap
+    kind: roadmap_unlinked
+    severity: medium
+    ref: FF-0014
+    title: Fleet-wide generated-workflow drift board — diff factory--*.yml against blueprints across the roster
+    why: 'approved, with no issue: it is not an item on the Fleet project (§ 10.1)'
+    proposal: mirror it to an issue in its repo and set issue_url
+    planned: false
+    new: false
+  - id: 297a02b60a
+    lane: roadmap
+    kind: roadmap_unlinked
+    severity: medium
+    ref: FF-0015
+    title: Billable-cost model — runner-pricing table turning wall-clock minutes into dollars
+    why: 'approved, with no issue: it is not an item on the Fleet project (§ 10.1)'
+    proposal: mirror it to an issue in its repo and set issue_url
+    planned: false
+    new: false
+  - id: 656653eb05
+    lane: roadmap
+    kind: roadmap_unlinked
+    severity: medium
+    ref: FF-0016
+    title: Auto-remediation draft PRs for mechanical fleet-audit findings (opt-in)
+    why: 'approved, with no issue: it is not an item on the Fleet project (§ 10.1)'
+    proposal: mirror it to an issue in its repo and set issue_url
+    planned: false
+    new: false
+  - id: aa32c158b1
+    lane: roadmap
+    kind: roadmap_unlinked
+    severity: medium
+    ref: FF-0019
+    title: Theme-canary reporting contract — publish the canonical upstream bug-intake protocol for downstream theme-scouts
+    why: 'approved, with no issue: it is not an item on the Fleet project (§ 10.1)'
+    proposal: mirror it to an issue in its repo and set issue_url
+    planned: false
+    new: false
+  - id: e1a809c4c7
+    lane: release
+    kind: release_pr_waiting
+    severity: medium
+    ref: bamr87/zer0-mistakes#562
+    title: 'chore(main): release 1.32.0'
+    why: the release PR has been open 11 days
+    proposal: 'merging it tags and publishes the release: that merge is yours'
+    planned: false
+    new: false
+  - id: 73ad549947
+    lane: hygiene
+    kind: pr_ci_red
+    severity: medium
+    ref: bamr87/bamr87#617
+    title: 'docs(prd): fleet activity replay — live + historical animated view of agents, harnesses and containers (HUB-NEW)'
+    why: its checks are failing
+    proposal: fix or re-run the checks
+    planned: false
+    new: false
+  - id: 8df253019b
+    lane: hygiene
+    kind: pr_ci_red
+    severity: medium
+    ref: bamr87/bamr87#663
+    title: 'Amendment: daily writing chronicle of fleet operations, AI prompting and agent activity (§ 23)'
+    why: its checks are failing
+    proposal: fix or re-run the checks
+    planned: false
+    new: false
+  - id: d278aa3488
+    lane: hygiene
+    kind: pr_ci_red
+    severity: medium
+    ref: bamr87/bashcrawl#127
+    title: 'docs: fill feature catalog and PRD requirement links'
+    why: its checks are failing
+    proposal: fix or re-run the checks
+    planned: false
+    new: false
+  - id: f7d46286ac
+    lane: hygiene
+    kind: pr_ci_red
+    severity: medium
+    ref: bamr87/bashcrawl#134
+    title: 'docs: add fleet SECURITY.md, PR template DoD block and fleet issue-form labels'
+    why: its checks are failing
+    proposal: fix or re-run the checks
+    planned: false
+    new: false
+  - id: 91f5a6aab5
+    lane: hygiene
+    kind: pr_ci_red
+    severity: medium
+    ref: bamr87/bashcrawl#137
+    title: 'docs(governance): propose amendment — agent merge of mergeable PRs + review gate'
+    why: its checks are failing
+    proposal: fix or re-run the checks
+    planned: false
+    new: false
+  - id: f7df6f0bd1
+    lane: hygiene
+    kind: pr_ci_red
+    severity: medium
+    ref: bamr87/bashos#38
+    title: 'chore(deps): bump python from 3.14-slim to 3.15-slim in /docker'
+    why: its checks are failing
+    proposal: fix or re-run the checks
+    planned: false
+    new: false
+  - id: 625d25ae7d
+    lane: hygiene
+    kind: pr_ci_red
+    severity: medium
+    ref: bamr87/bashos#55
+    title: 'ci(release): pin pypa/gh-action-pypi-publish to the v1.14.3 commit SHA'
+    why: its checks are failing
+    proposal: fix or re-run the checks
+    planned: false
+    new: false
+  - id: c3311fdc83
+    lane: hygiene
+    kind: pr_ci_red
+    severity: medium
+    ref: bamr87/fredgar-ai#99
+    title: 'build(deps): Bump the npm group in /frontend with 4 updates'
+    why: its checks are failing
+    proposal: fix or re-run the checks
+    planned: false
+    new: false
+  - id: 197b9a7f22
+    lane: hygiene
+    kind: pr_ci_red
+    severity: medium
+    ref: bamr87/zer0-mistakes#579
+    title: 'fix(navigation): gate the offcanvas toggles on the layout chain'
+    why: its checks are failing
+    proposal: fix or re-run the checks
+    planned: false
+    new: false
+  - id: ab45b9c6c8
+    lane: hygiene
+    kind: pr_ci_red
+    severity: medium
+    ref: bash-365/bash-365.com#65
+    title: 'feat(posts): linkedin draft — quest-log-bamr87'
+    why: its checks are failing
+    proposal: fix or re-run the checks
+    planned: false
+    new: false
+  - id: 53b4bad91a
+    lane: hygiene
+    kind: pr_ci_red
+    severity: medium
+    ref: bash-365/bash-365.com#66
+    title: 'feat(posts): linkedin draft — quest-log-bamr87-github-io'
+    why: its checks are failing
+    proposal: fix or re-run the checks
+    planned: false
+    new: false
+  - id: c31ed32a1d
+    lane: hygiene
+    kind: pr_ci_red
+    severity: medium
+    ref: bash-365/bash-365.com#74
+    title: 'feat(config): editorial directives are a topic source for the gardener, the loop and the review lane'
+    why: its checks are failing
+    proposal: fix or re-run the checks
+    planned: false
+    new: false
+  - id: 85f4088e4b
+    lane: hygiene
+    kind: pr_conflicting
+    severity: medium
+    ref: bamr87/bamr87#607
+    title: 'fix(schema): register the two workspace files main''s drift gate rejects'
+    why: has merge conflicts with its base
+    proposal: python3 -m tools.jev conflicts triage --pr bamr87/bamr87#607
+    planned: false
+    new: false
+  - id: de4698a118
+    lane: hygiene
+    kind: pr_conflicting
+    severity: medium
+    ref: bamr87/bamr87#617
+    title: 'docs(prd): fleet activity replay — live + historical animated view of agents, harnesses and containers (HUB-NEW)'
+    why: has merge conflicts with its base
+    proposal: python3 -m tools.jev conflicts triage --pr bamr87/bamr87#617
+    planned: false
+    new: false
+  - id: 48bfb23f84
+    lane: hygiene
+    kind: pr_conflicting
+    severity: medium
+    ref: bamr87/zer0-CMS#84
+    title: 'feat(cost-line): add The Cost Line pilot fiction series'
+    why: has merge conflicts with its base
+    proposal: python3 -m tools.jev conflicts triage --pr bamr87/zer0-CMS#84
+    planned: false
+    new: false
+  - id: df442145f4
+    lane: hygiene
+    kind: pr_conflicting
+    severity: medium
+    ref: bamr87/zer0-mistakes#579
+    title: 'fix(navigation): gate the offcanvas toggles on the layout chain'
+    why: has merge conflicts with its base
+    proposal: python3 -m tools.jev conflicts triage --pr bamr87/zer0-mistakes#579
+    planned: false
+    new: false
+  - id: b838e5af2b
+    lane: hygiene
+    kind: pr_conflicting
+    severity: medium
+    ref: bamr87/zer0-mistakes#583
+    title: 'fix(includes): render the cookie-consent banner only when a tracker needs consent'
+    why: has merge conflicts with its base
+    proposal: python3 -m tools.jev conflicts triage --pr bamr87/zer0-mistakes#583
+    planned: false
+    new: false
+  - id: 1d90530692
+    lane: hygiene
+    kind: pr_conflicting
+    severity: medium
+    ref: bamr87/zer0-mistakes#587
+    title: 'fix(a11y): label and lay out GFM task-list checkboxes'
+    why: has merge conflicts with its base
+    proposal: python3 -m tools.jev conflicts triage --pr bamr87/zer0-mistakes#587
+    planned: false
+    new: false
+  - id: 74f25e7eb0
+    lane: project
+    kind: closed_not_done
+    severity: low
+    ref: bamr87/bamr87#475
+    title: 'feat(console): GitHub Projects service layer (read + guarded write-back, flag-off) + amendment'
+    why: merged on GitHub, 'In review' on the project
+    proposal: Status → Done
+    planned: true
+    new: false
+  - id: 230dd1b01c
+    lane: project
+    kind: closed_not_done
+    severity: low
+    ref: bamr87/bamr87#478
+    title: 'docs(harness): architecture research harness concept (design only)'
+    why: merged on GitHub, 'Triage' on the project
+    proposal: Status → Done
+    planned: true
+    new: false
+  - id: 5b9c57537a
+    lane: project
+    kind: closed_not_done
+    severity: low
+    ref: bamr87/bamr87#480
+    title: 'docs(governance): propose amendment — prior-art research before harness/loop design'
+    why: merged on GitHub, 'Needs Amr' on the project
+    proposal: Status → Done
+    planned: true
+    new: false
+  - id: 6a014bfa41
+    lane: project
+    kind: closed_not_done
+    severity: low
+    ref: bamr87/bamr87#485
+    title: 'P0: one spec per agent step — prompt and caps out of the workflow YAML (repo-scout first)'
+    why: closed on GitHub, 'Ready' on the project
+    proposal: Status → Done
+    planned: true
+    new: false
+  - id: a73a4a7ec4
+    lane: project
+    kind: closed_not_done
+    severity: low
+    ref: bamr87/bamr87#486
+    title: 'P1: `dash loop run` — run an agent step locally, dry run by default (repo-scout pilot)'
+    why: closed on GitHub, 'Triage' on the project
+    proposal: Status → Done
+    planned: true
+    new: false
+  - id: b3066fcf3e
+    lane: project
+    kind: closed_not_done
+    severity: low
+    ref: bamr87/bamr87#487
+    title: 'P2: console `loop-run` op — Run locally beside Dispatch in CI (TUI + MCP)'
+    why: closed on GitHub, 'Triage' on the project
+    proposal: Status → Done
+    planned: true
+    new: false
+  - id: 10d1dbc3d5
+    lane: project
+    kind: closed_not_done
+    severity: low
+    ref: bamr87/bamr87#521
+    title: 'feat(jev): loop step specs — repo-scout''s agent prompt rendered from its JEV step spec (#485)'
+    why: merged on GitHub, 'Needs Amr' on the project
+    proposal: Status → Done
+    planned: true
+    new: false
+  - id: 223af4d267
+    lane: project
+    kind: closed_not_done
+    severity: low
+    ref: bamr87/bamr87#523
+    title: 'feat(jev): the headless executor for local loop attempts — dash ai run, capped and isolated (#486, P1 1/3)'
+    why: merged on GitHub, 'Needs Amr' on the project
+    proposal: Status → Done
+    planned: true
+    new: false
+  - id: 4e7ed692b3
+    lane: project
+    kind: closed_not_done
+    severity: low
+    ref: bamr87/bamr87#524
+    title: 'feat(jev): the $0 local loop engine and the repo-scout adapter (#486, P1 2/3)'
+    why: merged on GitHub, 'Needs Amr' on the project
+    proposal: Status → Done
+    planned: true
+    new: false
+  - id: 8d15c21420
+    lane: project
+    kind: closed_not_done
+    severity: low
+    ref: bamr87/bamr87#525
+    title: 'feat(jev): live local loop attempts, budget.loops and the --apply gate (#486, P1 3/3)'
+    why: merged on GitHub, 'Needs Amr' on the project
+    proposal: Status → Done
+    planned: true
+    new: false
+  - id: 26f590dec6
+    lane: project
+    kind: closed_not_done
+    severity: low
+    ref: bamr87/bamr87#557
+    title: 'loop doctor: the isolation probe fails on Claude Code 2.1.308 — it waits for a flagSettings line the CLI never logs'
+    why: closed on GitHub, 'In progress' on the project
+    proposal: Status → Done
+    planned: true
+    new: false
+  - id: 3956eca554
+    lane: project
+    kind: closed_not_done
+    severity: low
+    ref: bamr87/bamr87#558
+    title: 'fix(jev): the two 2.1.308 deploy blockers — the probe''s settings proof, and a stream event that ended the session (#557,'
+    why: merged on GitHub, 'Needs Amr' on the project
+    proposal: Status → Done
+    planned: true
+    new: false
+  - id: 67e3e7ef52
+    lane: project
+    kind: closed_not_done
+    severity: low
+    ref: bamr87/bamr87#559
+    title: 'ai-run: a stream event whose message is a string ends the session mid-run, and its spend goes unrecorded'
+    why: closed on GitHub, 'In progress' on the project
+    proposal: Status → Done
+    planned: true
+    new: false
+  - id: 6396a5d394
+    lane: project
+    kind: closed_not_done
+    severity: low
+    ref: bamr87/bamr87#560
+    title: 'canary: the judge is miscalibrated on Claude Code 2.1.308 — the sandbox enforced every test it reached; the per-run sand'
+    why: closed on GitHub, 'Needs Amr' on the project
+    proposal: Status → Done
+    planned: true
+    new: false
+  - id: 8bc5ca1305
+    lane: project
+    kind: closed_not_done
+    severity: low
+    ref: bamr87/bamr87#561
+    title: 'Context pack: give each local loop attempt read-only codebase and agent-history context from the Docker planes'
+    why: closed on GitHub, 'In review' on the project
+    proposal: Status → Done
+    planned: true
+    new: false
+  - id: 2443172f6f
+    lane: project
+    kind: closed_not_done
+    severity: low
+    ref: bamr87/bamr87#562
+    title: 'feat(jev): the loop runner''s context pack — read-only codebase and agent-history context from the Docker planes (#561)'
+    why: merged on GitHub, 'Needs Amr' on the project
+    proposal: Status → Done
+    planned: true
+    new: false
+  - id: 160a55c165
+    lane: project
+    kind: closed_not_done
+    severity: low
+    ref: bamr87/bamr87#567
+    title: 'docs(forge-host): the Harness Console as a bashOS service on forge'
+    why: merged on GitHub, 'In review' on the project
+    proposal: Status → Done
+    planned: true
+    new: false
+  - id: 2d7efb20c8
+    lane: project
+    kind: closed_not_done
+    severity: low
+    ref: bamr87/bamr87#568
+    title: 'feat(jev): record ratification, acceptance and completion after the maintainer merges — and unwedge numbering (amendment'
+    why: merged on GitHub, 'Needs Amr' on the project
+    proposal: Status → Done
+    planned: true
+    new: false
+  - id: 0ed327bd6f
+    lane: project
+    kind: closed_not_done
+    severity: low
+    ref: bamr87/bamr87#570
+    title: 'fix(jev): the ratify job''s first live run died on a label description; unwedge numbering again (#554)'
+    why: merged on GitHub, 'Needs Amr' on the project
+    proposal: Status → Done
+    planned: true
+    new: false
+  - id: 839aaaa9d7
+    lane: project
+    kind: closed_not_done
+    severity: low
+    ref: bamr87/bamr87#573
+    title: 'fix(jev): tier 0 resolves two PRs appending to the roadmap, and never numbers on a PR branch'
+    why: merged on GitHub, 'In review' on the project
+    proposal: Status → Done
+    planned: true
+    new: false
+  - id: 607c7c0c53
+    lane: project
+    kind: pr_state_not_mirrored
+    severity: low
+    ref: bamr87/amrchy#1
+    title: Add an AI-assisted upstream sync
+    why: 'the project is behind the pull request: CI is unset, Merge state is unset'
+    proposal: CI → None, Merge state → Clean
+    planned: true
+    new: false
+  - id: 76bf01ae02
+    lane: project
+    kind: pr_state_not_mirrored
+    severity: low
+    ref: bamr87/amrchy#2
+    title: 'Upstream sync: 625 changes to quattro@175e63b6'
+    why: 'the project is behind the pull request: CI is unset, Merge state is unset'
+    proposal: CI → Green, Merge state → Clean
+    planned: true
+    new: false
+  - id: 6df95807f8
+    lane: project
+    kind: pr_state_not_mirrored
+    severity: low
+    ref: bamr87/githubai#132
+    title: 'docs(ai-seed): propose seed recipes as GWTP counterbalance (design only)'
+    why: 'the project is behind the pull request: CI is unset, Merge state is unset'
+    proposal: CI → Green, Merge state → Clean
+    planned: true
+    new: false
+  - id: db3a25d85d
+    lane: project
+    kind: pr_state_not_mirrored
+    severity: low
+    ref: bamr87/gitorio#160
+    title: 'docs(proposals): redesign gitorio as Harness Studio (observe/design/manage on JEV) — design only'
+    why: 'the project is behind the pull request: CI is unset, Merge state is unset'
+    proposal: CI → Green, Merge state → Clean
+    planned: true
+    new: false
+  - id: 92437ad202
+    lane: project
+    kind: pr_state_not_mirrored
+    severity: low
+    ref: bamr87/gitorio#161
+    title: 'docs(gwtp): propose RL drift learning across history phases (design only)'
+    why: 'the project is behind the pull request: CI is unset, Merge state is unset'
+    proposal: CI → Green, Merge state → Clean
+    planned: true
+    new: false
+  - id: f599e79f28
+    lane: project
+    kind: priority_conflict
+    severity: low
+    ref: bamr87/bamr87#446
+    title: Telemetry connector extension
+    why: label P2, project P1
+    proposal: 'the project wins (§ 9): relabel to P1'
+    planned: false
+    new: false
+  - id: f08f7a939d
+    lane: project
+    kind: priority_conflict
+    severity: low
+    ref: bamr87/bamr87#447
+    title: 'Telemetry Phase 1 (PR A): connector query tools — prom_query, logs_search, traces_query'
+    why: label P2, project P1
+    proposal: 'the project wins (§ 9): relabel to P1'
+    planned: false
+    new: false
+  - id: fa96315e01
+    lane: project
+    kind: priority_conflict
+    severity: low
+    ref: bamr87/bamr87#449
+    title: 'Telemetry Phase 3 (PR C): bug fixes and data freshness — index_coverage, fleet_docker, lake sync/Phoenix export loop (of'
+    why: label P1, project P2
+    proposal: 'the project wins (§ 9): relabel to P2'
+    planned: false
+    new: false
+  - id: 36edf3d74e
+    lane: project
+    kind: priority_conflict
+    severity: low
+    ref: bamr87/bamr87#451
+    title: 'Telemetry Phase 5: deploy and verify — requires Amr''s OK'
+    why: label P2, project P3
+    proposal: 'the project wins (§ 9): relabel to P3'
+    planned: false
+    new: false
+  - id: 54c2e0567e
+    lane: project
+    kind: priority_conflict
+    severity: low
+    ref: bamr87/bashos#71
+    title: Port bashOS to the OpenCode 2 engine API
+    why: label P2, project P1
+    proposal: 'the project wins (§ 9): relabel to P1'
+    planned: false
+    new: false
+  - id: 1fc9d22204
+    lane: project
+    kind: status_behind
+    severity: low
+    ref: bamr87/githubai#132
+    title: 'docs(ai-seed): propose seed recipes as GWTP counterbalance (design only)'
+    why: the pull request is ready for review, the project says 'Triage'
+    proposal: Status → In review
+    planned: true
+    new: false
+  - id: f18dbe9bec
+    lane: project
+    kind: status_behind
+    severity: low
+    ref: bamr87/gitorio#160
+    title: 'docs(proposals): redesign gitorio as Harness Studio (observe/design/manage on JEV) — design only'
+    why: the pull request is ready for review, the project says 'Triage'
+    proposal: Status → In review
+    planned: true
+    new: false
+  - id: 01d054b623
+    lane: project
+    kind: status_behind
+    severity: low
+    ref: bamr87/gitorio#161
+    title: 'docs(gwtp): propose RL drift learning across history phases (design only)'
+    why: the pull request is ready for review, the project says 'Triage'
+    proposal: Status → In review
+    planned: true
+    new: false
+  - id: f63e26b95b
+    lane: roadmap
+    kind: roadmap_untracked_epic
+    severity: low
+    ref: bamr87/bamr87#446
+    title: Telemetry connector extension
+    why: an epic labelled roadmap, with no entry in _data/roadmap.yml
+    proposal: /future-features drafts the entry; nothing lands there without your approval
+    planned: false
+    new: false
+  - id: 0cf63e03a5
+    lane: roadmap
+    kind: roadmap_untracked_epic
+    severity: low
+    ref: bamr87/bamr87#468
+    title: GitHub Projects as a console surface, with linked view and guarded write-back
+    why: an epic labelled roadmap, with no entry in _data/roadmap.yml
+    proposal: /future-features drafts the entry; nothing lands there without your approval
+    planned: false
+    new: false
+  - id: ff9968d352
+    lane: roadmap
+    kind: roadmap_untracked_epic
+    severity: low
+    ref: bamr87/bamr87#624
+    title: 'epic: fleet activity replay — live + historical agent/harness visualization'
+    why: an epic labelled roadmap, with no entry in _data/roadmap.yml
+    proposal: /future-features drafts the entry; nothing lands there without your approval
+    planned: false
+    new: false
+  - id: 394fd9fe2f
+    lane: release
+    kind: release_unreleased
+    severity: low
+    ref: bamr87/bamr87
+    title: bamr87/bamr87
+    why: 9 feat, 9 fix, 0 breaking since v2.0.0 (counted in the first 100 of 571 commits) (minor bump), engine hand-cut
+    proposal: cut the next tag (docs/WORKFLOW-VERSIONING.md)
+    planned: false
+    new: false
+  - id: afdce5d099
+    lane: release
+    kind: release_unreleased
+    severity: low
+    ref: bamr87/bashos
+    title: bamr87/bashos
+    why: 18 feat, 10 fix, 1 breaking since v0.1.0 (counted in the first 100 of 104 commits) (major bump), engine none
+    proposal: tools/adopt-release.sh bashos
+    planned: false
+    new: false
+  - id: b7b9340492
+    lane: hygiene
+    kind: unlabelled
+    severity: low
+    ref: bamr87/bamr87:priority
+    title: bamr87/bamr87
+    why: 66 open issue(s) carry no priority label (§ 10.3)
+    proposal: 'label them: tools/dash projects plan compiles a reviewed list'
+    planned: false
+    new: false
+  - id: a304eeec7e
+    lane: hygiene
+    kind: unlabelled
+    severity: low
+    ref: bamr87/bamr87:type
+    title: bamr87/bamr87
+    why: 82 open issue(s) carry no type label (§ 10.3)
+    proposal: 'label them: tools/dash projects plan compiles a reviewed list'
+    planned: false
+    new: false
+  - id: a25d447437
+    lane: hygiene
+    kind: unlabelled
+    severity: low
+    ref: ai-world-view/ai-world-view.github.io:priority
+    title: ai-world-view/ai-world-view.github.io
+    why: 9 open issue(s) carry no priority label (§ 10.3)
+    proposal: 'label them: tools/dash projects plan compiles a reviewed list'
+    planned: false
+    new: false
+  - id: f895967ab1
+    lane: hygiene
+    kind: unlabelled
+    severity: low
+    ref: ai-world-view/ai-world-view.github.io:type
+    title: ai-world-view/ai-world-view.github.io
+    why: 9 open issue(s) carry no type label (§ 10.3)
+    proposal: 'label them: tools/dash projects plan compiles a reviewed list'
+    planned: false
+    new: false
+  - id: 5c8392fa5a
+    lane: hygiene
+    kind: unlabelled
+    severity: low
+    ref: bamr87/README:priority
+    title: bamr87/README
+    why: 3 open issue(s) carry no priority label (§ 10.3)
+    proposal: 'label them: tools/dash projects plan compiles a reviewed list'
+    planned: false
+    new: false
+  - id: 28af21e57e
+    lane: hygiene
+    kind: unlabelled
+    severity: low
+    ref: bamr87/README:type
+    title: bamr87/README
+    why: 3 open issue(s) carry no type label (§ 10.3)
+    proposal: 'label them: tools/dash projects plan compiles a reviewed list'
+    planned: false
+    new: false
+  - id: ca5fdf6031
+    lane: hygiene
+    kind: unlabelled
+    severity: low
+    ref: bamr87/bamr87.github.io:priority
+    title: bamr87/bamr87.github.io
+    why: 3 open issue(s) carry no priority label (§ 10.3)
+    proposal: 'label them: tools/dash projects plan compiles a reviewed list'
+    planned: false
+    new: false
+  - id: e824deea9d
+    lane: hygiene
+    kind: unlabelled
+    severity: low
+    ref: bamr87/bamr87.github.io:type
+    title: bamr87/bamr87.github.io
+    why: 7 open issue(s) carry no type label (§ 10.3)
+    proposal: 'label them: tools/dash projects plan compiles a reviewed list'
+    planned: false
+    new: false
+  - id: a0146b3916
+    lane: hygiene
+    kind: unlabelled
+    severity: low
+    ref: bamr87/bashcrawl:priority
+    title: bamr87/bashcrawl
+    why: 1 open issue(s) carry no priority label (§ 10.3)
+    proposal: 'label them: tools/dash projects plan compiles a reviewed list'
+    planned: false
+    new: false
+  - id: 6bc51082a8
+    lane: hygiene
+    kind: unlabelled
+    severity: low
+    ref: bamr87/bashcrawl:type
+    title: bamr87/bashcrawl
+    why: 1 open issue(s) carry no type label (§ 10.3)
+    proposal: 'label them: tools/dash projects plan compiles a reviewed list'
+    planned: false
+    new: false
+  - id: ac5d281070
+    lane: hygiene
+    kind: unlabelled
+    severity: low
+    ref: bamr87/bashos:priority
+    title: bamr87/bashos
+    why: 10 open issue(s) carry no priority label (§ 10.3)
+    proposal: 'label them: tools/dash projects plan compiles a reviewed list'
+    planned: false
+    new: false
+  - id: ac432a8d96
+    lane: hygiene
+    kind: unlabelled
+    severity: low
+    ref: bamr87/bashos:type
+    title: bamr87/bashos
+    why: 13 open issue(s) carry no type label (§ 10.3)
+    proposal: 'label them: tools/dash projects plan compiles a reviewed list'
+    planned: false
+    new: false
+  - id: dec0c834de
+    lane: hygiene
+    kind: unlabelled
+    severity: low
+    ref: bamr87/cv-pro:priority
+    title: bamr87/cv-pro
+    why: 1 open issue(s) carry no priority label (§ 10.3)
+    proposal: 'label them: tools/dash projects plan compiles a reviewed list'
+    planned: false
+    new: false
+  - id: ad6817c52d
+    lane: hygiene
+    kind: unlabelled
+    severity: low
+    ref: bamr87/cv-pro:type
+    title: bamr87/cv-pro
+    why: 1 open issue(s) carry no type label (§ 10.3)
+    proposal: 'label them: tools/dash projects plan compiles a reviewed list'
+    planned: false
+    new: false
+  - id: e2a4432f1f
+    lane: hygiene
+    kind: unlabelled
+    severity: low
+    ref: bamr87/djangoerp:priority
+    title: bamr87/djangoerp
+    why: 1 open issue(s) carry no priority label (§ 10.3)
+    proposal: 'label them: tools/dash projects plan compiles a reviewed list'
+    planned: false
+    new: false
+  - id: 55e1cc0cf1
+    lane: hygiene
+    kind: unlabelled
+    severity: low
+    ref: bamr87/djangoerp:type
+    title: bamr87/djangoerp
+    why: 3 open issue(s) carry no type label (§ 10.3)
+    proposal: 'label them: tools/dash projects plan compiles a reviewed list'
+    planned: false
+    new: false
+  - id: cd7d0f35c5
+    lane: hygiene
+    kind: unlabelled
+    severity: low
+    ref: bamr87/fleet-mobile:priority
+    title: bamr87/fleet-mobile
+    why: 1 open issue(s) carry no priority label (§ 10.3)
+    proposal: 'label them: tools/dash projects plan compiles a reviewed list'
+    planned: false
+    new: false
+  - id: c46187aff1
+    lane: hygiene
+    kind: unlabelled
+    severity: low
+    ref: bamr87/fleet-mobile:type
+    title: bamr87/fleet-mobile
+    why: 1 open issue(s) carry no type label (§ 10.3)
+    proposal: 'label them: tools/dash projects plan compiles a reviewed list'
+    planned: false
+    new: false
+  - id: 677159d949
+    lane: hygiene
+    kind: unlabelled
+    severity: low
+    ref: bamr87/fleet-observe:type
+    title: bamr87/fleet-observe
+    why: 1 open issue(s) carry no type label (§ 10.3)
+    proposal: 'label them: tools/dash projects plan compiles a reviewed list'
+    planned: false
+    new: false
+  - id: 99f9fe1061
+    lane: hygiene
+    kind: unlabelled
+    severity: low
+    ref: bamr87/fredgar-ai:priority
+    title: bamr87/fredgar-ai
+    why: 4 open issue(s) carry no priority label (§ 10.3)
+    proposal: 'label them: tools/dash projects plan compiles a reviewed list'
+    planned: false
+    new: false
+  - id: bd673fc160
+    lane: roadmap
+    kind: roadmap_proposed_aging
+    severity: info
+    ref: roadmap:proposed
+    title: proposed specs awaiting a decision
+    why: 1 proposed entries are older than 30 days (oldest FF-0002, 137 days)
+    proposal: approve or decline them on the Work board (/work) or in _data/roadmap.yml
+    planned: false
+    new: false
+plan:
+  board:
+    ops: 531
+    adds: 465
+    field_sets: 66
+    batches: 11
+    by_basis:
+      closed_not_done: 28
+      pr_mirror: 10
+      priority_missing: 13
+      status_behind: 3
+      status_missing: 12
+      untracked: 465
+  roadmap:
+  - id: FF-0005
+    from: approved
+    to: shipped
+    why: bamr87/bamr87#130 closed as completed
+roadmap:
+  entries: 34
+  by_status:
+    approved: 14
+    backlog: 1
+    in-progress: 5
+    proposed: 10
+    shipped: 4
+  linked: 8
+  labelled_without_entry: 20
+  active_unlinked: 18
+queues:
+  by_status:
+    Triage: 20
+    (none): 12
+    Ready: 10
+    In progress: 7
+    In review: 3
+    Needs Amr: 2
+    Hold: 2
+    Inbox: 1
+  by_owner_agent:
+    (none): 54
+    Amr: 2
+    Issue Pipeline: 1
+  needs_amr:
+  - ref: bamr87/bamr87#451
+    title: 'Telemetry Phase 5: deploy and verify — requires Amr''s OK'
+  - ref: bamr87/bamr87#474
+    title: 'P5: deploy to live harness (needs Amr''s OK)'
+releases:
+- repo: bamr87/bamr87.github.io
+  engine: release-please
+  latest: v0.2.1
+  published_at: '2026-10-30'
+  commits: 19
+  feat: 2
+  fix: 4
+  breaking: 0
+  bump: minor
+  release_pr: 46
+  state: release_pr_open
+  red_main: 0
+- repo: bamr87/cv-pro
+  engine: release-please
+  latest: null
+  published_at: null
+  commits: null
+  feat: null
+  fix: null
+  breaking: null
+  bump: null
+  release_pr: 12
+  state: release_pr_open
+  red_main: 0
+- repo: bamr87/fredgar-ai
+  engine: release-please
+  latest: v0.2.0
+  published_at: '2026-10-29'
+  commits: 17
+  feat: 0
+  fix: 3
+  breaking: 0
+  bump: patch
+  release_pr: 120
+  state: release_pr_open
+  red_main: 1
+- repo: bamr87/godotgo
+  engine: release-please
+  latest: null
+  published_at: null
+  commits: null
+  feat: null
+  fix: null
+  breaking: null
+  bump: null
+  release_pr: 14
+  state: release_pr_open
+  red_main: 0
+- repo: bamr87/ocrmd
+  engine: release-please
+  latest: null
+  published_at: null
+  commits: null
+  feat: null
+  fix: null
+  breaking: null
+  bump: null
+  release_pr: 15
+  state: release_pr_open
+  red_main: 0
+- repo: bamr87/zer0-CMS
+  engine: release-please
+  latest: v1.0.0
+  published_at: '2026-10-29'
+  commits: 80
+  feat: 11
+  fix: 43
+  breaking: 2
+  bump: major
+  release_pr: 81
+  state: release_pr_open
+  red_main: 0
+- repo: bamr87/zer0-mistakes
+  engine: release-please
+  latest: v1.31.3
+  published_at: '2026-10-20'
+  commits: 13
+  feat: 1
+  fix: 4
+  breaking: 0
+  bump: minor
+  release_pr: 562
+  state: release_pr_open
+  red_main: 0
+- repo: bamr87/zpl-viewer
+  engine: release-please
+  latest: null
+  published_at: null
+  commits: null
+  feat: null
+  fix: null
+  breaking: null
+  bump: null
+  release_pr: 39
+  state: release_pr_open
+  red_main: 0
+- repo: bamr87/bamr87
+  engine: hand-cut
+  latest: v2.0.0
+  published_at: '2026-10-14'
+  commits: 571
+  feat: 9
+  fix: 9
+  breaking: 0
+  bump: minor
+  release_pr: null
+  state: unreleased
+  red_main: 0
+- repo: bamr87/bashos
+  engine: none
+  latest: v0.1.0
+  published_at: '2026-08-12'
+  commits: 104
+  feat: 18
+  fix: 10
+  breaking: 1
+  bump: major
+  release_pr: null
+  state: unreleased
+  red_main: 0
+- repo: bamr87/.github
+  engine: none
+  latest: v1.0.0
+  published_at: '2026-10-16'
+  commits: 5
+  feat: 0
+  fix: 0
+  breaking: 0
+  bump: null
+  release_pr: null
+  state: current
+  red_main: 0
+- repo: bamr87/README
+  engine: release-please
+  latest: v0.2.0
+  published_at: '2026-10-31'
+  commits: 3
+  feat: 0
+  fix: 0
+  breaking: 0
+  bump: null
+  release_pr: null
+  state: current
+  red_main: 0
+- repo: bamr87/amrchy
+  engine: none
+  latest: v4.0.4
+  published_at: null
+  commits: 564
+  feat: 0
+  fix: 0
+  breaking: 0
+  bump: null
+  release_pr: null
+  state: current
+  red_main: 0
+- repo: bamr87/bashcrawl
+  engine: release-please
+  latest: v0.2.0
+  published_at: '2026-10-29'
+  commits: 0
+  feat: 0
+  fix: 0
+  breaking: 0
+  bump: null
+  release_pr: null
+  state: current
+  red_main: 1
+- repo: bamr87/djangoerp
+  engine: release-please
+  latest: v0.2.0
+  published_at: '2026-10-31'
+  commits: 5
+  feat: 0
+  fix: 0
+  breaking: 0
+  bump: null
+  release_pr: null
+  state: current
+  red_main: 0
+- repo: bamr87/githubai
+  engine: release-please
+  latest: v0.6.0
+  published_at: '2026-10-31'
+  commits: 4
+  feat: 0
+  fix: 0
+  breaking: 0
+  bump: null
+  release_pr: null
+  state: current
+  red_main: 0
+- repo: bamr87/gitorio
+  engine: release-please
+  latest: v0.2.0
+  published_at: '2026-10-30'
+  commits: 5
+  feat: 0
+  fix: 0
+  breaking: 0
+  bump: null
+  release_pr: null
+  state: current
+  red_main: 1
+- repo: bamr87/it-journey
+  engine: release-please
+  latest: v0.2.3
+  published_at: '2026-10-31'
+  commits: 11
+  feat: 0
+  fix: 0
+  breaking: 0
+  bump: null
+  release_pr: null
+  state: current
+  red_main: 2
+- repo: bamr87/law-ai
+  engine: release-please
+  latest: v0.2.1
+  published_at: '2026-10-30'
+  commits: 8
+  feat: 0
+  fix: 0
+  breaking: 0
+  bump: null
+  release_pr: null
+  state: current
+  red_main: 1
+- repo: bamr87/lifehacker.dev
+  engine: release-please
+  latest: v0.2.1
+  published_at: '2026-10-31'
+  commits: 4
+  feat: 0
+  fix: 0
+  breaking: 0
+  bump: null
+  release_pr: null
+  state: current
+  red_main: 0
+- repo: bamr87/rewind-arcade
+  engine: release-please
+  latest: v0.2.0
+  published_at: '2026-10-31'
+  commits: 1
+  feat: 0
+  fix: 0
+  breaking: 0
+  bump: null
+  release_pr: null
+  state: current
+  red_main: 0
+- repo: ai-world-view/ai-world-view.github.io
+  engine: release-please
+  latest: null
+  published_at: null
+  commits: null
+  feat: null
+  fix: null
+  breaking: null
+  bump: null
+  release_pr: null
+  state: never_released
+  red_main: 0
+- repo: bamr87/SCHEMA
+  engine: none
+  latest: null
+  published_at: null
+  commits: null
+  feat: null
+  fix: null
+  breaking: null
+  bump: null
+  release_pr: null
+  state: never_released
+  red_main: 0
+- repo: bamr87/edgar-pipeline
+  engine: none
+  latest: null
+  published_at: null
+  commits: null
+  feat: null
+  fix: null
+  breaking: null
+  bump: null
+  release_pr: null
+  state: never_released
+  red_main: 0
+- repo: bamr87/fleet-infra
+  engine: none
+  latest: null
+  published_at: null
+  commits: null
+  feat: null
+  fix: null
+  breaking: null
+  bump: null
+  release_pr: null
+  state: never_released
+  red_main: 0
+- repo: bamr87/fleet-mobile
+  engine: none
+  latest: null
+  published_at: null
+  commits: null
+  feat: null
+  fix: null
+  breaking: null
+  bump: null
+  release_pr: null
+  state: never_released
+  red_main: 0
+- repo: bamr87/fleet-observe
+  engine: none
+  latest: null
+  published_at: null
+  commits: null
+  feat: null
+  fix: null
+  breaking: null
+  bump: null
+  release_pr: null
+  state: never_released
+  red_main: 0
+- repo: bamr87/kvlite
+  engine: none
+  latest: null
+  published_at: null
+  commits: null
+  feat: null
+  fix: null
+  breaking: null
+  bump: null
+  release_pr: null
+  state: never_released
+  red_main: 0
+- repo: bamr87/netprobe
+  engine: none
+  latest: null
+  published_at: null
+  commits: null
+  feat: null
+  fix: null
+  breaking: null
+  bump: null
+  release_pr: null
+  state: never_released
+  red_main: 0
+- repo: bamr87/outbox
+  engine: release-please
+  latest: null
+  published_at: null
+  commits: null
+  feat: null
+  fix: null
+  breaking: null
+  bump: null
+  release_pr: null
+  state: never_released
+  red_main: 0
+- repo: bamr87/ragio-ai
+  engine: release-please
+  latest: null
+  published_at: null
+  commits: null
+  feat: null
+  fix: null
+  breaking: null
+  bump: null
+  release_pr: null
+  state: never_released
+  red_main: 0
+- repo: bamr87/schema-lang
+  engine: none
+  latest: null
+  published_at: null
+  commits: null
+  feat: null
+  fix: null
+  breaking: null
+  bump: null
+  release_pr: null
+  state: never_released
+  red_main: 0
+- repo: bamr87/scripts
+  engine: release-please
+  latest: null
+  published_at: null
+  commits: null
+  feat: null
+  fix: null
+  breaking: null
+  bump: null
+  release_pr: null
+  state: never_released
+  red_main: 0
+- repo: bamr87/sec-lab
+  engine: none
+  latest: null
+  published_at: null
+  commits: null
+  feat: null
+  fix: null
+  breaking: null
+  bump: null
+  release_pr: null
+  state: never_released
+  red_main: 0
+- repo: bamr87/sensor-mesh
+  engine: none
+  latest: null
+  published_at: null
+  commits: null
+  feat: null
+  fix: null
+  breaking: null
+  bump: null
+  release_pr: null
+  state: never_released
+  red_main: 0
+- repo: bamr87/vs-sonic-pi
+  engine: none
+  latest: null
+  published_at: null
+  commits: null
+  feat: null
+  fix: null
+  breaking: null
+  bump: null
+  release_pr: null
+  state: never_released
+  red_main: 0
+- repo: bamr87/zer0-id
+  engine: none
+  latest: null
+  published_at: null
+  commits: null
+  feat: null
+  fix: null
+  breaking: null
+  bump: null
+  release_pr: null
+  state: never_released
+  red_main: 0
+- repo: bamr87/zer0-kernel
+  engine: none
+  latest: null
+  published_at: null
+  commits: null
+  feat: null
+  fix: null
+  breaking: null
+  bump: null
+  release_pr: null
+  state: never_released
+  red_main: 0
+- repo: bash-365/bash-365-apex
+  engine: release-please
+  latest: null
+  published_at: null
+  commits: null
+  feat: null
+  fix: null
+  breaking: null
+  bump: null
+  release_pr: null
+  state: never_released
+  red_main: 0
+- repo: bash-365/bash-365.com
+  engine: release-please
+  latest: null
+  published_at: null
+  commits: null
+  feat: null
+  fix: null
+  breaking: null
+  bump: null
+  release_pr: null
+  state: never_released
+  red_main: 0
+- repo: year-of-ai/year-of-ai.github.io
+  engine: release-please
+  latest: null
+  published_at: null
+  commits: null
+  feat: null
+  fix: null
+  breaking: null
+  bump: null
+  release_pr: null
+  state: never_released
+  red_main: 0
+history:
+- date: '2026-11-05'
+  open_items: 522
+  on_board: 57
+  coverage_pct: 10.9
+  findings: 627
+  planned_ops: 531
+seen: 006dbaa911 015ce71efc 01d054b623 02139827b2 025ee3d85c 028119a293 043a85292b 04f9195d4b 0544719120 0545ff4b21 06b8197f86 072255f487 0776f5a23e 07fe5655e7 08532c610c 08eee95da4 09fdec2ee2 0a39c4d329 0a80ec3b57 0aa3074bce 0b10ffbe99 0b48a4ea9a 0b58b1dcbf 0cb634dfeb 0cbd89b866 0cf63e03a5 0de32b5dba 0e20e34347 0e27ea42bd 0e6b648412 0ed327bd6f 0fcbedd7aa 1007c7224e 108e149e54 10d1dbc3d5 10d4024857 118a8cc6ea 1263250a5e 128c611068 129b857e05 12f4eccb36 13315d1f53 133d2f421c 1425cc246f 1459e10bf2 149800ee85 1543431843 15800a63e2 15b7b83ac7 16070d8092 160a55c165 16c6a6dcc8 1728fa4887 1750a63bb7 1787b7e996 1818f91df0 197b9a7f22 19a2f1fc4b 19fdf3fb27 1a5c5f3c22 1aa5978b74 1b480d4012 1b5c45126a 1b8feed03e 1caa728546 1cc6a2fadb 1cfcc43166 1d0eb1b6cd 1d90530692 1de3fea64d 1edcc7da42 1efbf31208 1f4c2be19c 1fc9d22204 1ff75d206e 210ecddb9a 214bf43532 21f28ca8c0 223af4d267 230dd1b01c 2347f85d67 238d1180c5 2443172f6f 25247af57b 26b29efb5c 26f590dec6 274a0709a4 27b9651d96 27f35db46b 2827977e83 28af21e57e 293933233b 297a02b60a 297c925189 29c800b72c 29f43ce4af 29f83a0dc6 2a0dc1d51f 2b0d2b6c88 2b1f5b6d6c 2b293a94c0 2b59d733c4 2b63f9c0dd 2b730240b7 2b8f5db993 2b9c2624e0 2d7efb20c8 2e12fc22cd 2ed3fb8fcf 2f62997fb0 2fb69aeaac 2fe56f26a8 301a39294e 30d3738e25 318af9728f 3223d201a1 3249ddeefa 32ae0217b0 3432e94064 3469af33a0 350e0641c6 3541ce98ef 356653eb60 3650c29564 36edf3d74e 37eb5b29df 38155e91bf 3832bde4f5 383d399197 38fe4a401c 3939403f8a 394fd9fe2f 3956eca554 3961ef1562 39a5abe839 3a2f4f0077 3a5a782362 3aa15fa9b1 3b385b433e 3b9a8ab90d 3c54a289c7 3d219c62b1 3d2229326b 3d43b8d303 3dd4ff0107 3ebefd75ae 3f041a2195 3f294a9fea 3f3deb3884 3f91b14aa7 3fd8cd616a 40c465708a 414f7fe12f 4158d200bb 4187495265 41b6296242 4291ed8a96 4311c513c8 43332d8d28 4362b153d7 43b333bee1 43e383eda2 43faa9f9e1 45cf315efa 45e66a6c0f 45eaa4be35 462e352ca1 467a478f8a 46a923dbe1 46bf9d3637 47d0399c6a 487eed5dc8 48bfb23f84 48f4667a4a 49aac21ca6 49aad69c5e 49f86dc8bc 4bc86c395e 4c744259c1 4c962f10d3 4ce92e1fa0 4d2cd2a253 4d821f15b5 4da76ef772 4e4170b69a 4e76b3fcb5 4e7ed692b3 4e8243ab02 4f08afcfa6 4f69de2bfb 4f76e6f9e5 4fdabf9c9b 4fe4fa4f04 509355f487 513e27b8f9 51cfeca2f1 5250b97caf 5283cf545f 52c233d86f 5360ca4a36 53b4bad91a 53faf29195 540d3d00db 545cceb016 549b2d8ce9 54b638053a 54c2e0567e 5532bd6b7e 555ffa17f1 557745b01d 557c193433 559bb1bb38 55b6dd47f3 55e1cc0cf1 55e5cd4c13 55ea3f3a9d 560ab39acd 5641832259 566fa36820 57b7a6488f 57e04065c0 5838ce1efd 596419393c 59a060b879 5a1574535a 5a4d44d341 5afcac6168 5b9c57537a 5c74fd0ff4 5c8392fa5a 5cd9ef1a7f 5d94f74cfd 5db975f186 5e208f35ce 5e759ba50c 5eaab73e56 5eb24210b1 5efec3415f 5f49b252e3 5f9be4f13d 6055385b55 6069c10056 607c7c0c53 60d910ed19 6236a2072d 625d25ae7d 627e784401 62b2416c36 62c775c52c 6382a28ff6 638363d9d9 6396a5d394 64ba54ae17 656653eb05 677159d949 67e3e7ef52 68b9a60a9d 691389714d 695193c18b 69f9079008 6a014bfa41 6a4165f28b 6a6ada6551 6ae674db3e 6afc38dc65 6bc51082a8 6c0d077044 6ca9336e1c 6cd93c6e5d 6d20906df8 6d55a446b0 6d5eae471b 6db3e68a4f 6dc5bae482 6df95807f8 6e57f8894c 6f304ded98 6f508018df 6fbbd7b50f 7120ed6f81 718549352c 7194dba1ab 71f4a3b148 725754d794 7275c5f094 727bb7ac98 72a0c3b01a 73ad549947 73b174ed5e 7493ef2ae5 74f25e7eb0 75339ea348 753770b309 76604524ff 768f0154c3 7697d86c4a 76bf01ae02 77179cab87 776a6d7d05 78696f110f 792119a0ce 79b6109cd6 79d6280a6b 79f132de69 7a133d1798 7b44447ac8 7c76aa5e75 7c9300025e 7cb71ec643 7d547fb75f 7ddeb480b4 7df7c5ef7c 7e1c701918 7e37d40ff7 7e73e3d458 7e8903664f 802902b799 80455792db 807cdfc496 807e82b5d5 8092f47ce2 80d9967774 8191bd70bf 81ee66e32a 821e782369 82af011ff1 839aaaa9d7 83ba2e1522 8437cf086e 8444a36277 855282e717 859927f8ef 85f4088e4b 86cbad9343 86e1f781bb 8706cf8752 872f28f84e 87b2ff8993 887c6a93bb 8920fcaf93 894707a268 89caf55dd5 8a6e394fa8 8abbcb9216 8bc5ca1305 8bd74778ef 8beac4b9b0 8c81b8cb70 8cc689dffd 8cc761648a 8d15c21420 8d1f85f925 8dbd8ac95a 8df253019b 8e142508b0 8e66730718 8e71091158 8e935cc2e6 8e9f8f84cb 8edf9774ff 8f0e3e09e4 8f1fb64f22 8f2bce8c3a 8f5493aef5 8fc0cd50d3 9024bea527 908c0faaff 90e78c3ea6 90ec3383a4 90fb7da317 9128edee3b 91f5a6aab5
+  92437ad202 926cff346b 9296adfc67 9311b0f1a3 932efb01fa 93d62ee071 9447c6d7a8 950a48e3fb 952f325104 95a0eab17e 96221bdf87 9630a02fd6 96629e7c53 96982a37a8 96d86357fb 97444cbea0 974fd03656 9860acdfd9 98a46901fb 993dd14594 99a0366c30 99f9fe1061 9ab797afa2 9ac99c9627 9b50f33883 9b76ecee3e 9c11bd8da8 9c3fae33bd 9d13b9c399 9d2abb31ae 9d8cbfb41c 9da07d5e30 9dbd0a1915 9dc67f129f 9e1a0bac38 9e6ae36cef 9f7ee18e16 9f889106e2 9faeb02a5e 9ff08984f3 a0146b3916 a0979a5923 a09fd575dc a17289c5ab a193ed3369 a25d447437 a25eb42390 a304eeec7e a316e81b29 a363073875 a38f184c25 a39b61e5ec a3d2313f4e a3f820839c a452a75e45 a468055338 a60183a9fc a6498bee50 a73a4a7ec4 a8154171ca a822a4eba6 a9516852c7 aa32c158b1 ab18f71069 ab45b9c6c8 ab78b86221 abad82d57d abbcb1ae57 ac432a8d96 ac5d281070 ac7dd6e6f9 acfdae96cd ad6817c52d adcc0d0080 ade2f1f5f4 ae818d4e1d aead39e9a9 af075ac128 af45adf716 af97f1a923 afdce5d099 b133087af3 b1e7867a00 b3066fcf3e b396d69152 b3a1216098 b3ae4ccd57 b46a2c551c b48b50a4f0 b59b335ae0 b5a6aec119 b5b476095b b667b00bb3 b667be989d b7b9340492 b7e19ca503 b80a5d5ca3 b836d707c6 b838e5af2b b85ff91ab1 b8f5ec0682 b944d5fb4c bba3fca761 bc5c2f05fd bc7b4a57ac bcb411f21c bd5c410397 bd673fc160 bda2a5583d be4ac10bd1 be522b28f3 bef461727a bf37744085 c116f62f79 c314a893e4 c31ed32a1d c3311fdc83 c3b76eef6f c3bbd4d103 c46187aff1 c46232001a c4de000fd1 c57a5bd6a5 c5ac3588e9 c5e9e777c6 c6652abeeb c67d71c3da c69a7485d8 c69b3bad4b c71f8e7085 c7989ad34c c933c75490 c9864ac76d c987ca642c c9b35029d9 ca42aec828 ca43ade164 ca5fdf6031 cab3e2eb24 cab578420c cab6a6fea2 cbcf7be979 cbd9c3ea93 cc45defb71 cd7d0f35c5 cd87186c2c cf06c0e6e3 cf8465b341 d0fcc9809a d1ad6fe0ed d1bd29d2e8 d230035b8f d26ee96061 d278aa3488 d2e221db83 d3788d586d d450286022 d4f1d63cd0 d5a660120c d5ae9beaf3 d6c30f15dc d754c3c26c d76f75edd4 d942b8ec5f da5c7753ac daddc52d3e db1b4b7b48 db3a25d85d dc09e1c298 dca59a7621 dce945af57 dd2754e7f5 dda03a648d ddb0c55fa1 de29dd7ae3 de4698a118 dec0c834de decff91d2b df179b1c3f df442145f4 e025e8f351 e034c60acc e099e8a579 e19f0ec90a e1a809c4c7 e22bcf2837 e2a4432f1f e31cce3788 e3b6438d1c e40fe1edd9 e417f200f0 e47656d5ea e49ce18bbc e4b9904b86 e5982817b8 e5b1042912 e5dec67b03 e62a698243 e65177df27 e7d1e309ea e7d5db672d e802ee06a7 e824deea9d e8e3e3fa3f e9dfc75f4b e9e8dfd349 ea2c643abd ea302940b3 eaba9792f2 edf2c3c36a ee764fdbcc ef38c3fead ef5254763a f059cfcd3c f06b5f1762 f0715f6270 f0803edb8b f08f7a939d f167803c2c f18dbe9bec f1a424b8d4 f228a3068e f23e023bb3 f472984f1b f599e79f28 f616410be4 f61e101aab f63e26b95b f6dbbcb281 f76e5a59df f7d46286ac f7df6f0bd1 f8358f663e f895967ab1 f8ac85aba0 f8ee8b0054 f90907471a f913acc0d6 fa5c28d9f5 fa96315e01 faa924dc1d fab682a390 fb07056dfd fba6e69408 fc14710d2d fc1fbed323 fc82f15853 fd1b0db69f fd98738729 fe0a16df6d fe19c24c15 fe56e26aaa fe5b9c1cdc ff9968d352 ff9e0b32e9
+note: 'Written by tools/pm_review.py (fleet-pm.yml). Read-only review: nothing here was applied. Board ops are applied through `tools/dash projects apply` after a person has read them (constitution § 11.4). Private repos are counted, not listed.'
