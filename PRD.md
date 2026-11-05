@@ -121,6 +121,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-074](features/features.yml) | JEV: the fan-out agent fill's step specs and local dry run (P3, step 3) | partial | [`tools/jev/steps/fanout/agent-fill-standardize.yml`](tools/jev/steps/fanout/agent-fill-standardize.yml) · [`docs/SCHEMA-FRAMEWORK.md`](docs/SCHEMA-FRAMEWORK.md) | FR56 |
 | [HUB-075](features/features.yml) | Recursive harness refinement (Harness²): the surface check, the Propose–Probe–Compose plan and evidence tree, the experience library | partial | [`tools/jev/refine.py`](tools/jev/refine.py) · [`docs/HARNESS-REFINEMENT.md`](docs/HARNESS-REFINEMENT.md) | FR73 |
 | [HUB-076](features/features.yml) | The topic loop read back: directive → issue → pull request → merged, on the Content page | shipped | [`.github/scripts/dash-gen/content_atlas.py`](.github/scripts/dash-gen/content_atlas.py) · [`docs/CONTENT-ATLAS.md`](docs/CONTENT-ATLAS.md) | FR74 |
+| [HUB-077](features/features.yml) | The routine PM review: project, roadmap and release alignment | partial | [`tools/pm_review.py`](tools/pm_review.py) · [`docs/PM.md`](docs/PM.md) | FR75, NFR15 |
 
 **Requirement → feature trace**
 
@@ -213,6 +214,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | NFR14 | HUB-073 |
 | FR73 | HUB-075 |
 | FR74 | HUB-076 |
+| FR75 | HUB-077 |
+| NFR15 | HUB-077 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -281,6 +284,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR72: External agent protocols (the Unified Harness Protocol, A2A, AG-UI, Agent Client Protocol) must connect only through adapters that map to the fleet contract, each off by default, version-pinned and removable without changing the core.
 - FR73: The hub must be able to refine a loop's harness from the evidence of its own attempts: validate the harness surface as a sensor, propose, probe and compose edits to the loop's tunable half under its own caps and gates (never to a step spec's hard rules), and keep what each refinement learned in a reviewed library the next attempt reads.
 - FR74: The hub must read a filed editorial directive back from the site that answers it — the issue's state and the pull request that closes it, with that pull request's state — and show it beside the directive in the report, the brief and the Content page, without writing to the site's repository.
+- FR75: The product must review, on a schedule, every open issue and pull request of the registry repos against the Fleet project, the roadmap and each repo's release train, and report each mismatch with its evidence and a proposed fix.
 
 **Non-functional**
 
@@ -298,6 +302,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - NFR12: work tracking never depends on a token scope silently — every projects tool and collector reports `scope_missing: project` instead of an empty result, and project mutations run only from the sanctioned sync workflow or the MCP layer's confirm-gated write tools
 - NFR13: Activity capture and replay never block, slow or fail a fleet container, agent or loop: the collector is read-only (docker.sock read-only, no exec), bounded (rate, payload and retention caps from _data/fleet.yml), redacts before storage, counts every dropped event, binds to loopback, and never stores, prints or returns a secret.
 - NFR14: The harness core never depends on a single-vendor or pre-1.0 protocol: core tests pass with every adapter removed, a pinned spec drifting raises an attention item instead of a failure, and no adapter can bypass risk tiers, kill switches or budgets.
+- NFR15: The PM review must not write to GitHub: the Fleet project ops it plans are applied only through the § 11 write-back service after a person has read them, and its public outputs must not list a private repo's items.
 
 ## 6. Success metrics (proposed — not defined in sources)
 
