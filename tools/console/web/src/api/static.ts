@@ -63,6 +63,7 @@ export async function staticGet<T>(path: string): Promise<T> {
   if (/^content\/[^/]+\/docs$/.test(p)) return [] as T;
   if (/^content\/[^/]+\/brief$/.test(p)) localOnly('The content brief (it reads the data lake)');
   if (/^jobs\/[^/]+$/.test(p)) localOnly('A console job');
+  if (/^refine\/(evidence|review)\//.test(p)) localOnly('An evidence tree or a run preview (it lives under .fleet/ on the operator\'s machine)');
   return file<T>(p);
 }
 

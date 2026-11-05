@@ -447,6 +447,46 @@ def test_cli_plan_missions_and_evidence():
     assert jev("library", "check").returncode == 0
 
 
+def test_fleet_surfaces_sweeps_every_checked_out_registry_repo():
+    hub = tmp()
+    (hub / "AGENTS.md").write_text("# hub\n", encoding="utf-8")
+    (hub / "projects" / "good" / ".claude" / "skills" / "s").mkdir(parents=True)
+    (hub / "projects" / "good" / "AGENTS.md").write_text("Use the `s` skill.\n", encoding="utf-8")
+    (hub / "projects" / "good" / ".claude" / "skills" / "s" / "SKILL.md").write_text("---\nname: s\ndescription: d\n---\n",
+                                                                                  encoding="utf-8")
+    (hub / "projects" / "bad" / ".claude" / "skills" / "b").mkdir(parents=True)
+    (hub / "projects" / "bad" / ".claude" / "skills" / "b" / "SKILL.md").write_text("---\nname: b\n---\n", encoding="utf-8")
+    (hub / "projects" / "empty").mkdir()
+    reg = hub / "projects.yml"
+    reg.write_text("projects:\n"
+                   "  - name: good\n    repo_url: https://github.com/bamr87/good\n    submodule_path: projects/good\n    category: docs\n"
+                   "  - name: bad\n    repo_url: https://github.com/bamr87/bad\n    submodule_path: projects/bad\n    category: dev-tools\n"
+                   "  - name: empty\n    repo_url: https://github.com/bamr87/empty\n    submodule_path: projects/empty\n    category: docs\n"
+                   "  - name: absent\n    repo_url: https://github.com/bamr87/absent\n    submodule_path: projects/absent\n    category: docs\n"
+                   "  - name: tracked\n    repo_url: https://github.com/bamr87/tracked\n    category: docs\n    status: archived\n",
+                   encoding="utf-8")
+    doc = R.fleet_surfaces(fleet=fleet(), hub=hub, registry=reg)
+    rows = {r["name"]: r for r in doc["repos"]}
+    assert doc["schema"] == "jev-fleet-surface/v1" and list(rows) == ["bamr87", "good", "bad", "empty", "absent", "tracked"]
+    assert rows["bamr87"]["ok"] is True and rows["bamr87"]["context_files"] == ["AGENTS.md"] and rows["bamr87"]["nwo"] == "bamr87/bamr87"
+    assert rows["good"]["ok"] is True and rows["good"]["skills"] == 1 and rows["good"]["category"] == "docs"
+    assert rows["bad"]["ok"] is False and rows["bad"]["errors"] == 1 and "needs a `description:`" in rows["bad"]["problems"][0]
+    assert rows["bad"]["context_files"] == [] and rows["bad"]["nwo"] == "bamr87/bad"
+    assert rows["empty"]["checked_out"] is False and rows["absent"]["checked_out"] is False
+    # a registry entry with no submodule_path is not a submodule: never read, and never the hub's own tree
+    assert rows["tracked"] == {**rows["tracked"], "checked_out": False, "path": None, "always_on_chars": None, "context_files": []}
+    assert rows["bamr87"]["path"] == "." and rows["good"]["path"] == "projects/good"
+    assert doc["totals"] == {"registry": 6, "checked_out": 3, "clean": 2, "with_errors": 1, "no_context_file": 1, "with_skills": 2}
+    text = R.render_fleet_surfaces(doc)
+    assert "| bad | NO | 1 |" in text and "| absent | — | | | | | | | | not checked out |" in text and "bad: " in text
+    assert "| tracked | — | | | | | | | | no submodule |" in text
+    only = R.fleet_surfaces(fleet=fleet(), hub=hub, registry=reg, only="bad")
+    assert [r["name"] for r in only["repos"]] == ["bad"]
+    assert R.fleet_surfaces(fleet=fleet(), hub=hub, registry=reg, only="bamr87/good")["repos"][0]["name"] == "good"
+    real = R.fleet_surfaces(fleet=fleet())
+    assert real["repos"][0]["name"] == "bamr87" and real["repos"][0]["ok"] is True, "the hub's own surface is clean"
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     failed = 0

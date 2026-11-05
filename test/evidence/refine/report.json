@@ -1,0 +1,183 @@
+{
+  "id": "refine",
+  "title": "The Refine page publishes the harness surface and the plans, and keeps the review queue on a console",
+  "features": [
+    "HUB-075"
+  ],
+  "path": "verify/scenarios/refine.yml",
+  "mode": "hand-driven (Playwright MCP) against a console",
+  "base": "http://127.0.0.1:4113",
+  "started": "2026-11-04T16:40:34Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/refine",
+          "ok": true
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "text": "script references checked"
+          },
+          "ok": true
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "text": "Every checked-out fleet repository"
+          },
+          "ok": true
+        },
+        {
+          "step": "screenshot",
+          "arg": "refine-surface-desktop",
+          "ok": true
+        },
+        {
+          "step": "goto",
+          "arg": "/refine?tab=review",
+          "ok": true
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "text": "Approve and file"
+          },
+          "ok": true
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "text": "Publish plan"
+          },
+          "ok": true
+        },
+        {
+          "step": "screenshot",
+          "arg": "refine-review-desktop",
+          "ok": true
+        },
+        {
+          "step": "goto",
+          "arg": "/refine?tab=plans",
+          "ok": true
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "text": "R = 4k"
+          },
+          "ok": true
+        },
+        {
+          "step": "screenshot",
+          "arg": "refine-plans-desktop",
+          "ok": true
+        },
+        {
+          "step": "goto",
+          "arg": "/refine?tab=library",
+          "ok": true
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "text": "Record a lesson"
+          },
+          "ok": true
+        },
+        {
+          "step": "screenshot",
+          "arg": "refine-library-desktop",
+          "ok": true
+        },
+        {
+          "step": "goto",
+          "arg": "/assist",
+          "ok": true
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "text": "mcp__fleet"
+          },
+          "ok": true
+        },
+        {
+          "step": "screenshot",
+          "arg": "assist-desktop",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/refine",
+          "ok": true
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "text": "script references checked"
+          },
+          "ok": true
+        },
+        {
+          "step": "screenshot",
+          "arg": "refine-surface-mobile",
+          "ok": true
+        },
+        {
+          "step": "goto",
+          "arg": "/refine?tab=review",
+          "ok": true
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "text": "Approve and file"
+          },
+          "ok": true
+        },
+        {
+          "step": "screenshot",
+          "arg": "refine-review-mobile",
+          "ok": true
+        },
+        {
+          "step": "goto",
+          "arg": "/assist",
+          "ok": true
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "text": "mcp__fleet"
+          },
+          "ok": true
+        },
+        {
+          "step": "screenshot",
+          "arg": "assist-mobile",
+          "ok": true
+        }
+      ]
+    }
+  ],
+  "console_errors": [],
+  "spent_usd": 0.0,
+  "cost_label": "API-equivalent (estimate)",
+  "filed": 0
+}

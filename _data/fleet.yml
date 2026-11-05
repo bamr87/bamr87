@@ -835,6 +835,21 @@ harness_refinement:
   obs_trunc_chars: 6000               # per tool observation in a rendered trajectory; the trajectory itself is whole
 
 # --------------------------------------------------------------------------- #
+# Assistant — the Harness Console's in-page AI assistant (`assist` op;
+# tools/console/README.md "The assistant"). A read-only headless Claude Code
+# session with the `fleet` MCP server attached, run from the console as a job
+# behind its confirm gate, capped per answer by `budget_usd` and recorded in
+# the AI ledger like every other local run (budget.local_usd stays the cap of
+# a plain `dash ai run`). `enabled: false` hides the op from every surface.
+# --------------------------------------------------------------------------- #
+assistant:
+  enabled: true
+  model: claude-sonnet-5-5             # an exact id in ai_models.allowed (§ 13.3)
+  max_turns: 30
+  budget_usd: 2                        # per answer, API-equivalent (estimate)
+  timeout_s: 600
+
+# --------------------------------------------------------------------------- #
 # Harnesses — the fleet-wide AI-HARNESS DEPLOYMENT contract.
 #
 # `harness:` above watches the hub's own six layers; THIS block governs the

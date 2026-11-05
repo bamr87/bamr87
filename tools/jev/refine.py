@@ -27,6 +27,7 @@ Author: bamr87
 Created: 2026-11-04
 Version: 0.1.0
 Usage: python3 -m tools.jev refine plan <loop> [--k 1] [--mode parallel|sequential] [--target NAME]
+       python3 -m tools.jev refine surface fleet [--only NAME] [--json]   (every checked-out submodule)
        python3 -m tools.jev refine evidence <loop> --item KEY [--run ID]… [--stage NAME] [--out DIR]
        python3 -m tools.jev refine missions list|render NAME --set TOKEN=value …
        python3 -m tools.jev refine surface check|census|diff …   (surface.py)
@@ -803,6 +804,83 @@ def build_evidence(spec: S.StepSpec, runs: Sequence[RunRecord], *, out: Path, st
 
 
 # --------------------------------------------------------------------------- #
+# the fleet's surfaces: every registry submodule checked out here
+# --------------------------------------------------------------------------- #
+def fleet_surfaces(*, fleet: Mapping | None = None, hub: Path = HUB, registry: Path | str = REGISTRY_YML,
+                   only: str | None = None) -> dict:
+    """`refine surface check` over every registry project whose submodule is
+    checked out under the hub (an absent checkout is reported, never read),
+    plus the hub itself. One document: per repository the verdict, counts and
+    the first problems; the rest is the per-repo `check`. ADR 0004 P3 makes
+    this a conformance check; here it is the read-only sweep."""
+    fleet = S.load_fleet() if fleet is None else fleet
+    sf = surf.surface_from_fleet(fleet)
+    try:
+        data = yaml.safe_load(Path(registry).read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError) as exc:
+        raise RefineError(f"{registry}: {exc}") from exc
+    projects = [p for p in ((data.get("projects") if isinstance(data, dict) else data) or []) if isinstance(p, dict)]
+    rows: list[dict] = []
+    targets = [("bamr87/bamr87", "bamr87", ".", "dash")] + [
+        (("/".join(str(p.get("repo_url") or "").rstrip("/").removesuffix(".git").split("/")[-2:]) or None),
+         str(p.get("name") or ""), str(p.get("submodule_path") or ""), str(p.get("category") or ""))
+        for p in projects]
+    for nwo, name, rel, category in targets:
+        if only and name != only and nwo != only:
+            continue
+        # Only the hub's own row reads the hub: a registry entry with no submodule_path is not a
+        # submodule (archived, or a repo the hub tracks without checking out) and is never read.
+        root = hub if rel == "." else (hub / rel if rel else None)
+        row = {"name": name, "nwo": nwo, "path": rel or None, "category": category, "checked_out": False,
+               "ok": None, "errors": 0, "warnings": 0, "notes": 0, "always_on_chars": None, "skills": None,
+               "subagents": None, "hooks": None, "mcp_servers": None, "context_files": [], "problems": []}
+        if root is None or not root.is_dir() or (rel != "." and not any(root.iterdir())):
+            rows.append(row)
+            continue
+        row["checked_out"] = True
+        try:
+            tree = surf.read_tree(sf, root)
+            rep = surf.validate(sf, tree, root=root)
+        except surf.SurfaceError as exc:
+            row["problems"] = [f"unreadable: {exc}"]
+            rows.append(row)
+            continue
+        c = rep.census
+        row.update(ok=rep.ok, errors=len(rep.errors), warnings=len(rep.warnings), notes=len(rep.notes),
+                   always_on_chars=c["always_on"]["chars"], skills=len(c["skills"]), subagents=len(c["subagents"]),
+                   hooks=c["policy_as_data"]["hook_commands"], mcp_servers=len(c["policy_as_data"]["mcp_servers"]),
+                   context_files=list(c["always_on"]["files"]), problems=(rep.errors + rep.warnings)[:6])
+        rows.append(row)
+    checked = [r for r in rows if r["checked_out"]]
+    return {"schema": "jev-fleet-surface/v1", "generated_at": dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "always_on_max_chars": sf.always_on_max, "repos": rows,
+            "totals": {"registry": len(rows), "checked_out": len(checked), "clean": sum(1 for r in checked if r["ok"]),
+                       "with_errors": sum(1 for r in checked if r["ok"] is False),
+                       "no_context_file": sum(1 for r in checked if not r["context_files"]),
+                       "with_skills": sum(1 for r in checked if r["skills"])}}
+
+
+def render_fleet_surfaces(doc: dict) -> str:
+    t = doc["totals"]
+    lines = [f"harness surfaces — {t['checked_out']} of {t['registry']} registry repositories checked out: "
+             f"{t['clean']} clean, {t['with_errors']} with errors, {t['no_context_file']} with no context file, "
+             f"{t['with_skills']} with skills",
+             "", "| repo | ok | errors | warn | always-on | skills | agents | hooks | mcp | context files |",
+             "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |"]
+    for r in doc["repos"]:
+        if not r["checked_out"]:
+            lines.append(f"| {r['name']} | — | | | | | | | | {'not checked out' if r['path'] else 'no submodule'} |")
+            continue
+        lines.append(f"| {r['name']} | {'yes' if r['ok'] else 'NO'} | {r['errors']} | {r['warnings']} | "
+                     f"{r['always_on_chars']:,} | {r['skills']} | {r['subagents']} | {r['hooks']} | {r['mcp_servers']} | "
+                     f"{', '.join(r['context_files']) or 'none'} |")
+    for r in doc["repos"]:
+        for p in r["problems"]:
+            lines.append(f"  {r['name']}: {p}")
+    return "\n".join(lines)
+
+
+# --------------------------------------------------------------------------- #
 # CLI — python3 -m tools.jev refine …
 # --------------------------------------------------------------------------- #
 def _print_json(obj: object) -> None:
@@ -828,6 +906,13 @@ def cmd_surface(args: argparse.Namespace) -> int:
                     print(f"{key:8} {rel}")
             print(f"always-on delta: {d['always_on_char_delta']:+,} chars")
         return 0
+    if args.surface_action == "fleet":
+        doc = fleet_surfaces(fleet=fleet, only=args.only)
+        if args.json:
+            _print_json(doc)
+        else:
+            print(render_fleet_surfaces(doc))
+        return 0 if doc["totals"]["with_errors"] == 0 else 1
     root = Path(args.root or HUB)
     try:
         rep = surf.check(root, fleet=fleet)
@@ -970,6 +1055,9 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
         p = ss.add_parser(name, help=text)
         p.add_argument("root", nargs="?", help="a repository root (default: the hub)")
         p.add_argument("--json", action="store_true")
+    f = ss.add_parser("fleet", help="every checked-out registry repository's surface, one row each (exit 1 on any error)")
+    f.add_argument("--only", help="one registry name or owner/repo")
+    f.add_argument("--json", action="store_true")
     d = ss.add_parser("diff", help="what changed between two surfaces")
     d.add_argument("before")
     d.add_argument("after")

@@ -49,6 +49,7 @@ function confirmText(op: Op, p: Params): string {
   switch (op.id) {
     case 'dispatch': return `Dispatch ${String(p.workflow)}.yml in GitHub Actions with ${fields}.`;
     case 'loop-run': return `Run ${String(p.loop)}${p.step ? `/${String(p.step)}` : ''} locally on ${p.target && p.target !== 'all' ? String(p.target) : "today's sample"}: one capped attempt per item through headless Claude Code in the sandbox, then a dry-run preview under .fleet/runs/ — nothing is filed. This spends Claude budget (API-equivalent, an estimate), held to budget.loops.`;
+    case 'assist': return `Ask the assistant: "${String(p.question ?? '').slice(0, 160)}" — one read-only headless Claude Code session with the fleet MCP server attached. This spends Claude budget (API-equivalent, an estimate), capped by assistant.budget_usd; it cannot run a job, write a file or reach the network.`;
     case 'content-file': return `${op.title} for ${String(p.target)}. With apply, this opens issues in that site's GitHub repo.`;
     case 'keys-rotate': return `Write each workspace's new Anthropic API key from .env to the repos it serves (hub first), then DISABLE the key each one replaces in the Console.${p.allow_long_lived ? ' Keys that outlive the lifetime policy are allowed.' : ''}`;
     case 'ai-auth-sync': return `Set CLAUDE_AUTH_ORDER on ${String(p.target || 'every fleet repo')} from ai_auth: in _data/fleet.yml. This changes which Claude credential those repos' AI steps use first.`;

@@ -1547,7 +1547,7 @@ features:
     - FR56
   - id: HUB-075
     title: 'Recursive harness refinement (Harness²): the surface check, the Propose–Probe–Compose plan and
-      evidence tree, the experience library'
+      evidence tree, the experience library, the console''s Refine page and review queue, the assistant'
     description: 'JEV capability three adopts the Harness² method onto the hub''s own loops at $0: `tools/dash
       refine surface check` validates any repository''s harness surface (the context-file chain, settings
       permissions and hooks, agents, skills, commands, hook scripts, MCP) with the rules production harnesses
@@ -1555,11 +1555,15 @@ features:
       schedule, its R = 4k / P = 3k identity and its ceiling against budget.loops; `refine evidence` builds
       the redacted evidence tree a proposer reads from real local attempts; and `refine library` keeps the
       human-gated experience library (_data/harness_library) whose lessons reach every local attempt through
-      the context pack. The model-backed stages are ADR 0004 P1.'
+      the context pack. In the Harness Console (ADR 0004 P2) the Refine page shows the surface and the fleet
+      sweep, one plan per agent step against the month''s budget, the evidence trees, the library with the $0
+      reflector''s form, and the review queue where a person reads an unfiled loop-run preview and approves
+      its filing behind the confirm gate; the Assist page is the read-only assistant, one capped headless
+      session with the fleet MCP server attached. The model-backed refinement stages are ADR 0004 P1.'
     implemented: true
     status: partial
-    surface: cli
-    link: tools/jev/refine.py
+    surface: ui
+    link: /refine
     docs: docs/HARNESS-REFINEMENT.md
     tags:
     - jev
@@ -1572,6 +1576,13 @@ features:
     - tools/test_jev_surface.py
     - tools/test_jev_library.py
     - tools/test_jev_refine.py
+    - tools/console/test_console.py
+    - tools/console/test_mcp_layer.py
+    - tools/console/test_pages.py
+    scenarios:
+    - verify/scenarios/refine.yml
+    evidence:
+    - test/evidence/refine
     prd:
     - FR73
   - id: HUB-076
