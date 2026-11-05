@@ -1,6 +1,7 @@
 # ADR 0005 — The Harness Console is the fleet's portal: one launcher from the registry, frontends mounted by frame and bridge, one shell per surface
 
-- **Status**: proposed
+- **Status**: accepted
+- **Accepted in**: https://github.com/bamr87/bamr87/pull/667 (merged 2026-11-05 by @bamr87)
 - **Date**: 2026-11-04
 - **Deciders**: proposed by an agent at the maintainer's request (2026-11-04, including the two-mode rule in decision 6); the maintainer accepts or rejects it by merging the PR that adds it
 - **Related**: constitution § 18 (fleet design consistency) and § 10.8 (prior art first), [docs/FRONTEND-PLATFORM.md](../FRONTEND-PLATFORM.md) (the six layers this ADR settles layer 3 of), [docs/DESIGN-HARMONIZATION.md](../DESIGN-HARMONIZATION.md), roadmap FF-0032, bamr87/bamr87#583 (enterprise AppShell), #585 (bashOS as the operating layer), #623 (the first federated plugin), [docs/VERIFICATION.md](../VERIFICATION.md), [docs/FLEET-COMPOSE.md](../FLEET-COMPOSE.md)
@@ -85,7 +86,8 @@
 
 ### The OS shell: bashOS hosts the App Shell
 
-- **Status**: proposed (added 2026-11-05 at the maintainer's request)
+- **Status**: accepted (added 2026-11-05 at the maintainer's request)
+- **Accepted in**: https://github.com/bamr87/bamr87/pull/667 (merged 2026-11-05 by @bamr87)
 
 9. **bashOS is the OS shell in the browser, and the App Shell is what every window shares.** The maintainer's direction (2026-11-05): the bashOS design and framework as the Browser OS Shell that hosts the common App Shell, in the desktop-with-icons style the bashOS GUI took from PostHog's site, each icon an app that shares one shell. Three layers:
 
@@ -103,7 +105,8 @@
 
 ### A frontend component for every repo
 
-- **Status**: proposed (added 2026-11-05 at the maintainer's request)
+- **Status**: accepted (added 2026-11-05 at the maintainer's request)
+- **Accepted in**: https://github.com/bamr87/bamr87/pull/667 (merged 2026-11-05 by @bamr87)
 
 10. **Every repo in the fleet gets a frontend component, so every repo is an app on the desktop.** Today 16 of the 38 repos open their own frontend in a window and 22 have none the shell can show. What a repo's component is follows from what the registry already says about it (`tools/fleetcore/apps.py` `component()`); `tools/dash apps plan` prints the table for every repo and the Desktop's Fleet window shows it.
 
