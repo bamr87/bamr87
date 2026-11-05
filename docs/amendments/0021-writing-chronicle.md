@@ -1,11 +1,11 @@
-# NEW — The writing section keeps a daily chronicle of fleet operations, AI prompting and agent activity
+# 0021 — The writing section keeps a daily chronicle of fleet operations, AI prompting and agent activity
 
 - **Status:** proposed (ratification pending — Amr ratifies by merging this PR)
-- **Number:** NEW
+- **Number:** 0021
 - **Date:** 2026-11-04
 - **Proposed by:** Grok Bot (agent), on Amr's instruction as owner
 - **Ratified by:** the merged PR URL (leave blank until merged)
-- **Affects:** constitution § 23 (new, follows § 22 `repo-cap-42` in PR #660; becomes § 22 if that does not merge first); `pages/posts/`; `_data/voices/` (new shared voice config + schema), `tools/voices.py` (new); bamr87/lifehacker.dev (publishing hold, PR #800); bamr87/zer0-CMS (adoption follow-up); feature `AMEND-NEW:writing-chronicle` follow-up (`HUB-NEW`, not created here); requirements: none yet
+- **Affects:** constitution § 23 (new, follows § 22 `repo-cap-42` in PR #660; becomes § 22 if that does not merge first); `pages/posts/`; `_data/voices/` (new shared voice config + schema), `tools/voices.py` (new); bamr87/lifehacker.dev (publishing hold, PR #800); bamr87/zer0-CMS (adoption follow-up); feature `0021` follow-up (`HUB-NEW`, not created here); requirements: none yet
 - **Supersedes:** none
 - **Related:** hub issue #662 (organize writings/journals/posts for correct display in console and online); `repo-cap-42` (PR #660, section numbering only)
 

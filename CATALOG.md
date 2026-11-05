@@ -229,6 +229,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`unpin-deps.sh`](tools/unpin-deps.sh) | Converts one repo to the fleet's **always-latest** dependency policy — strips exact pins, deletes + gitignores lockfiles, adapts CI installs (idempotent; the `deps-lates… |
 | [`unwrap-prose.py`](tools/unwrap-prose.py) | Liquid-safe one-paragraph-per-line unwrapper for markdown prose and list items (`--check`/`--diff`/`--write`); vendored into the fleet by the prose kit |
 | [`update-submodules.sh`](tools/update-submodules.sh) | Refresh `projects/` — bring each submodule onto its declared branch at the remote tip (safe by default) and record moved pointers |
+| [`voices.py`](tools/voices.py) | voices.py — validate the canonical fleet voice config (_data/voices/voices.yml, voices/v1). |
 
 ## 6. Workflows and loops
 
