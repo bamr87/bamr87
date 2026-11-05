@@ -93,6 +93,7 @@ To add or change a project, edit **only** `_data/projects.yml`. The portfolio, d
 | `tools/dash host [setup\|ps\|up\|rebuild --wipe-all]` | forge Docker host — up a submodule, or the legacy whole-hub rebuild (deletes every container and volume on forge, so it needs --wipe-all) |
 | `tools/dash node [status\|plan\|gen\|key]` | where hub workloads run — the Mac edge and the forge workload node, from _data/fleet.yml `nodes:` (docs/PLATFORM.md); read-only except gen, which writes .fleet/nodes/ |
 | `tools/dash infra [plan\|apply] [node]` | the IaC layer — OpenTofu plans a workload node's network and volumes (infra/); apply needs --yes and a saved plan of the current inputs |
+| `tools/dash apps [list\|url\|open\|check\|json]` | the app portal's launcher — every fleet frontend with its live address and its local dev stack's (registry `frontend:` ⨝ _data/ports.yml; docs/FRONTEND-PLATFORM.md); `open <app> [--target local]` opens it in the console, `check` asks each address whether it answers and can be framed; read-only |
 | `tools/dash console [--docker]` | the Harness Console — local control plane UI on :4001 (native venv, or the compose service; docs/HARNESS-OPS.md) |
 | `tools/dash mcp [--http\|--tunnel]` | the Harness Console as an MCP server for AI agents — stdio, streamable HTTP on 127.0.0.1:4002 with bearer auth, or a temporary cloudflared tunnel (tools/console/docs/mcp-layer.md) |
 | `tools/dash sync` | update submodules + regenerate dash data |

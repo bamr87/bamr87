@@ -5,21 +5,39 @@ Description: The fleet frontend registry (constitution § 18, docs/FRONTEND-PLAT
              Lints the `frontend:` block on every _data/projects.yml entry and
              projects the shell launcher manifest from it, so the launcher is
              generated from the registry and never hand-kept. Static, offline,
-             stdlib + PyYAML.
+             stdlib + PyYAML — except `probe`, the one subcommand that reads the
+             network: a GET of each registry address (never one typed on the
+             command line), capped and time-limited, to say whether the app
+             answers and whether it lets the fleet shell frame it (ADR 0005).
 Usage: python3 tools/frontend_registry.py lint [--registry _data/projects.yml]
        python3 tools/frontend_registry.py launcher [--registry …]   # JSON on stdout
        python3 tools/frontend_registry.py table [--registry …]      # Markdown table
+       python3 tools/frontend_registry.py probe [app …] [--target live|local|all] [--json] [--strict]
 """
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
+import re
 import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
 
 import yaml
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from fleetcore import apps as fapps  # noqa: E402
+
 HUB = Path(__file__).resolve().parent.parent
+# The origins the fleet shell is served from: the public page and the local
+# console. A frontend that names its framers must name one of these.
+SHELL_ORIGINS = ("https://bamr87.github.io", "http://127.0.0.1:4001", "http://localhost:4001")
+PROBE_TIMEOUT_S = 8
+PROBE_CAP = 60
+PROBE_AGENT = "fleet-frontend-probe (+https://github.com/bamr87/bamr87)"
 TYPES = ("app", "console", "site", "game", "ext", "none")
 TIERS = ("shell", "tokens", "none")
 SURFACES = ("browser", "desktop", "mobile", "vscode", "terminal")
@@ -75,17 +93,98 @@ def lint(reg: list[dict]) -> list[str]:
     return [x for e in reg for x in lint_entry(e)]
 
 
-def launcher(reg: list[dict]) -> dict:
-    """The app shell launcher manifest: every frontend with an entry point."""
-    apps = []
-    for e in reg:
-        fe = e.get("frontend") or {}
-        if fe.get("tier") in (None, "none") or e.get("status") == "archived":
+def launcher(reg: list[dict], ports: dict | None = None) -> dict:
+    """The app shell launcher manifest: every frontend with an entry point and
+    its targets. One projection for every surface (fleetcore.apps)."""
+    return fapps.launcher(reg, ports)
+
+
+def frame_policy(headers: dict[str, str], shell_origins: tuple[str, ...] = SHELL_ORIGINS) -> tuple[str, bool]:
+    """(policy, frameable) from a response's headers. `X-Frame-Options` of any
+    value refuses a cross-origin shell; a CSP `frame-ancestors` list admits it
+    only when it names `*` or one of the shell's origins."""
+    h = {k.lower(): v for k, v in headers.items()}
+    xfo = h.get("x-frame-options", "").strip().lower()
+    m = re.search(r"frame-ancestors([^;]*)", h.get("content-security-policy", ""), flags=re.I)
+    if m:
+        sources = m.group(1).split()
+        listed = "*" in sources or any(o in sources for o in shell_origins)
+        return "frame-ancestors " + (" ".join(sources) or "'none'"), listed and not xfo
+    if xfo:
+        return f"x-frame-options {xfo}", False
+    return "open", True
+
+
+_META_REFRESH = re.compile(r"""<meta[^>]+http-equiv=["']?refresh["']?[^>]*content=["'][^"'>]*url=([^"'>\s]+)""", re.I)
+PROBE_BODY_BYTES = 8192
+
+
+def moved_to(requested: str, final: str, body: str) -> str | None:
+    """The origin an address hands the browser on to, when it is not its own:
+    an HTTP redirect (the final URL) or a client-side one (`<meta refresh>`,
+    how a static apex page forwards to www). A frame follows either, and the
+    shell's policy then judges the origin it lands on, not the one asked for."""
+    here = fapps.origin(requested)
+    for candidate in (final, (m.group(1) if (m := _META_REFRESH.search(body)) else None)):
+        there = fapps.origin(urllib.parse.urljoin(final, candidate)) if candidate else None
+        if there and there != here:
+            return there
+    return None
+
+
+def probe_one(app: dict, target: dict, known: frozenset[str] = frozenset(), timeout: float = PROBE_TIMEOUT_S) -> dict:
+    row = {"app": app["id"], "target": target["id"], "url": target["url"], "status": None, "ok": False,
+           "policy": None, "frameable": None, "moves_to": None, "error": None}
+    req = urllib.request.Request(target["url"], headers={"User-Agent": PROBE_AGENT}, method="GET")
+    final, body = target["url"], ""
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as res:  # noqa: S310 — a registry URL, http(s) only
+            row["status"] = res.status
+            headers = dict(res.headers.items())
+            final = res.geturl()
+            body = res.read(PROBE_BODY_BYTES).decode("latin-1", "replace")
+    except urllib.error.HTTPError as exc:
+        row["status"] = exc.code
+        headers = dict(exc.headers.items()) if exc.headers else {}
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        row["error"] = str(getattr(exc, "reason", exc))[:120]
+        return row
+    row["ok"] = 200 <= (row["status"] or 0) < 400
+    row["policy"], row["frameable"] = frame_policy(headers)
+    row["moves_to"] = moved_to(target["url"], final, body)
+    if row["moves_to"] and row["moves_to"] not in known:
+        # The shell frames only origins the registry declares (its frame-src).
+        row["policy"], row["frameable"] = f"moves to {row['moves_to']}, which no registry entry declares", False
+    return row
+
+
+def probe(apps: list[dict], which: str = "live", only: list[str] | None = None, cap: int = PROBE_CAP) -> list[dict]:
+    """Ask each registry address whether it answers and whether it can be
+    framed. Read-only; at most `cap` requests, each bounded by the timeout."""
+    want = {x.lower() for x in only or []}
+    known = frozenset(fapps.origins(apps))
+    jobs = []
+    for a in apps:
+        if want and a["id"].lower() not in want and a["name"].lower() not in want:
             continue
-        apps.append({"id": e.get("slug") or e["name"], "name": e["name"], "type": fe["type"], "tier": fe["tier"],
-                     "surfaces": fe.get("surfaces") or [], "url": fe.get("entry_url"),
-                     "deep_link": f"fleet://{e.get('slug') or e['name']}/", "description": e.get("description", "")})
-    return {"schema": "fleet-launcher/v1", "source": "_data/projects.yml frontend:", "apps": apps}
+        for t in a["targets"]:
+            if which == "all" or t["kind"] == which:
+                if not re.match(r"^https?://", t["url"]):
+                    continue
+                jobs.append((a, t))
+    jobs = jobs[:cap]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        return list(pool.map(lambda j: probe_one(j[0], j[1], known), jobs))
+
+
+def probe_table(rows: list[dict]) -> str:
+    out = [("app", "target", "status", "frame", "url")]
+    for r in rows:
+        status = str(r["status"]) if r["status"] is not None else f"down ({r['error']})"
+        frame = "—" if r["frameable"] is None else ("yes" if r["frameable"] else f"no ({r['policy']})")
+        out.append((r["app"], r["target"], status, frame, r["url"]))
+    widths = [max(len(x[i]) for x in out) for i in range(len(out[0]))]
+    return "\n".join("  ".join(c.ljust(w) for c, w in zip(x, widths)).rstrip() for x in out)
 
 
 def table(reg: list[dict]) -> str:
@@ -99,16 +198,33 @@ def table(reg: list[dict]) -> str:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[2])
-    ap.add_argument("cmd", choices=("lint", "launcher", "table"))
+    ap.add_argument("cmd", choices=("lint", "launcher", "table", "probe"))
+    ap.add_argument("apps", nargs="*", help="probe: only these apps (default: every frontend)")
     ap.add_argument("--registry", default=str(HUB / "_data" / "projects.yml"))
+    ap.add_argument("--ports", default=str(HUB / "_data" / "ports.yml"))
+    ap.add_argument("--target", choices=("live", "local", "all"), default="live", help="probe: which addresses")
+    ap.add_argument("--json", action="store_true", help="probe: rows as JSON")
+    ap.add_argument("--strict", action="store_true", help="probe: exit 1 when an address is down or refuses the shell")
     a = ap.parse_args(argv)
     reg = load(Path(a.registry))
+    ports_path = Path(a.ports)
+    ports = (yaml.safe_load(ports_path.read_text(encoding="utf-8")) or {}) if ports_path.is_file() else {}
     if a.cmd == "launcher":
-        print(json.dumps(launcher(reg), indent=2))
+        print(json.dumps(launcher(reg, ports), indent=2))
         return 0
     if a.cmd == "table":
         print(table(reg))
         return 0
+    if a.cmd == "probe":
+        rows = probe(launcher(reg, ports)["apps"], a.target, a.apps)
+        if a.json:
+            print(json.dumps(rows, indent=2))
+        else:
+            print(probe_table(rows) if rows else "frontend probe: no address matches")
+            up = sum(r["ok"] for r in rows)
+            print(f"\nfrontend probe: {up}/{len(rows)} answer · {sum(bool(r['frameable']) for r in rows)} can be framed by the shell")
+        bad = [r for r in rows if not r["ok"] or not r["frameable"]]
+        return 1 if a.strict and bad else 0
     probs = lint(reg)
     for x in probs:
         print(f"frontend: {x}")
