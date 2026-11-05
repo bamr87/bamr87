@@ -25,6 +25,7 @@ coverage: listed
 | `compose/` | dir | Hub half of the fleet dev stack: shared-services layer, generated per-submodule overrides, the generated fleet-mode include + port env, and the forge overlay (docs/FLEET-COMPOSE.md) | required |
 | `diagrams/` | dir | Harness + loop illustrations: archify JSON IR and the delivered HTML (tools/render-diagrams.sh) | required |
 | `docs/` | dir | Operator docs for the dash machinery, UPPERCASE topic files | required |
+| `evals/` | dir | Agent eval sets (constitution § 13.1): one `<role>/cases.yml` of real past tasks per agent role, run by `tools/evals.py` and checked by `.github/workflows/evals.yml` (docs/EVALS.md) | required |
 | `features/` | dir | The hub's own feature index (`features/v1`): what the dash does for a user, where it lives, what proves it — aggregated fleet-wide by `dash features fleet` (docs/VERIFICATION.md) | required |
 | `infra/` | dir | Infrastructure as code (OpenTofu, MPL-2.0): each fleet node's `fleet` network and data volumes, planned and applied by `tools/dash infra` from `_data/fleet.yml` `nodes:` (ADR 0003, docs/PLATFORM.md) | required |
 | `verify/` | dir | The hub's agent-verification harness: run config, user scenarios, the rendered Playwright runner, the Playwright MCP config (kit: `templates/verify/`) | required |
@@ -62,6 +63,7 @@ coverage: listed
 - New seedable artifact kit → `templates/<kit>/`, registered in `templates/SCHEMA.md`
 - New fleet-wide requirement → a row in `specs/<AREA>.md`, then `tools/gen-specs-data.py`
 - New gate, generator, or fleet script → `tools/`
+- New agent eval set → `evals/<role>/cases.yml`, with its adapter in `tools/evals.py` (evals/SCHEMA.md)
 - New operator doc → `docs/UPPERCASE-TOPIC.md`
 - New dash surface or loop → a fragment in `features/features.d/<slug>.yml` (`id: HUB-NEW`, numbered at merge) + a user scenario in `verify/scenarios/` (docs/VERIFICATION.md)
 - New dash subcommand, loop, gate, scenario, site or submodule → also its F5 entry in `.vscode/launch.json` (+ `tasks.json`, the picker, the `.vscode/README.md` line) in the same change (constitution § 20)

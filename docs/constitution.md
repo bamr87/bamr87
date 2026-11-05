@@ -273,3 +273,30 @@ _(amendment `repo-cap-42`, numbered at merge — see the [amendment log](amendme
 3. **At the cap** — a new repository is created only after an existing one is merged or absorbed into another; Amr decides which.
 4. **Scope** — the `bamr87` user account only; organisations are out of scope until the amendment's open question is decided.
 5. **Enforcement** — detection (a sentinel check on the account's repository count) is a follow-up; agents never create a repository in the account without Amr's approval and the paired consolidation.
+
+## 23. Writing section chronicles fleet activity
+
+_(amendment `writing-chronicle`, numbered at merge — see the [amendment log](amendments/README.md); follows § 22 `repo-cap-42` (PR #660), renumber to § 22 if that amendment does not merge first)_
+
+1. **Rule — daily chronicle** — the monorepo's writing section, `pages/posts/` (dated `YYYY-MM-DD-slug.md`, rendered by `tools/console/site_docs.py` as the console's and public site's Writing section), chronicles, documents, journals and notes, repo-wide and fleet-wide, all fleet operations, AI prompting and any activity agents are working on, pushing, committing and deploying across all repos, in a summarized chronicle fashion, so Amr or other readers can read and recall what happened each day.
+2. **Form** — one chronicle entry per day with activity (`pages/posts/YYYY-MM-DD-chronicle.md`, category `chronicle`), summarizing, per repo, operations, prompts given, agents run, work in progress, pushes, commits, PRs opened or merged, deployments, and outcomes; summaries, not raw transcripts.
+3. **Redaction** — a chronicle never records tokens, secrets, credentials, keys, or private values; anything secret-shaped is redacted before commit.
+4. **Drafts by default, reviewed before publishing** — every chronicle entry lands as a draft (`draft: true`, console-only); nothing publishes until it has been reviewed by a human and/or an agent, and only then is `draft: true` removed.
+5. **Enforcement** — generation (a daily chronicle generator, `HUB-NEW`) is a follow-up; until it lands, agents add or append the day's entry by PR.
+6. **lifehacker.dev is the fleet's news agency** — lifehacker.dev is part of the fleet's writing and chronicling operations: a synthesized, curated news agency built from fleet activity, written for a wider audience in the voices of its site characters. Its articles originate in the hub (the console / monorepo writing section); it synthesizes them from reviewed hub entries, and rule 4 applies there too — nothing publishes until reviewed by a human and/or an agent, and a human merges. Its own autonomous publishing stays held until hub-originated intake is in place.
+7. **One voice model** — AI voices, styles, personas and content config for lifehacker.dev and zer0-CMS use one shared model, `voices/v1`: canonical in the hub at `_data/voices/voices.yml` with its schema `_data/voices/voices.schema.json` (fields aligned with zer0-CMS ADR 0010 `VoiceProfile`, plus a persona layer). Admins edit that file; the console's editor reads it and writes edits back to it as a PR, never a separate database copy; both sides validate against the schema, and `tools/voices.py check --against` flags drift in any consumer copy.
+
+## 24. Visual evidence for guides and tutorials
+
+_(amendment `visual-evidence`, numbered at merge — see the [amendment log](amendments/README.md); follows § 23 `writing-chronicle` on main; § 22 is proposed by `repo-cap-42` (PR #660) — this section is § 24 either way; renumber only if another amendment claims 24 first; extends § 7 and § 15)_
+
+1. **Guides need visuals** — any tutorial, how-to, setup doc, console/UI help page or article that walks a person through a system, computer, tool or technology setup ships visual front-end evidence: screenshots, a short recording, or a GIF of the relevant UI or terminal, unless a one-line `skip-visuals` reason says why nothing renders for the reader.
+2. **When** — required when the reader is told to click, navigate, configure, install via a UI, or compare what they see on screen; not required for pure API/contract prose with no user-visible surface (still prefer a diagram when it clarifies).
+3. **Where and naming** — store under `docs/assets/guides/<slug>/` for durable guide art, or under `test/evidence/<slug>/` when the same bundle also proves a feature scenario (`docs/VERIFICATION.md`). Names are kebab-case, viewport-tagged when size matters (`<slug>--desktop.png`, `<slug>--mobile.png`); recordings use `.gif` / `.webm` / `.mp4`.
+4. **Alt text** — every image has meaningful alt text that describes what the reader should notice; decorative spacer images are forbidden in guides.
+5. **Redaction** — a guide image never shows tokens, secrets, credentials, keys, cookies, private URLs with embedded credentials, or unredacted PII; redact before commit (same bar as § 23.3).
+6. **Freshness** — when a change alters a UI a guide depicts, the same PR updates or re-captures the guide visuals (or adds `skip-visuals` with why). Stale screenshots are a defect, not documentation debt to ignore.
+7. **Harness Console** — the console gains capture/attach helpers so operators and agents can record guide evidence without leaving the control plane (phased; see feature `HUB-NEW:visual-evidence`).
+8. **Enforcement** — a guides visual lint (`tools/guides_visual_lint.py`) flags guide-like Markdown lacking an image, an evidence-bundle reference, or a `skip-visuals` reason; warn-only per repo until its adoption/fan-out PR lands, then a hard failure. Fleet fan-out follows the 0007 pattern (one spoke PR per repo).
+9. **Fit with § 15** — frontend *PR* evidence stays under § 15; this section covers *published guides*. A change may need both.
+

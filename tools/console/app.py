@@ -18,8 +18,9 @@ lever. So every request's Host header is checked against a loopback allowlist
 proxy or a real hostname).
 A Content-Security-Policy rides alongside that guard: the page is a built
 bundle with no inline script, so `script-src 'self'` holds; frame-src names
-the observability UIs the Observe pages embed, and frame-ancestors 'none'
-stops anything embedding this console in turn. The WebSocket the Terminal
+the observability UIs the Observe pages embed and the fleet frontends the Apps
+page frames (the launcher's own origins, nothing wider), and frame-ancestors
+'none' stops anything embedding this console in turn. The WebSocket the Terminal
 page uses never passes through HTTP middleware, so tui_bridge.py repeats the
 Host check and adds an Origin check of its own.
 Credentials: jobs inherit the process environment exactly like a terminal
@@ -54,6 +55,7 @@ import claude_telemetry
 # The core both surfaces share (tools/fleetcore): the fleet views the TUI
 # renders, the keys v1 table, and the bashOS palette.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from fleetcore import apps as fapps  # noqa: E402
 from fleetcore import keys as fkeys  # noqa: E402
 from fleetcore import theme as ftheme  # noqa: E402
 from fleetcore import views as fviews  # noqa: E402
@@ -132,8 +134,16 @@ def content_policy(path: str, host: str) -> str:
     origin explicitly, for the Terminal page, because older Safari does not
     let 'self' cover WebSocket schemes; the Host is echoed only when it is a
     plain host[:port], so a crafted Host cannot inject a directive.
+
+    The Apps page frames the fleet's own frontends and asks each address
+    whether it answers, so frame-src and connect-src also name the launcher's
+    origins (fleetcore.apps.target_origins): exactly the live sites and
+    loopback dev ports the two registries declare for an app the page can
+    show, each a plain scheme://host[:port]. No wildcard: a new origin is a
+    registry change, reviewed like any other.
     """
     frames = " ".join(core.frame_src())
+    apps_src = " ".join(fapps.target_origins(core.REPO_ROOT))
     if path.startswith("/diagrams/"):
         # The archify diagrams boot from inline script. They run sandboxed with
         # no same-origin access (the page frames them the same way), so the
@@ -146,8 +156,8 @@ def content_policy(path: str, host: str) -> str:
     return "; ".join([
         "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'",
         # The GitHub page shows the connected account's avatar.
-        "img-src 'self' data: https://avatars.githubusercontent.com", "font-src 'self' data:", f"connect-src 'self'{ws}",
-        f"frame-src 'self' {frames}".strip(), "frame-ancestors 'none'",
+        "img-src 'self' data: https://avatars.githubusercontent.com", "font-src 'self' data:", f"connect-src 'self'{ws} {apps_src}".strip(),
+        f"frame-src 'self' {frames} {apps_src}".strip(), "frame-ancestors 'none'",
         "object-src 'none'", "base-uri 'self'", "form-action 'self'",
     ])
 
@@ -241,6 +251,25 @@ class EditorialSite(BaseModel):
 class WorkPlan(BaseModel):
     plan: dict = Field(default_factory=dict)
     confirm: bool = False
+
+
+class LibraryEntry(BaseModel):
+    """One experience-library entry to write on the working tree (docs/HARNESS-REFINEMENT.md)."""
+    loop: str = Field(..., max_length=64)
+    step: str = Field(..., max_length=64)
+    domain: str = Field(..., max_length=64)
+    item: str = Field(..., max_length=200)
+    run_id: str = Field(..., max_length=128)
+    adopted: str = Field(..., max_length=64)
+    cue: str = Field(..., max_length=400)
+    lesson: str = Field(..., max_length=800)
+    evidence: str = Field(..., max_length=1200)
+    confidence: str = Field(..., max_length=16)
+    date: str = Field("", max_length=10)
+    source: str = Field("human", max_length=16)
+    notes: str = Field("", max_length=2000)
+    edits: list[dict] = Field(default_factory=list)
+    diff: str | None = Field(None, max_length=262_144)
 
 
 class WorkflowDraft(BaseModel):
@@ -498,6 +527,58 @@ def work_item(key: str = Query(..., max_length=200)) -> dict:
         raise HTTPException(status_code=404, detail=str(exc))
 
 
+@app.get("/api/refine", dependencies=[Depends(require_token)])
+def refine() -> dict:
+    """Harness refinement (JEV capability three, docs/HARNESS-REFINEMENT.md): the hub's surface
+    check, the fleet sweep, one Propose–Probe–Compose plan per loop, the experience library, the
+    evidence trees and the review queue of unfiled loop-run previews."""
+    return core.refine_doc()
+
+
+@app.get("/api/refine/evidence/{stamp}", dependencies=[Depends(require_token)])
+def refine_evidence(stamp: str) -> dict:
+    """One evidence tree's manifest and file list (.fleet/refine/<stamp>/)."""
+    try:
+        return core.refine_evidence_doc(stamp)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.get("/api/refine/evidence/{stamp}/file", dependencies=[Depends(require_token)])
+def refine_evidence_file(stamp: str, path: str = Query(..., max_length=300)) -> dict:
+    """One file of an evidence tree, as the redacted text the proposer would read."""
+    try:
+        return core.refine_evidence_file(stamp, path)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.get("/api/refine/review/{run_id}/file", dependencies=[Depends(require_token)])
+def refine_review_file(run_id: str, path: str = Query(..., max_length=300)) -> dict:
+    """A reviewed preview's text: a run's summary, an item's publish-plan.md or one body."""
+    try:
+        return core.refine_review_file(run_id, path)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.post("/api/refine/library", dependencies=[Depends(require_token)], status_code=201)
+def refine_library_add(req: LibraryEntry) -> dict:
+    """Write one experience entry on the working tree — validated and leak-checked, never committed;
+    a person reviews it and the pull request carries it (the human-gated inbox)."""
+    try:
+        return core.refine_library_add(req.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/api/assist", dependencies=[Depends(require_token)])
+def assist() -> dict:
+    """The in-page assistant: its configuration (_data/fleet.yml assistant:), the tools a session gets,
+    and why it cannot run here, if it cannot."""
+    return core.assist_doc()
+
+
 @app.get("/api/workflows", dependencies=[Depends(require_token)])
 def workflows() -> dict:
     """The workflow atlas: every hub workflow and composite action — triggers,
@@ -646,6 +727,18 @@ def project(name: str) -> dict:
     detail["row"] = next((r for r in view["rows"] if r["name"] == name), None)
     detail["inbox"] = view["inbox"]
     return detail
+
+
+@app.get("/api/project/{name}/readme", dependencies=[Depends(require_token)])
+def project_readme(name: str) -> dict:
+    """The repo's README from its checkout on this machine, for the generated
+    repo app (ADR 0005 F1). Never part of the public snapshot."""
+    try:
+        return core.project_readme(name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"no registry project named '{name}'")
 
 
 # --------------------------------------------------------------------------- #
@@ -824,6 +917,16 @@ def fleet_docker() -> dict:
     console holding one would be root on the Docker host), so each host reports
     its error and the terminal dash's Docker tab is where containers live."""
     return fviews.dash_view(core.REPO_ROOT, docker=True)["docker"]
+
+
+@app.get("/api/apps", dependencies=[Depends(require_token)])
+def apps_view() -> dict:
+    """The app portal's launcher (fleetcore.apps): every registry frontend with
+    its live address and its local dev stack's, the device matrix and the
+    counts — the document `tools/dash apps` prints and the Apps page frames
+    from. Addresses only: whether one answers is the browser's to find out,
+    because a frame loads from where the reader sits, not from this process."""
+    return fapps.apps_view(core.REPO_ROOT)
 
 
 @app.get("/api/keys")

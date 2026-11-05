@@ -89,7 +89,7 @@ def test_argv_shapes_are_exact_and_never_shell():
     # loop-run needs a loop with a local: spec, and its step named when the loop has several (fanout's kits)
     first = (core.agent_steps() or [{"loop": "", "step": ""}])[0]
     for op_id in core.OPS:
-        if op_id in ("tests",):
+        if op_id in ("tests", "refine-evidence", "assist"):   # need an item / a question (their own test below)
             continue
         argv, _ = core.build_argv(op_id, {"target": "alpha", "workflow": "fleet-pulse", "fields": {},
                                           "kind": "gate", "id": "doc-check", "loop": first["loop"],
@@ -225,6 +225,8 @@ def test_content_ops_argv_and_only_apply_is_remote():
     import json
     doc = core.content_report()
     assert "present" in doc and "declared" in doc and "sites" in doc, doc.keys()
+    # the topic loop read back (content_atlas.in_flight) rides on every analyzed site
+    assert all("in_flight" in a for a in doc["sites"]), [a["site"] for a in doc["sites"] if "in_flight" not in a]
     json.dumps(doc)
     try:
         core.content_report("no-such-site")
@@ -343,6 +345,140 @@ def test_embed_urls_and_frame_src_come_from_the_contract():
     assert "kiosk" in embeds["metrics"], "grafana would render its full chrome inside the pane"
     for src in sources:
         assert src.startswith("http://127.0.0.1:"), f"{src} is not loopback — the planes are local-only"
+
+
+def test_the_policy_names_exactly_the_origins_the_apps_page_frames():
+    """The Apps page frames a fleet frontend and asks its address whether it
+    answers. An origin missing from frame-src or connect-src fails the same
+    silent way an observability embed does; an origin too many is a hole in
+    the policy. Both lists are the launcher's own, and nothing wider."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from fleetcore import apps as fapps
+
+    doc = fapps.apps_view(core.REPO_ROOT)
+    wanted = fapps.origins(doc["apps"])
+    assert wanted, "the launcher frames nothing"
+    assert fapps.target_origins(core.REPO_ROOT) == wanted
+    for a in doc["apps"]:
+        for t in a["targets"]:
+            if a["embed"] == "frame":
+                assert fapps.origin(t["url"]) in wanted, f"{a['id']}:{t['id']} would be refused by the policy"
+    for o in wanted:
+        assert re.match(r"^https://[a-z0-9.\-]+$|^http://127\.0\.0\.1:\d{2,5}$", o), \
+            f"{o}: a framed origin is an https site or a loopback dev port"
+    # A registry value cannot smuggle a directive, a wildcard or credentials in.
+    for crafted in ("https://x.test; script-src *", "https://x.test script-src", "https://user:pw@x.test/",
+                    "https://*.x.test/", "javascript:alert(1)", "//x.test/", "ftp://x.test/", "", None):
+        assert fapps.origin(crafted) is None, crafted
+    try:
+        from fastapi.testclient import TestClient  # noqa: F401
+    except ImportError:
+        print("    (policy header skipped: fastapi not installed)")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+
+    policy = dict(d.strip().split(" ", 1) for d in console_app.content_policy("/apps", "127.0.0.1:4001").split(";"))
+    for directive in ("frame-src", "connect-src"):
+        listed = policy[directive].split()
+        missing = [o for o in wanted if o not in listed]
+        assert not missing, f"{directive} lacks {missing}"
+        assert "*" not in policy[directive], f"{directive} carries a wildcard"
+    extra = set(policy["frame-src"].split()) - set(wanted) - set(core.frame_src()) - {"'self'"}
+    assert not extra, f"frame-src allows origins no registry declares: {sorted(extra)}"
+    assert policy["script-src"] == "'self'" and policy["frame-ancestors"] == "'none'"
+
+
+def test_the_apps_route_serves_the_launcher():
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    r = client.get("/api/apps")
+    assert r.status_code == 200, r.text
+    doc = r.json()
+    assert doc["schema"] == "fleet-launcher/v1" and doc["summary"]["apps"] == len(doc["apps"]) > 0
+    assert [v["id"] for v in doc["viewports"]] == list(core.load_yaml(core.REPO_ROOT / "verify" / "verify.yml")["viewports"])
+    # Addresses only: nothing in the document says what a port answered.
+    assert not ({"ok", "status_code", "reachable", "frameable"} & {k for a in doc["apps"] for t in a["targets"] for k in t})
+
+
+def test_a_repos_readme_comes_from_its_registry_checkout_and_nowhere_else():
+    """The generated repo app shows a repo's README (ADR 0005 F1). The path is
+    the registry's submodule_path, never the request's; it must sit directly
+    under projects/; a symlink is not followed; a long file is cut and says so;
+    and what is missing says why instead of failing."""
+    saved = (core.REPO_ROOT, core.DATA)
+    tmp = Path(tempfile.mkdtemp(prefix="console-readme-"))
+    try:
+        (tmp / "_data").mkdir()
+        (tmp / "_data" / "projects.yml").write_text(
+            "- {name: has, submodule_path: projects/has}\n"
+            "- {name: long, submodule_path: projects/long}\n"
+            "- {name: empty, submodule_path: projects/empty}\n"
+            "- {name: bare, submodule_path: projects/bare}\n"
+            "- {name: linked, submodule_path: projects/linked}\n"
+            "- {name: escape, submodule_path: ../outside}\n"
+            "- {name: deep, submodule_path: projects/has/nested}\n"
+            "- {name: external}\n", encoding="utf-8")
+        for d in ("has", "long", "empty", "bare", "linked"):
+            (tmp / "projects" / d).mkdir(parents=True)
+        (tmp / "projects" / "has" / "README.md").write_text("# has\n\nhello", encoding="utf-8")
+        (tmp / "projects" / "has" / "nested").mkdir()
+        (tmp / "projects" / "has" / "nested" / "README.md").write_text("nested", encoding="utf-8")
+        (tmp / "projects" / "long" / "README.md").write_text("x" * (core.README_CAP + 10), encoding="utf-8")
+        (tmp / "projects" / "bare" / "main.rs").write_text("fn main() {}", encoding="utf-8")
+        outside = Path(tempfile.mkdtemp(prefix="console-readme-outside-"))
+        (outside / "README.md").write_text("SECRET outside the tree", encoding="utf-8")
+        (tmp / "projects" / "linked" / "README.md").symlink_to(outside / "README.md")
+        (tmp.parent / "outside").mkdir(exist_ok=True)
+        core.REPO_ROOT, core.DATA = tmp, tmp / "_data"
+
+        got = core.project_readme("has")
+        assert got == {"present": True, "path": "projects/has/README.md", "markdown": "# has\n\nhello", "truncated": False}, got
+        long = core.project_readme("long")
+        assert long["truncated"] is True and len(long["markdown"]) == core.README_CAP
+        assert core.project_readme("empty") == {"present": False, "reason": "not checked out on this machine"}
+        assert core.project_readme("bare") == {"present": False, "reason": "it has no README file"}
+        assert core.project_readme("external")["present"] is False
+        for name in ("linked", "escape", "deep"):
+            got = core.project_readme(name)
+            assert got["present"] is False and "SECRET" not in json.dumps(got), f"{name}: {got}"
+        blob = json.dumps([core.project_readme(n) for n in ("has", "long", "empty", "bare")])
+        assert str(tmp) not in blob, "an absolute path of this machine is in the README document"
+        for bad in ("../has", "has/../../x", "", "has; rm"):
+            try:
+                core.project_readme(bad)
+            except ValueError:
+                continue
+            raise AssertionError(f"accepted {bad!r}")
+        try:
+            core.project_readme("nope")
+        except KeyError:
+            pass
+        else:
+            raise AssertionError("an unknown project has no README to offer")
+    finally:
+        core.REPO_ROOT, core.DATA = saved
+        shutil.rmtree(tmp, ignore_errors=True)
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (route skipped: fastapi not installed)")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    assert client.get("/api/project/nope/readme").status_code == 404
+    name = next(p["name"] for p in core.load_yaml(core.DATA / "projects.yml") if p.get("submodule_path"))
+    r = client.get(f"/api/project/{name}/readme")
+    assert r.status_code == 200 and set(r.json()) <= {"present", "reason", "path", "markdown", "truncated"}, r.text
 
 
 def test_the_observability_contract_block_is_editable_from_the_config_tab():
@@ -1827,3 +1963,247 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def test_refine_ops_are_local_dollar_free_and_validated():
+    """JEV capability three in the console (docs/HARNESS-REFINEMENT.md, ADR 0004 P2): every refine op is
+    `tools/dash refine …`, needs no token and never writes remotely; the builders refuse what the CLI would."""
+    steps = core.agent_steps()
+    loop = steps[0]["loop"] if steps else "repo-scout"
+    argv, remote = core.build_argv("refine-surface", {})
+    assert argv[1:] == ["refine", "surface", "check"] and remote is False, argv
+    assert core.build_argv("refine-surface", {"target": "fleet"})[0][1:] == ["refine", "surface", "fleet"]
+    assert core.build_argv("refine-surface", {"target": "SCHEMA"})[0][1:] == ["refine", "surface", "fleet", "--only", "SCHEMA"]
+    argv, remote = core.build_argv("refine-plan", {"loop": loop, "k": "2", "mode": "sequential", "target": "SCHEMA"})
+    assert argv[1:] == ["refine", "plan", loop, "--k", "2", "--mode", "sequential", "--target", "SCHEMA"] and remote is False
+    argv, _ = core.build_argv("refine-evidence", {"loop": loop, "item": "bamr87/SCHEMA", "stage": "compose"})
+    assert argv[1:] == ["refine", "evidence", loop, "--item", "bamr87/SCHEMA", "--stage", "compose", "--k", "1", "--json"]
+    assert core.build_argv("refine-library-check", {})[0][1:] == ["refine", "library", "check"]
+    for op, bad in (("refine-plan", {"loop": "no-such-loop"}), ("refine-plan", {"loop": loop, "k": "9"}),
+                    ("refine-plan", {"loop": loop, "mode": "wide"}), ("refine-plan", {"loop": loop, "target": "x y"}),
+                    ("refine-evidence", {"loop": loop}), ("refine-evidence", {"loop": loop, "item": "SCHEMA"}),
+                    ("refine-evidence", {"loop": loop, "item": "bamr87/SCHEMA", "stage": "judge"}),
+                    ("refine-evidence", {"loop": loop, "item": "bamr87/SCHEMA", "run_id": "../x"}),
+                    ("refine-surface", {"target": "a b"})):
+        try:
+            core.build_argv(op, bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"{op} {bad} accepted")
+    rows = {o["id"]: o for o in core.list_ops()}
+    for op in ("refine-surface", "refine-plan", "refine-evidence", "refine-library-check", "assist"):
+        assert rows[op]["group"] == "refine" and rows[op]["needs_token"] is False, rows[op]
+        assert rows[op]["remote_write"] is (op == "assist"), op
+    assert rows["refine-plan"]["loops"] and rows["refine-evidence"]["stages"] == list(core.REFINE_STAGES)
+    for loop_row in core.LOOPS:
+        if loop_row["workflow"] in ("repo-scout", "repo-evolution", "fleet-pulse"):
+            assert "refine-plan" in loop_row["local_ops"], loop_row["id"]
+
+
+def test_assist_op_is_a_capped_read_only_mcp_session_behind_the_spend_gate():
+    """The assistant: one `dash-gen ai-run` session whose prompt (the question and the page context in
+    tools/console/assist.prompt.txt) goes to a file on the job dir, the `fleet` MCP server its only server,
+    the read tools allowed and every writing tool denied, the cap from fleet.yml assistant.budget_usd; it
+    always asks (confirm spend), runs alone, and is refused without a question or when switched off."""
+    argv, remote = core.build_argv("assist", {"question": "Which repos are red, and why?", "context": "page /overview"})
+    assert remote is True and argv[1] == "ai-run" and "--isolate" not in argv, argv
+    assert argv[argv.index("--cwd") + 1] == str(core.REPO_ROOT) and "--stream" in argv and "--usage-limit" in argv
+    cfg = core.assistant_config()
+    assert argv[argv.index("--max-budget-usd") + 1] == f"{cfg.budget_usd:g}"
+    assert argv[argv.index("--timeout") + 1] == str(cfg.timeout_s)
+    tail = argv[argv.index("--") + 1:]
+    assert tail[tail.index("--model") + 1] == cfg.model and tail[tail.index("--max-turns") + 1] == str(cfg.max_turns)
+    assert tail[tail.index("--permission-mode") + 1] == "dontAsk" and "--strict-mcp-config" in tail
+    assert "--dangerously-skip-permissions" not in tail and "bypassPermissions" not in tail
+    allowed = tail[tail.index("--allowedTools") + 1: tail.index("--disallowedTools")]
+    assert allowed == list(core.ASSIST_ALLOWED) and "mcp__fleet" in allowed
+    denied = tail[tail.index("--disallowedTools") + 1:]
+    assert set(denied) >= {"Bash", "Write", "Edit", "WebFetch", "WebSearch"}
+    prompt_file = Path(argv[argv.index("--prompt-file") + 1])
+    assert prompt_file.is_relative_to(core.JOB_DIR) and prompt_file.is_file()
+    prompt = prompt_file.read_text(encoding="utf-8")
+    assert "Which repos are red, and why?" in prompt and "page /overview" in prompt and "{{" not in prompt
+    mcp = json.loads(Path(tail[tail.index("--mcp-config") + 1]).read_text(encoding="utf-8"))
+    assert list(mcp["mcpServers"]) == ["fleet"] and mcp["mcpServers"]["fleet"]["command"].endswith("tools/console/mcp.sh")
+    assert "token" not in json.dumps(mcp).lower(), "the token reaches the MCP server by the environment, never a file"
+    for bad in ({}, {"question": "   "}, {"question": "x" * (core.ASSIST_MAX_CHARS + 1)}, {"question": "a\0b"}):
+        try:
+            core.build_argv("assist", bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"assist {bad} accepted")
+    row = next(o for o in core.list_ops() if o["id"] == "assist")
+    assert row["confirm"] == "spend" and row["exclusive"] == "assist" and row["remote_write"] is True
+    # the structured view: question + answer once the result file exists
+    job = core.Job("assist", argv, True, {"question": "Which repos are red, and why?", "context": "page /overview"})
+    view = core.assist_job_fields(job)
+    assert view["question"].startswith("Which repos") and view["answer"] is None and view["cost_label"] == core.COST_LABEL
+    Path(argv[argv.index("--result-file") + 1]).write_text(json.dumps({"result": "Three repos are red: …", "num_turns": 4,
+                                                                      "total_cost_usd": 0.0321, "subtype": "success",
+                                                                      "modelUsage": {"claude-sonnet-5-5": {}}}), encoding="utf-8")
+    Path(argv[argv.index("--outcome-file") + 1]).write_text(json.dumps({"kind": "ok", "cost_usd": 0.0321, "cost_source": "reported"}),
+                                                           encoding="utf-8")
+    view = core.assist_job_fields(job)
+    assert view["answer"].startswith("Three repos") and view["turns"] == 4 and view["cost_usd"] == 0.0321
+    assert view["models"] == ["claude-sonnet-5-5"] and view["outcome"] == "ok" and view["cost_source"] == "reported"
+    # switched off in fleet.yml → unavailable, and the builder refuses
+    orig = core.assistant_config
+    core.assistant_config = lambda fleet=None: core.AssistConfig(enabled=False, model="claude-sonnet-5-5", max_turns=1,
+                                                                 budget_usd=1.0, timeout_s=60)
+    try:
+        assert "off" in (core.assist_unavailable() or "") or core.claude_unavailable()
+        try:
+            core.build_argv("assist", {"question": "hi"})
+        except ValueError as exc:
+            assert "off" in str(exc)
+        else:
+            raise AssertionError("a switched-off assistant must refuse")
+    finally:
+        core.assistant_config = orig
+    for bad in ({"assistant": {"enabled": True, "model": "sonnet", "max_turns": 1, "budget_usd": 1, "timeout_s": 60,
+                               "ai_models": {}}},
+                {"assistant": {"enabled": "yes", "model": "claude-sonnet-5-5", "max_turns": 1, "budget_usd": 1, "timeout_s": 60},
+                 "ai_models": {"allowed": {"anthropic": ["claude-sonnet-5-5"]}}},
+                {"assistant": {"enabled": True, "model": "claude-sonnet-5-5", "max_turns": 0, "budget_usd": 1, "timeout_s": 60},
+                 "ai_models": {"allowed": {"anthropic": ["claude-sonnet-5-5"]}}},
+                {"assistant": {"enabled": True, "model": "claude-sonnet-5-5", "max_turns": 1, "budget_usd": 0, "timeout_s": 60},
+                 "ai_models": {"allowed": {"anthropic": ["claude-sonnet-5-5"]}}}):
+        try:
+            core.assistant_config(bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"assistant config {bad} accepted")
+
+
+def test_refine_documents_read_the_run_records_and_never_carry_a_local_path():
+    """/api/refine: the hub's surface check, one plan per agent step, the library, the evidence trees and the
+    review queue of unfiled previews — from a fixture run record; the public shape carries no local-only
+    section and no absolute path."""
+    import tempfile
+    base = Path(tempfile.mkdtemp(prefix="console-refine-"))
+    runs, refine_dir, lib_dir = base / "runs", base / "refine", base / "lib"
+    run = runs / "20261101T120000Z-repo-scout-scout-aaaaaa"
+    (run / "items" / "bamr87__SCHEMA" / "bodies").mkdir(parents=True)
+    (run / "run.json").write_text(json.dumps({"schema": "jev-loop-run/v1", "loop": "repo-scout", "step": "scout",
+                                              "finished": "2026-11-01T12:01:00Z",
+                                              "items": [{"key": "bamr87/SCHEMA", "dir": "bamr87__SCHEMA", "name": "SCHEMA",
+                                                         "status": "previewed", "publishable": True, "plan_id": "abc",
+                                                         "reason": "1 issue(s) previewed", "cost_usd": 0.1,
+                                                         "facts": {"would_file": 1}}]}), encoding="utf-8")
+    (run / "attempts.jsonl").write_text(json.dumps({"decision": "attempt", "item": "bamr87/SCHEMA", "loop": "repo-scout",
+                                                    "step": "scout", "validated_sha256": "f" * 64, "head_sha": "abc123"}) + "\n",
+                                        encoding="utf-8")
+    (run / "items" / "bamr87__SCHEMA" / "publish-plan.md").write_text("# Publish plan abc — bamr87/SCHEMA\n", encoding="utf-8")
+    (run / "items" / "bamr87__SCHEMA" / "bodies" / "01-gate-the-docs-index.md").write_text("## Problem\n", encoding="utf-8")
+    tree = refine_dir / "20261101T130000Z-repo-scout-scout-compose"
+    (tree / "context").mkdir(parents=True)
+    (tree / "context" / "task.md").write_text("the brief\n", encoding="utf-8")
+    (tree / "evidence.json").write_text(json.dumps({"schema": "jev-refine-evidence/v1", "loop": "repo-scout", "step": "scout",
+                                                    "item": "bamr87/SCHEMA", "domain": "dev-tools", "stage": "compose", "k": 1,
+                                                    "generated_at": "2026-11-01T13:00:00Z", "redacted": True, "library_entries": 0,
+                                                    "rollouts": [{"label": "base1"}],
+                                                    "files": {"context/task.md": {"bytes": 10, "sha256": "x"}}}), encoding="utf-8")
+    old = {k: os.environ.get(k) for k in ("JEV_RUNS_DIR", "JEV_REFINE_DIR", "JEV_LIBRARY_DIR")}
+    os.environ.update(JEV_RUNS_DIR=str(runs), JEV_REFINE_DIR=str(refine_dir), JEV_LIBRARY_DIR=str(lib_dir))
+    core._REFINE_CACHE.update(at=0.0, doc=None, fleet_at=0.0, fleet=None)
+    try:
+        doc = core.refine_doc(max_age_s=0)
+        assert doc["surface"]["ok"] is True and doc["surface"]["root"] == "bamr87/bamr87", doc["surface"]["errors"]
+        assert {p["loop"] for p in doc["plans"]} >= {"repo-scout"} and all(p.get("error") is None for p in doc["plans"]), doc["plans"]
+        scout = next(p for p in doc["plans"] if p["loop"] == "repo-scout")
+        assert scout["identity"] == {"R": 4, "P": 3} and scout["library"]["root"] == str(lib_dir.name) or scout["library"]["root"]
+        assert doc["evidence"] == [{"stamp": tree.name, "loop": "repo-scout", "step": "scout", "item": "bamr87/SCHEMA",
+                                    "domain": "dev-tools", "stage": "compose", "k": 1, "generated_at": "2026-11-01T13:00:00Z",
+                                    "files": 1, "rollouts": ["base1"], "library_entries": 0, "redacted": True}]
+        r = doc["reviews"]
+        assert len(r) == 1 and r[0]["run_id"] == run.name and r[0]["item"] == "bamr87/SCHEMA" and r[0]["would_file"] == 1
+        assert r[0]["can_apply"] is True and r[0]["bodies"] == [{"file": "01-gate-the-docs-index.md", "title": "gate the docs index"}]
+        assert r[0]["preview"] == "items/bamr87__SCHEMA/publish-plan.md" and r[0]["head_sha"] == "abc123"
+        text = json.dumps(doc)
+        assert str(base) not in text and str(core.REPO_ROOT) not in text, "a local path leaked into /api/refine"
+        # a filed preview leaves the queue
+        with (run / "attempts.jsonl").open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"decision": "publish-apply", "published": True, "item": "bamr87/SCHEMA", "loop": "repo-scout",
+                                 "step": "scout", "validated_sha256": "f" * 64}) + "\n")
+        assert core.refine_reviews(local=True) == []
+        # the preview's text, and the refusals
+        pv = core.refine_review_file(run.name, "items/bamr87__SCHEMA/publish-plan.md")
+        assert pv["text"].startswith("# Publish plan") and pv["truncated"] is False
+        for bad in (("../x", "summary.md"), (run.name, "../../etc/passwd"), (run.name, "items/bamr87__SCHEMA/trace.jsonl"),
+                    (run.name, "nope.md")):
+            try:
+                core.refine_review_file(*bad)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError(f"{bad} accepted")
+        ev = core.refine_evidence_doc(tree.name)
+        assert ev["files"] == ["context/task.md"] and ev["manifest"]["stage"] == "compose" and "files" not in ev["manifest"]
+        assert core.refine_evidence_file(tree.name, "context/task.md")["text"] == "the brief\n"
+        for bad in (("nope",), ("../x",)):
+            try:
+                core.refine_evidence_doc(*bad)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError(f"{bad} accepted")
+        try:
+            core.refine_evidence_file(tree.name, "evidence.json")
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("a file outside the manifest was served")
+        public = core.refine_doc(local=False, max_age_s=0)
+        assert public["evidence"] == [] and public["reviews"] == [] and public["local"] is False
+        assert all(p["budget"] == {"available": False} for p in public["plans"] if not p.get("error"))
+        assert str(base) not in json.dumps(public)
+        # the library inbox: an entry lands on the working tree, refusals are 400s
+        out = core.refine_library_add({"loop": "repo-scout", "step": "scout", "domain": "dev-tools", "item": "bamr87/SCHEMA",
+                                       "run_id": run.name, "adopted": "base1", "cue": "a cue", "lesson": "a lesson",
+                                       "evidence": "row 1", "confidence": "low",
+                                       "edits": [{"component": "c", "candidates": ["inv1"], "change": "x", "observed": "y",
+                                                  "verdict": "helped"}]})
+        assert out["uncommitted"] is True and out["entry"]["cue"] == "a cue" and (lib_dir / "repo-scout" / "dev-tools").is_dir()
+        for bad in ({"loop": "repo-scout"}, {**{k: "x" for k in ("loop", "step", "domain", "item", "run_id", "adopted", "cue",
+                                                                   "lesson", "evidence")}, "confidence": "sure"}, "nope"):
+            try:
+                core.refine_library_add(bad)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError(f"library add {bad} accepted")
+        a = core.assist_doc()
+        assert a["config"]["model"] == core.assistant_config().model and a["allowed_tools"] == list(core.ASSIST_ALLOWED)
+        assert core.assist_doc(local=False)["unavailable"], "the snapshot says the assistant runs on the operator's machine"
+    finally:
+        for k, v in old.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        core._REFINE_CACHE.update(at=0.0, doc=None, fleet_at=0.0, fleet=None)
+
+
+def test_refine_routes_serve_the_documents_and_refuse_bad_paths():
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("  (fastapi not installed — refine route test skipped)")
+        return
+    import app as console_app
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    core._REFINE_CACHE.update(at=0.0, doc=None, fleet_at=0.0, fleet=None)
+    r = client.get("/api/refine")
+    assert r.status_code == 200 and r.json()["schema"] == "refine-doc/v1" and "plans" in r.json(), r.text[:300]
+    assert client.get("/api/refine/evidence/nope").status_code == 404
+    assert client.get("/api/refine/evidence/20261101T120000Z-x/file?path=../x").status_code == 404
+    assert client.get("/api/refine/review/not-a-run/file?path=summary.md").status_code == 404
+    assert client.get("/api/assist").status_code == 200 and client.get("/api/assist").json()["mcp_server"] == "fleet"
+    r = client.post("/api/refine/library", json={"loop": "repo-scout", "step": "scout", "domain": "dev-tools",
+                                                  "item": "bamr87/SCHEMA", "run_id": "r", "adopted": "base1", "cue": "c",
+                                                  "lesson": "l", "evidence": "e", "confidence": "sure"})
+    assert r.status_code == 400 and "confidence" in r.json()["detail"], r.text
+    assert client.post("/api/refine/library", json={"loop": "x"}).status_code == 422

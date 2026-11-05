@@ -34,6 +34,10 @@ directives the sites' own content loops consume.
   file     Deliver approved directives: one GitHub issue per directive in the
            site's own repo, labelled `editorial:directive`, deduped on a hidden
            marker. DRY RUN unless --apply; the plan records `filed` + the URL.
+  trace    Read the topic loop back: for every filed directive, the issue's
+           state and the pull request (in the site's repo) that answers it —
+           draft, open, merged or closed. Read-only toward GitHub; --apply
+           records `pr` + `pr_state` in the plan. `file` runs it after filing.
 
 Design rules, same as every dash-gen module: the analysis half is pure and
 fixture-tested (test_content_atlas.py); the network half (clone, gh) degrades
@@ -76,6 +80,10 @@ MARKER = "editorial-directive"    # <!-- editorial-directive key=… site=… --
 
 DIRECTIVE_STATES = ("proposed", "approved", "rejected", "filed", "done")
 DIRECTIVE_KINDS = ("write", "refresh", "fix", "hold", "pillar", "cadence")
+# What `trace` reads back about the pull request that answers a filed
+# directive (the topic loop: directive → issue → pull request → merged).
+PR_STATES = ("draft", "open", "merged", "closed")
+PR_URL_RX = r"^https://github\.com/[\w.-]+/[\w.-]+/pull/\d+$"
 # Legal transitions. `rejected` and `done` are terminal but reopenable to
 # `proposed`, so a decision is always reversible from the console.
 TRANSITIONS = {
@@ -754,7 +762,22 @@ def analyze_site(site_row: dict, docs: list[dict], commits: list[dict], plan: di
         "unmapped": {"docs": len(unmapped), "share": round(len(unmapped) / n, 3) if n else 0.0,
                      "top_tags": [{"tag": t, "docs": c} for t, c in unmapped_tags]},
         "directives": sp["directives"],
+        "in_flight": in_flight(sp["directives"]),
     }
+
+
+def in_flight(directives: list[dict]) -> list[dict]:
+    """The topic loop read back, one row per directive that left the hub:
+    its issue (open while `filed`, closed once `done`), the pull request
+    `trace` found for it and that pull request's state."""
+    rows = []
+    for d in directives or []:
+        if not d.get("issue") or d.get("status") not in ("filed", "done"):
+            continue
+        rows.append({"key": d.get("key"), "title": d.get("title"), "issue": d["issue"],
+                     "issue_state": "closed" if d.get("status") == "done" else "open",
+                     "pr": d.get("pr"), "pr_state": d.get("pr_state"), "done": d.get("status") == "done"})
+    return rows
 
 
 def _brief_doc(d: dict, today: dt.date) -> dict:
@@ -994,7 +1017,9 @@ def decide(plan_path: Path | str, site: str, action: str, key: str, contract: di
     action: approve | reject — decide a SUGGESTION (its title/brief/kind are
             copied in, so the plan stays readable without the lake);
             add — a human's own directive (fields: title, brief, kind, pillar);
-            status — move an existing directive (fields: status, issue);
+            status — move an existing directive (fields: status, issue), or
+                     record what `trace` found (fields: pr, pr_state — the
+                     status may be omitted and then stays where it is);
             remove — delete a directive that is still `proposed` or `rejected`.
     """
     from ruamel.yaml.comments import CommentedMap
@@ -1060,14 +1085,24 @@ def decide(plan_path: Path | str, site: str, action: str, key: str, contract: di
         if existing is None:
             raise ValueError(f"no directive '{key}'")
         target = fields.get("status")
+        if target is None and ("pr" in fields or "pr_state" in fields):
+            target = existing.get("status") or "proposed"   # a trace records the PR, not a move
         if target not in DIRECTIVE_STATES:
             raise ValueError(f"status must be one of {DIRECTIVE_STATES}")
+        if fields.get("pr") and not re.match(PR_URL_RX, _text(fields["pr"], "pr", 300)):
+            raise ValueError("pr must be a github.com pull request URL")
+        if fields.get("pr_state") is not None and fields["pr_state"] not in PR_STATES:
+            raise ValueError(f"pr_state must be one of {PR_STATES}")
         _transition(existing, target, today)
         if fields.get("issue"):
             url = _text(fields["issue"], "issue", 300)
             if not re.match(r"^https://github\.com/[\w.-]+/[\w.-]+/issues/\d+$", url):
                 raise ValueError("issue must be a github.com issue URL")
             existing["issue"] = url
+        if fields.get("pr"):
+            existing["pr"] = _text(fields["pr"], "pr", 300)
+        if fields.get("pr_state"):
+            existing["pr_state"] = fields["pr_state"]
     elif action == "remove":
         if existing is None:
             raise ValueError(f"no directive '{key}'")
@@ -1183,6 +1218,9 @@ def render_brief(a: dict, only_key: str | None = None) -> str:
             lines.append(f"- **{d.get('title')}** ({d.get('kind')}, {d.get('priority')}) — {d.get('brief') or ''}"
                          + (f" [{d['issue']}]({d['issue']})" if d.get("issue") else ""))
         lines.append("")
+    flight = [r for r in a.get("in_flight") or [] if only_key is None or r.get("key") == only_key]
+    if flight:
+        lines += render_in_flight(flight) + [""]
     t = a["totals"]
     lines += ["## State of the site", "",
               f"{t['docs']} published documents, {t['recent']} in the last {t['recent_days']} days; last "
@@ -1283,6 +1321,122 @@ def _record(plan_path, site, d, status, url, contract, today):
 
 
 # --------------------------------------------------------------------------- #
+# TRACE — the topic loop read back: directive → issue → pull request → merged
+# --------------------------------------------------------------------------- #
+ISSUE_URL_RX = re.compile(r"^https://github\.com/([\w.-]+/[\w.-]+)/issues/(\d+)$")
+PR_RANK = {"merged": 0, "open": 1, "draft": 2, "closed": 3}   # which PR speaks for the directive
+
+
+def _json_stream(text: str) -> list:
+    """`gh api --paginate` prints one JSON array per page, back to back."""
+    dec, i, out = json.JSONDecoder(), 0, []
+    text = text or ""
+    while True:
+        while i < len(text) and text[i].isspace():
+            i += 1
+        if i >= len(text):
+            return out
+        val, i = dec.raw_decode(text, i)
+        out.extend(val if isinstance(val, list) else [val])
+
+
+def pr_state_of(src: dict) -> str:
+    """draft | open | merged | closed for a timeline `source.issue` that is a PR."""
+    if (src.get("pull_request") or {}).get("merged_at"):
+        return "merged"
+    if str(src.get("state") or "").lower() == "closed":
+        return "closed"
+    return "draft" if src.get("draft") else "open"
+
+
+def read_timeline(events: list[dict], repo: str | list[str]) -> tuple[str, dict | None]:
+    """(issue state, the pull request that speaks for it) from an issue's
+    timeline. Only cross-references from a pull request in the issue's own
+    repository count (`repo` may list its names — an issue URL can still carry
+    a repo's old owner) — a hub PR that merely mentions the issue is not the
+    answer to it. A merged PR beats an open one, an open one a draft, a draft a
+    closed one; between equals the newest wins."""
+    repos = {r.lower() for r in ([repo] if isinstance(repo, str) else repo) if r}
+    issue_state, prs = "open", {}
+    for ev in events:
+        if not isinstance(ev, dict):
+            continue
+        kind = ev.get("event")
+        if kind in ("closed", "reopened"):
+            issue_state = "closed" if kind == "closed" else "open"
+        if kind != "cross-referenced":
+            continue
+        src = (ev.get("source") or {}).get("issue") or {}
+        url = str(src.get("html_url") or "")
+        if not src.get("pull_request") or not re.match(PR_URL_RX, url):
+            continue
+        full = (src.get("repository") or {}).get("full_name") or url.split("/")[3] + "/" + url.split("/")[4]
+        if full.lower() not in repos:
+            continue
+        prs[url] = {"url": url, "state": pr_state_of(src), "title": src.get("title")}
+    best = min(prs.values(), key=lambda p: (PR_RANK[p["state"]], -int(p["url"].rsplit("/", 1)[1])), default=None)
+    return issue_state, best
+
+
+def trace_directives(a: dict, contract: dict, plan_path: Path | str | None = None, apply: bool = False,
+                     log=print, run=_run, today: dt.date | None = None) -> list[dict]:
+    """For each directive that left the hub (`filed`, or `done` without a
+    settled pull request), read its issue's timeline and find the pull request
+    that answers it. Read-only toward GitHub; with `apply` the plan records
+    `pr` + `pr_state`, and only for a directive whose issue has one."""
+    results = []
+    for d in a.get("directives") or []:
+        if d.get("status") not in ("filed", "done") or not d.get("issue"):
+            continue
+        if d.get("status") == "done" and d.get("pr_state") in ("merged", "closed"):
+            continue  # settled — nothing left to read back
+        m = ISSUE_URL_RX.match(str(d["issue"]))
+        row = {"key": d.get("key"), "title": d.get("title"), "issue": d["issue"], "issue_state": None,
+               "pr": None, "pr_state": None, "action": "none"}
+        if not m:
+            row.update(action="failed", error="not a github.com issue URL")
+            results.append(row)
+            continue
+        repo, num = m.groups()
+        rc, out = run(["gh", "api", "--paginate", f"repos/{repo}/issues/{num}/timeline"], timeout=60)
+        try:
+            events = _json_stream(out) if rc == 0 else None
+        except ValueError:
+            events = None
+        if events is None:
+            row.update(action="failed", error=(out or "").strip()[:200])
+            log(f"  ✖ {d.get('key')}: could not read {repo}#{num}: {row['error'][:160]}")
+            results.append(row)
+            continue
+        issue_state, best = read_timeline(events, [repo, a.get("repo")])
+        row.update(issue_state=issue_state, pr=best and best["url"], pr_state=best and best["state"])
+        if best and (d.get("pr") != best["url"] or d.get("pr_state") != best["state"]):
+            row["action"] = "record" if apply else "would-record"
+            if apply and plan_path is not None:
+                try:
+                    decide(plan_path, a["site"], "status", d["key"], contract,
+                           fields={"pr": best["url"], "pr_state": best["state"]}, today=today)
+                except ValueError as exc:
+                    row.update(action="failed", error=str(exc)[:200])
+        elif best:
+            row["action"] = "unchanged"
+        log(f"  {str(d.get('key')):<34} {repo}#{num:<5} issue {issue_state:<6} "
+            f"pr {row['pr_state'] or '—':<7} {row['pr'] or ''}  [{row['action']}]")
+        results.append(row)
+    return results
+
+
+def render_in_flight(rows: list[dict]) -> list[str]:
+    """The "in flight" block shared by `report` and `brief`."""
+    out = ["## In flight", "", "| directive | issue | pull request | done |", "|---|---|---|---|"]
+    for r in rows:
+        title = str(r.get("title") or r.get("key")).replace("|", "\\|")
+        pr = f"[{r['pr_state'] or 'open'}]({r['pr']})" if r.get("pr") else "—"
+        out.append(f"| {title} | [{r['issue_state']}]({r['issue']}) | {pr} | {'yes' if r.get('done') else 'no'} |")
+    return out
+
+
+# --------------------------------------------------------------------------- #
 # CLI
 # --------------------------------------------------------------------------- #
 def _conn_or_none(args):
@@ -1327,6 +1481,12 @@ def cmd_report(args) -> int:
             print(f"\n{a['site']}:")
             for s in a["suggestions"]:
                 print(f"  [{s['priority']}] {s['key']:<34} {s['title']}")
+    for a in doc["sites"]:
+        if a.get("in_flight"):
+            print(f"\n{a['site']} — in flight:")
+            for r in a["in_flight"]:
+                print(f"  {str(r['key']):<34} issue {r['issue_state']:<6} pr {r.get('pr_state') or '—':<7} "
+                      f"{'done' if r['done'] else '    '} {r.get('pr') or r['issue']}")
     if doc.get("unsynced"):
         print("\nnot synced yet: " + ", ".join(doc["unsynced"]))
     return 0
@@ -1378,7 +1538,32 @@ def cmd_file(args) -> int:
     res = file_directives(a, contract, args.plan, apply=args.apply)
     if not res:
         print("  nothing approved to file")
-    return 1 if any(r["action"] == "failed" for r in res) else 0
+    # …then read the loop back: which filed directive has a pull request yet.
+    if args.apply:
+        a = dict(a, directives=site_plan(load_plan(args.plan), a["site"])["directives"])
+    print(f"{'APPLY' if args.apply else 'DRY RUN'} — trace filed directives for {a['site']}")
+    traced = trace_directives(a, contract, args.plan, apply=args.apply)
+    return 1 if any(r["action"] == "failed" for r in res + traced) else 0
+
+
+def cmd_trace(args) -> int:
+    """Trace alone, from the plan — no lake needed: dry run prints, --apply writes."""
+    contract, plan = load_contract(args.fleet), load_plan(args.plan)
+    known = {s["name"]: s for s in contract["sites"]}
+    if args.site and args.site not in known:
+        print(f"unknown site '{args.site}' — declare it in fleet.yml content.sites first", file=sys.stderr)
+        return 2
+    failed = False
+    for name in [args.site] if args.site else list(known):
+        a = {"site": name, "repo": known[name].get("repo"), "directives": site_plan(plan, name)["directives"]}
+        if not args.site and not any(d.get("issue") for d in a["directives"]):
+            continue
+        print(f"{'APPLY' if args.apply else 'DRY RUN'} — trace filed directives for {name}")
+        res = trace_directives(a, contract, args.plan, apply=args.apply)
+        if not res:
+            print("  nothing filed to trace")
+        failed |= any(r["action"] == "failed" for r in res)
+    return 1 if failed else 0
 
 
 def add_arguments(parser: argparse.ArgumentParser) -> None:
@@ -1426,6 +1611,12 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     p.add_argument("--site", required=True)
     p.add_argument("--apply", action="store_true")
     p.set_defaults(func=cmd_file)
+
+    p = sub.add_parser("trace", help="read filed directives back: issue state + the pull request that answers it "
+                                     "(dry run unless --apply, which records pr + pr_state in the plan)")
+    p.add_argument("--site", default=None, help="one site (default: every site with a filed directive)")
+    p.add_argument("--apply", action="store_true")
+    p.set_defaults(func=cmd_trace)
 
 
 def main(argv: list[str] | None = None) -> int:

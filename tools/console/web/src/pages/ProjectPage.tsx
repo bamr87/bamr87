@@ -5,7 +5,7 @@
 // be pointed at it.
 import { Link, useParams, useSearchParams } from 'react-router';
 import { Anchor, Badge, Group, Paper, SimpleGrid, Stack, Table, Tabs, Text } from '@mantine/core';
-import { useContent, useProject } from '../api/hooks';
+import { useApps, useContent, useProject } from '../api/hooks';
 import type { Dict, HarnessRepo, InboxItem, LakeLine, LakeRun, ProjectDetail, ScheduleEntry } from '../api/types';
 import { DataTable } from '../components/DataTable';
 import { useKeyScope } from '../components/keyscope';
@@ -259,6 +259,7 @@ export function ProjectPage() {
   const tab = sp.get('tab') ?? 'overview';
   const q = useProject(name);
   const row = q.data?.row;
+  const app = useApps().data?.apps.find((a) => a.name === name && a.embed === 'frame');
   useKeyScope({
     open: () => row?.repo_url && window.open(row.repo_url, '_blank', 'noopener'),
     openLive: () => row?.live_url && window.open(row.live_url, '_blank', 'noopener'),
@@ -281,6 +282,7 @@ export function ProjectPage() {
         description={row?.description}
         actions={row ? (
           <>
+            {app ? <Anchor component={Link} to={to.app(app.id)} size="sm">open in the console</Anchor> : null}
             <External href={row.repo_url} size="sm">repository</External>
             {row.live_url ? <External href={row.live_url} size="sm">live site</External> : null}
             {row.docs_url ? <External href={row.docs_url} size="sm">docs</External> : null}

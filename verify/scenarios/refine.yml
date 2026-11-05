@@ -1,0 +1,22 @@
+# The Refine page on the published site: the surface check and the plans are published; the review queue and the evidence stay on a console.
+id: refine
+feature: HUB-075
+title: "The Refine page publishes the harness surface and the plans, and keeps the review queue on a console"
+description: "/refine on the public build renders the hub's surface check (always-on chars against the cap, skills, subagents, hooks, MCP servers), the fleet sweep table and one Propose–Probe–Compose plan per agent step with its ceiling labelled as an estimate; the Review queue and Evidence tabs say they run on a console; nothing scrolls sideways. On a running console the review queue lists every unfiled loop-run preview with Approve and file behind the confirm — recorded by hand in the evidence README."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_"]
+steps:
+  - goto: /refine
+  - expect: { status: 200 }
+  - wait: { selector: "text=script references checked" }
+  - expect: { text: "script references checked" }
+  - expect: { text: "Every checked-out fleet repository" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: refine-surface
+  - goto: /refine?tab=plans
+  - wait: { selector: "text=R = 4k" }
+  - expect: { text: "R = 4k" }
+  - expect: { no_horizontal_scroll: true }
+  - expect: { text: "API-equivalent (estimate)" }
+  - expect: { count: { selector: "[data-testid='review-item']", max: 0 } }
+  - screenshot: refine-plans

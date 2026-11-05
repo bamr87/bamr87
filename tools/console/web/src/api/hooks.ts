@@ -7,10 +7,10 @@ import { api } from './client';
 import { STATIC } from './backend';
 import { manifest } from './static';
 import type {
-  AuthDoc, Capabilities, ConfigDoc, DockerView, FleetView, Job, LakeLine, LakeRun, Op,
+  AppsDoc, AuthDoc, Capabilities, ProjectReadme, ConfigDoc, DockerView, FleetView, Job, LakeLine, LakeRun, Op,
   ProjectDetail, StateDoc, TuiStatus, Dict, GithubStatus, GhRepo, GhRepoDetail, GhAction, GhIssue,
   SiteIndex, SitePage, SitePost, GithubFleet, PullSpecs, WorkBoard, WorkItemDetail, WorkPlan,
-  WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint,
+  WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint, RefineDoc, EvidenceDoc, TextFile, AssistDoc, JobTail,
 } from './types';
 
 const minute = 60_000;
@@ -50,9 +50,46 @@ export const useFleet = (f: FleetQuery = {}) =>
     staleTime: 30_000,
   });
 
+/** The app launcher: every registry frontend with its live and local addresses. */
+export const useApps = () => useQuery({ queryKey: ['apps'], queryFn: () => api<AppsDoc>('/api/apps'), staleTime: 5 * minute });
+
+/**
+ * Does this address answer from where the reader sits? A no-cors fetch
+ * resolves for any HTTP response and rejects when nothing listens, which is
+ * the question a frame asks: "answers", never "healthy".
+ */
+export const useReach = (url: string | null | undefined, enabled = true) =>
+  useQuery({
+    queryKey: ['reach', url],
+    enabled: Boolean(url) && enabled,
+    staleTime: 30_000,
+    retry: false,
+    queryFn: async () => {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 6000);
+      try {
+        await fetch(url as string, { mode: 'no-cors', cache: 'no-store', credentials: 'omit', signal: ctl.signal });
+        return true;
+      } catch {
+        return false;
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+  });
+
 export const useDocker = () => useQuery({ queryKey: ['docker'], queryFn: () => api<DockerView>('/api/fleet/docker'), staleTime: 15_000 });
 export const useProject = (name: string) =>
   useQuery({ queryKey: ['project', name], queryFn: () => api<ProjectDetail>(`/api/project/${encodeURIComponent(name)}`), staleTime: 30_000 });
+
+/** A repo's README, read on the console's machine; the public build answers "absent". */
+export const useProjectReadme = (name: string, enabled = true) =>
+  useQuery({
+    queryKey: ['project-readme', name],
+    queryFn: () => api<ProjectReadme>(`/api/project/${encodeURIComponent(name)}/readme`),
+    enabled: enabled && Boolean(name),
+    staleTime: 5 * minute,
+  });
 
 export const useLake = () => useQuery({ queryKey: ['lake'], queryFn: () => api<Dict<any>>('/api/lake'), staleTime: 30_000 });
 export const useLakeRuns = (limit = 100) =>
@@ -158,3 +195,37 @@ export const useData = <T = any>(name: string) =>
 export const useGithubFleet = () => useQuery({ queryKey: ['github', 'fleet'], queryFn: () => api<GithubFleet>('/api/github/fleet'), staleTime: Infinity });
 /** The published snapshot's own record (public build only). */
 export const useManifest = () => useQuery({ queryKey: ['manifest'], queryFn: manifest, enabled: STATIC, staleTime: 5 * minute });
+
+// --- Harness refinement + the assistant (docs/HARNESS-REFINEMENT.md) --------
+export const useRefine = () => useQuery({ queryKey: ['refine'], queryFn: () => api<RefineDoc>('/api/refine'), staleTime: minute });
+export const useEvidence = (stamp: string | null) =>
+  useQuery({
+    queryKey: ['refine', 'evidence', stamp],
+    queryFn: () => api<EvidenceDoc>(`/api/refine/evidence/${encodeURIComponent(stamp ?? '')}`),
+    enabled: Boolean(stamp),
+    retry: false,
+  });
+export const useEvidenceFile = (stamp: string | null, path: string | null) =>
+  useQuery({
+    queryKey: ['refine', 'evidence', stamp, path],
+    queryFn: () => api<TextFile>(`/api/refine/evidence/${encodeURIComponent(stamp ?? '')}/file?path=${encodeURIComponent(path ?? '')}`),
+    enabled: Boolean(stamp && path),
+    retry: false,
+  });
+export const useReviewFile = (runId: string | null, path: string | null) =>
+  useQuery({
+    queryKey: ['refine', 'review', runId, path],
+    queryFn: () => api<TextFile>(`/api/refine/review/${encodeURIComponent(runId ?? '')}/file?path=${encodeURIComponent(path ?? '')}`),
+    enabled: Boolean(runId && path),
+    retry: false,
+  });
+export const useAssist = () => useQuery({ queryKey: ['assist'], queryFn: () => api<AssistDoc>('/api/assist'), staleTime: minute });
+/** One job's tail from offset 0: the Assist page reads a finished answer through it. */
+export const useJobTail = (id: string | null, live = false) =>
+  useQuery({
+    queryKey: ['job-tail', id],
+    queryFn: () => api<JobTail>(`/api/jobs/${encodeURIComponent(id ?? '')}?offset=0`),
+    enabled: Boolean(id),
+    refetchInterval: live ? 2000 : false,
+    retry: false,
+  });

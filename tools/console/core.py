@@ -33,7 +33,9 @@ Four things live here:
 """
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
+import hashlib
 import io
 import importlib.util
 import json
@@ -217,7 +219,7 @@ LOOPS = [
     {"id": "fleet_pulse", "title": "Fleet pulse — the daily loop", "workflow": "fleet-pulse",
      "schedule_key": "fleet_pulse", "doc": "docs/DAILY-ANALYSIS.md",
      "outputs": ["actions_usage", "ai_usage", "fleet_triage", "harness_registry", "harness_health"],
-     "local_ops": ["triage", "actions", "ai-usage", "harnesses", "harness", "remediate"]},
+     "local_ops": ["triage", "actions", "ai-usage", "harnesses", "harness", "remediate", "refine-plan"]},
     {"id": "issue_pipeline", "title": "Issue pipeline — intake → implement → complete", "workflow": "issue-pipeline",
      "schedule_key": "issue_pipeline", "doc": "docs/ISSUE-PIPELINE.md",
      "outputs": ["issue_pipeline"], "local_ops": ["issues"]},
@@ -228,10 +230,10 @@ LOOPS = [
                                                    "secrets-rotate"]},
     {"id": "repo_evolution", "title": "Repo evolution — proactive improvement", "workflow": "repo-evolution",
      "schedule_key": "repo_evolution", "doc": "docs/EVOLUTION.md",
-     "outputs": [], "local_ops": ["targets"]},
+     "outputs": [], "local_ops": ["targets", "refine-plan"]},
     {"id": "repo_scout", "title": "Repo scout — daily issue proposals", "workflow": "repo-scout",
      "schedule_key": "repo_scout", "doc": "docs/SCOUT.md",
-     "outputs": [], "local_ops": ["scout"]},
+     "outputs": [], "local_ops": ["scout", "refine-plan"]},
     {"id": "harness_fanout", "title": "Harness fan-out — mass deploy / update", "workflow": "fanout",
      "schedule_key": None, "doc": "docs/HARNESS-OPS.md",
      "outputs": [], "local_ops": ["gaps", "deploy-gaps"]},
@@ -689,6 +691,49 @@ def project_detail(name: str) -> dict:
         "lake_runs": [r for r in lake_runs(500) if owned(r.get("nwo"))][:60],
         "lake_lines": [w for w in lake_lines() if owned(w.get("nwo"))],
     }
+
+
+README_NAMES = ("README.md", "readme.md", "README.markdown", "README.rst", "README")
+README_CAP = 200_000  # characters; a README longer than this is cut and says so
+
+
+def project_readme(name: str) -> dict:
+    """A registry project's README, read from its submodule checkout on this
+    machine — the first page of the repo app the console generates for a repo
+    that has no frontend of its own (ADR 0005, phase F1).
+
+    Local only. The public snapshot never calls this: a private repo's README
+    checked out on the build machine must not reach the public site. The path
+    comes from the registry's `submodule_path`, never from the request, and
+    must sit under projects/.
+
+    Raises KeyError for a name the registry does not carry.
+    """
+    if not NAME_RX.match(name or ""):
+        raise ValueError("invalid project name")
+    registry = load_yaml(DATA / "projects.yml") or []
+    entry = next((p for p in registry if isinstance(p, dict) and p.get("name") == name), None)
+    if entry is None:
+        raise KeyError(name)
+    sub = entry.get("submodule_path")
+    if not sub:
+        return {"present": False, "reason": "not a submodule of the hub"}
+    projects = (REPO_ROOT / "projects").resolve()
+    base = (REPO_ROOT / str(sub)).resolve()
+    if projects != base.parent:
+        return {"present": False, "reason": "its registry path is not directly under projects/"}
+    for candidate in README_NAMES:
+        path = base / candidate
+        try:
+            if not path.is_file() or path.is_symlink():
+                continue
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        return {"present": True, "path": f"{sub}/{candidate}", "markdown": text[:README_CAP],
+                "truncated": len(text) > README_CAP}
+    checked_out = base.is_dir() and any(base.iterdir())
+    return {"present": False, "reason": "it has no README file" if checked_out else "not checked out on this machine"}
 
 
 # --------------------------------------------------------------------------- #
@@ -1304,6 +1349,249 @@ def _observe_bootstrap(_params: dict) -> list[str]:
 
 
 # id → (title, group, argv builder, needs_token, remote_write(params) -> bool, description)
+# --------------------------------------------------------------------------- #
+# REFINE + ASSIST — JEV capability three in the console (ADR 0004 P2,
+# docs/HARNESS-REFINEMENT.md) and the in-page assistant. Every refine op is
+# `tools/dash refine …` at $0; the assistant is one capped, read-only headless
+# Claude Code session with the `fleet` MCP server attached (`dash-gen ai-run`),
+# confirm-gated like a loop attempt because it spends.
+# --------------------------------------------------------------------------- #
+REFINE_STAGES = ("propose-invariant", "propose-domain", "compose", "select", "reflect")
+REFINE_MODES = ("parallel", "sequential")
+STAMP_RX = re.compile(r"^\d{8}T\d{6}Z-[a-z0-9][a-z0-9-]{0,80}$")
+ASSIST_PROMPT = Path(_HERE) / "assist.prompt.txt"
+ASSIST_MAX_CHARS = 4000
+ASSIST_CONTEXT_CHARS = 300
+#: the tools an assistant session may use: the fleet MCP server, and reading the hub checkout
+ASSIST_ALLOWED = ("mcp__fleet", "Read", "Grep", "Glob")
+ASSIST_DENIED = ("Bash", "Write", "Edit", "MultiEdit", "NotebookEdit", "WebFetch", "WebSearch", "Agent", "Task")
+_REFINE_CACHE: dict = {"at": 0.0, "doc": None, "fleet_at": 0.0, "fleet": None}
+
+
+def _jev():
+    """tools.jev, imported from the hub root (the loop runner's precedent in agent_steps)."""
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT))
+    from tools.jev import library, refine, spec, surface  # noqa: PLC0415
+    return refine, surface, library, spec
+
+
+def _refine_loops() -> list[str]:
+    """The loops a refinement step can plan for: those with a local agent step."""
+    return sorted({s["loop"] for s in agent_steps()})
+
+
+def _refine_surface(params: dict) -> list[str]:
+    """`tools/dash refine surface check` (the hub), `surface fleet --only <name>` for one registry
+    repository, or `surface fleet` for every checked-out one (`target: fleet`)."""
+    target = str(params.get("target") or "").strip()
+    if not target or target in ("bamr87", "hub"):
+        return [DASH, "refine", "surface", "check"]
+    if target == "fleet":
+        return [DASH, "refine", "surface", "fleet"]
+    return [DASH, "refine", "surface", "fleet", "--only", _name(params)]
+
+
+def _refine_plan(params: dict) -> list[str]:
+    """`tools/dash refine plan <loop> [--step S] [--k N] [--mode M] [--target NAME]` — $0."""
+    loop = str(params.get("loop") or "").strip()
+    known = _refine_loops()
+    if loop not in known:
+        raise ValueError(f"loop must be one of {known} (a loop whose agent step has a local: spec)")
+    argv = [DASH, "refine", "plan", loop]
+    step = str(params.get("step") or "").strip()
+    if step:
+        if not NAME_RX.match(step):
+            raise ValueError(f"step must match {NAME_RX.pattern}")
+        argv += ["--step", step]
+    k = params.get("k", 1)
+    try:
+        k = int(k)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("k must be an integer") from exc
+    if not 1 <= k <= 5:
+        raise ValueError("k must be 1..5 (harness_refinement.k_max caps it lower)")
+    argv += ["--k", str(k)]
+    mode = str(params.get("mode") or "").strip()
+    if mode:
+        if mode not in REFINE_MODES:
+            raise ValueError(f"mode must be one of {REFINE_MODES}")
+        argv += ["--mode", mode]
+    target = str(params.get("target") or "").strip()
+    if target and target != "all":
+        argv += ["--target", _name(params)]
+    return argv
+
+
+def _refine_evidence(params: dict) -> list[str]:
+    """`tools/dash refine evidence <loop> --item KEY [--stage S] [--k N] [--run ID] --json` — $0,
+    writes the redacted evidence tree under .fleet/refine/ (local disk, gitignored)."""
+    loop = str(params.get("loop") or "").strip()
+    known = _refine_loops()
+    if loop not in known:
+        raise ValueError(f"loop must be one of {known}")
+    item = str(params.get("item") or "").strip()
+    if not item or not ITEM_KEY_RX.fullmatch(item) or ".." in item.split(":", 1)[-1].split("/"):
+        raise ValueError("item must be a run's item key — owner/repo, or owner/repo:path (no '..')")
+    stage = str(params.get("stage") or "propose-invariant").strip()
+    if stage not in REFINE_STAGES:
+        raise ValueError(f"stage must be one of {REFINE_STAGES}")
+    argv = [DASH, "refine", "evidence", loop, "--item", item, "--stage", stage]
+    step = str(params.get("step") or "").strip()
+    if step:
+        if not NAME_RX.match(step):
+            raise ValueError(f"step must match {NAME_RX.pattern}")
+        argv += ["--step", step]
+    try:
+        k = int(params.get("k", 1))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("k must be an integer") from exc
+    if not 1 <= k <= 5:
+        raise ValueError("k must be 1..5")
+    argv += ["--k", str(k)]
+    run_id = str(params.get("run_id") or "").strip()
+    if run_id:
+        if not RUN_ID_RX.fullmatch(run_id):
+            raise ValueError(f"run_id must match {RUN_ID_RX.pattern}")
+        argv += ["--run", run_id]
+    return argv + ["--json"]
+
+
+class AssistConfig(dict):
+    """`_data/fleet.yml` `assistant:` as a dict with attribute access (enabled, model, max_turns,
+    budget_usd, timeout_s), validated on every read."""
+
+    __getattr__ = dict.__getitem__
+
+
+def assistant_config(fleet: dict | None = None) -> AssistConfig:
+    fleet = fleet if fleet is not None else (load_yaml(DATA / "fleet.yml") or {})
+    raw = fleet.get("assistant") if isinstance(fleet, dict) else None
+    if not isinstance(raw, dict):
+        raise ValueError("_data/fleet.yml has no `assistant:` block (tools/console/README.md, The assistant)")
+    want = {"enabled", "model", "max_turns", "budget_usd", "timeout_s"}
+    missing, unknown = want - set(raw), set(raw) - want
+    if missing or unknown:
+        raise ValueError(f"_data/fleet.yml assistant: missing {sorted(missing)} / unknown {sorted(map(str, unknown))}")
+    if not isinstance(raw["enabled"], bool):
+        raise ValueError("_data/fleet.yml assistant.enabled: a boolean")
+    allowed = (fleet.get("ai_models") or {}).get("allowed") or {}
+    ids = {str(m) for ids in (allowed.values() if isinstance(allowed, dict) else [allowed]) for m in (ids or [])}
+    if raw["model"] not in ids:
+        raise ValueError(f"_data/fleet.yml assistant.model {raw['model']!r} is not an exact id in ai_models.allowed "
+                         f"(constitution § 13.3)")
+    for key in ("max_turns", "timeout_s"):
+        v = raw[key]
+        if isinstance(v, bool) or not isinstance(v, int) or v <= 0:
+            raise ValueError(f"_data/fleet.yml assistant.{key}: a positive integer")
+    b = raw["budget_usd"]
+    if isinstance(b, bool) or not isinstance(b, (int, float)) or not math.isfinite(b) or b <= 0:
+        raise ValueError("_data/fleet.yml assistant.budget_usd: a finite positive number")
+    return AssistConfig(enabled=raw["enabled"], model=str(raw["model"]), max_turns=int(raw["max_turns"]),
+                        budget_usd=float(b), timeout_s=int(raw["timeout_s"]))
+
+
+def assist_unavailable() -> str | None:
+    """Why the assistant cannot run here: no claude CLI, or switched off in fleet.yml."""
+    why = claude_unavailable()
+    if why:
+        return why
+    try:
+        cfg = assistant_config()
+    except ValueError as exc:
+        return str(exc)
+    if not cfg.enabled:
+        return "the assistant is off: _data/fleet.yml assistant.enabled is false"
+    return None
+
+
+def _assist_mcp_config() -> dict:
+    """The one MCP server an assistant session gets: the Harness Console MCP layer over stdio, pointed
+    at THIS console. The job inherits DASH_CONSOLE_TOKEN from the process environment, never argv."""
+    url = os.environ.get("DASH_CONSOLE_URL") or "http://127.0.0.1:4001"
+    return {"mcpServers": {"fleet": {"command": str(TOOLS / "console" / "mcp.sh"), "args": [],
+                                     "env": {"DASH_CONSOLE_URL": url, "HARNESS_MCP_SKIP_INSTALL": "1"}}}}
+
+
+def _assist(params: dict) -> list[str]:
+    """`tools/dash-gen ai-run … -- <claude flags>`: one read-only headless session, the assistant's
+    prompt (tools/console/assist.prompt.txt with the question and the page context filled) on stdin,
+    the `fleet` MCP server as its only server (--strict-mcp-config), the hub checkout as its cwd,
+    the result captured to a file the job page reads. Capped by assistant.budget_usd and recorded in
+    the AI ledger by ai-run; never a write tool, never the network."""
+    question = str(params.get("question") or "").strip()
+    if not question:
+        raise ValueError("question is required")
+    if len(question) > ASSIST_MAX_CHARS or "\0" in question:
+        raise ValueError(f"question must be at most {ASSIST_MAX_CHARS} characters, with no NUL")
+    context = " ".join(str(params.get("context") or "").split())[:ASSIST_CONTEXT_CHARS] or "the console, no page named"
+    cfg = assistant_config()
+    if not cfg.enabled:
+        raise ValueError("the assistant is off: _data/fleet.yml assistant.enabled is false")
+    try:
+        template = ASSIST_PROMPT.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ValueError(f"the assistant's prompt cannot be read: {exc}") from exc
+    prompt = template.replace("{{CONTEXT}}", context).replace("{{QUESTION}}", question)
+    d = JOB_DIR / "assist"
+    d.mkdir(parents=True, exist_ok=True)
+    ask_id = uuid.uuid4().hex[:12]
+    prompt_file, result_file, outcome_file, mcp_file = (d / f"{ask_id}.prompt.txt", d / f"{ask_id}.result.json",
+                                                        d / f"{ask_id}.outcome.json", d / f"{ask_id}.mcp.json")
+    prompt_file.write_text(prompt, encoding="utf-8")
+    mcp_file.write_text(json.dumps(_assist_mcp_config(), indent=1), encoding="utf-8")
+    return [DASH_GEN, "ai-run", "--source", "console assist", "--repo", "bamr87/bamr87", "--cwd", str(REPO_ROOT),
+            "--prompt-file", str(prompt_file), "--result-file", str(result_file), "--outcome-file", str(outcome_file),
+            "--stream", "--timeout", str(cfg.timeout_s), "--max-budget-usd", f"{cfg.budget_usd:g}",
+            "--usage-limit", "skip", "--",
+            "--model", cfg.model, "--max-turns", str(cfg.max_turns), "--permission-mode", "dontAsk",
+            "--setting-sources", "user", "--strict-mcp-config", "--mcp-config", str(mcp_file),
+            "--allowedTools", *ASSIST_ALLOWED, "--disallowedTools", *ASSIST_DENIED]
+
+
+def _argv_value(argv: list[str], flag: str) -> str | None:
+    try:
+        return argv[argv.index(flag) + 1]
+    except (ValueError, IndexError):
+        return None
+
+
+def assist_job_fields(job: "Job") -> dict:
+    """The structured view of an `assist` job: the question, the page context, and once the session
+    ended its answer (the CLI's result text), turns, models and cost (API-equivalent (estimate)) from
+    the result and outcome files ai-run wrote. Read defensively: a session that died leaves neither."""
+    out = {"schema": "assist-job/v1", "question": str((job.params or {}).get("question") or ""),
+           "context": str((job.params or {}).get("context") or ""), "answer": None, "turns": None,
+           "cost_usd": None, "cost_source": None, "cost_label": COST_LABEL, "models": [], "outcome": None,
+           "subtype": None}
+    result_path = _argv_value(job.argv, "--result-file")
+    outcome_path = _argv_value(job.argv, "--outcome-file")
+    for label, path in (("result", result_path), ("outcome", outcome_path)):
+        if not path:
+            continue
+        try:
+            doc = json.loads(Path(path).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(doc, dict):
+            continue
+        if label == "result":
+            out["answer"] = str(doc.get("result") or "") or None
+            out["turns"] = doc.get("num_turns")
+            out["subtype"] = doc.get("subtype")
+            usage = doc.get("modelUsage")
+            if isinstance(usage, dict):
+                out["models"] = sorted(str(m) for m in usage)
+            if isinstance(doc.get("total_cost_usd"), (int, float)):
+                out["cost_usd"] = round(float(doc["total_cost_usd"]), 6)
+        else:
+            out["outcome"] = doc.get("kind")
+            if isinstance(doc.get("cost_usd"), (int, float)):
+                out["cost_usd"] = round(float(doc["cost_usd"]), 6)
+            out["cost_source"] = doc.get("cost_source")
+    return out
+
+
 OPS: dict[str, dict] = {
     # observe ----------------------------------------------------------------
     "harnesses": dict(title="Refresh harness inventory (live fleet scan)", group="observe",
@@ -1553,6 +1841,42 @@ OPS: dict[str, dict] = {
                               "(never overwrites) and prints the fleet.yml / README edits that go with it. "
                               "Commits nothing.",
                          params=["kind", "id", "name", "cron", "purpose"]),
+    # refine — JEV capability three (docs/HARNESS-REFINEMENT.md): every op is $0 and
+    # reads or writes local disk only; the model-backed stages are ADR 0004 P1.
+    "refine-surface": dict(title="Refine: check a harness surface (context files, skills, agents, hooks, MCP)",
+                           group="refine", argv=_refine_surface, needs_token=False,
+                           desc="tools/dash refine surface check — the hub's own surface (exit 1 on an error); "
+                                "`target` a registry name for one checked-out submodule, or `fleet` for every "
+                                "checked-out one, one row each.",
+                           params=["target"]),
+    "refine-plan": dict(title="Refine: plan one Propose–Probe–Compose step", group="refine", argv=_refine_plan,
+                        needs_token=False,
+                        desc="tools/dash refine plan <loop> — the schedule (R = 4k rollouts, P = 3k sessions), the "
+                             "ceiling from the step's own cap and harness_refinement.stage_usd against budget.loops, "
+                             "the tunable files, the read-only hard rules, the domain's library. Never calls a model.",
+                        params=["loop", "step", "k", "mode", "target"],
+                        meta=lambda: {"loops": _refine_loops(), "agent_steps": agent_steps()}),
+    "refine-evidence": dict(title="Refine: build the evidence tree a proposer would read", group="refine",
+                            argv=_refine_evidence, needs_token=False,
+                            desc="tools/dash refine evidence <loop> --item KEY — from this loop step's completed local "
+                                 "attempts on the item (.fleet/runs): the brief, full redacted trajectories, "
+                                 "deliverables, the tunable harness, the hard rules read-only, the domain's library and "
+                                 "the rendered mission, under .fleet/refine/<stamp>/ (gitignored). $0.",
+                            params=["loop", "step", "item", "stage", "k", "run_id"],
+                            meta=lambda: {"loops": _refine_loops(), "stages": list(REFINE_STAGES)}),
+    "refine-library-check": dict(title="Refine: check the experience library", group="refine",
+                                 argv=lambda p: [DASH, "refine", "library", "check"], needs_token=False,
+                                 desc="Every entry under _data/harness_library is well-formed and carries nothing "
+                                      "private (exit 1 otherwise)."),
+    "assist": dict(title="Ask the assistant (read-only, through the fleet MCP server)", group="refine", argv=_assist,
+                   needs_token=False, needs="claude", gate=assist_unavailable, exclusive="assist",
+                   remote=lambda p: True, confirm="spend",
+                   desc="One headless Claude Code session (tools/console/assist.prompt.txt) with the `fleet` MCP "
+                        "server attached, reading the hub checkout, answering the question from the fleet's own "
+                        "data and citing its sources. Capped per answer by _data/fleet.yml assistant.budget_usd "
+                        "(API-equivalent, an estimate) and recorded in the AI ledger; no write tool, no network, "
+                        "no job it can start. It spends, so it asks first.",
+                   params=["question", "context"]),
 }
 
 
@@ -1602,7 +1926,12 @@ def op_unavailable(op_id: str) -> str | None:
             return (f"{why}. Run it from a host terminal instead: "
                     f"tools/dash observe {op_id.split('-', 1)[1]}")
     if needs == "claude":
-        return claude_unavailable()
+        why = claude_unavailable()
+        if why:
+            return why
+    gate = (OPS.get(op_id) or {}).get("gate")
+    if callable(gate):
+        return gate()
     return None
 
 
@@ -1947,6 +2276,8 @@ class JobManager:
             # parsed ONCE, here (tools/fleetcore/loopjob.py): the page and the
             # TUI render these fields rather than reading the raw lines
             out["loop"] = loop_job_fields(job.log_path)
+        if job.op == "assist":
+            out["assist"] = assist_job_fields(job)
         return out
 
     def cancel(self, job_id: str) -> Job:
@@ -2747,3 +3078,304 @@ def gh_logout() -> dict:
     return {"ok": proc.returncode == 0,
             "message": _scrub((proc.stdout or "") + (proc.stderr or "")) or "signed out",
             "auth": auth_status()}
+
+
+
+# --------------------------------------------------------------------------- #
+# REFINE documents — /api/refine, /api/refine/evidence/…, /api/refine/library, /api/assist
+# --------------------------------------------------------------------------- #
+def _rel(path, base: Path = REPO_ROOT) -> str:
+    """A path as hub-relative text; an outside one by name only (never a local absolute path in a document)."""
+    try:
+        return str(Path(path).resolve().relative_to(base.resolve()))
+    except (ValueError, OSError):
+        return Path(str(path)).name
+
+
+def _runs_dir() -> Path:
+    return Path(os.environ.get("JEV_RUNS_DIR") or REPO_ROOT / ".fleet" / "runs")
+
+
+def _refine_dir() -> Path:
+    return Path(os.environ.get("JEV_REFINE_DIR") or REPO_ROOT / ".fleet" / "refine")
+
+
+def _load_json(path: Path):
+    """A JSON file's document, or None (missing, unreadable, not JSON)."""
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def _jsonable(obj):
+    """dataclasses and Paths in a plan → JSON values."""
+    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+        return _jsonable(dataclasses.asdict(obj))
+    if isinstance(obj, dict):
+        return {str(k): _jsonable(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_jsonable(v) for v in obj]
+    if isinstance(obj, Path):
+        return _rel(obj)
+    return obj
+
+
+def refine_surface_hub(fleet: dict) -> dict:
+    _R, Sf, _L, _SP = _jev()
+    rep = Sf.check(REPO_ROOT, fleet=fleet)
+    return {"root": "bamr87/bamr87", **rep.to_dict()}
+
+
+def refine_fleet_surface(fleet: dict, *, max_age_s: float = 300.0) -> dict:
+    """`refine surface fleet` over every checked-out submodule, cached (it reads ~45 trees)."""
+    now = time.time()
+    if _REFINE_CACHE["fleet"] is not None and now - _REFINE_CACHE["fleet_at"] < max_age_s:
+        return _REFINE_CACHE["fleet"]
+    R, _Sf, _L, _SP = _jev()
+    try:
+        doc = R.fleet_surfaces(fleet=fleet)
+    except Exception as exc:  # noqa: BLE001 — a sweep that fails is reported, never raised into the page
+        doc = {"schema": "jev-fleet-surface/v1", "repos": [], "totals": {}, "error": f"{type(exc).__name__}: {exc}"}
+    _REFINE_CACHE.update(fleet_at=now, fleet=doc)
+    return doc
+
+
+def refine_plans(fleet: dict, *, budget: bool) -> list[dict]:
+    """One k=1 plan per loop with a local agent step, in the configured mode; a loop whose plan fails
+    is a row with its error, never a missing page."""
+    R, _Sf, _L, _SP = _jev()
+    rows = []
+    for st in agent_steps():
+        loop, step = st["loop"], st["step"]
+        try:
+            p = R.plan(loop, step=step, k=1, budget=budget, fleet=fleet)
+            lib = dict(p["library"])
+            lib["root"] = _rel(lib.get("root", ""))
+            rows.append({"loop": loop, "step": p["step"], "call_site": p["call_site"], "k": p["k"], "mode": p["mode"],
+                         "identity": p["identity"], "cost": p["cost"], "budget": p["budget"] if budget else {"available": False},
+                         "tunable": p["tunable"], "hard_rules": p["hard_rules"], "library": lib,
+                         "proposer": p["proposer"], "model_backed": p["model_backed"], "steps": p["steps"],
+                         "finals": p["finals"], "error": None})
+        except Exception as exc:  # noqa: BLE001
+            rows.append({"loop": loop, "step": step, "error": f"{type(exc).__name__}: {exc}"[:400]})
+    return rows
+
+
+def refine_library(fleet: dict, *, local: bool) -> dict:
+    R, _Sf, L, _SP = _jev()
+    root = L.root(fleet)
+    entries = []
+    problems: list[str] = []
+    try:
+        for loop, domain, e in L.all_entries(root):
+            entries.append({"loop": loop, "domain": domain, **e.to_dict(),
+                            "has_diff": (L.Library(root, loop, domain).entry_dir(e.id) / L.DIFF_FILE).is_file()})
+    except Exception as exc:  # noqa: BLE001
+        problems.append(f"{type(exc).__name__}: {exc}"[:300])
+    uncommitted: list[str] = []
+    if local:
+        code, out = run_quiet(["git", "status", "--porcelain", "--", _rel(root)], timeout=20)
+        if code == 0:
+            uncommitted = [line[3:].strip() for line in out.splitlines() if line.strip()]
+    return {"root": _rel(root), "entries": entries, "count": len(entries), "problems": problems,
+            "uncommitted": uncommitted, "schema": L.SCHEMA_ID}
+
+
+def refine_evidence_list() -> list[dict]:
+    """Every evidence tree under .fleet/refine, newest first, by its manifest (never a local path)."""
+    base = _refine_dir()
+    rows = []
+    if not base.is_dir():
+        return rows
+    for d in sorted((p for p in base.iterdir() if p.is_dir() and STAMP_RX.match(p.name)), reverse=True):
+        m = _load_json(d / "evidence.json")
+        if not isinstance(m, dict):
+            continue
+        rows.append({"stamp": d.name, "loop": m.get("loop"), "step": m.get("step"), "item": m.get("item"),
+                     "domain": m.get("domain"), "stage": m.get("stage"), "k": m.get("k"),
+                     "generated_at": m.get("generated_at"), "files": len(m.get("files") or {}),
+                     "rollouts": [r.get("label") for r in (m.get("rollouts") or []) if isinstance(r, dict)],
+                     "library_entries": m.get("library_entries"), "redacted": m.get("redacted")})
+    return rows
+
+
+def refine_reviews(*, local: bool) -> list[dict]:
+    """The review queue: every local loop-run attempt whose dry-run preview (`publish-plan.md`) has not
+    been filed — what `loop-run` with run_id + apply would file after a person reads it. From
+    .fleet/runs (local only): run.json's items and attempts.jsonl's publish-apply rows."""
+    if not local:
+        return []
+    base = _runs_dir()
+    if not base.is_dir():
+        return []
+    steps = {(s["loop"], s["step"]): s for s in agent_steps()}
+    published: set[tuple[str, str, str, str]] = set()
+    runs: list[tuple[str, dict, list[dict]]] = []
+    for d in sorted((p for p in base.iterdir() if p.is_dir() and (p / "run.json").is_file()), reverse=True):
+        meta = _load_json(d / "run.json")
+        if not isinstance(meta, dict):
+            continue
+        rows: list[dict] = []
+        try:
+            for line in (d / "attempts.jsonl").read_text(encoding="utf-8").splitlines():
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(r, dict):
+                    rows.append(r)
+        except OSError:
+            pass
+        for r in rows:
+            if r.get("decision") == "publish-apply" and r.get("published") and r.get("validated_sha256"):
+                published.add((str(r.get("loop")), str(r.get("step")), str(r.get("item")), str(r["validated_sha256"])))
+        runs.append((d.name, meta, rows))
+    out = []
+    for run_id, meta, rows in runs:
+        loop, step = str(meta.get("loop") or ""), str(meta.get("step") or "")
+        for it in meta.get("items") or []:
+            if not isinstance(it, dict) or it.get("status") != "previewed" or not it.get("publishable"):
+                continue
+            key = str(it.get("key") or "")
+            attempt = next((r for r in rows if r.get("decision") == "attempt" and r.get("item") == key), {})
+            sha = str(attempt.get("validated_sha256") or "")
+            if sha and (loop, step, key, sha) in published:
+                continue
+            item_dir = str(it.get("dir") or "")
+            bodies_dir = base / run_id / "items" / item_dir / "bodies"
+            bodies = []
+            if item_dir and bodies_dir.is_dir():
+                for b in sorted(bodies_dir.glob("*.md")):
+                    # the filer names each body by its issue title's slug (NN-<slug>.md)
+                    title = re.sub(r"^\d+-", "", b.stem).replace("-", " ").strip()
+                    bodies.append({"file": b.name, "title": title[:160]})
+            st = steps.get((loop, step)) or {}
+            out.append({"run_id": run_id, "loop": loop, "step": step, "item": key, "name": it.get("name"),
+                        "dir": item_dir, "status": it.get("status"), "reason": it.get("reason"),
+                        "would_file": (it.get("facts") or {}).get("would_file") if isinstance(it.get("facts"), dict) else None,
+                        "plan_id": it.get("plan_id"), "cost_usd": it.get("cost_usd"), "cost_label": COST_LABEL,
+                        "finished": meta.get("finished"), "head_sha": attempt.get("head_sha"),
+                        "can_apply": bool(st.get("can_apply")), "publish_tier": st.get("publish_tier"),
+                        "bodies": bodies, "preview": f"items/{item_dir}/publish-plan.md" if item_dir else None})
+    return out
+
+
+REVIEW_FILE_RX = re.compile(r"^(?:summary\.md|items/[A-Za-z0-9._-]+/(?:publish-plan\.md|bodies/[A-Za-z0-9._-]+\.md))$")
+MAX_TEXT_CHARS = 200_000
+
+
+def refine_review_file(run_id: str, rel: str) -> dict:
+    """A reviewed preview's text: the run's summary, an item's publish-plan.md or one body (local only)."""
+    if not RUN_ID_RX.fullmatch(run_id or ""):
+        raise ValueError("run_id is not a run id")
+    if not REVIEW_FILE_RX.match(rel or ""):
+        raise ValueError("path must be summary.md, items/<dir>/publish-plan.md or items/<dir>/bodies/<name>.md")
+    p = _runs_dir() / run_id / rel
+    if p.is_symlink() or not p.is_file():
+        raise ValueError(f"no {rel} in run {run_id}")
+    text = p.read_text(encoding="utf-8", errors="replace")
+    return {"run_id": run_id, "path": rel, "text": text[:MAX_TEXT_CHARS], "truncated": len(text) > MAX_TEXT_CHARS}
+
+
+def refine_evidence_doc(stamp: str) -> dict:
+    if not STAMP_RX.match(stamp or ""):
+        raise ValueError("stamp is not an evidence tree id")
+    d = _refine_dir() / stamp
+    m = _load_json(d / "evidence.json")
+    if not d.is_dir() or not isinstance(m, dict):
+        raise ValueError(f"no evidence tree {stamp}")
+    files = sorted(m.get("files") or {})
+    return {"stamp": stamp, "manifest": {k: v for k, v in m.items() if k != "files"}, "files": files,
+            "bytes": {k: (m["files"][k] or {}).get("bytes") for k in files}}
+
+
+def refine_evidence_file(stamp: str, rel: str) -> dict:
+    doc = refine_evidence_doc(stamp)
+    if rel not in doc["files"]:
+        raise ValueError(f"{rel} is not a file of evidence tree {stamp}")
+    p = _refine_dir() / stamp / rel
+    if p.is_symlink() or not p.is_file():
+        raise ValueError(f"{rel} is gone from evidence tree {stamp}")
+    text = p.read_text(encoding="utf-8", errors="replace")
+    return {"stamp": stamp, "path": rel, "text": text[:MAX_TEXT_CHARS], "truncated": len(text) > MAX_TEXT_CHARS}
+
+
+def refine_library_add(payload: dict) -> dict:
+    """Write one experience entry on the working tree (the human-gated inbox): validated and
+    leak-checked by tools.jev.library, never committed from here."""
+    R, _Sf, L, SP = _jev()
+    if not isinstance(payload, dict):
+        raise ValueError("a JSON object")
+    fields = {k: str(payload.get(k) or "").strip() for k in ("loop", "step", "domain", "item", "run_id", "adopted",
+                                                               "date", "source", "cue", "lesson", "evidence",
+                                                               "confidence", "notes")}
+    edits = payload.get("edits") or []
+    if not isinstance(edits, list):
+        raise ValueError("edits must be a list")
+    entry = L.Entry(loop=fields["loop"], step=fields["step"], domain=L.domain_dir(fields["domain"]), item=fields["item"],
+                    run_id=fields["run_id"], adopted=fields["adopted"],
+                    date=fields["date"] or dt.date.today().isoformat(), source=fields["source"] or "human",
+                    cue=fields["cue"], lesson=fields["lesson"], evidence=fields["evidence"],
+                    confidence=fields["confidence"], notes=fields["notes"],
+                    edits=[L.Edit.from_dict(e) for e in edits if isinstance(e, dict)])
+    diff = payload.get("diff")
+    if diff is not None and not isinstance(diff, str):
+        raise ValueError("diff must be text")
+    fleet = SP.load_fleet()
+    root = L.root(fleet)
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT))
+    from tools.jev import loop as jev_loop  # noqa: PLC0415
+    try:
+        d = L.Library(root, entry.loop, entry.domain).add(entry, diff=diff or None, ctx=jev_loop.host_ctx())
+    except L.LibraryError as exc:
+        raise ValueError(str(exc)) from exc
+    return {"path": _rel(d), "entry": entry.to_dict(), "uncommitted": True,
+            "next": "review it, then commit on a branch: a lesson reaches main by a pull request"}
+
+
+def refine_doc(*, local: bool = True, max_age_s: float = 60.0) -> dict:
+    """The Refine page's document: the hub's surface check, the fleet sweep, one plan per loop, the
+    library, the evidence trees and the review queue. Local paths never appear; the public snapshot
+    gets no evidence, reviews or ledger position."""
+    now = time.time()
+    if local and _REFINE_CACHE["doc"] is not None and now - _REFINE_CACHE["at"] < max_age_s:
+        return _REFINE_CACHE["doc"]
+    R, _Sf, _L, SP = _jev()
+    fleet = SP.load_fleet()
+    try:
+        cfg = _jsonable(R.config(fleet))
+        cfg_error = None
+    except Exception as exc:  # noqa: BLE001
+        cfg, cfg_error = None, f"{type(exc).__name__}: {exc}"[:300]
+    doc = {
+        "schema": "refine-doc/v1", "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "local": local, "config": cfg, "config_error": cfg_error,
+        "surface": refine_surface_hub(fleet),
+        "fleet_surface": refine_fleet_surface(fleet),
+        "plans": refine_plans(fleet, budget=local),
+        "library": refine_library(fleet, local=local),
+        "evidence": refine_evidence_list() if local else [],
+        "reviews": refine_reviews(local=local),
+        "missions": {name: R.mission_sha256(name)[:12] for name in R.MISSIONS},
+        "stages": list(REFINE_STAGES), "modes": list(REFINE_MODES), "cost_label": COST_LABEL,
+    }
+    doc = _jsonable(doc)
+    if local:
+        _REFINE_CACHE.update(at=now, doc=doc)
+    return doc
+
+
+def assist_doc(*, local: bool = True) -> dict:
+    """The Assist page's document: the assistant's configuration and why it cannot run here, if it cannot."""
+    try:
+        cfg = dict(assistant_config())
+        error = None
+    except ValueError as exc:
+        cfg, error = None, str(exc)
+    return {"schema": "assist-doc/v1", "config": cfg, "config_error": error, "cost_label": COST_LABEL,
+            "unavailable": (assist_unavailable() if local else "The assistant runs on the operator's machine."),
+            "mcp_server": "fleet", "allowed_tools": list(ASSIST_ALLOWED), "denied_tools": list(ASSIST_DENIED),
+            "prompt_sha256": hashlib.sha256(ASSIST_PROMPT.read_bytes()).hexdigest()[:12] if ASSIST_PROMPT.is_file() else None,
+            "max_question_chars": ASSIST_MAX_CHARS, "local": local}

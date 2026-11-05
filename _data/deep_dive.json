@@ -2,32 +2,24 @@
   "schema": "deep-dive/v1",
   "owner": "bamr87",
   "label": "deep-dive",
-  "refreshed_at": "2026-11-04T12:25:37Z",
+  "refreshed_at": "2026-11-05T12:26:54Z",
   "summary": {
-    "as_of": "2026-11-04",
+    "as_of": "2026-11-05",
     "cycle": 1,
     "cycle_start": "2026-10-30",
     "cycle_end": "2026-12-10",
     "cycle_days": 42,
     "total": 38,
-    "day": 6,
-    "processed": 3,
+    "day": 7,
+    "processed": 5,
     "counts": {
-      "pending": 35,
+      "pending": 33,
       "in_progress": 0,
-      "done": 3,
+      "done": 5,
       "skipped": 0
     },
-    "progress": 0.0789,
+    "progress": 0.1316,
     "today": {
-      "date": "2026-11-04",
-      "cycle": 1,
-      "day": 6,
-      "cycle_days": 42,
-      "kind": "scheduled",
-      "repo": "djangoerp"
-    },
-    "next": {
       "date": "2026-11-05",
       "cycle": 1,
       "day": 7,
@@ -35,10 +27,18 @@
       "kind": "scheduled",
       "repo": "scripts"
     },
-    "last": "fredgar-ai",
-    "last_date": "2026-11-02",
-    "avg_score": 52.5,
-    "open_issues": 30,
+    "next": {
+      "date": "2026-11-06",
+      "cycle": 1,
+      "day": 8,
+      "cycle_days": 42,
+      "kind": "scheduled",
+      "repo": "githubai"
+    },
+    "last": "scripts",
+    "last_date": "2026-11-05",
+    "avg_score": 34.0,
+    "open_issues": 37,
     "open_prs": 4
   },
   "repos": [
@@ -168,9 +168,17 @@
       "status": "pending",
       "last_processed": null,
       "cycle": 1,
-      "issues": [],
+      "issues": [
+        "https://github.com/bamr87/zer0-mistakes/issues/597",
+        "https://github.com/bamr87/zer0-mistakes/issues/596",
+        "https://github.com/bamr87/zer0-mistakes/issues/595",
+        "https://github.com/bamr87/zer0-mistakes/issues/594",
+        "https://github.com/bamr87/zer0-mistakes/issues/593",
+        "https://github.com/bamr87/zer0-mistakes/issues/592",
+        "https://github.com/bamr87/zer0-mistakes/issues/591"
+      ],
       "prs": [],
-      "open_issues": 0,
+      "open_issues": 7,
       "open_prs": 0,
       "findings": "",
       "score": null,
@@ -180,31 +188,55 @@
       "day": 6,
       "repo": "djangoerp",
       "scheduled": "2026-11-04",
-      "status": "pending",
-      "last_processed": null,
+      "status": "done",
+      "last_processed": "2026-11-04",
       "cycle": 1,
-      "issues": [],
-      "prs": [],
+      "issues": [
+        "https://github.com/bamr87/djangoerp/issues/36",
+        "https://github.com/bamr87/djangoerp/issues/37",
+        "https://github.com/bamr87/djangoerp/issues/38",
+        "https://github.com/bamr87/djangoerp/issues/39",
+        "https://github.com/bamr87/djangoerp/issues/40",
+        "https://github.com/bamr87/djangoerp/issues/41",
+        "https://github.com/bamr87/djangoerp/issues/42",
+        "https://github.com/bamr87/djangoerp/issues/43",
+        "https://github.com/bamr87/djangoerp/issues/44",
+        "https://github.com/bamr87/djangoerp/issues/45"
+      ],
+      "prs": [
+        "https://github.com/bamr87/djangoerp/pull/46"
+      ],
       "open_issues": 0,
       "open_prs": 0,
-      "findings": "",
-      "score": null,
-      "next_focus": ""
+      "findings": "DELETE bypasses posted-history immutability on JE/invoice/payment/stock moves (#36); JournalLine.account CASCADE lets any user delete an account and unbalance the ledger (#37); manual JE path accepts negative/two-sided/zero lines, no DB constraints (#38); client entry_number collides with JE sequence \u2192 IntegrityError (#39); authz drift on ledger lines/invoices (#40); prod SECRET_KEY default + missing /healthz,/readyz (#41); landing a11y (#42); PRD trace all TBD (#43). Features DJERP-007 reversing entries, DJERP-008 period close. 96 tests pass. deep-dive label missing (not created).",
+      "score": 6.5,
+      "next_focus": "Fix #36-#38 (immutability + JE validation + PROTECT) with tests, then permission matrix #40"
     },
     {
       "day": 7,
       "repo": "scripts",
       "scheduled": "2026-11-05",
-      "status": "pending",
-      "last_processed": null,
+      "status": "done",
+      "last_processed": "2026-11-05",
       "cycle": 1,
-      "issues": [],
-      "prs": [],
+      "issues": [
+        "https://github.com/bamr87/scripts/issues/29",
+        "https://github.com/bamr87/scripts/issues/30",
+        "https://github.com/bamr87/scripts/issues/31",
+        "https://github.com/bamr87/scripts/issues/32",
+        "https://github.com/bamr87/scripts/issues/33",
+        "https://github.com/bamr87/scripts/issues/34",
+        "https://github.com/bamr87/scripts/issues/35"
+      ],
+      "prs": [
+        "https://github.com/bamr87/scripts/pull/36",
+        "https://github.com/bamr87/scripts/pull/37"
+      ],
       "open_issues": 0,
       "open_prs": 0,
-      "findings": "",
-      "score": null,
-      "next_focus": ""
+      "findings": "Confirmed eval injection in project-init prompt_user (sandbox repro) plus eval/source of user input in forkme, stashme, git_init, ./.env; install.sh lacks pipefail/dry-run and edits rc silently; project-init/rename-directory/create_package lack --dry-run (FR3); smoke misses dry-run contracts; no .claude/settings.json (UPS-AGENT-10); SCRIPTS-005 docs path broken. Shellcheck clean, smoke green, vendored tools in sync. Hub conformance snapshot (2026-10-20) is stale for scripts.",
+      "score": 6.0,
+      "next_focus": "Land #29 injection fixes with smoke regressions, then dry-run parity (#30/#31/#32)."
     },
     {
       "day": 8,

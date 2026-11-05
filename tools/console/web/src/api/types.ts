@@ -261,6 +261,21 @@ export interface LoopJob {
   notes: string[];
 }
 
+/** The `assist` job's structured view (core.assist_job_fields). */
+export interface AssistJob {
+  schema: string;
+  question: string;
+  context: string;
+  answer: string | null;
+  turns: number | null;
+  cost_usd: number | null;
+  cost_source: string | null;
+  cost_label: string;
+  models: string[];
+  outcome: string | null;
+  subtype: string | null;
+}
+
 export interface JobTail {
   job: Job;
   text: string;
@@ -268,6 +283,97 @@ export interface JobTail {
   done: boolean;
   /** Present on a loop-run job: its parsed fields. */
   loop?: LoopJob;
+  /** The assist job's question and answer, once the session ended. */
+  assist?: AssistJob;
+}
+
+/** One place a frontend runs: the deployed site, or a service of its local dev stack. */
+export interface AppTarget {
+  id: string;
+  kind: 'live' | 'local';
+  label: string;
+  url: string;
+  service?: string;
+  port?: number;
+  band?: string;
+  /** The command that starts a local target's stack. */
+  start?: string | null;
+}
+
+/** A registry frontend as the launcher lists it (fleetcore.apps, fleet-launcher/v1). */
+export interface FleetApp {
+  id: string;
+  name: string;
+  description?: string;
+  type: 'app' | 'console' | 'site' | 'game' | 'ext';
+  tier: 'shell' | 'tokens';
+  framework?: string | null;
+  surfaces: string[];
+  shell?: string | null;
+  token_version?: string | null;
+  enforce?: boolean;
+  status?: string | null;
+  category?: string | null;
+  featured?: boolean;
+  repo_url?: string | null;
+  url?: string | null;
+  deep_link: string;
+  targets: AppTarget[];
+  /** frame: the console can show it; none: no browser surface or no address. */
+  embed: 'frame' | 'none';
+  local_host?: string | null;
+}
+
+/** A repo's frontend component (ADR 0005): what kind it is and how much of it exists. */
+export interface RepoComponent {
+  /** own: its own frontend · preview: a web preview of a non-browser surface · terminal: its TUI in a window · generated: the repo app the shell builds. */
+  kind: 'own' | 'preview' | 'terminal' | 'generated';
+  /** live: the shell shows it at a deployed address · local: only at a dev stack · none: nothing to show yet. */
+  state: 'live' | 'local' | 'none';
+  next: string;
+}
+
+/** Every submodule in the registry, with or without a frontend. */
+export interface FleetRepo {
+  id: string;
+  name: string;
+  description?: string;
+  category?: string | null;
+  status?: string | null;
+  repo_url?: string | null;
+  type?: string | null;
+  framework?: string | null;
+  surfaces: string[];
+  stack?: string[];
+  license?: string | null;
+  branch?: string | null;
+  docs_url?: string | null;
+  /** Where it answers, whether or not the shell can frame it. */
+  targets: AppTarget[];
+  component: RepoComponent;
+  /** The shell can frame it today: it is an app in the launcher. */
+  framed: boolean;
+}
+
+/** A repo's README from its checkout on the console's machine (never in the public snapshot). */
+export interface ProjectReadme {
+  present: boolean;
+  reason?: string;
+  path?: string;
+  markdown?: string;
+  truncated?: boolean;
+}
+
+export interface AppsDoc {
+  schema: string;
+  source: string;
+  apps: FleetApp[];
+  repos: FleetRepo[];
+  viewports: { id: string; width: number; height: number }[];
+  summary: {
+    apps: number; embeddable: number; live: number; local: number; repos: number;
+    by_type: Dict<number>; by_shell: Dict<number>; by_tier: Dict<number>; components: Dict<number>;
+  };
 }
 
 export interface FleetRow {
@@ -298,6 +404,9 @@ export interface FleetRow {
   triage_issues?: number | null;
   triage_prs?: number | null;
   failing: { workflow: string; url: string }[];
+  /** OpenSSF Scorecard aggregate from conformance.yml `security:` (0-10; -1 inconclusive; null = not swept). */
+  scorecard?: number | null;
+  scorecard_checks?: Record<string, number>;
   docker_up?: number;
   docker_total?: number;
   docker_status?: string | null;
@@ -711,3 +820,155 @@ export interface Scaffold {
   text: string; companion: { file: string; where: string; snippet: string; why: string }[]; findings: Finding[]; kinds: Record<string, string>;
 }
 export interface DraftLint { workflow: Workflow; findings: Finding[]; tally: Tally }
+
+// --- Harness refinement (JEV capability three, docs/HARNESS-REFINEMENT.md) ---
+export interface SurfaceCensus {
+  surface: string;
+  always_on: { files: string[]; chars: number; max_chars: number; pct_of_cap: number | null };
+  components: Dict<{ files: number; chars: number; hooks?: number; mcp_servers?: number }>;
+  skills: { name: string; path: string; chars: number; triggered: boolean; paths: boolean; description_chars: number; resources: number }[];
+  subagents: { name: string; path: string; chars: number; tools?: unknown; model?: unknown }[];
+  commands: { name: string; path: string; chars: number }[];
+  policy_as_data: { settings: boolean; allow_rules: number; deny_rules: number; hook_events: string[]; hook_commands: number; mcp_servers: string[] };
+  script_refs_checked: number;
+  files: number;
+}
+export interface SurfaceReport {
+  root?: string;
+  ok: boolean;
+  errors: string[];
+  warnings: string[];
+  notes: string[];
+  census: SurfaceCensus;
+}
+export interface FleetSurfaceRow {
+  name: string;
+  nwo: string | null;
+  path: string | null;
+  category: string;
+  checked_out: boolean;
+  ok: boolean | null;
+  errors: number;
+  warnings: number;
+  notes: number;
+  always_on_chars: number | null;
+  skills: number | null;
+  subagents: number | null;
+  hooks: number | null;
+  mcp_servers: number | null;
+  context_files: string[];
+  problems: string[];
+}
+export interface FleetSurface {
+  schema?: string;
+  generated_at?: string;
+  always_on_max_chars?: number;
+  repos: FleetSurfaceRow[];
+  totals: Dict<number>;
+  error?: string;
+}
+export interface RefineStep { kind: 'rollout' | 'session'; label: string; dim: string; harness: string; evidence: string[]; round: number }
+export interface RefinePlan {
+  loop: string;
+  step?: string;
+  call_site?: string;
+  k?: number;
+  mode?: string;
+  identity?: { R: number; P: number };
+  cost?: { ceiling_usd: number; rollouts: { count: number; cap_usd_each: number; ceiling_usd: number }; sessions: { count: number; cap_usd_each: number; ceiling_usd: number } };
+  budget?: { available: boolean; month?: string; spent_usd?: number; cap_usd?: number; stop_usd?: number; affordable?: boolean; reason?: string };
+  tunable?: { path: string; exists: boolean; chars: number }[];
+  hard_rules?: { prompt: string; template_sha256: string; allowed_tools: number; model: string; max_turns: number; timeout_minutes: number; gated: string };
+  library?: { root: string; domain: string; entries: number; cues: string[] };
+  proposer?: { model: string; max_turns: number };
+  model_backed?: { enabled: boolean; status: string };
+  steps?: RefineStep[];
+  finals?: string[];
+  error?: string | null;
+}
+export interface LibraryEdit { component: string; candidates: string[]; change: string; observed: string; verdict: string }
+export interface LibraryEntry {
+  loop: string;
+  domain: string;
+  id: string;
+  step: string;
+  item: string;
+  run_id: string;
+  adopted: string;
+  date: string;
+  source: string;
+  cue: string;
+  lesson: string;
+  evidence: string;
+  confidence: string;
+  edits: LibraryEdit[];
+  components?: Dict<unknown>;
+  notes?: string;
+  has_diff?: boolean;
+}
+export interface EvidenceTree {
+  stamp: string;
+  loop: string | null;
+  step: string | null;
+  item: string | null;
+  domain: string | null;
+  stage: string | null;
+  k: number | null;
+  generated_at: string | null;
+  files: number;
+  rollouts: string[];
+  library_entries: number | null;
+  redacted: boolean | null;
+}
+export interface EvidenceDoc { stamp: string; manifest: Dict<unknown>; files: string[]; bytes: Dict<number | null> }
+export interface TextFile { path: string; text: string; truncated: boolean; stamp?: string; run_id?: string }
+export interface ReviewItem {
+  run_id: string;
+  loop: string;
+  step: string;
+  item: string;
+  name?: string | null;
+  dir: string;
+  status: string;
+  reason?: string | null;
+  would_file?: number | null;
+  plan_id?: string | null;
+  cost_usd?: number | null;
+  cost_label: string;
+  finished?: string | null;
+  head_sha?: string | null;
+  can_apply: boolean;
+  publish_tier?: string | null;
+  bodies: { file: string; title: string }[];
+  preview: string | null;
+}
+export interface RefineDoc {
+  schema: string;
+  generated_at: string;
+  local: boolean;
+  config: Dict<unknown> | null;
+  config_error: string | null;
+  surface: SurfaceReport;
+  fleet_surface: FleetSurface;
+  plans: RefinePlan[];
+  library: { root: string; entries: LibraryEntry[]; count: number; problems: string[]; uncommitted: string[]; schema: string };
+  evidence: EvidenceTree[];
+  reviews: ReviewItem[];
+  missions: Dict<string>;
+  stages: string[];
+  modes: string[];
+  cost_label: string;
+}
+export interface AssistDoc {
+  schema: string;
+  config: { enabled: boolean; model: string; max_turns: number; budget_usd: number; timeout_s: number } | null;
+  config_error: string | null;
+  cost_label: string;
+  unavailable: string | null;
+  mcp_server: string;
+  allowed_tools: string[];
+  denied_tools: string[];
+  prompt_sha256: string | null;
+  max_question_chars: number;
+  local: boolean;
+}

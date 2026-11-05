@@ -58,9 +58,10 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash config [show|audit|sync|auth]${c_off} read _data/fleet.yml (\`show [dotted.key]\`); \`audit\` = \`dash secrets\`; \`sync --apply\` projects canonical variables onto the fleet; \`auth [sync --apply]\` resolves the per-repo AI auth order (ai_auth:) and projects CLAUDE_AUTH_ORDER
   ${c_bold}dash estimate${c_off}          draft client-engagement estimates from open issues → _data/engagements.yml
   ${c_bold}dash projects [inventory|plan|apply]${c_off} the issue-triage + Fleet-board backfill pass (constitution § 10/§ 11): \`inventory\` counts open work per repo; \`plan [--board]\` compiles _data/projects_backfill.yml into § 11 ops and previews before → after with plan ids (GraphQL for the board, skipped where unreachable); \`apply FILE --confirm\` writes through the service, only with HARNESS_PROJECTS_WRITES=1 (docs/PROJECTS-FRAMEWORK.md § 3b)
+  ${c_bold}dash pm [review|plan|roadmap|releases|status]${c_off} the routine PM review (docs/PM.md), read-only: \`review\` reads every open issue and PR of the registry repos, their pull-request state, recent comments, releases and the Fleet project, and reports what is out of line with the project, the roadmap and each release train; \`plan\` prints the Fleet project ops as before → after (applied by \`dash projects apply\`, § 11); \`roadmap [--write]\` the status edits for _data/roadmap.yml (working tree only); \`releases\` the release train; \`status\` the committed snapshot's headline
   ${c_bold}dash ledger${c_off}            accrue engagement actuals + variance from usage evidence (/engagements/ portal)
   ${c_bold}dash lake [sync|sessions|review|status|export]${c_off} the local data lake — \`sync\` extracts GitHub runs/jobs/steps/logs/issues/workflows/.factory into .dash-lake/fleet.sqlite; \`sessions\` extracts this machine's Claude Code transcripts; \`review\` analyzes BOTH planes offline; \`status\` reports it; \`export [--local] [--dry-run]\` ships OpenInference traces to Phoenix (:6006; docs/HARNESS-OPS.md)
-  ${c_bold}dash content [sync|report|plan|brief|file]${c_off} the CONTENT ATLAS — \`sync\` extracts the fleet.yml \`content.sites\` (lifehacker.dev, it-journey, …) into the lake; \`report\` shows topics/activity/aging/hygiene/pillar coverage + suggestions; \`plan\` approves/rejects directives in _data/editorial.yml; \`brief\` renders a site's brief; \`file [--apply]\` opens approved directives as issues in the site's repo (docs/CONTENT-ATLAS.md)
+  ${c_bold}dash content [sync|report|plan|brief|file|trace]${c_off} the CONTENT ATLAS — \`sync\` extracts the fleet.yml \`content.sites\` (lifehacker.dev, it-journey, …) into the lake; \`report\` shows topics/activity/aging/hygiene/pillar coverage + suggestions; \`plan\` approves/rejects directives in _data/editorial.yml; \`brief\` renders a site's brief; \`file [--apply]\` opens approved directives as issues in the site's repo; \`trace [--apply]\` reads back the pull request that answers each filed directive (docs/CONTENT-ATLAS.md)
   ${c_bold}dash dev <cmd> [project...]${c_off} the fleet DEV STACK — launch/debug any submodule from the hub
                          up|down|ps|logs|exec|build|config|ports|list; --all for everything,
                          --debug to layer a repo's own debugpy compose (docs/FLEET-COMPOSE.md)
@@ -72,6 +73,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash host [setup|ps|up|rebuild --wipe-all]${c_off}  forge Docker host — up a submodule, or the legacy whole-hub rebuild (deletes every container and volume on forge, so it needs --wipe-all)
   ${c_bold}dash node [status|plan|gen|key]${c_off}  where hub workloads run — the Mac edge and the forge workload node, from _data/fleet.yml \`nodes:\` (docs/PLATFORM.md); read-only except gen, which writes .fleet/nodes/
   ${c_bold}dash infra [plan|apply] [node]${c_off}  the IaC layer — OpenTofu plans a workload node's network and volumes (infra/); apply needs --yes and a saved plan of the current inputs
+  ${c_bold}dash apps [list|url|open|check|plan|json]${c_off}  the app portal's launcher — every fleet frontend with its live address and its local dev stack's (registry \`frontend:\` ⨝ _data/ports.yml; docs/FRONTEND-PLATFORM.md); \`open <app> [--target local]\` opens it in the console, \`check\` asks each address whether it answers and can be framed, \`plan\` lists every repo's frontend component and what it is owed; read-only
   ${c_bold}dash console [--docker]${c_off} the Harness Console — local control plane UI on :4001 (native venv, or the compose service; docs/HARNESS-OPS.md)
   ${c_bold}dash mcp [--http|--tunnel]${c_off} the Harness Console as an MCP server for AI agents — stdio, streamable HTTP on 127.0.0.1:4002 with bearer auth, or a temporary cloudflared tunnel (tools/console/docs/mcp-layer.md)
   ${c_bold}dash sync${c_off}              update submodules + regenerate dash data
@@ -260,6 +262,38 @@ cmd_node() { (cd "$TOOLS" && "$PY" -m fleetcore.nodes "$@"); }
 # `apply` changes the node, so it refuses without --yes and a saved plan of the
 # current inputs (constitution § 10.5).
 cmd_infra() { (cd "$TOOLS" && "$PY" -m fleetcore.nodes infra "$@"); }
+
+# The app portal's launcher (ADR 0005, docs/FRONTEND-PLATFORM.md): every fleet
+# frontend and where it runs, from the registry `frontend:` blocks joined to
+# _data/ports.yml (tools/fleetcore/apps.py — the document the console's Apps
+# page frames from). Read-only: `open` hands an address to the browser, `check`
+# sends one GET per registry address (tools/frontend_registry.py probe).
+cmd_apps() {
+  local sub="${1:-list}"
+  case "$sub" in
+    open)
+      shift
+      local app="${1:-}" target="live"
+      [[ -n "$app" ]] || { echo "usage: dash apps open <app> [--target live|local|local-<service>]" >&2; return 2; }
+      shift
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          --target) target="${2:-}"; shift 2 ;;
+          --target=*) target="${1#--target=}"; shift ;;
+          *) echo "dash apps open: unknown argument '$1'" >&2; return 2 ;;
+        esac
+      done
+      # Resolving the address first refuses an app or target the registry does not have.
+      (cd "$TOOLS" && "$PY" -m fleetcore.apps url "$app" --target "$target" >/dev/null) || return 2
+      local url="http://127.0.0.1:${CONSOLE_PORT:-4001}/apps/${app}"
+      [[ "$target" == "live" ]] || url="${url}?target=${target}"
+      echo "opening ${url}"
+      command -v open >/dev/null 2>&1 && open "$url" || echo "open ${url}"
+      ;;
+    check) shift; "$PY" "${TOOLS}/frontend_registry.py" probe "$@" ;;
+    *) (cd "$TOOLS" && "$PY" -m fleetcore.apps "$@") ;;
+  esac
+}
 
 # The Harness Console: the credentialed, write-capable front end of the local
 # stack (the Jekyll dash is its read-only twin). Native runs bootstrap a venv
@@ -627,6 +661,8 @@ cmd_config() {
 }
 cmd_estimate() { "${TOOLS}/dash-gen" estimate "$@"; }
 cmd_projects() { "$PY" "${TOOLS}/projects_backfill.py" "$@"; }
+# The routine PM review (docs/PM.md): read-only; bare `dash pm` runs the review.
+cmd_pm() { "$PY" "${TOOLS}/pm_review.py" "${@:-review}"; }
 cmd_ledger() { "${TOOLS}/dash-gen" ledger "$@"; }
 # The local data lake + trace export (local stack; docs/HARNESS-OPS.md).
 # Two EXTRACT commands, one for each plane Claude runs in, then one analysis:
@@ -644,6 +680,7 @@ cmd_lake() { "${TOOLS}/dash-gen" lake "$@"; }
 #   dash content plan approve|reject|add|status --site S --key K   decide (_data/editorial.yml)
 #   dash content brief --site S      the site's editorial brief (Markdown)
 #   dash content file --site S [--apply]   approved directives → issues in the site's repo
+#   dash content trace [--site S] [--apply]   filed directives → the pull request that answers each
 cmd_content() { "${TOOLS}/dash-gen" content "${@:-report}"; }
 
 # The local LOG plane (docs/OBSERVABILITY.md). Phoenix holds traces, Grafana
@@ -909,6 +946,7 @@ main() {
     config)  cmd_config "$@" ;;
     estimate) cmd_estimate "$@" ;;
     projects) cmd_projects "$@" ;;
+    pm)      cmd_pm "$@" ;;
     ledger)  cmd_ledger "$@" ;;
     lake)    cmd_lake "$@" ;;
     dev)     cmd_dev "$@" ;;
@@ -924,6 +962,7 @@ main() {
     host)    cmd_host "$@" ;;
     node)    cmd_node "$@" ;;
     infra)   cmd_infra "$@" ;;
+    apps)    cmd_apps "$@" ;;
     console) cmd_console "$@" ;;
     mcp)     cmd_mcp "$@" ;;
     sync)    cmd_sync "$@" ;;

@@ -1,0 +1,444 @@
+{
+  "id": "desktop",
+  "title": "The Desktop shows an icon for every fleet app and a window for every repo, at desktop and phone widths",
+  "features": [
+    "HUB-NEW:bashos-desktop-shell"
+  ],
+  "path": "verify/scenarios/desktop.yml",
+  "started": "2026-11-05T06:34:39.935Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/desktop",
+          "ok": true,
+          "ms": 573
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "nav[aria-label='Apps']"
+          },
+          "ok": true,
+          "ms": 10
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "title": "Desktop · bashOS"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "nav[aria-label='Apps'] button",
+              "min": 10
+            }
+          },
+          "ok": true,
+          "value": 17,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "gitorio"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "classic console"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "off_site_requests",
+            "script": "(() => { const n = performance.getEntriesByType('resource').filter((e) => !e.name.startsWith(location.origin)).length; if (n) throw new Error(n + ' off-site request(s) from the desktop'); return n; })()"
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "iframe",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "desktop",
+          "ok": true,
+          "file": "test/evidence/desktop/desktop-desktop.png",
+          "ms": 20
+        },
+        {
+          "step": "click",
+          "arg": "nav[aria-label='Apps'] button:has-text('Fleet')",
+          "ok": true,
+          "ms": 42
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=No interface of its own"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "In the shell"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "A surface a browser cannot host"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "kvlite"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "fleet-window",
+          "ok": true,
+          "file": "test/evidence/desktop/desktop-fleet-window.png",
+          "ms": 45
+        },
+        {
+          "step": "click",
+          "arg": "button:has-text('kvlite')",
+          "ok": true,
+          "ms": 36
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=has no interface of its own"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "git clone https://github.com/bamr87/kvlite"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "repo-window",
+          "ok": true,
+          "file": "test/evidence/desktop/desktop-repo-window.png",
+          "ms": 28
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/desktop/desktop-desktop.png",
+        "test/evidence/desktop/desktop-fleet-window.png",
+        "test/evidence/desktop/desktop-repo-window.png"
+      ],
+      "evals": {
+        "off_site_requests": 0
+      },
+      "final_url": "http://127.0.0.1:5113/desktop/"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/desktop",
+          "ok": true,
+          "ms": 573
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "nav[aria-label='Apps']"
+          },
+          "ok": true,
+          "ms": 10
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "title": "Desktop · bashOS"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "nav[aria-label='Apps'] button",
+              "min": 10
+            }
+          },
+          "ok": true,
+          "value": 17,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "gitorio"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "classic console"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "off_site_requests",
+            "script": "(() => { const n = performance.getEntriesByType('resource').filter((e) => !e.name.startsWith(location.origin)).length; if (n) throw new Error(n + ' off-site request(s) from the desktop'); return n; })()"
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "iframe",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "desktop",
+          "ok": true,
+          "file": "test/evidence/desktop/mobile-desktop.png",
+          "ms": 8
+        },
+        {
+          "step": "click",
+          "arg": "nav[aria-label='Apps'] button:has-text('Fleet')",
+          "ok": true,
+          "ms": 38
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=No interface of its own"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "In the shell"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "A surface a browser cannot host"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "kvlite"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "fleet-window",
+          "ok": true,
+          "file": "test/evidence/desktop/mobile-fleet-window.png",
+          "ms": 39
+        },
+        {
+          "step": "click",
+          "arg": "button:has-text('kvlite')",
+          "ok": true,
+          "ms": 40
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=has no interface of its own"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "git clone https://github.com/bamr87/kvlite"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "repo-window",
+          "ok": true,
+          "file": "test/evidence/desktop/mobile-repo-window.png",
+          "ms": 17
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/desktop/mobile-desktop.png",
+        "test/evidence/desktop/mobile-fleet-window.png",
+        "test/evidence/desktop/mobile-repo-window.png"
+      ],
+      "evals": {
+        "off_site_requests": 0
+      },
+      "final_url": "http://127.0.0.1:5113/desktop/"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-11-05T06:34:41.503Z",
+  "base": "http://127.0.0.1:5113"
+}

@@ -114,6 +114,7 @@ Where each spec row was lifted from — go here for a proven implementation, not
 | [`health_thresholds.yml`](_data/health_thresholds.yml) | Thresholds for the monitor board's attention signals | — |
 | [`issue_pipeline.yml`](_data/issue_pipeline.yml) | Committed three-tier issue-pipeline state (stages, queues, caps, taxonomy, every open issue under `backlog:` and every pipeline PR) for /issue-pipeline/ and the Work boa… | generated |
 | [`jev_resolutions.yml`](_data/jev_resolutions.yml) | JEV's conflict-resolution ledger (`jev-resolutions/v1`) — one append-only row per triage/resolution attempt (repo, PR, tier, model, outcome, cost and whether that cost w… | generated |
+| [`pm_review.yml`](_data/pm_review.yml) | The routine PM review's public snapshot (`pm-review/v1`): Fleet project coverage, findings per lane, the planned project ops and roadmap edits, the release train and a 3… | generated |
 | [`portfolio.yml`](_data/portfolio.yml) | HOW the profile README groups the portfolio — group headings, repo → group map, display-only extras (hand-edited; read by `.github/scripts/dash-gen` `readme`) | required |
 | [`ports.yml`](_data/ports.yml) | THE fleet port allocation — bands, shared services, and every project's published ports; projected onto the dev stack by `tools/fleet-compose.py`, gated by drift check (… | required |
 | [`profile.yml`](_data/profile.yml) | WHO the public site is about — name, title, links, avatar, the site's own title and description (hand-edited; read by `tools/console/site_docs.py`; replaced the identity… | required |
@@ -151,6 +152,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`docker_harmonize.py`](tools/docker_harmonize.py) | The **fleet Docker standard** (`dash docker`) — brings a repo's Dockerfiles and compose files to it from ONE version registry (`_data/fleet.yml` `images:`): variant kept… |
 | [`docker_view.py`](tools/docker_view.py) | The **consolidated Docker view** (`dash docker view --write`) — joins the port registry, the image contract, the smoke recording, the launch/attach configurations and th… |
 | [`docs_index.py`](tools/docs_index.py) | **The generated docs index** (specs/DOCS.md UPS-DOC-02/03): writes the `AUTO:docs-index` span in a repo's `docs/README.md` from each document's own summary line (front-m… |
+| [`evals.py`](tools/evals.py) | **The eval runner** (constitution § 13.1–13.2, [docs/EVALS.md](../docs/EVALS.md)): `list`, and `run <role> |
 | [`fanout.sh`](tools/fanout.sh) | Shared fan-out engine — clone→branch→seed→commit→PR loop with dry-run and external-upstream guard, called by `.github/workflows/fanout.yml` (one dispatch for every kit)… |
 | [`features_index.py`](tools/features_index.py) | **The fleet features index** (`dash features`): `check <repo>` validates a `features/features.yml` (schema `features/v1`; the legacy zer0/it-journey shape is accepted as… |
 | [`fleet-compose.py`](tools/fleet-compose.py) | Projects [`_data/ports.yml`](../_data/ports.yml) onto that stack — generates `compose/fleet.env`, `compose/overrides/*.yml` and `compose/fleet.yml`, and gates the alloca… |
@@ -164,12 +166,14 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`gen-projects-schema.py`](tools/gen-projects-schema.py) | Regenerates `projects/SCHEMA.md` from `.gitmodules` + the registry (`--check` gates staleness) |
 | [`gen-specs-data.py`](tools/gen-specs-data.py) | Regenerates `_data/specs.yml` (the machine-readable Universal Project Standard) from the requirement tables in `specs/*.md` (`--check` gates staleness) |
 | [`governance_lint.py`](tools/governance_lint.py) | The fleet GOVERNANCE check: validate, and keep in sync, the chain |
+| [`guides_visual_lint.py`](tools/guides_visual_lint.py) | Warn-then-fail lint for guide-like Markdown that lacks visual |
 | [`install-prose-hook.sh`](tools/install-prose-hook.sh) | Installs a **global** git `pre-commit` hook (`~/.git-hooks`, `core.hooksPath`) that runs `unwrap-prose.py` over the staged markdown and restages it, so a commit is born… |
 | [`install-workspace-sync.sh`](tools/install-workspace-sync.sh) | Installs the `com.bamr87.workspace-sync` LaunchAgent (macOS) that runs `update-submodules.sh --no-commit --no-push` daily and at login, keeping the local clone on `main`… |
 | [`issue-evidence.sh`](tools/issue-evidence.sh) | Builds one issue's **evidence bundle** in an isolated virtual environment — fresh clone, own toolchain (`venv`/`node_modules`/`vendor/bundle`), the project's own lint/te… |
 | [`macos-register-nerd-fonts.swift`](tools/macos-register-nerd-fonts.swift) | One-shot CoreText helper for `setup-terminal.sh` — registers the MesloLGS Nerd Font `.ttf`s with the user's font registry so Terminal.app can see them without a logout/l… |
 | [`pg-major-upgrade.sh`](tools/pg-major-upgrade.sh) | Upgrade a compose service's Postgres across a MAJOR without losing data (`dash dev db-upgrade`; `--check` is the `dash up` and `dash dev up` preflight): backs up the raw… |
 | [`pipeline_map.py`](tools/pipeline_map.py) | pipeline_map.py — the data layer of the harness pipeline map (HUB-025, HUB-026). |
+| [`pm_review.py`](tools/pm_review.py) | The **routine PM review** (`dash pm`; [docs/PM.md](../docs/PM.md)). |
 | [`projects_backfill.py`](tools/projects_backfill.py) | The issue-triage and **Fleet board backfill** pass (constitution § 10 / § 11; `dash projects`). |
 | [`projects_lint.py`](tools/projects_lint.py) | Work-tracking gate (constitution § 9, amendment 0003, feature projects-coverage-gate). |
 | [`protect-branch.sh`](tools/protect-branch.sh) | Requires the CI gate on a repo's default branch (wrapped by `dash protect`) |
@@ -177,6 +181,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`run-all-tests.sh`](tools/run-all-tests.sh) | Aggregate verification — root lint, **the control plane's own `dash-gen` tests**, and each project's own checks (wrapped by `dash test`) |
 | [`sanctioned_lockfiles.py`](tools/sanctioned_lockfiles.py) | The one parser of the hub-only lockfile exception (UPS-QA-40/41, UPS-REPO-07) in `specs/QUALITY.contract.yml`: who counts as the hub (origin `bamr87/bamr87`), which lock… |
 | [`schema_lint.py`](tools/schema_lint.py) | Vendored Pyramid Schema linter (`check` + `init`) — provenance in [templates/schema/VERSION](../templates/schema/VERSION) |
+| [`scorecard_snapshot.py`](tools/scorecard_snapshot.py) | **The security-posture snapshot** (#513): `targets` lists the registry repos the weekly read-only `scorecard-sweep.yml` scans with the OpenSSF Scorecard CLI; `ingest DIR… |
 | [`seed-schema.sh`](tools/seed-schema.sh) | Seeds the schema kit into one repo (dry-run default) — see [docs/SCHEMA-FRAMEWORK.md](../docs/SCHEMA-FRAMEWORK.md) |
 | [`setup-terminal.sh`](tools/setup-terminal.sh) | macOS-only: bootstraps the [bashOS `chui/`](https://github.com/bamr87/bashos/tree/main/chui) terminal (Oh My Zsh, Powerlevel10k, MesloLGS Nerd Font), registers the font… |
 | [`setup.sh`](tools/setup.sh) | **Primary entrypoint** — cross-platform dev environment setup; on macOS its last step is `setup-terminal.sh` (`--skip-terminal` to opt out) |
@@ -187,15 +192,18 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_docker_harmonize.py`](tools/test_docker_harmonize.py) | Fixture tests for tools/docker_harmonize.py — every rule, the |
 | [`test_docker_view.py`](tools/test_docker_view.py) | Tests for `docker_view.py` — each one a mistake it actually made before it shipped: comparing majors instead of the contract's precision (which reported five repos on Py… |
 | [`test_docs_index.py`](tools/test_docs_index.py) | Fixture tests for `docs_index.py` — run by `run-all-tests.sh` |
+| [`test_evals.py`](tools/test_evals.py) | Tests for `evals.py`: the committed sets pass, the JSON shape, and a deliberately wrong expectation, a missing field, a duplicate id or too few cases each exit non-zero;… |
 | [`test_features_index.py`](tools/test_features_index.py) | Fixture tests for `features_index.py` — run by `run-all-tests.sh` |
 | [`test_fleet_ci_gate.py`](tools/test_fleet_ci_gate.py) | Fixture tests for UPS-QA-20 in tools/conformance.py: `ci.yml` is a thin caller of the ONE shared gate, bamr87/bamr87's standard-ci.yml. |
 | [`test_fleet_config.py`](tools/test_fleet_config.py) | Fixture tests for tools/fleet-config.py — the per-repo AI auth order (`ai_auth:`) and the per-workspace Anthropic API keys (`api_keys:`, `dash keys`). |
 | [`test_fleetcore.py`](tools/test_fleetcore.py) | Fixture tests for tools/fleetcore's shared contracts — keys v1, the theme, the console client. |
+| [`test_fleetcore_apps.py`](tools/test_fleetcore_apps.py) | Tests for tools/fleetcore/apps.py — the app portal's launcher: every registry frontend joined to its live address and its local dev stack's (ADR 0005). |
 | [`test_fleetcore_host.py`](tools/test_fleetcore_host.py) | Fixture tests for tools/fleetcore/host.py — live Docker inventory matched onto registry rows. |
 | [`test_fleetcore_mcp.py`](tools/test_fleetcore_mcp.py) | Fixture tests for tools/fleetcore/mcp_server.py — the fleet console as an MCP server, the agent's write path into the console's job API. |
 | [`test_fleetcore_nodes.py`](tools/test_fleetcore_nodes.py) | Fixture tests for tools/fleetcore/nodes.py — where each hub workload runs (ADR 0003, docs/PLATFORM.md). |
 | [`test_frontend_registry.py`](tools/test_frontend_registry.py) | Tests for tools/frontend_registry.py — the § 18 frontend: block lint and the launcher projection. |
 | [`test_governance_lint.py`](tools/test_governance_lint.py) | Tests for tools/governance_lint.py (stdlib + PyYAML). |
+| [`test_guides_visual_lint.py`](tools/test_guides_visual_lint.py) | Fixture tests for tools/guides_visual_lint.py (constitution § 24).""" from __future__ import annotations |
 | [`test_jev_adapter_fanout_agent_fill.py`](tools/test_jev_adapter_fanout_agent_fill.py) | Fixture tests for tools/jev/adapters/fanout_agent_fill.py — the fan-out agent fill's adapter on the loop engine (bamr87/bamr87#488, ADR 0002 P3, step 3). |
 | [`test_jev_adapter_fleet_pulse_doctor.py`](tools/test_jev_adapter_fleet_pulse_doctor.py) | Fixture tests for tools/jev/adapters/fleet_pulse_doctor.py — the fleet doctor's adapter on the loop engine (bamr87/bamr87#488, ADR 0002 P3). |
 | [`test_jev_adapter_repo_evolution_evolve.py`](tools/test_jev_adapter_repo_evolution_evolve.py) | Fixture tests for tools/jev/adapters/repo_evolution_evolve.py — the evolution agent's adapter on the loop engine (bamr87/bamr87#488, ADR 0002 P3, step 2). |
@@ -216,9 +224,11 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_jev_workspace.py`](tools/test_jev_workspace.py) | Fixture tests for tools/jev/workspace.py — the local loop engine's throwaway workspaces (#486, ADR 0002 P1). |
 | [`test_pin_policy.py`](tools/test_pin_policy.py) | Fixture tests for the UPS-QA-40 pin policy in tools/conformance.py. |
 | [`test_pipeline_map.py`](tools/test_pipeline_map.py) | Offline tests for tools/pipeline_map.py (HUB-025, HUB-026): pipeline definition integrity, status derivation over the EXAMPLE fixture, drill-down, unavailable log, workf… |
+| [`test_pm_review.py`](tools/test_pm_review.py) | Offline tests for `pm_review.py`: the scope, the gather against a recording fake `gh` that would see a write, each lane's rules, the preview the § 11 service accepts, th… |
 | [`test_projects_backfill.py`](tools/test_projects_backfill.py) | Offline tests for `projects_backfill.py` — decisions validation and compilation, the 50-op batching, the REST state reader and executor against a recording fake `gh`, th… |
 | [`test_projects_lint.py`](tools/test_projects_lint.py) | — |
 | [`test_quality_contract.py`](tools/test_quality_contract.py) | Tests specs/QUALITY.contract.yml against _data/specs.yml and every tool that reads it. |
+| [`test_scorecard_snapshot.py`](tools/test_scorecard_snapshot.py) | Offline fixture tests for tools/scorecard_snapshot.py (bamr87/bamr87#513): the OpenSSF Scorecard results → `security:` block of _data/conformance.yml, its --check gate,… |
 | [`test_tui_fleet.py`](tools/test_tui_fleet.py) | Fixture tests for tools/fleetcore/fleet.py + host.py — the data layer the terminal dash and the console share. |
 | [`test_unwrap_prose.py`](tools/test_unwrap_prose.py) | Fixture tests for `unwrap-prose.py` — structure untouched, list items joined without leaving their list, idempotence (run by `run-all-tests.sh`) |
 | [`test_vscode_launch.py`](tools/test_vscode_launch.py) | The editor-is-a-front-door gate (constitution § 20, [`.vscode/README.md`](../.vscode/README.md)): the four `.vscode/` files parse, every `preLaunchTask`, `dependsOn`, co… |
@@ -226,6 +236,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`unpin-deps.sh`](tools/unpin-deps.sh) | Converts one repo to the fleet's **always-latest** dependency policy — strips exact pins, deletes + gitignores lockfiles, adapts CI installs (idempotent; the `deps-lates… |
 | [`unwrap-prose.py`](tools/unwrap-prose.py) | Liquid-safe one-paragraph-per-line unwrapper for markdown prose and list items (`--check`/`--diff`/`--write`); vendored into the fleet by the prose kit |
 | [`update-submodules.sh`](tools/update-submodules.sh) | Refresh `projects/` — bring each submodule onto its declared branch at the remote tip (safe by default) and record moved pointers |
+| [`voices.py`](tools/voices.py) | voices.py — validate the canonical fleet voice config (_data/voices/voices.yml, voices/v1). |
 
 ## 6. Workflows and loops
 
@@ -246,6 +257,7 @@ The control-plane automation; standards and the full table in [`.github/workflow
 | [`fanout.yml`](.github/workflows/fanout.yml) | fanout | dispatch (`kit`, `target` = repo / `all` / `gaps`) | **One dispatch surface for every kit** the hub pushes down, through `tools/fanout.sh`: dry-run by default, PRs only, external upstreams skipped, additive. |
 | [`fleet-conformance.yml`](.github/workflows/fleet-conformance.yml) | fleet-conformance (reusable) | `workflow_call` | The Universal Project Standard gate (`tools/conformance.py`, offline); advisory until the caller sets `gate: true`. |
 | [`fleet-engines-contract.yml`](.github/workflows/fleet-engines-contract.yml) | fleet-engines-contract | PR, push `main` (`templates/fleet-engines/**`) | Typecheck, vitest, build, pack and VERSION ↔ `package.json` parity for `@bamr87/fleet-engines`. |
+| [`fleet-pm.yml`](.github/workflows/fleet-pm.yml) | Fleet PM review | daily 07:07, dispatch (`dry_run`, default true) | **The PM review**: reads every open issue and pull request of the registry repos, their pull-request state, recent comments, releases and the Fleet project, and reports… |
 | [`fleet-pulse.yml`](.github/workflows/fleet-pulse.yml) | 🩺 Fleet Pulse | daily 05:37, dispatch | **The daily loop.** `pulse` gathers every fleet signal (Actions analytics, Claude usage, engagements, the prior-day digest, triage, the harness inventory, features index… |
 | [`fleet-verify.yml`](.github/workflows/fleet-verify.yml) | fleet-verify (reusable) | `workflow_call` | Agent verification: feature index, Playwright scenarios, optional Claude pass through the Playwright MCP. |
 | [`infra.yml`](.github/workflows/infra.yml) | infra | PR, push `main` (`infra/**`) | The IaC layer's gate (ADR 0003): `tofu fmt -check`, then `init -backend=false` + `validate` for every OpenTofu root module under `infra/`. |
@@ -260,6 +272,7 @@ The control-plane automation; standards and the full table in [`.github/workflow
 | [`repo-evolution.yml`](.github/workflows/repo-evolution.yml) | 🌿 Repo Evolution | Mon 10:37, dispatch | **The proactive loop.** `plan` picks each opted-in (`auto_evolve: true`), owned, unarchived submodule with no evolution PR still open and writes it a brief; `evolve` run… |
 | [`repo-scout.yml`](.github/workflows/repo-scout.yml) | 🔭 Repo Scout | daily 04:37, dispatch | **The proactive issue loop**, repo-evolution's sibling: that one writes code, this one writes tickets for `issue-pipeline.yml` to intake the same day. |
 | [`schema-vendor.yml`](.github/workflows/schema-vendor.yml) | 🔺 Schema Vendor Sync | Mon 08:07, dispatch | The upward half of the schema loop: grades the hub's vendored SCHEMA files against [bamr87/SCHEMA](https://github.com/bamr87/SCHEMA)'s `DISTRIBUTION.yml`. |
+| [`scorecard-sweep.yml`](.github/workflows/scorecard-sweep.yml) | 🛡️ Scorecard sweep | Sun 06:17, dispatch (`target`, `dry_run`, default true) | **The security-posture sweep** (#513): runs the OpenSSF Scorecard CLI read-only (job `GITHUB_TOKEN`, `contents: read`) against every public registry repo for seven check… |
 | [`site-quality-selftest.yml`](.github/workflows/site-quality-selftest.yml) | site-quality self-test | PR, push `main` (site-quality runtime, workflows, fixtures,… | Runs the reusable `site-quality.yml` on a passing fixture, a failing fixture (asserted finding by finding, gate must reject) and a url-mode run. |
 | [`site-quality.yml`](.github/workflows/site-quality.yml) | site-quality (reusable) | `workflow_call` | Lighthouse CI, axe-core at two widths and pa11y contrast, on a built Jekyll site or live URLs. |
 | [`spec-gate.yml`](.github/workflows/spec-gate.yml) | spec-gate (reusable) | `workflow_call` | Validates a caller's `specs/` and `BACKLOG.md` with the spec-driven kit; optional stale-backlog issue. |
@@ -386,6 +399,7 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`DOCKER.md`](docs/DOCKER.md) | One image standard for every Dockerfile and compose file in the fleet — versions from `_data/fleet.yml`, a harmonizer, a fan-out — and the `/docker/` view. |
 | [`DOCS-SYSTEM.md`](docs/DOCS-SYSTEM.md) | Plan (2026-10-03) for documentation by role across the fleet — a Jekyll front door, MkDocs guides, Sphinx API reference and a private handbook, on one content contract;… |
 | [`ESTIMATION.md`](docs/ESTIMATION.md) | Every project as a client: deterministic estimates from open issues, actuals from usage evidence, and the leverage between them. |
+| [`EVALS.md`](docs/EVALS.md) | The agent eval sets, the runner and the eval-regression check (constitution § 13.1–13.2): what each role is held to, how to run it, and how to grow a set. |
 | [`EVOLUTION.md`](docs/EVOLUTION.md) | The weekly repo-evolution loop — a signal-led, draft-only AI improvement pass in each opted-in submodule's own repository. |
 | [`FLEET-COMPOSE.md`](docs/FLEET-COMPOSE.md) | Launching and debugging any submodule from the hub with its real services, on a port nobody else claims, without a commit in the submodule. |
 | [`FORGE-HOST.md`](docs/FORGE-HOST.md) | Running the fleet's containers on the `forge` LAN host while the Mac runs the terminal dash. |
@@ -398,11 +412,13 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`MACHINE-API.md`](docs/MACHINE-API.md) | The agent-facing JSON the site publishes (`/api/v1/*.json`, `llms.txt`) and how to start from it. |
 | [`OBSERVABILITY.md`](docs/OBSERVABILITY.md) | The local log, metrics and trace planes joined on one `trace.id`: retention, redaction, the console's Observe portal and the code index. |
 | [`PLATFORM.md`](docs/PLATFORM.md) | How the fleet's development platform spreads its workloads across the Mac and forge, which layer owns what, and how the same definitions scale out to any cloud or on-pre… |
+| [`PM.md`](docs/PM.md) | A daily, read-only review that keeps three records in line with what GitHub actually holds: the Fleet project, the roadmap and each repo's release train. |
 | [`PORTFOLIO.md`](docs/PORTFOLIO.md) | The portfolio standard: repository descriptions, the topic taxonomy, the homepage rule, the README skeleton and the profile index. |
 | [`PROJECTS-FRAMEWORK.md`](docs/PROJECTS-FRAMEWORK.md) | Status: **ratified** (amendment 0003, 2026-10-30; § 10 by 0005, § 11 by 0006) — [amendment 0003](amendments/0003-github-projects-work-tracking.md), features `github-proj… |
 | [`RELEASES.md`](docs/RELEASES.md) | Release and versioning methodology across the fleet. |
 | [`SCHEMA-FRAMEWORK.md`](docs/SCHEMA-FRAMEWORK.md) | The Pyramid Schema — `SCHEMA.md` structural contracts across the fleet, and how to follow, propagate and verify them. |
 | [`SCOUT.md`](docs/SCOUT.md) | The daily repo-scout loop — a sample of repos a day, an agent that proposes, a filer that opens issues for the issue pipeline. |
+| [`SECURITY-POSTURE.md`](docs/SECURITY-POSTURE.md) | A weekly, read-only OpenSSF Scorecard sweep of every public registry repo, recorded as the `security:` block of the conformance snapshot and shown as the dash's `scoreca… |
 | [`SHOWCASE.md`](docs/SHOWCASE.md) | The Quest Log campaign: each repo the daily deep dive processes is also showcased on LinkedIn (an article and a post on Amr's profile, a post on the BASH Consulting page… |
 | [`SMOKE.md`](docs/SMOKE.md) | The live smoke test: record every running container's probes, then re-run them and fail on any regression. |
 | [`SPEC-DRIVEN.md`](docs/SPEC-DRIVEN.md) | How a fleet repo turns a backlog item into a merged change with a machine-checked spec record, using machinery the hub owns. |
@@ -412,11 +428,13 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`TOKEN-ROTATION.md`](docs/TOKEN-ROTATION.md) | The weekly credential loop: what rotating a browser-minted token can mean, the propagate / audit / re-mint split, and the values-free ledger. |
 | [`UX-HARNESS.md`](docs/UX-HARNESS.md) | Continuous UI/UX audit for the fleet: the `ux-audit` kit's computational gate and the hub's critique loop. |
 | [`VERIFICATION.md`](docs/VERIFICATION.md) | The agent verification standard — feature index, user scenarios, evidence bundles, the `fleet-verify.yml` gate and the fleet coverage index. |
+| [`VISUAL-EVIDENCE.md`](docs/VISUAL-EVIDENCE.md) | Status: **proposed** (constitution § 24, amendment `visual-evidence`; epic [#678](https://github.com/bamr87/bamr87/issues/678), backlog [#679](https://github.com/bamr87/… |
 | [`WORK-BOARD.md`](docs/WORK-BOARD.md) | Every open issue, pull request, roadmap spec, spec package and backlog item in one place, in the order the loops will take it, with drag and drop to reorder, move and re… |
 | [`WORKFLOW-ATLAS.md`](docs/WORKFLOW-ATLAS.md) | The hub's own GitHub Actions read as one model: what each workflow and composite action does, the standards they are held to, why their runs fail, what can be retired, a… |
 | [`WORKFLOW-OPTIMIZATION.md`](docs/WORKFLOW-OPTIMIZATION.md) | The fleet-wide GitHub Actions audit of 2026-09 and the record of what changed because of it. |
 | [`WORKFLOW-VERSIONING.md`](docs/WORKFLOW-VERSIONING.md) | How the reusable workflows are tagged (`vX.Y.Z` plus a floating `vX`), what each bump promises, and how a release is cut and rolled back. |
 | [`constitution.md`](docs/constitution.md) | The rules every change to this repo must satisfy, whoever makes it — a human or an AI agent. |
+| [`visual-evidence-backlog.md`](docs/visual-evidence-backlog.md) | First coverage set for epic [#678](https://github.com/bamr87/bamr87/issues/678) / backlog [#679](https://github.com/bamr87/bamr87/issues/679). |
 | [`AGENTS.md`](AGENTS.md) | The fleet's control plane: about forty projects mounted as Git submodules and managed, monitored and standardized from one hub, which is also the GitHub profile and the… |
 | [`CLAUDE.md`](CLAUDE.md) | bamr87 |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to contribute: branches, commits, local gates and pull requests. |
@@ -437,6 +455,8 @@ The pages of the public site — the Harness Console built static ([`docs/CONSOL
 | Profile | Contact | `/contact` | get in touch |
 | Overview | Overview | `/overview` | attention, KPIs, signal freshness |
 | Fleet | Projects | `/projects` | every registry project — the TUI’s Apps view |
+| Fleet | Desktop | `/desktop` | the bashOS desktop: an icon per app, each in a window with the same controls |
+| Fleet | Apps | `/apps` | every fleet frontend, opened here: the live site or a local stack |
 | Fleet | Inbox | `/inbox` | flagged issues, PRs and failing workflows |
 | Fleet | Roadmap | `/roadmap` | feature specs across the fleet |
 | Fleet | Features | `/features` | what each repo does and what proves it |
@@ -450,6 +470,7 @@ The pages of the public site — the Harness Console built static ([`docs/CONSOL
 | Harnesses | Workflows | `/workflows` | every hub workflow and action: standards, failures, retirement, design |
 | Harnesses | Work board | `/work` | every open item in the order the loops take it — drag to reprioritise |
 | Harnesses | Deep dive | `/deep-dive` | one repo a day, every repo once per cycle |
+| Harnesses | Refine | `/refine` | the harness itself: surface check, Propose–Probe–Compose plans, evidence, the experience library, the review queue |
 | Spend | Costs | `/costs` | Claude spend and Actions minutes vs budget |
 | Spend | Live activity | `/live` | sessions, jobs, spend, health and deep-dive — pushed every 5 s |
 | Spend | Agent activity | `/activity` | local sessions + CI agent runs, from the lake |
@@ -463,6 +484,7 @@ The pages of the public site — the Harness Console built static ([`docs/CONSOL
 | Operate | Operations | `/ops` | the allowlisted operations |
 | Operate | Toolbox | `/toolbox` | scripts, skills and kits the hub provides |
 | Operate | Terminal | `/terminal` | the terminal dash, in the page |
+| Operate | Assist | `/assist` | ask the read-only assistant; it reads the fleet through the MCP server |
 | Settings | Config | `/config` | _data/fleet.yml, block by block |
 | Settings | Credentials | `/auth` | tokens, gh login, rotation |
 | Settings | Connect | `/connect` | give the public page GitHub, or a running console |
