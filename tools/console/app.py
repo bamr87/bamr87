@@ -729,6 +729,18 @@ def project(name: str) -> dict:
     return detail
 
 
+@app.get("/api/project/{name}/readme", dependencies=[Depends(require_token)])
+def project_readme(name: str) -> dict:
+    """The repo's README from its checkout on this machine, for the generated
+    repo app (ADR 0005 F1). Never part of the public snapshot."""
+    try:
+        return core.project_readme(name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"no registry project named '{name}'")
+
+
 # --------------------------------------------------------------------------- #
 # The site — profile, long-form pages, posts, public registries (site_docs.py).
 # The same documents the static Pages build writes, so Home, Portfolio and

@@ -408,6 +408,79 @@ def test_the_apps_route_serves_the_launcher():
     assert not ({"ok", "status_code", "reachable", "frameable"} & {k for a in doc["apps"] for t in a["targets"] for k in t})
 
 
+def test_a_repos_readme_comes_from_its_registry_checkout_and_nowhere_else():
+    """The generated repo app shows a repo's README (ADR 0005 F1). The path is
+    the registry's submodule_path, never the request's; it must sit directly
+    under projects/; a symlink is not followed; a long file is cut and says so;
+    and what is missing says why instead of failing."""
+    saved = (core.REPO_ROOT, core.DATA)
+    tmp = Path(tempfile.mkdtemp(prefix="console-readme-"))
+    try:
+        (tmp / "_data").mkdir()
+        (tmp / "_data" / "projects.yml").write_text(
+            "- {name: has, submodule_path: projects/has}\n"
+            "- {name: long, submodule_path: projects/long}\n"
+            "- {name: empty, submodule_path: projects/empty}\n"
+            "- {name: bare, submodule_path: projects/bare}\n"
+            "- {name: linked, submodule_path: projects/linked}\n"
+            "- {name: escape, submodule_path: ../outside}\n"
+            "- {name: deep, submodule_path: projects/has/nested}\n"
+            "- {name: external}\n", encoding="utf-8")
+        for d in ("has", "long", "empty", "bare", "linked"):
+            (tmp / "projects" / d).mkdir(parents=True)
+        (tmp / "projects" / "has" / "README.md").write_text("# has\n\nhello", encoding="utf-8")
+        (tmp / "projects" / "has" / "nested").mkdir()
+        (tmp / "projects" / "has" / "nested" / "README.md").write_text("nested", encoding="utf-8")
+        (tmp / "projects" / "long" / "README.md").write_text("x" * (core.README_CAP + 10), encoding="utf-8")
+        (tmp / "projects" / "bare" / "main.rs").write_text("fn main() {}", encoding="utf-8")
+        outside = Path(tempfile.mkdtemp(prefix="console-readme-outside-"))
+        (outside / "README.md").write_text("SECRET outside the tree", encoding="utf-8")
+        (tmp / "projects" / "linked" / "README.md").symlink_to(outside / "README.md")
+        (tmp.parent / "outside").mkdir(exist_ok=True)
+        core.REPO_ROOT, core.DATA = tmp, tmp / "_data"
+
+        got = core.project_readme("has")
+        assert got == {"present": True, "path": "projects/has/README.md", "markdown": "# has\n\nhello", "truncated": False}, got
+        long = core.project_readme("long")
+        assert long["truncated"] is True and len(long["markdown"]) == core.README_CAP
+        assert core.project_readme("empty") == {"present": False, "reason": "not checked out on this machine"}
+        assert core.project_readme("bare") == {"present": False, "reason": "it has no README file"}
+        assert core.project_readme("external")["present"] is False
+        for name in ("linked", "escape", "deep"):
+            got = core.project_readme(name)
+            assert got["present"] is False and "SECRET" not in json.dumps(got), f"{name}: {got}"
+        blob = json.dumps([core.project_readme(n) for n in ("has", "long", "empty", "bare")])
+        assert str(tmp) not in blob, "an absolute path of this machine is in the README document"
+        for bad in ("../has", "has/../../x", "", "has; rm"):
+            try:
+                core.project_readme(bad)
+            except ValueError:
+                continue
+            raise AssertionError(f"accepted {bad!r}")
+        try:
+            core.project_readme("nope")
+        except KeyError:
+            pass
+        else:
+            raise AssertionError("an unknown project has no README to offer")
+    finally:
+        core.REPO_ROOT, core.DATA = saved
+        shutil.rmtree(tmp, ignore_errors=True)
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (route skipped: fastapi not installed)")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    assert client.get("/api/project/nope/readme").status_code == 404
+    name = next(p["name"] for p in core.load_yaml(core.DATA / "projects.yml") if p.get("submodule_path"))
+    r = client.get(f"/api/project/{name}/readme")
+    assert r.status_code == 200 and set(r.json()) <= {"present", "reason", "path", "markdown", "truncated"}, r.text
+
+
 def test_the_observability_contract_block_is_editable_from_the_config_tab():
     keys = [s["key"] for s in core.CONFIG_SECTIONS]
     assert "observability" in keys, "retention would be terminal-only to change"

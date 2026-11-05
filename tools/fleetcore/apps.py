@@ -141,7 +141,7 @@ COMPONENT_KINDS = {
     "own": "its own frontend, mounted in the shell",
     "preview": "a web preview of a surface a browser cannot host (an editor extension, a mobile or desktop app)",
     "terminal": "its terminal UI in a shell window",
-    "generated": "the repo app the shell generates from its README, features, docs and commands",
+    "generated": "the repo app the shell generates from what the hub holds about the repo and its README",
 }
 COMPONENT_NEXT = {
     ("own", "live"): "the bridge and the public and private modes (P3, P4)",
@@ -149,14 +149,15 @@ COMPONENT_NEXT = {
     ("own", "none"): "an address: a public build or a dev-stack port (F2)",
     ("preview", "none"): "a web preview published beside the repo (F3)",
     ("terminal", "none"): "its terminal UI in a shell window and a demo for the public page (F3)",
-    ("generated", "none"): "the generated repo app (F1), then a component of its own (F4)",
+    ("generated", "none"): "a component of its own in place of the generated repo app (F4)",
 }
 
 
 def component(entry: dict, tg: list[dict]) -> dict:
     """This repo's frontend component: its kind, and its state — `live` (the
     shell shows it at a deployed address), `local` (only at a dev stack) or
-    `none` (nothing the shell can show yet)."""
+    `none` (its own component is not in the shell; it opens as the generated
+    repo app until it is)."""
     fe = entry.get("frontend") or {}
     surfaces = fe.get("surfaces") or []
     if fe.get("type") in EMBED_TYPES and "browser" in surfaces:
@@ -187,6 +188,11 @@ def repos(registry: list[dict], ports: dict | None = None) -> list[dict]:
             "id": app_id(e), "name": e["name"], "description": e.get("description", ""),
             "category": e.get("category"), "status": e.get("status"), "repo_url": e.get("repo_url"),
             "type": fe.get("type"), "framework": fe.get("framework"), "surfaces": list(fe.get("surfaces") or []),
+            "stack": list(e.get("stack") or []), "license": e.get("license"), "branch": e.get("branch"),
+            "docs_url": e.get("docs_url"),
+            # where it answers, whether or not the shell can frame it (a
+            # library's docs site, an API's dev port): links, not frames
+            "targets": tg,
             "component": comp,
             # the shell can frame it today: it is an app in the launcher
             "framed": comp["kind"] == "own" and comp["state"] != "none",
@@ -300,7 +306,8 @@ def _table(apps: list[dict]) -> str:
     return "\n".join("  ".join(c.ljust(w) for c, w in zip(r, widths)).rstrip() for r in rows)
 
 
-STATE_WORDS = {"live": "in the shell", "local": "in the shell, local only", "none": "not yet"}
+# A repo whose own component is not in the shell still opens: as the generated repo app.
+STATE_WORDS = {"live": "in the shell", "local": "in the shell, local only", "none": "generated app for now"}
 
 
 def plan_table(rows: list[dict]) -> str:

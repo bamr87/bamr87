@@ -693,6 +693,49 @@ def project_detail(name: str) -> dict:
     }
 
 
+README_NAMES = ("README.md", "readme.md", "README.markdown", "README.rst", "README")
+README_CAP = 200_000  # characters; a README longer than this is cut and says so
+
+
+def project_readme(name: str) -> dict:
+    """A registry project's README, read from its submodule checkout on this
+    machine — the first page of the repo app the console generates for a repo
+    that has no frontend of its own (ADR 0005, phase F1).
+
+    Local only. The public snapshot never calls this: a private repo's README
+    checked out on the build machine must not reach the public site. The path
+    comes from the registry's `submodule_path`, never from the request, and
+    must sit under projects/.
+
+    Raises KeyError for a name the registry does not carry.
+    """
+    if not NAME_RX.match(name or ""):
+        raise ValueError("invalid project name")
+    registry = load_yaml(DATA / "projects.yml") or []
+    entry = next((p for p in registry if isinstance(p, dict) and p.get("name") == name), None)
+    if entry is None:
+        raise KeyError(name)
+    sub = entry.get("submodule_path")
+    if not sub:
+        return {"present": False, "reason": "not a submodule of the hub"}
+    projects = (REPO_ROOT / "projects").resolve()
+    base = (REPO_ROOT / str(sub)).resolve()
+    if projects != base.parent:
+        return {"present": False, "reason": "its registry path is not directly under projects/"}
+    for candidate in README_NAMES:
+        path = base / candidate
+        try:
+            if not path.is_file() or path.is_symlink():
+                continue
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        return {"present": True, "path": f"{sub}/{candidate}", "markdown": text[:README_CAP],
+                "truncated": len(text) > README_CAP}
+    checked_out = base.is_dir() and any(base.iterdir())
+    return {"present": False, "reason": "it has no README file" if checked_out else "not checked out on this machine"}
+
+
 # --------------------------------------------------------------------------- #
 # CONTENT — the content atlas + the editorial plan (docs/CONTENT-ATLAS.md)
 # --------------------------------------------------------------------------- #
