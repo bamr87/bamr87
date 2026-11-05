@@ -105,7 +105,7 @@
 
 - **Status**: proposed (added 2026-11-05 at the maintainer's request)
 
-10. **Every repo in the fleet gets a frontend component, so every repo is an app on the desktop.** Today 16 of the 38 repos open in a window and 22 do not. What a repo's component is follows from what the registry already says about it (`tools/fleetcore/apps.py` `component()`); `tools/dash apps plan` prints the table for every repo and the Desktop's Fleet window shows it.
+10. **Every repo in the fleet gets a frontend component, so every repo is an app on the desktop.** Today 16 of the 38 repos open their own frontend in a window and 22 have none the shell can show. What a repo's component is follows from what the registry already says about it (`tools/fleetcore/apps.py` `component()`); `tools/dash apps plan` prints the table for every repo and the Desktop's Fleet window shows it.
 
     | Component | For | Repos today | What gets built |
     | --- | --- | --- | --- |
@@ -115,6 +115,8 @@
     | The generated repo app | a repo with no UI: a CLI, a library, infrastructure, a kernel, firmware, data | 13: scripts, skills, githubai, outbox, fleet-infra, kvlite, fleet-observe, zer0-id, sec-lab, edgar-pipeline, zer0-kernel, sensor-mesh, schema-lang | one component the shell renders for any repo from that repo's own files (README, feature index and evidence, docs index, command reference, releases, health), with panels by kind: an API explorer where there is an OpenAPI document, "run it in a terminal" for a CLI. Then a component of the repo's own |
 
     Two steps, in this order. First the hub makes every repo an app with no change in any repo: the generated repo app (F1). Then each repo owns its component: a `frontend` kit (a manifest, a starter page on the fleet tokens and components, the bridge, the sign-in client) fanned out dry-run and PR-only, one repo per PR, after which the registry's `tier: none` is retired and every repo declares a component (F4). The registry stays the list: the plan is generated from it, so it cannot drift from it.
+
+    F1 is built in its own pull request: all 38 repos open as an app, the 22 without a frontend in the shell as the generated one. It shows what the hub already holds about the repo (description, stack and licence, health, CI and open work, its standards audit, its automation, how to get it) and the repo's README. The README is read only by a console from the checkout on the operator's machine and is never part of the public site, because some fleet repos are private. The panels by kind (an API explorer, a CLI run in a terminal) are not built.
 
 ### Phases
 
@@ -133,7 +135,7 @@ Each phase after P0 is its own pull request and becomes a sub-issue of the track
 | P8 | governance: the new UPS-FE rows, the § 18.2 wording as a proposed amendment, a `frontend` kit fan-out |
 | D0 (its own PR) | the bashOS desktop: the vendored shell reducer, the dock, windows that host the App Shell, the Fleet window listing every repo, the paper palette, the phone home screen |
 | D1 | console pages as windows (the `plain` experience, `frame-ancestors 'self'`); the palette opens windows; Live beside Local as one action; context menus |
-| F1 | the generated repo app for the 13 repos with no UI, in a window and at `/apps/<id>` on the public site, with no change in any repo |
+| F1 (its own PR) | the generated repo app: every repo opens as an app, in a window and at `/apps/<id>`, with no change in any repo; its README only from a console's checkout, never on the public site. Panels by kind follow |
 | F2 | a public address for the six frontends that lack one (djangoerp, zer0-CMS, ocrmd, cv-pro, godotgo, ragio-ai), one repo per PR |
 | F3 | web previews for vs-sonic-pi, zpl-viewer and fleet-mobile; bashos and netprobe in a terminal window |
 | F4 | the `frontend` kit: a component each repo owns, `tier: none` retired, and the conformance row that every repo declares one |

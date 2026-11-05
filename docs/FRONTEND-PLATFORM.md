@@ -58,7 +58,7 @@ The console's **Desktop** page (`/desktop`) is the bashOS desktop in the browser
 | Get a window back | its button on the taskbar; `⌘\` cycles |
 | Arrange everything | the tile and cascade buttons on the taskbar |
 | Send someone this desktop | the link button: a `?windows=` address of ids and geometry, never of URLs |
-| See every repo, with or without a frontend | the **Fleet** icon |
+| See every repo, with or without a frontend | the **Fleet** icon; a repo without one opens as the generated repo app |
 
 On a phone the desktop is a home screen: the icons, then one app at a time. Console pages do not open as windows yet; the **Console** icon leaves the desktop for the classic console.
 
@@ -66,46 +66,48 @@ On a phone the desktop is a home screen: the icons, then one app at a time. Cons
 
 Every repo gets one, so every repo is an app on the desktop ([ADR 0005](adr/0005-console-as-fleet-portal.md) decision 10, proposed). The kind follows from the registry: **own** (it has a web frontend), **preview** (an editor extension, a mobile or desktop app: a web preview of it), **terminal** (its terminal UI in a shell window), **generated** (no UI: the repo app the shell builds from the repo's README, feature index, docs and commands). Regenerate this table with `tools/dash apps plan`; the phases (F1 to F4) are in the ADR.
 
+Until a repo's own component is in the shell it opens as the **generated repo app** (`tools/console/web/src/pages/RepoApp.tsx`), so all 38 repos are apps today: an overview from the registry and the hub's signals (health, CI, open work, the standards audit, automation, how to get it), the repo's README, its open work and its automation. A console reads the README from the repo's checkout on the operator's machine; the public site carries none.
+
 | repo | frontend component | state | next step |
 | --- | --- | --- | --- |
 | README | own (mkdocs) | in the shell | the bridge and the public and private modes (P3, P4) |
-| scripts | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
-| skills | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
+| scripts | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
+| skills | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
 | it-journey | own (jekyll-zer0) | in the shell | the bridge and the public and private modes (P3, P4) |
 | zer0-mistakes | own (jekyll-zer0) | in the shell | the bridge and the public and private modes (P3, P4) |
 | gitorio | own (react-vite-tailwind) | in the shell | the bridge and the public and private modes (P3, P4) |
 | law-ai | own (nextjs-tailwind) | in the shell | the bridge and the public and private modes (P3, P4) |
-| githubai | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
+| githubai | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
 | fredgar-ai | own (react-vite+django) | in the shell | the bridge and the public and private modes (P3, P4) |
-| vs-sonic-pi | preview | not yet | a web preview published beside the repo (F3) |
-| zpl-viewer | preview | not yet | a web preview published beside the repo (F3) |
+| vs-sonic-pi | preview | generated app for now | a web preview published beside the repo (F3) |
+| zpl-viewer | preview | generated app for now | a web preview published beside the repo (F3) |
 | bashcrawl | own (react-vite-tailwind) | in the shell | the bridge and the public and private modes (P3, P4) |
 | bamr87.github.io | own (jekyll-zer0) | in the shell | the bridge and the public and private modes (P3, P4) |
 | lifehacker.dev | own (jekyll-zer0) | in the shell | the bridge and the public and private modes (P3, P4) |
 | djangoerp | own (django-templates) | in the shell, local only | a public build with an address (F2) |
 | zer0-CMS | own (react-mantine+vscode+django) | in the shell, local only | a public build with an address (F2) |
-| bashos | terminal | not yet | its terminal UI in a shell window and a demo for the public page (F3) |
-| ocrmd | own (static-html) | not yet | an address: a public build or a dev-stack port (F2) |
+| bashos | terminal | generated app for now | its terminal UI in a shell window and a demo for the public page (F3) |
+| ocrmd | own (static-html) | generated app for now | an address: a public build or a dev-stack port (F2) |
 | rewind-arcade | own (react-vite-tailwind-canvas) | in the shell | the bridge and the public and private modes (P3, P4) |
-| outbox | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
-| cv-pro | own (react-vite-tailwind) | not yet | an address: a public build or a dev-stack port (F2) |
-| godotgo | own (godot) | not yet | an address: a public build or a dev-stack port (F2) |
+| outbox | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
+| cv-pro | own (react-vite-tailwind) | generated app for now | an address: a public build or a dev-stack port (F2) |
+| godotgo | own (godot) | generated app for now | an address: a public build or a dev-stack port (F2) |
 | bash-365-apex | own (static-html) | in the shell | the bridge and the public and private modes (P3, P4) |
 | year-of-ai.github.io | own (jekyll-zer0) | in the shell | the bridge and the public and private modes (P3, P4) |
 | ai-world-view.github.io | own (jekyll-zer0) | in the shell | the bridge and the public and private modes (P3, P4) |
 | bash-365.com | own (jekyll-zer0) | in the shell | the bridge and the public and private modes (P3, P4) |
-| fleet-infra | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
-| kvlite | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
-| netprobe | terminal | not yet | its terminal UI in a shell window and a demo for the public page (F3) |
-| fleet-observe | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
-| zer0-id | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
-| sec-lab | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
-| edgar-pipeline | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
-| zer0-kernel | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
-| sensor-mesh | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
-| fleet-mobile | preview | not yet | a web preview published beside the repo (F3) |
-| schema-lang | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
-| ragio-ai | own (static-html+fastapi) | not yet | an address: a public build or a dev-stack port (F2) |
+| fleet-infra | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
+| kvlite | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
+| netprobe | terminal | generated app for now | its terminal UI in a shell window and a demo for the public page (F3) |
+| fleet-observe | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
+| zer0-id | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
+| sec-lab | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
+| edgar-pipeline | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
+| zer0-kernel | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
+| sensor-mesh | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
+| fleet-mobile | preview | generated app for now | a web preview published beside the repo (F3) |
+| schema-lang | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
+| ragio-ai | own (static-html+fastapi) | generated app for now | an address: a public build or a dev-stack port (F2) |
 
 ## The app portal
 
@@ -119,6 +121,7 @@ The console's **Apps** page (`/apps`) is the launcher rendered: every frontend i
 | See it at a phone or tablet size | the device presets, which are `verify/verify.yml` `viewports:` |
 | Move inside the app | the path box (a path, never another address) |
 | Check that each address answers and can be framed | `tools/dash apps check [app …] [--target live|local|all] [--strict]` |
+| Open a repo that has no frontend | it is in the same list (filter **No interface**) and opens at `/apps/<id>` as the generated repo app |
 
 **Targets.** `live` is `frontend.entry_url` (else `live_url`): give the address the site is served from, not one that forwards to it, because the shell frames only origins the registry declares. `local` is each browser-facing service of a compose-hosted stack at its `_data/ports.yml` port, the `frontend` band before `jekyll`, `docs` and `api`. A devenv-hosted project has no local target yet: its port is picked at launch.
 
