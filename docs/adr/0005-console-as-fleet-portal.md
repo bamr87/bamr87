@@ -2,7 +2,7 @@
 
 - **Status**: proposed
 - **Date**: 2026-11-04
-- **Deciders**: proposed by an agent at the maintainer's request (2026-11-04); the maintainer accepts or rejects it by merging the PR that adds it
+- **Deciders**: proposed by an agent at the maintainer's request (2026-11-04, including the two-mode rule in decision 6); the maintainer accepts or rejects it by merging the PR that adds it
 - **Related**: constitution § 18 (fleet design consistency) and § 10.8 (prior art first), [docs/FRONTEND-PLATFORM.md](../FRONTEND-PLATFORM.md) (the six layers this ADR settles layer 3 of), [docs/DESIGN-HARMONIZATION.md](../DESIGN-HARMONIZATION.md), roadmap FF-0032, bamr87/bamr87#583 (enterprise AppShell), #585 (bashOS as the operating layer), #623 (the first federated plugin), [docs/VERIFICATION.md](../VERIFICATION.md), [docs/FLEET-COMPOSE.md](../FLEET-COMPOSE.md)
 
 <!-- Accepted in and Completed are added by the post-merge ratify job when the maintainer merges this ADR's PR and when the maintainer closes the Tracking issue as completed (docs/adr/README.md#lifecycle). Never write them by hand. A PR that adds or changes an ADR is gated (constitution § 12.3). -->
@@ -20,6 +20,7 @@
 - Six projects have a compose-hosted dev stack with fixed loopback ports in `_data/ports.yml`. The console could not open any of them.
 - FRONTEND-PLATFORM.md left the composition runtime open ("Module Federation or single-spa?") and that question blocked FF-0032 and #623.
 - The verify kit already defines a device matrix (`verify/verify.yml` `viewports:`) and a `--base` override, so "validate this frontend at this address and size" has its inputs; no surface put them together.
+- The console itself already runs in two modes from one build (`tools/console/web/src/api/backend.ts`): the public snapshot on GitHub Pages, read-only with no backend, and the same page connected to a console that holds the credentials. Several apps have grown the same split unplanned (a static page on Pages beside a backend-driven app run locally), each in its own way.
 
 **Measured in this change (2026-11-04).** Every one of the 14 live frontends answers and sends neither `X-Frame-Options` nor a `frame-ancestors` policy, so all can be framed. Two could still not be framed from the console: `bash-365.com` in the registry pointed at the apex domain, whose page only forwards the browser to `www.bash-365.com`, an origin no registry entry declared; the fix was a registry address, and the probe now reports an address that moves to an undeclared origin. Framed without access to their own origin's storage, six of the seven apps hosted under `bamr87.github.io` render; gitorio renders blank, and the zer0 theme (`halfmoon.js`, `background-customizer.js`) and MkDocs Material throw on `localStorage`. Evidence: `test/evidence/apps/`.
 
@@ -69,9 +70,18 @@
 
    Shared visual language stays with layers 1 and 2 (tokens, Web Components); this ADR does not change them.
 
-6. **Validation belongs to the portal.** Reachability and the frame policy are checked per target (`tools/dash apps check`, and the browser's own check on the page). The device presets are the verify kit's viewports. Running a repo's verify scenarios against the selected target from the portal, showing the evidence, and a per-app panel of the UPS-FE-70..73 results are the next phase.
+6. **Every frontend has two modes, public and private** (the maintainer's rule, 2026-11-04).
 
-7. **Governance follows the existing rule.** The registry is the single list. New conformance rows (a frontend allows the shell to frame it, declares its targets, and at shell tier loads the bridge) arrive in their own PR, warn-only per repo until its adoption PR merges, as § 18.4 already prescribes. If the maintainer wants "uses the shared shell" in § 18.2 to read "mounts into the shared shell at L1 or L2", that is a constitution amendment proposed with those rows, not by this ADR.
+   | Mode | What it is | What it may assume |
+   | --- | --- | --- |
+   | Public | everything a visitor can do with no account: the frontend as a static build or its anonymous view | no backend and no sign-in; it must work with nothing but its own origin answering |
+   | Private | the same frontend signed in against a Django backend ([ADR 0006](0006-django-management-backend.md)) | a backend the registry declares for it, running locally in Docker or on a cloud host |
+
+   The Harness Console is the reference: its snapshot build is the public mode and a connected console is the private one, and under ADR 0006 that connection signs in to Django. For the fleet the rule becomes registry data and a small client: each `frontend:` block will declare its `modes` and, for private mode, its `backends` by name (`local`, the project's API service at its `_data/ports.yml` port; `cloud`, an https address), and the launcher will carry both so the portal can open an app in either mode. A frontend, and the portal on its behalf, selects a backend by its declared name and never by a URL from a link, for the reason a frame's address never comes from the query string. A frontend with nothing to sign in to is public-only, and says so in the registry. None of this is built by this change; it is the next phase, with the conformance rows in decision 8.
+
+7. **Validation belongs to the portal.** Reachability and the frame policy are checked per target (`tools/dash apps check`, and the browser's own check on the page). The device presets are the verify kit's viewports. Running a repo's verify scenarios against the selected target from the portal, showing the evidence, and a per-app panel of the UPS-FE-70..73 results are the next phase.
+
+8. **Governance follows the existing rule.** The registry is the single list. New conformance rows (a frontend allows the shell to frame it, declares its targets and its modes, works in public mode with no backend, authenticates in private mode only against a declared backend, and at shell tier loads the bridge) arrive in their own PR, warn-only per repo until its adoption PR merges, as § 18.4 already prescribes. If the maintainer wants "uses the shared shell" in § 18.2 to read "mounts into the shared shell at L1 or L2", that is a constitution amendment proposed with those rows, not by this ADR.
 
 Files this decision adds or changes now: `tools/fleetcore/apps.py`, `tools/frontend_registry.py` (`launcher` delegates, `probe` is new), `tools/dash` (`apps`), `tools/console/app.py` (`/api/apps`, the policy), `tools/console/snapshot.py`, `tools/console/web/src/pages/Apps.tsx`, `verify/scenarios/apps.yml`.
 
@@ -87,7 +97,8 @@ Files this decision adds or changes now: `tools/fleetcore/apps.py`, `tools/front
 
 **Negative**
 
-- A frame is not a shared document. Until L2 the shell cannot read a framed app's route or title, and until the identity layer exists a cross-site framed app that signs in with cookies may be refused them by the browser; the fallback is a new tab.
+- A frame is not a shared document. Until L2 the shell cannot read a framed app's route or title. A cross-site framed app that signs in with cookies may be refused them by the browser, which is one reason private mode uses bearer tokens (ADR 0006); until then the fallback is a new tab.
+- Two modes are a cost in every repo: a public build that must not depend on the backend, and a private path to test against two kinds of host. A public https page reaching a backend on 127.0.0.1 also depends on the browser (Chromium asks the reader first, others may refuse), so the dependable private pairings are a local frontend with a local backend and a deployed frontend with a cloud backend.
 - An app on the shell's own origin runs isolated on the public page, so it starts without saved state and one that needs browser storage may not render there (gitorio today). The real fix is to serve the public shell from an origin of its own.
 - `connect-src` and `frame-src` now carry the fleet's origins. The list is exact and registry-derived, but it is wider than `'self'`.
 - A Django app sends `X-Frame-Options: DENY` by default, so the local targets of djangoerp, fredgar-ai and zer0-CMS are expected to refuse the frame until each sets `frame-ancestors` for the shell (not verified here: no stack was started, § 10.5).

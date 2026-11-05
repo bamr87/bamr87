@@ -1,6 +1,6 @@
 # Fleet frontend platform — layers, tiers and fan-out
 
-> How the fleet's frontends share one platform without sharing one framework: six standard layers (tokens, Web Components, one app shell with micro-frontends, one OIDC identity, contracts, a registry with conformance), four tiers, the surfaces, the app portal that opens every frontend inside the Harness Console, who owns what, and the fan-out plan. Rule: constitution § 18 ([amendment 0016](amendments/0016-fleet-design-consistency.md)); composition and surfaces: [ADR 0005](adr/0005-console-as-fleet-portal.md) (proposed); phases: [DESIGN-HARMONIZATION.md](DESIGN-HARMONIZATION.md); shell item: roadmap FF-0032.
+> How the fleet's frontends share one platform without sharing one framework: six standard layers (tokens, Web Components, one app shell with micro-frontends, one OIDC identity, contracts, a registry with conformance), four tiers, the surfaces, the app portal that opens every frontend inside the Harness Console, the public and private modes, who owns what, and the fan-out plan. Rule: constitution § 18 ([amendment 0016](amendments/0016-fleet-design-consistency.md)); composition and surfaces: [ADR 0005](adr/0005-console-as-fleet-portal.md) (proposed); phases: [DESIGN-HARMONIZATION.md](DESIGN-HARMONIZATION.md); shell item: roadmap FF-0032.
 
 ## Principle
 
@@ -59,6 +59,17 @@ The console's **Apps** page (`/apps`) is the launcher rendered: every frontend i
 **What a frontend owes the portal.** Nothing to be listed. To be framed it must not refuse the shell: no `X-Frame-Options`, and a `frame-ancestors` policy only if it names the shell's origins (`https://bamr87.github.io`, `http://127.0.0.1:4001`). To work on the public page when it shares the page's origin it must tolerate a frame without storage access, so guard `localStorage` and `sessionStorage` reads.
 
 **Where it stops.** The portal frames; it does not start a stack, run a repo's verify scenarios or read a framed app's route. Those are the next phases of ADR 0005.
+
+## Modes: public and private
+
+Every frontend has two modes ([ADR 0005](adr/0005-console-as-fleet-portal.md) decision 6, [ADR 0006](adr/0006-django-management-backend.md); both proposed).
+
+| Mode | What a person gets | Depends on |
+| --- | --- | --- |
+| **Public** | everything that needs no account: the static build or the anonymous view | its own origin only — no backend, no sign-in |
+| **Private** | the same frontend, signed in | a Django backend the registry declares for it: `local` (Docker on this machine) or `cloud` (an https host) |
+
+The Harness Console already works this way and is the reference: the page on GitHub Pages is the public mode, and the same page served by or connected to a console is the private one. Planned, not built: `modes` and `backends` on each registry `frontend:` block, the launcher carrying them, a mode switch in the portal, and one sign-in client shared by every frontend (authorization code with PKCE, bearer tokens, a backend chosen by its declared name).
 
 ## Token source
 
@@ -131,7 +142,7 @@ Every submodule carries a `frontend:` block; `TBD` marks what inspection could n
 
 - Token source: zer0's tokens as the fleet base with bashOS as a variant (Sites' request), or bashOS as the base?
 - Package distribution: npm on GitHub Packages, or a vendored stamped build?
-- Identity: is zer0-id the fleet OIDC provider, or an external one (GitHub OAuth, Auth0, Keycloak)?
+- Identity: [ADR 0006](adr/0006-django-management-backend.md) proposes that a frontend's private mode signs in to its Django backend. Still open: one account across the fleet (the hub's Django or zer0-id as the single OIDC provider, the other backends relying on it) or an account per app.
 - Micro-frontend runtime: proposed in [ADR 0005](adr/0005-console-as-fleet-portal.md) — frames with a bridge by default, Module Federation 2.0 for first-party React plugins, no single-spa.
 - Desktop and mobile install: proposed in ADR 0005 — the shell as a PWA first; Tauri or Capacitor only where a store or a native API is needed.
 - Should the public shell be served from an origin of its own? Seven apps share `bamr87.github.io` with it, so they run isolated in its frames and gitorio does not render there.
