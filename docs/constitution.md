@@ -264,6 +264,16 @@ _(amendment `container-management`, numbered at merge — see the [amendment log
 8. **Ownership and cost** — each repo owns its images and their retention; registry storage and build minutes are budgeted in `_data/fleet.yml`; build, scan and SBOM are deterministic tier-0 steps, and any AI step on findings is tiered and capped under § 13 and switched under § 17.
 9. **Rollout** — warn-only per repo until its fan-out PR lands, then a hard failure; repos that publish no image are not applicable.
 
+## 22. Repository cap and consolidation
+
+_(amendment `repo-cap-42`, numbered at merge — see the [amendment log](amendments/README.md); follows § 21 `container-management`)_
+
+1. **Rule 1 — hard cap of 42** — the `bamr87` GitHub user account holds no more than **42 repositories in total** (public and private, archived included) at any time; a hard limit, not a target.
+2. **Rule 2 — consolidate to add** — any request to add a new repository to the `bamr87` account must, in that same request, merge or absorb an existing repository into another one, so the net repository count stays flat or drops.
+3. **At the cap** — a new repository is created only after an existing one is merged or absorbed into another; Amr decides which.
+4. **Scope** — the `bamr87` user account only; organisations are out of scope until the amendment's open question is decided.
+5. **Enforcement** — detection (a sentinel check on the account's repository count) is a follow-up; agents never create a repository in the account without Amr's approval and the paired consolidation.
+
 ## 23. Writing section chronicles fleet activity
 
 _(amendment `writing-chronicle`, numbered at merge — see the [amendment log](amendments/README.md); follows § 22 `repo-cap-42` (PR #660), renumber to § 22 if that amendment does not merge first)_
