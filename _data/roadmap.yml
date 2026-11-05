@@ -1677,3 +1677,39 @@
   created: 2026-11-05
   issue_url: https://github.com/bamr87/bamr87/issues/678
 
+- id: FF-0041
+  title: "Claude Code executes; Grok bots set direction only"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P0
+  effort: M
+  category: governance
+  problem: >-
+    Grok bots and Claude Code both open implementation PRs today. Amr wants
+    software and Harness Console execution done only by Claude Code, with Grok
+    bots limited to constitutional / amendment (direction-setting) PRs.
+  proposal: >-
+    Ratify constitution § 26 (amendment claude-code-executes): define Claude
+    Code vs Grok bots, direction-setting PRs, handoff via Fleet issues/console
+    jobs, Amr OK fallback when Claude Code is unavailable, warn-then-fail
+    author lint. Update AGENTS.md agent-roles. FF-0041 (FF-0040 reserved by
+    open PR #685 mcp-lifecycle).
+  acceptance:
+    - "Amendment claude-code-executes and constitution § 26 (or § 25 if #685 has not landed) are merged by Amr."
+    - "AGENTS.md documents the actor split and handoff."
+    - "Feature HUB-NEW:claude-code-executes and FR-NEW:claude-code-executes compile at merge."
+    - "Warn-only claude_code_executes_lint exists; hard-fail and in-flight PR policy are follow-ups Amr decides."
+  scope:
+    in:
+      - "amendment, constitution § 26, AGENTS.md roles, feature/FR, roadmap, changelog, warn-only lint stub"
+    out:
+      - "force-closing in-flight PRs; changing GitHub org app identities; running on Amr's Mac without yes"
+  risks:
+    - "Section number vs open #685 (§ 25) — documented renumber rule."
+    - "In-flight Grok PRs — open question; default grandfather + label."
+    - "Author detection false positives — warn-only and allowlist in _data/agent_roles.yml."
+  source: manual
+  created: 2026-11-05
+  issue_url: ""
+

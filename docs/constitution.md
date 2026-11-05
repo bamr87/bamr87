@@ -47,8 +47,11 @@ When two documents disagree, the higher one wins and the lower one is fixed in t
 
 | Actor | May | May not |
 | --- | --- | --- |
-| Maintainer (human) | Ratify amendments, PRD changes and releases by merging PRs; change settings, secrets, branch protection | — |
-| AI agent | Read this file first; open PRs on a branch with Conventional Commit titles; update the feature catalog, PRD block and docs in the same PR as the change; propose amendments; follow § 10 (track every task on the Fleet project; epics for multi-phase work; no change to the live Mac before an approved deploy step); plan GitHub write-back under § 11 and apply it only after the user confirms; merge a PR that is mergeable under § 12 | Merge a PR that is not mergeable under § 12, or any PR the review gate holds; push to the default branch; force-push; change repo settings or branch protection; print or commit secrets; invent features or requirements (unknown = **TBD**) |
+| Maintainer (human) | Ratify amendments, PRD changes and releases by merging PRs; change settings, secrets, branch protection; explicitly OK a fallback when Claude Code cannot run (§ 26.5) | — |
+| Claude Code (executor) | Execute software and Harness Console–bound changes via PRs and sanctioned console jobs; follow § 10–§ 12; merge only when mergeable under § 12 and not gated | Merge gated PRs; push to default; force-push; change settings; print or commit secrets; invent features or requirements (unknown = **TBD**) |
+| Grok bots (director) | Propose direction-setting amendment PRs (§ 26.2); file/comment issues; hand off execution to Claude Code (§ 26.4); read and review | Open or push software/console implementation PRs; apply console execution write-back; merge any PR; change settings; print or commit secrets |
+
+_(Actor split detailed in § 26 `claude-code-executes`; until that amendment is ratified, treat both AI rows as advisory alongside the previous single "AI agent" practice.)_
 
 ## 5. How the artifacts relate
 
@@ -299,4 +302,17 @@ _(amendment `visual-evidence`, numbered at merge — see the [amendment log](ame
 7. **Harness Console** — the console gains capture/attach helpers so operators and agents can record guide evidence without leaving the control plane (phased; see feature `HUB-NEW:visual-evidence`).
 8. **Enforcement** — a guides visual lint (`tools/guides_visual_lint.py`) flags guide-like Markdown lacking an image, an evidence-bundle reference, or a `skip-visuals` reason; warn-only per repo until its adoption/fan-out PR lands, then a hard failure. Fleet fan-out follows the 0007 pattern (one spoke PR per repo).
 9. **Fit with § 15** — frontend *PR* evidence stays under § 15; this section covers *published guides*. A change may need both.
+
+## 26. Claude Code executes; Grok bots set direction
+
+_(amendment `claude-code-executes`, numbered at merge — see the [amendment log](amendments/README.md); follows § 24 on main and proposed § 25 `mcp-lifecycle` (PR #685) — this is § 26 if that lands first, else renumber to § 25; amends § 4; extends § 8 and § 12)_
+
+1. **Executor** — every change that modifies software, or that is sent to the Harness Console to be applied as an execution (ops, jobs, loop-run apply, write-back that carries out work rather than only recording direction), is executed by **Claude Code** (local CLI or console-/workflow-dispatched session).
+2. **Director** — **Grok bots** may open PRs only when the PR is **direction-setting**: constitution text, amendment records under `docs/amendments/` (proposed → numbered at merge), and the matching `changelog.d/` entry. They may include `features/features.d/`, `prd_new`, and `_data/roadmap.yml` fragments **only inside that same amendment PR** when those fragments define the capability the amendment introduces.
+3. **What Grok bots may still do without a software PR** — file and comment on GitHub issues; draft console plans that stop before apply; propose handoff issues labelled for Claude Code execution; read and review. They do **not** open implementation PRs, push product commits, or apply console write-back that executes software changes.
+4. **Handoff** — when a Grok bot determines software or console work is needed, it files a Fleet issue (and/or a console job / loop step) that states the goal, acceptance criteria, and constraints; Claude Code picks that up and opens the implementation PR.
+5. **Maintainer override** — Amr may always direct otherwise; an explicit Amr OK is required before a Grok bot executes software work when Claude Code is unavailable or out of budget (Design for Failure).
+6. **Ratification unchanged** — only Amr merges amendments (§ 8); § 12.3 ratification-record PRs remain automation, not Grok implementation work.
+7. **Enforcement** — a warn-then-fail check (`tools/claude_code_executes_lint.py` and/or a workflow) flags PRs authored by known Grok-bot identities whose diff is not direction-setting; warn-only until adoption, then hard fail. Labels such as `direction-setting` / `executor:claude-code` may assist humans and CI.
+8. **Fleet** — spoke repos conform or file their own amendment saying how they do.
 

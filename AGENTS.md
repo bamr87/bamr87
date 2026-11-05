@@ -134,6 +134,22 @@ Declared in `.github/sdlc.yml` `deviations:` (the hub's SDLC profile, UPS-WORK-0
 
 - UPS-REPO-21 waived until 2027-04-01: the hub's public interface (reusable workflows + checker) versions by hand-cut major tags (`v1`, `v2`) per `docs/WORKFLOW-VERSIONING.md`, and `CHANGELOG.md` is maintained with those cuts rather than by release-please.
 
+
+## Agent roles (constitution § 26)
+
+Amr's split (amendment `claude-code-executes`, proposed):
+
+| Actor | Does | Does not |
+| --- | --- | --- |
+| **Claude Code** (local CLI or console-/workflow-dispatched) | Execute software changes and Harness Console–bound apply/jobs; open implementation PRs | Merge gated PRs; change settings; print secrets |
+| **Grok bots** (Grok Bot primary, Platform Architect, Fleet Ops, Tools, Sites, Content & Comms, Researcher, Bashcrawl & Games, Law AI Lead, and their subagents) | Propose **direction-setting** amendment PRs (constitution + `docs/amendments/proposed/` + `changelog.d/`); file/comment issues; hand off execution | Open software/console implementation PRs; apply console execution write-back; merge |
+
+**Handoff:** a Grok bot that needs software or console work files a Fleet issue (and/or console job) with goal, acceptance criteria and constraints for Claude Code to execute.
+
+**Fallback:** if Claude Code is unavailable or out of budget, stop and wait for Amr's explicit OK — do not silently implement as a Grok bot.
+
+Details: [`docs/constitution.md`](docs/constitution.md) § 26; [`docs/amendments/proposed/claude-code-executes.md`](docs/amendments/proposed/claude-code-executes.md).
+
 ## Governance
 
 Read [`docs/constitution.md`](docs/constitution.md) before changing anything: it is the highest-precedence rule set here and wins over this file when they disagree. It changes only through a numbered record in [`docs/amendments/`](docs/amendments/), ratified by the maintainer merging the PR; agents propose, never merge. Every user-facing feature has a stable id in [`features/features.yml`](features/features.yml) with `status`, location and the PRD requirement ids it serves; the PRD's "Feature catalog" block is generated from it (`python3 <bamr87/bamr87>/tools/governance_lint.py prd-sync . --write`; check with `… check .`). Never hand-edit that block or `CHANGELOG.md`.

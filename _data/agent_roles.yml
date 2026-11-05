@@ -1,0 +1,40 @@
+# agent-roles/v1 — who may open which PRs (constitution § 26)
+# Identities are best-effort; CI starts warn-only. Never put tokens here.
+schema: agent-roles/v1
+updated: "2026-11-05"
+docs: docs/amendments/proposed/claude-code-executes.md
+executors:
+  - id: claude-code
+    kind: claude-code
+    notes: "Local Claude Code CLI and console-/workflow-dispatched Claude sessions (claude-run, loop-run, issue-pipeline implement)."
+directors:
+  - id: grok-bot
+    kind: grok-bot
+    names:
+      - "Grok Bot"
+      - "Platform Architect"
+      - "Fleet Ops"
+      - "Tools"
+      - "Sites"
+      - "Content & Comms"
+      - "Researcher"
+      - "Bashcrawl & Games"
+      - "Law AI Lead"
+    notes: "Amr's Grok Bot assistants and their subagents. GitHub logins/apps TBD (open question)."
+github_logins_warn:
+  # Fill as Amr confirms which GitHub actors are Grok bots vs humans vs Claude automation.
+  # Examples of automation that is NOT a Grok director (do not treat as direction-only):
+  # - github-actions[bot]
+  # - dependabot[bot]
+direction_setting_path_prefixes:
+  - docs/constitution.md
+  - docs/amendments/
+  - changelog.d/
+  - features/features.d/
+  - _data/roadmap.yml
+  - _data/agent_roles.yml
+  - AGENTS.md
+  - tools/claude_code_executes_lint.py
+  - tools/test_claude_code_executes_lint.py
+  - tools/SCHEMA.md
+  - _data/SCHEMA.md
