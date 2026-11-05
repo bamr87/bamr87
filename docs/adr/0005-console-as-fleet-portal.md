@@ -83,6 +83,39 @@
 
 8. **Governance follows the existing rule.** The registry is the single list. New conformance rows (a frontend allows the shell to frame it, declares its targets and its modes, works in public mode with no backend, authenticates in private mode only against a declared backend, and at shell tier loads the bridge) arrive in their own PR, warn-only per repo until its adoption PR merges, as § 18.4 already prescribes. If the maintainer wants "uses the shared shell" in § 18.2 to read "mounts into the shared shell at L1 or L2", that is a constitution amendment proposed with those rows, not by this ADR.
 
+### The OS shell: bashOS hosts the App Shell
+
+- **Status**: proposed (added 2026-11-05 at the maintainer's request)
+
+9. **bashOS is the OS shell in the browser, and the App Shell is what every window shares.** The maintainer's direction (2026-11-05): the bashOS design and framework as the Browser OS Shell that hosts the common App Shell, in the desktop-with-icons style the bashOS GUI took from PostHog's site, each icon an app that shares one shell. Three layers:
+
+   | Layer | What it is | Where it comes from |
+   | --- | --- | --- |
+   | OS shell | the desktop: an icon per app, floating windows, a taskbar; open, focus, move, snap to an edge, minimize, tile, a layout that can be shared as a link | bashOS: its layout reducer (`src/bashos/gui/web/shell.js`, layout v1), vendored byte-identical, and the paper palette of its GUI |
+   | App Shell | what every window carries: where the app runs, its mode, a device size, a path, reload, open outside; later the bridge's route and commands | the hub (`AppPane`, the portal of decisions 1 to 4) |
+   | App | a fleet frontend at one of its targets; later a console page | each repo |
+
+   This answers the question docs/TERMINAL-FRAMEWORK.md § 10 left open, "which one hosts the other": in the browser bashOS hosts, and the console's apps are its windows. The console stays the fleet's runtime, because it owns the allowlist and the credentials. The terminal twin is the bashOS Textual desktop, where the same apps are windows (TERMINAL-FRAMEWORK § 3.7).
+
+   One engine, two renderers. The reducer is bashOS's file, unedited and pinned by a test (`tools/console/test_bashos_shell.py`); the console draws its state with React because its pages are React, and the bashOS GUI draws it with its own no-build `app.js`. A change to the reducer goes to bamr87/bashos first and is then copied; when bashos publishes `@bamr87/bashos` the copy becomes an import. A layout carries scene and app ids and geometry, never an address, and an id the registry does not declare is dropped, so a shared link can open only what the registry declares. The icons are a dock the windows never cover. Below the reducer's narrow width the desktop is a home screen that opens one app at a time.
+
+   Not in this change: console pages as windows (the console forbids being framed, also by itself, so a page in a window needs the reducer's `plain` experience and `frame-ancestors 'self'`), the palette opening windows, context menus and wallpapers.
+
+### A frontend component for every repo
+
+- **Status**: proposed (added 2026-11-05 at the maintainer's request)
+
+10. **Every repo in the fleet gets a frontend component, so every repo is an app on the desktop.** Today 16 of the 38 repos open in a window and 22 do not. What a repo's component is follows from what the registry already says about it (`tools/fleetcore/apps.py` `component()`); `tools/dash apps plan` prints the table for every repo and the Desktop's Fleet window shows it.
+
+    | Component | For | Repos today | What gets built |
+    | --- | --- | --- | --- |
+    | Its own frontend | a repo that already has a web frontend | 20: 14 at a live address, 2 at a local stack only (djangoerp, zer0-CMS), 4 with no address (ocrmd, cv-pro, godotgo, ragio-ai) | a public address for the six that lack one (a build published to Pages, or a dev-stack port), then the bridge and the modes |
+    | A web preview | a surface a browser cannot host | 3: vs-sonic-pi and zpl-viewer (editor extensions), fleet-mobile | the extension's webview, or the app's web build, published as a page beside the repo |
+    | Its terminal UI in a window | a terminal app | 2: bashos, netprobe | the app on a pty in a shell window, as the console's Terminal page already runs the terminal dash; a recorded or in-browser demo for its public mode |
+    | The generated repo app | a repo with no UI: a CLI, a library, infrastructure, a kernel, firmware, data | 13: scripts, skills, githubai, outbox, fleet-infra, kvlite, fleet-observe, zer0-id, sec-lab, edgar-pipeline, zer0-kernel, sensor-mesh, schema-lang | one component the shell renders for any repo from that repo's own files (README, feature index and evidence, docs index, command reference, releases, health), with panels by kind: an API explorer where there is an OpenAPI document, "run it in a terminal" for a CLI. Then a component of the repo's own |
+
+    Two steps, in this order. First the hub makes every repo an app with no change in any repo: the generated repo app (F1). Then each repo owns its component: a `frontend` kit (a manifest, a starter page on the fleet tokens and components, the bridge, the sign-in client) fanned out dry-run and PR-only, one repo per PR, after which the registry's `tier: none` is retired and every repo declares a component (F4). The registry stays the list: the plan is generated from it, so it cannot drift from it.
+
 ### Phases
 
 Each phase after P0 is its own pull request and becomes a sub-issue of the tracking epic, with scope, acceptance criteria and guardrails (constitution § 10.2). A change in a fleet repo is one submodule per PR.
@@ -98,6 +131,12 @@ Each phase after P0 is its own pull request and becomes a sub-issue of the track
 | P6 | the terminal dash's Apps tab and terminal UIs launched from the launcher; a VS Code extension in the hub hosting the shell |
 | P7 | the console as a PWA; a responsive pass at the verify viewports; fleet-mobile reading the launcher |
 | P8 | governance: the new UPS-FE rows, the § 18.2 wording as a proposed amendment, a `frontend` kit fan-out |
+| D0 (its own PR) | the bashOS desktop: the vendored shell reducer, the dock, windows that host the App Shell, the Fleet window listing every repo, the paper palette, the phone home screen |
+| D1 | console pages as windows (the `plain` experience, `frame-ancestors 'self'`); the palette opens windows; Live beside Local as one action; context menus |
+| F1 | the generated repo app for the 13 repos with no UI, in a window and at `/apps/<id>` on the public site, with no change in any repo |
+| F2 | a public address for the six frontends that lack one (djangoerp, zer0-CMS, ocrmd, cv-pro, godotgo, ragio-ai), one repo per PR |
+| F3 | web previews for vs-sonic-pi, zpl-viewer and fleet-mobile; bashos and netprobe in a terminal window |
+| F4 | the `frontend` kit: a component each repo owns, `tier: none` retired, and the conformance row that every repo declares one |
 
 Files this decision adds or changes now: `tools/fleetcore/apps.py`, `tools/frontend_registry.py` (`launcher` delegates, `probe` is new), `tools/dash` (`apps`), `tools/console/app.py` (`/api/apps`, the policy), `tools/console/snapshot.py`, `tools/console/web/src/pages/Apps.tsx`, `verify/scenarios/apps.yml`.
 
