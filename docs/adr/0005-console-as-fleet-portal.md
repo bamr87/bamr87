@@ -83,6 +83,22 @@
 
 8. **Governance follows the existing rule.** The registry is the single list. New conformance rows (a frontend allows the shell to frame it, declares its targets and its modes, works in public mode with no backend, authenticates in private mode only against a declared backend, and at shell tier loads the bridge) arrive in their own PR, warn-only per repo until its adoption PR merges, as § 18.4 already prescribes. If the maintainer wants "uses the shared shell" in § 18.2 to read "mounts into the shared shell at L1 or L2", that is a constitution amendment proposed with those rows, not by this ADR.
 
+### Phases
+
+Each phase after P0 is its own pull request and becomes a sub-issue of the tracking epic, with scope, acceptance criteria and guardrails (constitution § 10.2). A change in a fleet repo is one submodule per PR.
+
+| Phase | What it delivers |
+| --- | --- |
+| P0 (this PR) | the launcher, the Apps page with Live and Local targets and device sizes, `tools/dash apps`, the probe, the console policy derived from the registry |
+| P1 | local stacks from the portal: start, stop and follow a project's dev stack as console jobs; a local address for devenv-hosted sites; local frame policies (Django's `X-Frame-Options`) |
+| P2 | validate from the portal: run a repo's verify scenarios against the selected target and device matrix, show its evidence and its UPS-FE results; a `preview` target for pull requests |
+| P3 | public and private modes: `modes` and `backends` in the registry and the launcher, the portal's mode switch, one sign-in client (depends on ADR 0006's sign-in phase) |
+| P4 | the bridge (L2): `fleet-bridge` v1 in the shell, the zer0 theme and a React hook; the storage defects the isolated-frame run found (gitorio, zer0) |
+| P5 | tokens and the shell package (FF-0032, docs/DESIGN-HARMONIZATION.md phases 1 and 2); the decision on an origin of its own for the public shell |
+| P6 | the terminal dash's Apps tab and terminal UIs launched from the launcher; a VS Code extension in the hub hosting the shell |
+| P7 | the console as a PWA; a responsive pass at the verify viewports; fleet-mobile reading the launcher |
+| P8 | governance: the new UPS-FE rows, the § 18.2 wording as a proposed amendment, a `frontend` kit fan-out |
+
 Files this decision adds or changes now: `tools/fleetcore/apps.py`, `tools/frontend_registry.py` (`launcher` delegates, `probe` is new), `tools/dash` (`apps`), `tools/console/app.py` (`/api/apps`, the policy), `tools/console/snapshot.py`, `tools/console/web/src/pages/Apps.tsx`, `verify/scenarios/apps.yml`.
 
 ## Consequences
