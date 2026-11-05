@@ -1677,3 +1677,39 @@
   created: 2026-11-05
   issue_url: https://github.com/bamr87/bamr87/issues/678
 
+- id: FF-0042
+  title: "Expedite sprints — accelerated, monitored pilots run by agentic loops"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P1
+  effort: L
+  category: infra
+  problem: >-
+    Urgent work waits in the same lanes and caps as everything else; the fleet
+    has no expedite lane, no sprint budget or circuit breaker, no DORA delivery
+    metrics and no live sprint record.
+  proposal: >-
+    Ratify constitution § 27 (amendment expedite-sprints) and the standard
+    docs/EXPEDITE-SPRINTS.md, then build the sprint ceiling + circuit breaker
+    (#689), live record (#691) and DORA projection (#690), and pilot on
+    bash-365.com with a consultation inquiry form (#692). Spec
+    docs/prd/EXPEDITE-SPRINTS.md; epic #687, P0 backlog #688.
+  acceptance:
+    - "Amendment expedite-sprints and constitution § 27 are merged."
+    - "Feature HUB-NEW:expedite-sprints and FR-NEW:expedite-sprints compile at merge."
+    - "A sprint at its ceiling stops and files a draft (fixture test, #689)."
+    - "The bash-365.com pilot passes a privacy review before build and ends with a recorded retro."
+  scope:
+    in:
+      - "the standard, amendment, sub-PRD, roadmap and feature/FR fragments"
+    out:
+      - "raising any budget; unattended merges or deploys; building the pilot in the ratification PR"
+  risks:
+    - "Expedite becomes the norm — WIP 1 and a per-period count."
+    - "Speed erodes quality — no gate relaxed; debt filed at retro."
+    - "Section numbering — § 27 assumes #685 (§ 25) and #686 (§ 26) merge first."
+  source: manual
+  created: 2026-11-05
+  issue_url: https://github.com/bamr87/bamr87/issues/687
+
