@@ -124,6 +124,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-077](features/features.yml) | The routine PM review: project, roadmap and release alignment | partial | [`tools/pm_review.py`](tools/pm_review.py) · [`docs/PM.md`](docs/PM.md) | FR75, NFR15 |
 | [HUB-078](features/features.yml) | The app portal: every fleet frontend opened inside the Harness Console, at its live address or its local stack | partial | route `/apps` · [`docs/FRONTEND-PLATFORM.md`](docs/FRONTEND-PLATFORM.md) | FR58, FR76 |
 | [HUB-079](features/features.yml) | The bashOS desktop: an icon for every fleet app, each opened in a window that shares one App Shell | partial | route `/desktop` · [`docs/FRONTEND-PLATFORM.md`](docs/FRONTEND-PLATFORM.md) | FR58, FR77 |
+| [HUB-080](features/features.yml) | The generated repo app: every repo in the fleet opens as an app, with or without a frontend of its own | partial | route `/apps/kvlite` · [`docs/FRONTEND-PLATFORM.md`](docs/FRONTEND-PLATFORM.md) | FR58, FR78 |
 
 **Requirement → feature trace**
 
@@ -197,7 +198,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR55 | HUB-058 |
 | FR56 | HUB-060, HUB-069, HUB-070, HUB-071, HUB-073, HUB-074 |
 | FR57 | HUB-061 |
-| FR58 | HUB-062, HUB-078, HUB-079 |
+| FR58 | HUB-062, HUB-078, HUB-079, HUB-080 |
 | FR59 | HUB-063, HUB-073 |
 | FR60 | HUB-064, HUB-072, HUB-073 |
 | FR61 | HUB-065 |
@@ -220,6 +221,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | NFR15 | HUB-077 |
 | FR76 | HUB-078 |
 | FR77 | HUB-079 |
+| FR78 | HUB-080 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -291,6 +293,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR75: The product must review, on a schedule, every open issue and pull request of the registry repos against the Fleet project, the roadmap and each repo's release train, and report each mismatch with its evidence and a proposed fix.
 - FR76: The product must let a person open any frontend the registry declares from one place, in the browser and from a terminal, at its deployed address or at its local development stack and at a chosen device size, framing only addresses the registry declares and asking a visitor's own machine nothing unprompted.
 - FR77: The product must present the fleet as a desktop in the browser on the bashOS layout engine: an icon for every app, each opened in a window that shares one set of controls, every repo listed by the frontend component it has or is owed, and the same desktop usable at a phone's width.
+- FR78: The product must open every repo in the registry as an app, generating one from what the hub holds about a repo that has no frontend of its own, and must never publish a repo's README on the public site.
 
 **Non-functional**
 
