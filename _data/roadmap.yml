@@ -1638,3 +1638,42 @@
   source: manual
   created: 2026-11-03
   issue_url: https://github.com/bamr87/bamr87/issues/632
+
+- id: FF-0039
+  title: "Visual evidence standard for tutorials, guides and setup docs (hub first, then fleet fan-out)"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P1
+  effort: L
+  category: docs
+  problem: >-
+    Tutorials, how-tos, setup docs and console help walk users through UIs
+    without screenshots or recordings. Constitution § 15 covers frontend PRs
+    only, so guide authors invent ad-hoc paths, skip visuals, and leave stale
+    or secret-leaking images unchecked.
+  proposal: >-
+    Ratify constitution § 24 (amendment visual-evidence): when guides need
+    visuals, naming and storage (docs/assets/guides/<slug>/ or
+    test/evidence/<slug>/), alt text, redaction, freshness; a warn-then-fail
+    guides lint; Harness Console capture/attach (phased); fleet fan-out from
+    the hub. Spec docs/prd/VISUAL-EVIDENCE.md and docs/VISUAL-EVIDENCE.md;
+    epic #678, P0 backlog #679.
+  acceptance:
+    - "Amendment visual-evidence and constitution § 24 are merged."
+    - "guides_visual_lint.py flags a fixture guide lacking visuals and a skip reason; hub CI is warn-only until adoption."
+    - "Feature HUB-NEW:visual-evidence and FR-NEW:visual-evidence compile at merge; backlog #679 checklist is the P2 backfill set."
+    - "Console capture/attach and spoke fan-out are tracked as later epic phases, not blockers for the standard."
+  scope:
+    in:
+      - "the standard, amendment, lint, hub backlog audit, roadmap and feature/FR fragments"
+    out:
+      - "backfilling every guide in this PR; submodule edits; running anything on Amr's Mac without yes"
+  risks:
+    - "Warn-only lint ignored — mitigate with the #679 checklist and a dated adoption flip."
+    - "Secrets in PNGs — redaction rule plus a later OCR/secret-scan gate (open question)."
+    - "Section numbering vs open PR #660 — § 24 stays free; amendment number may be 0022 or 0023."
+  source: manual
+  created: 2026-11-05
+  issue_url: https://github.com/bamr87/bamr87/issues/678
+
