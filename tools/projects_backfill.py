@@ -385,8 +385,8 @@ def graphql_unavailable(err: str) -> bool:
 class Board:
     """One Fleet project: its fields, option ids and items, read once through GraphQL."""
 
-    def __init__(self, gh: Gh, owner: str, number: int):
-        self.gh, self.owner, self.number = gh, owner, number
+    def __init__(self, gh: Gh, owner: str, number: int, max_items: int = gp.MAX_ITEMS):
+        self.gh, self.owner, self.number, self.max_items = gh, owner, number, max_items
         self.project: dict | None = None
         self.items: dict[tuple[str, int], dict] = {}
         self.error: str | None = None
@@ -411,7 +411,8 @@ class Board:
                     fields[f["name"]] = {"id": f["id"], "type": f.get("dataType"),
                                          "options": {o["name"]: o["id"] for o in f.get("options") or []}}
             self.project = {"id": p["id"], "title": p["title"], "url": p.get("url"), "fields": fields}
-            for it in gp.project_items(p["id"], http=lambda q, v, _t: self.gh.graphql(q, v), tok="gh"):
+            for it in gp.project_items(p["id"], http=lambda q, v, _t: self.gh.graphql(q, v), tok="gh",
+                                       max_items=self.max_items):
                 if it["kind"] in ("issue", "pr") and it.get("repo"):
                     self.items[(it["repo"], int(it["number"]))] = it
             return True
@@ -673,7 +674,9 @@ def cmd_apply(args) -> int:
         if b.get("board"):
             if board is None:
                 proj = decisions.get("project") or {}
-                board = Board(gh_for_projects(), proj.get("owner", "bamr87"), int(proj.get("number", 14)))
+                # a preview planned against more items than the default page cap is applied against as many
+                board = Board(gh_for_projects(), proj.get("owner", "bamr87"), int(proj.get("number", 14)),
+                              max_items=int(preview.get("max_items") or gp.MAX_ITEMS))
                 if not board.load():
                     print(f"batch {b['index']}: skipped — {board.error}")
                     rc = 1
@@ -694,8 +697,9 @@ def cmd_apply(args) -> int:
         print(f"batch {b['index']}: applied {res['applied']}, already satisfied {noop}, errors {len(errors)}")
         for r in errors:
             print(f"  error {r.get('target')}: {r.get('error')}")
-        record_applied(Path(preview.get("decisions") or DECISIONS),
-                       {"plan_id": b["plan_id"], "at": now_iso(), "batch": b["index"], "applied": res["applied"], "noop": noop})
+        if preview.get("record") != "audit-only":  # the routine PM review's plans (tools/pm_review.py) keep the audit log only
+            record_applied(Path(preview.get("decisions") or DECISIONS),
+                           {"plan_id": b["plan_id"], "at": now_iso(), "batch": b["index"], "applied": res["applied"], "noop": noop})
         if errors:
             rc = 1
             break

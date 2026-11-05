@@ -1,0 +1,117 @@
+name: "Fleet PM review"
+
+# The routine PM review (docs/PM.md, backlog #588): every day it reads the open
+# issues and pull requests of every registry repo, their pull-request state,
+# recent comments, releases and the Fleet project, and reports what is out of
+# line with three records — the Fleet project (constitution § 9, § 10), the
+# roadmap (_data/roadmap.yml) and each repo's release train (docs/RELEASES.md).
+#
+# READ-ONLY on GitHub: `tools/pm_review.py` makes GETs and GraphQL queries and
+# nothing else. It plans the Fleet project ops and uploads them as a preview;
+# applying them is `tools/dash projects apply FILE --confirm`, by a person who
+# has read the plan (constitution § 11.4). This workflow never applies, never
+# merges, and never touches an issue, a setting or a secret. Its one write is
+# the public snapshot _data/pm_review.yml, published through
+# utilities/publish-data (direct push, else a stable-branch PR); the commit
+# carries [skip ci]. Private repos are counted in it, never listed.
+#
+# Tokens: FLEET_TOKEN is probed and used for the fleet's issues, pull requests
+# and releases (the job token is the unprobed fallback and sees the hub and
+# public repos only). The Fleet project is a user-level project, which the job
+# token cannot read: PROJECTS_TOKEN (read:project) reads it when it is set.
+# Without it the project lane says "unreadable" and every other lane still
+# runs — a missing token never turns the run red or drops an item.
+#
+# 07:07 UTC, after fleet-pulse (05:37) has refreshed the triage snapshot the
+# release lane reads. Declared in _data/fleet.yml `schedule.fleet_pm`
+# (test_schedule.py). New loop: the cron runs only while
+# vars.FLEET_PM_ENABLED is 'true'; a manual dispatch always runs.
+
+on:
+  schedule:
+    - cron: '7 7 * * *'   # _data/fleet.yml schedule.fleet_pm
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Review and upload the report only (do not publish the snapshot)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fleet-pm
+  cancel-in-progress: false
+
+jobs:
+  review:
+    name: "Fleet PM review"
+    if: ${{ github.event_name != 'schedule' || vars.FLEET_PM_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write         # publish the refreshed snapshot
+      pull-requests: write    # …via a PR when a direct push is refused
+      issues: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup/dash-gen
+
+      # Probed, never presence-picked: an expired FLEET_TOKEN must fall back to
+      # the job token (a partial review) instead of reading zeros everywhere.
+      - name: Resolve a working fleet token
+        id: token
+        uses: ./.github/actions/resolve-fleet-token
+        with:
+          fleet-token: ${{ secrets.FLEET_TOKEN }}
+          default-token: ${{ github.token }}
+
+      - name: Review (read-only)
+        env:
+          PROJECTS_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
+          PAT: ${{ steps.token.outputs.pat }}
+        run: |
+          set -euo pipefail
+          if [ "$PAT" != "true" ]; then
+            echo "::warning::no working FLEET_TOKEN: this review sees the hub and public repos only"
+          fi
+          if [ -z "${PROJECTS_TOKEN:-}" ]; then
+            echo "::warning::PROJECTS_TOKEN is not set: the Fleet project may be unreadable (constitution § 11.7)"
+            unset PROJECTS_TOKEN
+          fi
+          python3 tools/pm_review.py review --write --public --quiet \
+            --out "$RUNNER_TEMP/pm" --summary "$GITHUB_STEP_SUMMARY" > /dev/null
+          python3 tools/pm_review.py status
+
+      - name: Upload the report and the plan preview
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: fleet-pm-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/pm/review.md
+            ${{ runner.temp }}/pm/board-plan.json
+            _data/pm_review.yml
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish the snapshot
+        if: ${{ github.event_name == 'schedule' || !inputs.dry_run }}
+        uses: ./.github/actions/utilities/publish-data
+        with:
+          paths: "_data/pm_review.yml"
+          message: "chore(data): refresh PM review snapshot [skip ci]"
+          branch: chore/pm-review
+          title: "chore(data): PM review snapshot"
+          body: |
+            Automated refresh of `_data/pm_review.yml`, the routine PM review's
+            public snapshot (docs/PM.md). Nothing in it was applied: the Fleet
+            project ops it counts are applied with `tools/dash projects apply`
+            after a person has read them.
+
+            Delivered as a pull request because a direct push to the default
+            branch was refused by branch protection. This branch is regenerated
+            on every run: review the diff, not the history.
+          token: ${{ github.token }}

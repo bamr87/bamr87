@@ -50,7 +50,7 @@ Constitution § 10 (amendment `projects-devops-methodology`, numbered at merge) 
 | --- | --- | --- |
 | 0 — ratify | Merge this PR. Grant `project` scope (`gh auth refresh -s project`) or create the GitHub App / `PROJECTS_TOKEN`. | Amr |
 | 1 — create | Create Fleet Portfolio + Platform project from the spec; publish auto-add workflow v1 in `bamr87/.github`; wire hub + bamr87 repos. Backfill open items. | coverage report (warn) |
-| 2 — sync | `projects_sync.py`, label→field map, `agent:*` mirror, issue-form fields, features/PRD sync. | `projects_lint coverage` warn |
+| 2 — sync | `projects_sync.py`, label→field map, `agent:*` mirror, issue-form fields, features/PRD sync. The daily review that plans the sync is [the PM review](PM.md) (`tools/dash pm`, `fleet-pm.yml`), which also covers the roadmap and the release train; its plans are applied through § 11. | `projects_lint coverage` warn |
 | 3 — console | collector, `_data/projects_board.yml`, Projects panel, MCP tools; bots switched to project Status. | console test_pages |
 | 4 — fan-out | Label harmonization + auto-add caller per repo via `standardize-fanout`, in waves: (a) hub, `.github`, zer0-mistakes; (b) bamr87 user repos; (c) year-of-ai, ai-world-view; (d) bash-365, EissaLab. Org programs created when >10 open items. | per-wave PRs, never auto-merged |
 | 5 — enforce | `coverage` becomes an error 30 days after ratification; milestones retired in favour of Iteration. | quality gate |
