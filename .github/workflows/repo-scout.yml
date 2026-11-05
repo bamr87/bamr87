@@ -275,7 +275,7 @@ jobs:
         # this workflow file — which GITHUB_TOKEN and the Claude App cannot push
         # (docs/adr/0002, governance trade-off).
         env:
-          JEV_STEP_SHA256: 20bf77a225e1402261623d538f730831c6daa76554b8ddc694d42595750c3a00
+          JEV_STEP_SHA256: 3ac362eac2dbfe7a500edc33d0c7dc9e831d97dc9f54f525e6207700c8cf79fa
         with:
           claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
           anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}

@@ -28,6 +28,16 @@ export const to = {
   connect: () => '/connect',
   projects: () => '/projects',
   project: (name: string, tab?: string) => `/projects/${enc(name)}${tab ? `?tab=${enc(tab)}` : ''}`,
+  desktop: () => '/desktop',
+  apps: () => '/apps',
+  app: (id: string, f: { target?: string; path?: string; device?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (f.target && f.target !== 'live') qs.set('target', f.target);
+    if (f.device) qs.set('device', f.device);
+    if (f.path) qs.set('path', f.path);
+    const s = qs.toString();
+    return `/apps/${enc(id)}${s ? `?${s}` : ''}`;
+  },
   inbox: (kind?: string) => `/inbox${kind ? `?kind=${enc(kind)}` : ''}`,
   containers: () => '/containers',
   harnesses: (filter?: 'gaps') => `/harnesses${filter ? `?view=${filter}` : ''}`,
@@ -44,6 +54,13 @@ export const to = {
   workflow: (id: string) => `/workflows/${enc(id)}`,
   action: (id: string) => `/workflows/actions/${id.split('/').map(enc).join('/')}`,
   loop: (id: string) => `/loops/${enc(id)}`,
+  refine: (tab?: string, q?: Record<string, string>) => {
+    const qs = new URLSearchParams(q ?? {});
+    if (tab) qs.set('tab', tab);
+    const s = qs.toString();
+    return `/refine${s ? `?${s}` : ''}`;
+  },
+  assist: (q?: string) => `/assist${q ? `?q=${enc(q)}` : ''}`,
   costs: () => '/costs',
   activity: () => '/activity',
   observe: (pane: 'logs' | 'metrics' | 'traces' | 'lines' | 'index') => `/observe/${pane}`,

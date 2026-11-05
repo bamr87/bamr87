@@ -67,17 +67,21 @@ PACK_SCHEMA = "jev-context-pack/v1"
 MODES = ("auto", "off", "require")
 DEFAULT_MODE = "auto"
 #: the plane sections plus the engine's own memory of this item
-PROVIDERS = ("history", *PLANE_SECTIONS)
+PROVIDERS = ("history", "library", *PLANE_SECTIONS)
 HISTORY_SOURCE = "jev-history"
+#: the experience library (tools/jev/library.py): the domain's lessons from earlier refinements
+LIBRARY_SOURCE = "jev-library"
+LIBRARY_LIMIT = 8
 DEFAULT_MAX_CHARS = 16000   # about 4k tokens
 DEFAULT_DEADLINE_S = 20.0
 DEFAULT_DAYS = 30
 
 #: the rendered order, and the order rows are cut in when the pack is over its cap
-RENDER_ORDER = ("history", "lake_issues", "lake_ci", "lake_agents", "telemetry_errors", "index_code")
-TRIM_ORDER = ("index_code", "telemetry_errors", "lake_ci", "lake_agents", "lake_issues", "history")
+RENDER_ORDER = ("history", "library", "lake_issues", "lake_ci", "lake_agents", "telemetry_errors", "index_code")
+TRIM_ORDER = ("index_code", "telemetry_errors", "lake_ci", "lake_agents", "lake_issues", "library", "history")
 TITLES = {
     "history": "Earlier attempts on this item",
+    "library": "Lessons from earlier refinements in this domain",
     "lake_issues": "Recently closed issues and pull requests",
     "lake_ci": "CI on the tracked branch",
     "lake_agents": "Agent runs and failing commands",
@@ -86,6 +90,7 @@ TITLES = {
 }
 SOURCE_LABELS = {
     HISTORY_SOURCE: "this loop's run records (.fleet/runs)",
+    LIBRARY_SOURCE: "the harness experience library (_data/harness_library)",
     "lake": "the fleet data lake (SQLite)",
     "qdrant": "the code index (Qdrant + Ollama)",
     "elasticsearch": "Claude Code telemetry (Elasticsearch)",
@@ -116,7 +121,10 @@ UNKNOWN_ROW_CHARS = 300
 #: code hit's path. The planes keep the same words in their own pass
 #: (fleet_context.DOC_WORDS, every one of which is here).
 SCHEMA_WORDS = frozenset({
-    *PROVIDERS, *STATUSES, HISTORY_SOURCE, *PLANE_SOURCES.values(), *MODES, PACK_SCHEMA, PLANES_SCHEMA,
+    *PROVIDERS, *STATUSES, HISTORY_SOURCE, LIBRARY_SOURCE, *PLANE_SOURCES.values(), *MODES, PACK_SCHEMA,
+    PLANES_SCHEMA,
+    # a library row (tools/jev/library.py)
+    "lesson", "cue", "evidence", "confidence", "entry", "domain", "adopted", "date",
     # a section
     "status", "source", "as_of", "age_hours", "note", "elapsed_ms", "truncated", "rows",
     # the document (gather) and its planes meta
@@ -623,6 +631,41 @@ def history_section(ctx, item_key: str, *, limit: int = 5) -> dict:
 
 
 # --------------------------------------------------------------------------- #
+# library: the domain's lessons from earlier refinements (tools/jev/library.py)
+# --------------------------------------------------------------------------- #
+def library_section(ctx, req: ContextRequest, *, limit: int = LIBRARY_LIMIT) -> dict:
+    """A section (source 'jev-library') from the experience library for this
+    loop and the repository's registry category: the newest `limit` entries,
+    each as its cue, lesson, evidence and confidence (redacted, clipped). A
+    library that cannot be read is `unavailable` with the reason, never a
+    failure; an empty one is `empty`. The library is committed, reviewed
+    data, so a lesson reaches the agent as data to re-verify, never as a
+    rule (the header's data-not-instructions rule covers it)."""
+    from . import library as lib  # lazy: the library imports headless
+    started = time.monotonic()
+    now = _iso()
+    try:
+        root = getattr(ctx, "library_root", None) or lib.root(getattr(ctx, "fleet", None))
+        domain = lib.domain_of(req.nwo)
+        entries = lib.Library(root, ctx.spec.loop, domain).entries()
+    except Exception as exc:  # noqa: BLE001 - a plane problem costs its section, never the run
+        return _section(LIBRARY_SOURCE, "unavailable", note=_one(redact(f"{type(exc).__name__}: {exc}", ctx), REASON_CHARS),
+                        elapsed_ms=int((time.monotonic() - started) * 1000))
+    rows = [{"kind": "lesson", "entry": _one(e.id, 80), "date": _one(e.date, 12), "adopted": _one(e.adopted, 40),
+             "confidence": _one(e.confidence, 10), "item": _one(e.item, 120),
+             "cue": _one(redact(e.cue, ctx), REASON_CHARS), "lesson": _one(redact(e.lesson, ctx), LINE_CHARS),
+             "evidence": _one(redact(e.evidence, ctx), NOTE_CHARS)} for e in entries[:limit]]
+    elapsed = int((time.monotonic() - started) * 1000)
+    if not rows:
+        return _section(LIBRARY_SOURCE, "empty", as_of=now, age_hours=0.0, elapsed_ms=elapsed,
+                        note=f"no refinement of {ctx.spec.loop} in the {domain} domain has been recorded yet")
+    note = (f"{ctx.spec.loop}, domain {domain}: the newest lessons first; each one is a hypothesis to re-verify "
+            f"against this repository, never a fact")
+    return _section(LIBRARY_SOURCE, "ok", rows, as_of=now, age_hours=0.0, elapsed_ms=elapsed, note=note,
+                    truncated=max(0, len(entries) - limit))
+
+
+# --------------------------------------------------------------------------- #
 # gather: the planes (through dash-gen) plus the history
 # --------------------------------------------------------------------------- #
 def _wanted(sections: Iterable[str] | None) -> list[str]:
@@ -770,6 +813,8 @@ def gather(ctx, req: ContextRequest, *, sections: Iterable[str] | None = None,
         found, meta = _planes(ctx, req, planes, deadline_s)
     if "history" in wanted:
         found["history"] = history_section(ctx, item_key or req.nwo)
+    if "library" in wanted:
+        found["library"] = library_section(ctx, req)
     return {"schema": PACK_SCHEMA, "generated_at": _iso(), "nwo": req.nwo, "name": req.name,
             "loop": ctx.spec.loop, "step": ctx.spec.step, "item": item_key or req.nwo,
             "window_days": int(req.days), "queries": list(req.queries), "target_dir": req.target_dir,
@@ -808,6 +853,17 @@ def _row_history(r: dict) -> str:
     if r.get("reason"):
         out.append("    reason: " + _one(r["reason"], REASON_CHARS))
     out += ["    problem: " + _one(p, PROBLEM_CHARS) for p in (r.get("problems") or [])[:MAX_PROBLEMS]]
+    return "\n".join(out)
+
+
+def _row_library(r: dict) -> str:
+    line = (f"{_one(r.get('entry'), 80) or '?'} [{_one(r.get('confidence'), 10) or '?'}] adopted "
+            f"{_one(r.get('adopted'), 40) or '?'} on {_one(r.get('date'), 12) or '?'}: cue: {_one(r.get('cue'), REASON_CHARS)}")
+    out = [_one(line)]
+    if r.get("lesson"):
+        out.append("    lesson: " + _one(r["lesson"], LINE_CHARS))
+    if r.get("evidence"):
+        out.append("    evidence: " + _one(r["evidence"], NOTE_CHARS))
     return "\n".join(out)
 
 
@@ -882,7 +938,7 @@ def _row_unknown(r: dict) -> str:
     return _one(text, UNKNOWN_ROW_CHARS)
 
 
-ROW_RENDERERS = {"history": _row_history, "lake_issues": _row_issue, "lake_ci": _row_ci,
+ROW_RENDERERS = {"history": _row_history, "library": _row_library, "lake_issues": _row_issue, "lake_ci": _row_ci,
                  "lake_agents": _row_agents, "telemetry_errors": _row_telemetry, "index_code": _row_index}
 
 

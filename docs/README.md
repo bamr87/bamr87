@@ -43,16 +43,18 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/EVOLUTION.md`](EVOLUTION.md) | The weekly repo-evolution loop — a signal-led, draft-only AI improvement pass in each opted-in submodule's own repository. |
 | [`docs/FLEET-COMPOSE.md`](FLEET-COMPOSE.md) | Launching and debugging any submodule from the hub with its real services, on a port nobody else claims, without a commit in the submodule. |
 | [`docs/FORGE-HOST.md`](FORGE-HOST.md) | Running the fleet's containers on the `forge` LAN host while the Mac runs the terminal dash. |
-| [`docs/FRONTEND-PLATFORM.md`](FRONTEND-PLATFORM.md) | How the fleet's frontends share one platform without sharing one framework: six standard layers (tokens, Web Components, one app shell with micro-frontends, one OIDC identity, contracts, a registry with conformance), four tiers, three… |
+| [`docs/FRONTEND-PLATFORM.md`](FRONTEND-PLATFORM.md) | How the fleet's frontends share one platform without sharing one framework: six standard layers (tokens, Web Components, one app shell with micro-frontends, one OIDC identity, contracts, a registry with conformance), four tiers, the… |
 | [`docs/HARNESS-OPS.md`](HARNESS-OPS.md) | Managing the fleet's AI harnesses and schedules: the `harnesses:` contract, the daily inventory, mass deploy via the harness fan-out (`fanout.yml`, kit `harness`), caps, cost forecasting, and the local stack. |
+| [`docs/HARNESS-REFINEMENT.md`](HARNESS-REFINEMENT.md) | Recursive harness refinement (JEV capability three, `tools/dash refine`): the hub's harness surface validated as a sensor, one Propose–Probe–Compose step planned and evidenced from real local runs at $0, and a human-gated experience… |
 | [`docs/HARNESS.md`](HARNESS.md) | The six-layer harness architecture (Agent = Model + Harness) mapped onto this control plane: the layers, the ratchet rule, the health scorecard and the trip wires. |
 | [`docs/ISSUE-PIPELINE.md`](ISSUE-PIPELINE.md) | The three-tier loop that turns an open issue into a merge-ready PR: label state machine, evidence bundles, caps, autonomy gates and the two human brakes. |
-| [`docs/JEV.md`](JEV.md) | The fleet's harness-level AI agent logic engine: conflict-free numbering (ids assigned at merge, never in a pull request), tiered pull-request conflict triage and resolution, and loop step specs that CI and a local run render alike. |
+| [`docs/JEV.md`](JEV.md) | The fleet's harness-level AI agent logic engine: conflict-free numbering (ids assigned at merge, never in a pull request), tiered pull-request conflict triage and resolution, loop step specs that CI and a local run render alike, and… |
 | [`docs/MACHINE-API.md`](MACHINE-API.md) | The agent-facing JSON the site publishes (`/api/v1/*.json`, `llms.txt`) and how to start from it. |
 | [`docs/OBSERVABILITY.md`](OBSERVABILITY.md) | The local log, metrics and trace planes joined on one `trace.id`: retention, redaction, the console's Observe portal and the code index. |
 | [`docs/PLATFORM.md`](PLATFORM.md) | How the fleet's development platform spreads its workloads across the Mac and forge, which layer owns what, and how the same definitions scale out to any cloud or on-premise cluster. |
+| [`docs/PM.md`](PM.md) | A daily, read-only review that keeps three records in line with what GitHub actually holds: the Fleet project, the roadmap and each repo's release train. It reports what has drifted and plans the fix; a person applies it. |
 | [`docs/PORTFOLIO.md`](PORTFOLIO.md) | The portfolio standard: repository descriptions, the topic taxonomy, the homepage rule, the README skeleton and the profile index. |
-| [`docs/PROJECTS-FRAMEWORK.md`](PROJECTS-FRAMEWORK.md) | Status: **proposed** — [amendment 0003](amendments/0003-github-projects-work-tracking.md), features `github-projects-framework`, `projects-coverage-gate`, `projects-sync-console` and PRD requirements `projects-coverage`, `projects-sync`… |
+| [`docs/PROJECTS-FRAMEWORK.md`](PROJECTS-FRAMEWORK.md) | Status: **ratified** (amendment 0003, 2026-10-30; § 10 by 0005, § 11 by 0006) — [amendment 0003](amendments/0003-github-projects-work-tracking.md), features `github-projects-framework`, `projects-coverage-gate`, `projects-sync-console` and… |
 | [`docs/RELEASES.md`](RELEASES.md) | Release and versioning methodology across the fleet. |
 | [`docs/SCHEMA-FRAMEWORK.md`](SCHEMA-FRAMEWORK.md) | The Pyramid Schema — `SCHEMA.md` structural contracts across the fleet, and how to follow, propagate and verify them. |
 | [`docs/SCHEMA.md`](SCHEMA.md) | Operator documentation for the dash machinery — how the hub, gates, and fleet workflows are meant to be run. |
@@ -66,6 +68,8 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/TOKEN-ROTATION.md`](TOKEN-ROTATION.md) | The weekly credential loop: what rotating a browser-minted token can mean, the propagate / audit / re-mint split, and the values-free ledger. |
 | [`docs/UX-HARNESS.md`](UX-HARNESS.md) | Continuous UI/UX audit for the fleet: the `ux-audit` kit's computational gate and the hub's critique loop. |
 | [`docs/VERIFICATION.md`](VERIFICATION.md) | The agent verification standard — feature index, user scenarios, evidence bundles, the `fleet-verify.yml` gate and the fleet coverage index. |
+| [`docs/visual-evidence-backlog.md`](visual-evidence-backlog.md) | First coverage set for epic [#678](https://github.com/bamr87/bamr87/issues/678) / backlog [#679](https://github.com/bamr87/bamr87/issues/679). Audit date: **2026-11-05** (America/Denver). Scope: `bamr87/bamr87` hub only — docs, `pages/`… |
+| [`docs/VISUAL-EVIDENCE.md`](VISUAL-EVIDENCE.md) | Status: **proposed** (constitution § 24, amendment `visual-evidence`; epic [#678](https://github.com/bamr87/bamr87/issues/678), backlog [#679](https://github.com/bamr87/bamr87/issues/679)). Feature: `HUB-NEW` / slug `visual-evidence`.… |
 | [`docs/WORK-BOARD.md`](WORK-BOARD.md) | Every open issue, pull request, roadmap spec, spec package and backlog item in one place, in the order the loops will take it, with drag and drop to reorder, move and reprioritise that work and a file the loops read back. |
 | [`docs/WORKFLOW-ATLAS.md`](WORKFLOW-ATLAS.md) | The hub's own GitHub Actions read as one model: what each workflow and composite action does, the standards they are held to, why their runs fail, what can be retired, and a designer that writes a new workflow already inside the standards. |
 | [`docs/WORKFLOW-OPTIMIZATION.md`](WORKFLOW-OPTIMIZATION.md) | The fleet-wide GitHub Actions audit of 2026-09 and the record of what changed because of it. |
@@ -74,12 +78,28 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/agentic-patterns/`](agentic-patterns/README.md) | How each pattern in Antonio Gulli's *Agentic Design Patterns* shows up in the bamr87 fleet: one page per chapter, each rated proven, partial or gap against pinned, reproducible evidence. |
 | [`docs/amendments/`](amendments/README.md) | The append-only log of numbered changes to the constitution, ratified only when the maintainer merges the PR. |
 
+### `docs/assets/`
+
+| Document | What it covers |
+| --- | --- |
+| [`docs/assets/SCHEMA.md`](assets/SCHEMA.md) | Static assets referenced from hub docs — screenshots and visual evidence for tutorials and setup guides (constitution section 24). |
+
 ### `docs/prd/`
 
 | Document | What it covers |
 | --- | --- |
 | [`docs/prd/FLEET-ACTIVITY-LOG.md`](prd/FLEET-ACTIVITY-LOG.md) | **Status: Draft / proposed.** Design only; nothing here is implemented yet. Feature: `HUB-024` in [`features/features.yml`](../features/features.yml) (`status: planned`). Requirements: FR7–FR15, NFR4–NFR6 in the root… |
+| [`docs/prd/FLEET-ACTIVITY-REPLAY-PLAN.md`](prd/FLEET-ACTIVITY-REPLAY-PLAN.md) | **Status: Draft / proposed.** Plan only; nothing here is implemented. Accepted when the maintainer merges this PR; each phase lands in its own PR. Feature: `HUB-NEW` (slug `fleet-activity-replay`) — the same feature the design PR… |
+| [`docs/prd/FLEET-ACTIVITY-REPLAY.md`](prd/FLEET-ACTIVITY-REPLAY.md) | **Status: Draft / proposed.** Design only; nothing is implemented by this PR. Feature: `HUB-NEW`… |
 | [`docs/prd/HARNESS-PIPELINE-MAP.md`](prd/HARNESS-PIPELINE-MAP.md) | **Status: Draft / proposed.** Data layer implemented in this PR; the console page is specified, not built. Features: `HUB-025` (pipeline map) and `HUB-026` (GitHub workflow nodes) in [`features/features.yml`](../features/features.yml).… |
+| [`docs/prd/HARNESS-PROTOCOL.md`](prd/HARNESS-PROTOCOL.md) | **Status: Draft / proposed.** Design only; nothing here is implemented yet. Feature: `HUB-NEW` (slug `harness-protocol`) in [`features/features.d/harness-protocol.yml`](../features/features.d/harness-protocol.yml). The number is… |
 | [`docs/prd/SCHEMA.md`](prd/SCHEMA.md) | Sub-PRDs: detailed product requirements for one feature area. The root `PRD.md` owns every requirement id (`FRn`/`NFRn`); a sub-PRD expands them and is linked from it and from the feature's `docs:` in `features/features.yml`. |
+| [`docs/prd/VISUAL-EVIDENCE.md`](prd/VISUAL-EVIDENCE.md) | **Status: Draft / proposed.** Design + governance first; lint warn-only on the hub. Feature: `HUB-NEW` (slug `visual-evidence`) in [`features/features.d/visual-evidence.yml`](../features/features.d/visual-evidence.yml). Number assigned… |
+
+### `docs/assets/guides/`
+
+| Document | What it covers |
+| --- | --- |
+| [`docs/assets/guides/SCHEMA.md`](assets/guides/SCHEMA.md) | One directory per hub guide that carries visual evidence; files are referenced from the guide Markdown (constitution section 24). |
 
 <!-- AUTO:docs-index:end -->

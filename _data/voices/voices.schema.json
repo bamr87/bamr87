@@ -1,0 +1,274 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/bamr87/bamr87/_data/voices/voices.schema.json",
+  "title": "voices/v1 \u2014 the fleet's one model for AI voices, styles, personas and content config",
+  "description": "Canonical in bamr87/bamr87 (_data/voices/voices.yml). Consumed by lifehacker.dev (hub-originated articles) and, after adoption, zer0-CMS. Profile fields mirror zer0-CMS ADR 0010 VoiceProfile (summary, audience, guidance, avoid, claims, vocabulary, bans, lifts, limits, examples); `persona` adds a character layer on top of the site layer. Resolution order: defaults -> site -> persona; text fields join in that order, bans merge by name, lifts remove inherited bans, later scalars override.",
+  "type": "object",
+  "required": [
+    "schema",
+    "defaults",
+    "sites"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "voices/v1"
+    },
+    "defaults": {
+      "$ref": "#/$defs/profile"
+    },
+    "sites": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "profile"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "profile": {
+            "$ref": "#/$defs/profile"
+          },
+          "personas": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/$defs/persona"
+            }
+          },
+          "assignment": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/rule"
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "style": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "formality": {
+          "enum": [
+            "casual",
+            "conversational",
+            "professional",
+            "formal"
+          ]
+        },
+        "length": {
+          "enum": [
+            "brief",
+            "short",
+            "medium",
+            "long"
+          ]
+        },
+        "humor": {
+          "enum": [
+            "none",
+            "light",
+            "dry",
+            "satirical"
+          ]
+        },
+        "reading_level": {
+          "enum": [
+            "general",
+            "technical",
+            "expert"
+          ]
+        }
+      }
+    },
+    "profile": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/profileFields"
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "persona": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/profileFields"
+        }
+      ],
+      "type": "object",
+      "required": [
+        "name",
+        "role",
+        "enabled"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string",
+          "description": "SDLC role the persona writes from"
+        },
+        "perspective": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "beats": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "activity types this persona covers"
+        },
+        "repos": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "repos this persona covers; empty = all"
+        }
+      },
+      "unevaluatedProperties": false
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "activity": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "repos": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cadence": {
+          "enum": [
+            "daily",
+            "weekly"
+          ]
+        },
+        "persona": {
+          "type": "string"
+        },
+        "default": {
+          "type": "string"
+        }
+      }
+    },
+    "profileFields": {
+      "type": "object",
+      "properties": {
+        "summary": {
+          "type": "string"
+        },
+        "audience": {
+          "type": "string"
+        },
+        "voice": {
+          "type": "string"
+        },
+        "tone": {
+          "type": "string"
+        },
+        "style": {
+          "$ref": "#/$defs/style"
+        },
+        "guidance": {
+          "type": "string"
+        },
+        "avoid": {
+          "type": "string"
+        },
+        "claims": {
+          "type": "string"
+        },
+        "vocabulary": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "term"
+            ],
+            "properties": {
+              "term": {
+                "type": "string"
+              },
+              "expansion": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "bans": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "pattern"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "pattern": {
+                "type": "string"
+              },
+              "flags": {
+                "type": "string"
+              },
+              "level": {
+                "enum": [
+                  "error",
+                  "warning"
+                ]
+              }
+            }
+          }
+        },
+        "lifts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "limits": {
+          "type": "object"
+        },
+        "examples": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "topics": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "cover": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "exclude": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

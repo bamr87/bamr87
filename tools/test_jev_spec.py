@@ -1127,3 +1127,12 @@ if __name__ == "__main__":
             print(f"ERR  {t.__name__}: {type(e).__name__}: {e}")
     print(f"{len(tests) - failed}/{len(tests)} passed")
     raise SystemExit(1 if failed else 0)
+
+
+def test_only_the_filers_that_file_today_can_apply_and_the_specs_say_so():
+    assert S.PUBLISH_CAN_APPLY <= set(S.PUBLISH_COMMANDS), "a filer that can apply must be a known filer"
+    assert S.load_spec("repo-scout", "scout").local.publish.can_apply
+    assert S.load_spec("fleet-pulse", "doctor").local.publish.can_apply
+    assert not S.load_spec("repo-evolution", "evolve").local.publish.can_apply, "evolve-file refuses --apply (#488)"
+    assert not S.load_spec("fanout", "agent-fill-standardize").local.publish.can_apply
+    assert not S.ArgvTemplate(argv=(), flags={}).can_apply

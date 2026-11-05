@@ -1,6 +1,6 @@
 ---
 name: run-dash
-description: Run, drive, and orchestrate the bamr87 dash — the hub for ~40 submodule projects. Use to get the orchestration map, see project health/status, generate a per-project "work order" before dispatching Claude Code into a submodule, or serve/screenshot the dash site (the Harness Console's page, built static). Triggers: "run the dash", "start the dash", "what should I work on", "orchestrate the submodules", "serve the dash site", "screenshot the dash". (For a plain read-only status readout, /dash-status owns that.)
+description: "Run, drive, and orchestrate the bamr87 dash — the hub for ~40 submodule projects. Use to get the orchestration map, see project health/status, generate a per-project \"work order\" before dispatching Claude Code into a submodule, or serve/screenshot the dash site (the Harness Console's page, built static). Triggers: \"run the dash\", \"start the dash\", \"what should I work on\", \"orchestrate the submodules\", \"serve the dash site\", \"screenshot the dash\". (For a plain read-only status readout, /dash-status owns that.)"
 ---
 
 # run-dash — orchestrate the bamr87 hub

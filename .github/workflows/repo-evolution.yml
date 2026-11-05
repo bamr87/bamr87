@@ -264,7 +264,7 @@ jobs:
           # steps check` requires it to equal the spec, so changing the hard
           # rules also changes this workflow file — which GITHUB_TOKEN and the
           # Claude App cannot push (docs/adr/0002, governance trade-off).
-          JEV_STEP_SHA256: c587590137cff5d33718ef9eace30167471242617d18d2e9a08429d25cea53d2
+          JEV_STEP_SHA256: 2b71212375dd6853e044ba44b87fedb678d53571ede1ea31cde1a03870aeb34b
         with:
           claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
           anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}

@@ -79,10 +79,16 @@ export function OpForm({ op, preset, onStarted }: { op: Op; preset?: Params; onS
   const writes = remoteWrite(op, params);
 
   const field = (k: string) => {
-    if (k === 'apply' && op.confirm === 'spend') {
-      // refused server-side too: constitution § 11 has no console path to an issue or PR create yet
-      return <Checkbox key={k} label={BOOL.apply} checked={false} disabled
-        description="Refused from the console and the MCP until the § 11 write-path decision on #487 lands: review the dry run under .fleet/runs/<run_id>/, then file it from a terminal with tools/dash loop publish <run_id> --apply." />;
+    if (k === 'apply' && op.id === 'loop-run') {
+      const mine = (op.agent_steps ?? []).filter((s) => s.loop === values.loop);
+      const chosen = mine.find((x) => x.step === values.step) ?? (mine.length === 1 ? mine[0] : undefined);
+      if (chosen && chosen.can_apply === false) {
+        // refused server-side too: this step's filer cannot file yet (bamr87/bamr87#488's publish step)
+        return <Checkbox key={k} label={BOOL.apply} checked={false} disabled
+          description={`Refused for ${chosen.loop}/${chosen.step}: its filer cannot file yet (#488's publish step). Run the dry run and review .fleet/runs/<run_id>/.`} />;
+      }
+      return <Checkbox key={k} label={BOOL.apply} checked={Boolean(values[k])} onChange={(e) => set(k, e.currentTarget.checked)} color="red"
+        description="Files the reviewed preview through the engine's publish gate — the OPS remote-write path (constitution § 11.8): a GitHub write at tier high behind this console's confirm, the token probed first, never scheduled." />;
     }
     if (k in BOOL) {
       return <Checkbox key={k} label={BOOL[k]} checked={Boolean(values[k])} onChange={(e) => set(k, e.currentTarget.checked)} color={k === 'apply' ? 'red' : undefined} />;
@@ -90,8 +96,12 @@ export function OpForm({ op, preset, onStarted }: { op: Op; preset?: Params; onS
     switch (k) {
       case 'days':
         return <NumberInput key={k} label="Days" min={1} max={90} w={140} value={Number(values[k]) || 14} onChange={(v) => set(k, v)} />;
+      case 'run_id':
+        return <TextInput key={k} label="Run id" description="An earlier run to publish (tools/dash loop publish): its reviewed preview, read-only without Apply" value={String(values[k] ?? '')} onChange={(e) => set(k, e.currentTarget.value)} />;
+      case 'item':
+        return <TextInput key={k} label="Item" description="With a run id: the preview's key — owner/repo, or owner/repo:path for the doctor — when the run has several" value={String(values[k] ?? '')} onChange={(e) => set(k, e.currentTarget.value)} />;
       case 'target':
-        return <TextInput key={k} label="Target" description={op.id === 'loop-run' ? "One registry name — blank for today's sample (one capped attempt per repo in it)" : 'A submodule / repo / site name — blank for all'} value={String(values[k] ?? '')} onChange={(e) => set(k, e.currentTarget.value)} />;
+        return <TextInput key={k} label="Target" description={op.id === 'loop-run' ? "One registry name — blank for today's sample (one capped attempt per repo in it); not used with a run id" : 'A submodule / repo / site name — blank for all'} value={String(values[k] ?? '')} onChange={(e) => set(k, e.currentTarget.value)} />;
       case 'loop': {
         const loops = [...new Set((op.agent_steps ?? []).map((s) => s.loop))];
         return <Select key={k} label="Loop" description="A loop whose agent step has a local spec (tools/jev/steps/)" data={loops} value={String(values[k] ?? '')}

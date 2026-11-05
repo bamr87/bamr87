@@ -660,6 +660,7 @@ features:
     date: 2026-10-30
     tests:
     - tools/console/test_gh_projects.py
+    - tools/test_projects_backfill.py
     prd:
     - FR32
     - FR33
@@ -1416,3 +1417,360 @@ features:
     - .github/scripts/dash-gen/test_ai_budget.py
     prd:
     - FR56
+  - id: HUB-072
+    title: 'Fleet activity replay: live and historical animated view of agents, harnesses and containers
+      (proposed)'
+    description: 'Design only (Draft). Captures container lifecycle and stats, agent session, job and fleet_event
+      activity from the fleet Docker stack into the fleet''s own storage (an append-only fleet_activity
+      table in the fleet-db Postgres, hot tail in Redis Streams), serves it through one read-only console
+      API that both streams live (SSE, the /api/live/stream pattern) and replays any past window at a chosen
+      speed, and renders it as an animated timeline + node graph console plugin (/replay) in the fleet shell,
+      with Grafana, Kibana and Phoenix deep links per event. Builds on the activity log (HUB-024), the pipeline
+      map (HUB-025) and /live (HUB-030); it is the runtime/history layer the /map roadmap item (bamr87/bamr87#479)
+      consumes. Spec: docs/prd/FLEET-ACTIVITY-REPLAY.md; implementation plan and epic: docs/prd/FLEET-ACTIVITY-REPLAY-PLAN.md
+      (Phoenix + OTel GenAI spans as the trace store of record, the existing OTel Collector fanning out
+      to Phoenix and Grafana, hook and container events through Redis pub/sub and a capped stream into Postgres,
+      agent-prism trace components, and a Module Federation 2.0 fleet-shell plugin).'
+    implemented: false
+    status: planned
+    surface: ui
+    link: docs/prd/FLEET-ACTIVITY-REPLAY.md
+    docs: docs/prd/FLEET-ACTIVITY-REPLAY.md
+    tags:
+    - console
+    - otel
+    - phoenix
+    - epic
+    - observability
+    - activity-log
+    - replay
+    - timeline
+    - docker
+    - storage
+    - visualization
+    date: 2026-11-03
+    tests:
+    - na: design-only PRD; nothing implemented yet
+    prd:
+    - FR5
+    - FR7
+    - FR10
+    - FR15
+    - FR16
+    - FR17
+    - FR18
+    - FR19
+    - FR20
+    - FR26
+    - FR60
+    - NFR4
+    - NFR5
+    - NFR6
+    - NFR7
+    - NFR9
+    - FR66
+    - FR67
+    - FR68
+    - NFR13
+    - FR69
+  - id: HUB-073
+    title: 'Common harness protocol and platform: one agent-loop contract for console, CI, local and JEV
+      harnesses (proposed)'
+    description: 'Design only (Draft). Refactors the harness layer onto one agent-loop contract (tasks,
+      sessions, a typed event stream, interrupts as approval pauses, budgets) that the Harness Console API,
+      CI agent steps, local headless Claude Code and the JEV tiers all speak; keeps MCP for tools and AGENTS.md
+      for repo instructions; emits one OTel GenAI span tree per task to Phoenix; treats the Unified Harness
+      Protocol as an optional adapter and plans A2A as the later external interface (AG-UI and Agent Client
+      Protocol as options). Harmonizes the fleet.yml harnesses contract, #586, #587, #472, the activity-replay
+      epic #624 and FF-0032. Epic bamr87/bamr87#632, roadmap FF-0038. Spec: docs/prd/HARNESS-PROTOCOL.md.'
+    implemented: false
+    status: planned
+    surface: infra
+    link: docs/prd/HARNESS-PROTOCOL.md
+    docs: docs/prd/HARNESS-PROTOCOL.md
+    tags:
+    - harness
+    - protocol
+    - agent-loop
+    - mcp
+    - otel
+    - phoenix
+    - a2a
+    - uhp
+    - jev
+    - epic
+    date: 2026-11-03
+    tests:
+    - na: design-only PRD; nothing implemented yet
+    prd:
+    - FR26
+    - FR46
+    - FR54
+    - FR56
+    - FR59
+    - FR60
+    - FR63
+    - NFR9
+    - NFR11
+    - FR70
+    - FR71
+    - FR72
+    - NFR14
+  - id: HUB-074
+    title: 'JEV: the fan-out agent fill''s step specs and local dry run (P3, step 3)'
+    description: 'The fan-out agent fill (fanout.yml, job agent-fill) is the next agent step with specs
+      CI and the local loop runner render from: one pair per kit (tools/jev/steps/fanout/agent-fill-standardize.yml
+      + .prompt.txt, agent-fill-schema.yml + .prompt.txt), each the quoted heredoc the workflow''s brief
+      step carried, now inline in its own claude-code-action step gated on the kit, with the model, turns,
+      cap and allowlist explicit and held equal by `steps check`. Locally `tools/dash loop run fanout agent-fill-<kit>`
+      runs the pass on the target at the kit''s PR branch (no brief: the prompt is the whole work order),
+      harvests the agent''s edits as a patch held to the kit''s brief, and previews the commit CI''s push
+      step would make; `--apply` is refused until #488''s publish step lands.'
+    implemented: true
+    status: partial
+    surface: cli
+    link: tools/jev/steps/fanout/agent-fill-standardize.yml
+    docs: docs/SCHEMA-FRAMEWORK.md
+    tags:
+    - jev
+    - ai
+    - loops
+    - local
+    - fanout
+    date: 2026-11-03
+    tests:
+    - tools/test_jev_spec.py
+    - tools/test_jev_adapter_fanout_agent_fill.py
+    - tools/test_jev_loop.py
+    - .github/scripts/dash-gen/test_ai_budget.py
+    prd:
+    - FR56
+  - id: HUB-075
+    title: 'Recursive harness refinement (Harness²): the surface check, the Propose–Probe–Compose plan and
+      evidence tree, the experience library, the console''s Refine page and review queue, the assistant'
+    description: 'JEV capability three adopts the Harness² method onto the hub''s own loops at $0: `tools/dash
+      refine surface check` validates any repository''s harness surface (the context-file chain, settings
+      permissions and hooks, agents, skills, commands, hook scripts, MCP) with the rules production harnesses
+      converge on and holds the hub''s own clean; `refine plan` prints one Propose–Probe–Compose step''s
+      schedule, its R = 4k / P = 3k identity and its ceiling against budget.loops; `refine evidence` builds
+      the redacted evidence tree a proposer reads from real local attempts; and `refine library` keeps the
+      human-gated experience library (_data/harness_library) whose lessons reach every local attempt through
+      the context pack. In the Harness Console (ADR 0004 P2) the Refine page shows the surface and the fleet
+      sweep, one plan per agent step against the month''s budget, the evidence trees, the library with the $0
+      reflector''s form, and the review queue where a person reads an unfiled loop-run preview and approves
+      its filing behind the confirm gate; the Assist page is the read-only assistant, one capped headless
+      session with the fleet MCP server attached. The model-backed refinement stages are ADR 0004 P1.'
+    implemented: true
+    status: partial
+    surface: ui
+    link: /refine
+    docs: docs/HARNESS-REFINEMENT.md
+    tags:
+    - jev
+    - harness
+    - refinement
+    - loops
+    - sensor
+    date: 2026-11-04
+    tests:
+    - tools/test_jev_surface.py
+    - tools/test_jev_library.py
+    - tools/test_jev_refine.py
+    - tools/console/test_console.py
+    - tools/console/test_mcp_layer.py
+    - tools/console/test_pages.py
+    scenarios:
+    - verify/scenarios/refine.yml
+    evidence:
+    - test/evidence/refine
+    prd:
+    - FR73
+  - id: HUB-076
+    title: 'The topic loop read back: directive → issue → pull request → merged, on the Content page'
+    description: 'tools/dash content trace [--site S] [--apply] (also run by every content file pass) reads
+      each filed editorial directive''s issue timeline and records the pull request in the site''s own repo
+      that answers it (pr, pr_state: draft, open, merged or closed) in _data/editorial.yml through the validated
+      decide path; report, brief, /api/content (in_flight) and the Content page''s Directives tab show issue
+      state and pull request beside each directive. Read-only toward GitHub; docs/CONTENT-ATLAS.md ''The
+      topic loop'' is the launch recipe.'
+    implemented: true
+    status: shipped
+    surface: ui
+    link: .github/scripts/dash-gen/content_atlas.py
+    docs: docs/CONTENT-ATLAS.md
+    tags:
+    - content
+    - editorial
+    - loop
+    date: 2026-11-04
+    tests:
+    - .github/scripts/dash-gen/test_content_atlas.py
+    - tools/console/test_console.py
+    prd:
+    - FR74
+  - id: HUB-077
+    title: 'The routine PM review: project, roadmap and release alignment'
+    description: 'A daily, read-only review (`tools/dash pm`, fleet-pm.yml) reads every open issue and pull
+      request of the registry repos, their pull-request state, recent comments and releases, and the Fleet
+      project, and reports what is out of line with three records: the Fleet project (every item tracked
+      with Status and Priority, closed work marked Done, pull-request and CI state mirrored), the roadmap
+      (_data/roadmap.yml entries following the issues they name) and each repo''s release train (blocked
+      or waiting release PRs, unreleased work). It plans the Fleet project ops as a preview `tools/dash
+      projects apply` takes through the § 11 service and the roadmap status edits for the working tree,
+      publishes the public snapshot _data/pm_review.yml with a 30-run history, and never writes to GitHub
+      itself. The console surface, unattended sync and the agent brief are later phases of #588.'
+    implemented: true
+    status: partial
+    surface: cli
+    link: tools/pm_review.py
+    docs: docs/PM.md
+    tags:
+    - pm
+    - projects
+    - roadmap
+    - releases
+    - loops
+    date: 2026-11-04
+    tests:
+    - tools/test_pm_review.py
+    prd:
+    - FR75
+    - NFR15
+  - id: HUB-078
+    title: 'The app portal: every fleet frontend opened inside the Harness Console, at its live address
+      or its local stack'
+    description: 'P0 of ADR 0005. One launcher (fleet-launcher/v1, tools/fleetcore/apps.py) joins each registry
+      `frontend:` block to its live address and to the ports its compose-hosted dev stack publishes in _data/ports.yml.
+      The console''s Apps page (/apps, GET /api/apps, the public snapshot) lists every frontend and opens
+      one in a sandboxed frame at /apps/<id>: Live or Local, at the page width or one of the verify kit''s
+      device sizes, with a path box that stays inside the app. A stopped local stack shows the command that
+      starts it; the public page asks no address anything until a reader opens an app. `tools/dash apps`
+      prints the same list in a terminal, `apps open` opens one in the console, and `apps check` reports
+      whether each address answers, whether it moves to another origin and whether the shell may frame it.
+      The console''s Content-Security-Policy names exactly the launcher''s origins. Starting a stack, running
+      a repo''s scenarios from the portal, the bridge, and the VS Code and mobile shells are later phases.'
+    implemented: true
+    status: partial
+    surface: ui
+    link: /apps
+    docs: docs/FRONTEND-PLATFORM.md
+    tags:
+    - console
+    - frontend
+    - portal
+    - registry
+    - launcher
+    - cli
+    date: 2026-11-04
+    tests:
+    - tools/test_fleetcore_apps.py
+    - tools/test_frontend_registry.py
+    - tools/console/test_console.py
+    - tools/console/test_pages.py
+    scenarios:
+    - apps
+    evidence:
+    - test/evidence/apps
+    prd:
+    - FR58
+    - FR76
+  - id: HUB-079
+    title: 'The bashOS desktop: an icon for every fleet app, each opened in a window that shares one App
+      Shell'
+    description: 'ADR 0005 decisions 9 and 10 (phase D0). The console''s Desktop page (/desktop) is the
+      bashOS OS shell in the browser: a dock of icons, one per fleet frontend, floating windows and a taskbar,
+      in the bashOS GUI''s paper palette (--os-* in /theme.css). Its window state is bashOS''s own layout
+      reducer, vendored byte-identical in tools/console/web/src/vendor/bashos/ and pinned by tools/console/test_bashos_shell.py:
+      open, focus, move, resize, snap to an edge, minimize and restore, tile and cascade, and a layout shared
+      as a ?windows= link that carries ids and geometry and never an address. Every window hosts the common
+      App Shell (the Apps page''s controls) around the framed app. The Fleet window lists every repo in
+      the registry by the frontend component it has or is owed (fleetcore.apps repos, `tools/dash apps plan`),
+      and a repo with no frontend opens a window that says which component it gets. Below 900 px the desktop
+      is a home screen that opens one app at a time. Console pages as windows and the generated repo app
+      are later phases.'
+    implemented: true
+    status: partial
+    surface: ui
+    link: /desktop
+    docs: docs/FRONTEND-PLATFORM.md
+    tags:
+    - console
+    - frontend
+    - bashos
+    - desktop
+    - portal
+    - registry
+    date: 2026-11-05
+    tests:
+    - tools/console/test_bashos_shell.py
+    - tools/test_fleetcore_apps.py
+    - tools/test_fleetcore.py
+    - tools/console/test_pages.py
+    scenarios:
+    - desktop
+    evidence:
+    - test/evidence/desktop
+    prd:
+    - FR58
+    - FR77
+  - id: HUB-080
+    title: 'The generated repo app: every repo in the fleet opens as an app, with or without a frontend
+      of its own'
+    description: 'ADR 0005 decision 10, phase F1. A repo the shell has no frontend to frame (a CLI, a library,
+      infrastructure, a kernel; an editor extension, a terminal UI or an app with no address until its own
+      component exists) opens as one generated app, at /apps/<id> and in a window on the Desktop: an overview
+      from the registry and the hub''s signals (stack, licence, health, CI, last commit, open work, the
+      standards audit, automation, how to get it), the repo''s README, its open work and its automation.
+      GET /api/project/<name>/readme reads the README from the repo''s submodule checkout on the console''s
+      machine (the registry''s path, directly under projects/, no symlink, capped); the public snapshot
+      publishes none, because some fleet repos are private. The Apps page lists all 38 repos. The panels
+      by kind (an API explorer, a CLI run in a terminal) are not built.'
+    implemented: true
+    status: partial
+    surface: ui
+    link: /apps/kvlite
+    docs: docs/FRONTEND-PLATFORM.md
+    tags:
+    - console
+    - frontend
+    - portal
+    - registry
+    - desktop
+    date: 2026-11-05
+    tests:
+    - tools/console/test_console.py
+    - tools/console/test_pages.py
+    - tools/test_fleetcore_apps.py
+    scenarios:
+    - repo-app
+    evidence:
+    - test/evidence/repo-app
+    prd:
+    - FR58
+    - FR78
+  - id: HUB-081
+    title: 'Visual evidence standard: screenshots and front-end evidence for tutorials, guides and setup
+      docs'
+    description: 'A hub-owned standard (constitution § 24) that requires tutorials, how-tos, setup docs,
+      console/UI help and walkthrough articles to ship screenshots, GIFs or recordings — with naming under
+      docs/assets/guides/<slug>/ or test/evidence/<slug>/, meaningful alt text, redaction of secrets/PII/tokens,
+      and re-capture when the depicted UI changes — plus a warn-then-fail guides lint (tools/guides_visual_lint.py),
+      Harness Console capture/attach helpers (phased), and fleet fan-out from the hub. Distinct from § 15
+      frontend-PR evidence; epic #678, backlog #679, roadmap FF-0039.'
+    implemented: false
+    status: planned
+    surface: infra
+    link: tools/guides_visual_lint.py
+    docs: docs/VISUAL-EVIDENCE.md
+    tags:
+    - docs
+    - guides
+    - evidence
+    - console
+    - lint
+    - standards
+    date: 2026-11-05
+    tests:
+    - tools/test_guides_visual_lint.py
+    prd:
+    - FR79

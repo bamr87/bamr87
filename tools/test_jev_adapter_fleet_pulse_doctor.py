@@ -8,17 +8,22 @@ offline planner's output, that tier 0 reuses only an identical attempt, that
 --apply needs a live dedupe, that validation turns the engine's patch and the
 filing the agent asked gh for into one document with the MARKER line first,
 withholds what would leak this machine, refuses an attempt with nothing to
-file, that the filer's structural rules run on the copy and its --apply is
-refused naming #488, and that the engine's modules hold no route to a merge, a
-push or dash-gen.
+file, that the filer's structural rules run on the copy, that its --apply
+(the OPS remote-write path, constitution § 11.8) files exactly one push and
+one draft PR through a stub `gh` against a local remote — refusing a rejected
+token, an unreadable dedupe list and an unreviewed body with nothing written —
+and that the engine's modules hold no route to a merge, a force or dash-gen.
 
-No network, no gh: the planner and the filer run `--offline`.
+No network: the planner and the dry-run filer run `--offline`; the apply tests
+put a stub `gh` first on PATH, so no test can reach GitHub.
 Run: python3 tools/test_jev_adapter_fleet_pulse_doctor.py
 """
 from __future__ import annotations
 
 import json
+import os
 import re
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -34,7 +39,11 @@ from tools.jev.adapters import fleet_pulse_doctor as FD  # noqa: E402
 from tools.jev.common import JevError, Run  # noqa: E402
 from tools.jev.workspace import Harvest  # noqa: E402
 
+sys.path.insert(0, str(HUB / ".github" / "scripts" / "dash-gen"))
+import fleet_doctor_file as FILER  # noqa: E402  — the filer's own structural rules and messages
+
 SPEC = S.load_spec("fleet-pulse", "doctor")
+FD_FILER_NOT_REVIEWED = ("not in the reviewed preview (its body or patch is not byte-identical to a reviewed one)")
 ADAPTER = A.get("fleet_pulse_doctor")
 KEY = "bamr87/bamr87:.github/workflows/ci.yml"
 MARKER = f'<!-- fleet-doctor key="{KEY}" -->'
@@ -254,7 +263,7 @@ def _run(code: int = 0, out: object = None, err: str = "") -> Run:
     return Run(code, json.dumps(out) + "\n" if out is not None else "", err)
 
 
-def test_publish_parses_the_dry_run_and_the_apply_refusal_names_488():
+def test_publish_parses_the_dry_run_and_reads_an_exit_3_or_a_withheld_body_as_failure():
     c = ctx(Path(tempfile.mkdtemp()))
     item = item_for(c)
     v = A.Verdict(True, publish_file=Path("/x"))
@@ -265,27 +274,309 @@ def test_publish_parses_the_dry_run_and_the_apply_refusal_names_488():
     assert plan.publishable and plan.rows[0]["kind"] == "pr" and plan.blockers == [] and plan.failures == []
     nodedupe = ADAPTER.publish(c, item, v, lambda: _run(0, filed, err=FD.NO_DEDUPE))
     assert not nodedupe.publishable and "dedupe_unavailable" in nodedupe.blockers
-    refused = ADAPTER.publish(c, item, v, lambda: _run(2, None, err="doctor-file: " + FD.APPLY_REFUSED + " …"),
+    blocked = ADAPTER.publish(c, item, v, lambda: _run(3, None, err="doctor-file: " + FD.TOKEN_REFUSED + ": 401"),
                               apply=True)
-    assert not refused.publishable and any("#488" in b for b in refused.blockers), refused.blockers
+    assert not blocked.publishable and any("filed nothing" in b for b in blocked.blockers), blocked.blockers
+    withheld = ADAPTER.publish(c, item, v, lambda: _run(0, {**filed, "apply": True, "filed": [],
+                                                           "skipped": [{"title": "t", "reason": FD.NOT_REVIEWED}]}),
+                               apply=True)
+    assert not withheld.publishable and withheld.failures == ["t"], withheld
+    steps = ADAPTER.apply_steps(c, item, plan)
+    assert len(steps) == 4 and "gh label create" in steps[0] and "before anything is pushed" in steps[0], steps
+    assert "git checkout main" in steps[1] and "HEAD:refs/heads/fix/fleet-doctor-ci" in steps[2], steps
+    assert "--draft --base main" in steps[3], steps
+    issue_plan = A.PublishPlan(True, [], [{**filed["filed"][0], "kind": "issue", "branch": None}], None)
+    assert len(ADAPTER.apply_steps(c, item, issue_plan)) == 2 and "gh issue create" in ADAPTER.apply_steps(c, item, issue_plan)[1]
 
 
-def test_the_real_filer_dry_run_writes_the_body_and_its_apply_is_refused():
+STUB_GH = r'''#!__PY__
+"""A stand-in for `gh` on PATH: reads answer, writes are logged and faked; never the network."""
+import json, os, subprocess, sys
+argv = sys.argv[1:]
+with open(os.environ["DOCTOR_STUB_GH_LOG"], "a") as fh:
+    fh.write(json.dumps({"argv": argv, "GH_TOKEN": os.environ.get("GH_TOKEN")}) + "\n")
+if argv[:2] == ["api", "user"]:
+    if os.environ.get("DOCTOR_STUB_USER_FAIL"):
+        sys.stderr.write("HTTP 401: Bad credentials (https://api.github.com/user)\n"); sys.exit(1)
+    print("bamr87"); sys.exit(0)
+if argv[:2] in (["issue", "list"], ["pr", "list"]):
+    if os.environ.get("DOCTOR_STUB_LIST_FAIL"):
+        sys.stderr.write("HTTP 502: Bad Gateway\n"); sys.exit(1)
+    print("[]"); sys.exit(0)
+if argv[:2] == ["repo", "clone"]:
+    rest = argv[argv.index("--") + 1:] if "--" in argv else []
+    sys.exit(subprocess.run(["git", "clone", *rest, os.environ["DOCTOR_STUB_REMOTE"], argv[3]]).returncode)
+if argv[:2] == ["label", "create"]:
+    if os.environ.get("DOCTOR_STUB_LABEL_FAIL"):
+        sys.stderr.write("HTTP 403: Resource not accessible by integration (labels)\n"); sys.exit(1)
+    sys.exit(0)
+if argv[:2] == ["pr", "create"]:
+    print("https://github.com/" + argv[argv.index("-R") + 1] + "/pull/77"); sys.exit(0)
+if argv[:2] == ["issue", "create"]:
+    print("https://github.com/" + argv[argv.index("-R") + 1] + "/issues/78"); sys.exit(0)
+sys.stderr.write("stub gh: unexpected " + " ".join(argv) + "\n"); sys.exit(3)
+'''
+
+
+def _git(args: list[str], cwd: Path) -> str:
+    cfg = ["-c", "user.name=t", "-c", "user.email=t@localhost", "-c", "commit.gpgsign=false"]
+    return subprocess.run(["git", *cfg, *args], cwd=cwd, capture_output=True, text=True, check=True).stdout
+
+
+def _remote(tmp: Path) -> Path:
+    """A local 'origin' on main carrying the file the fixture patch edits, plus a
+    `trunk` branch with the same file (a target whose registry branch is not main)."""
+    repo = tmp / "origin"
+    (repo / ".github" / "workflows").mkdir(parents=True)
+    (repo / ".github" / "workflows" / "ci.yml").write_text("runs-on: ubuntu-20.04\n")
+    _git(["init", "-q", "-b", "main"], repo); _git(["add", "-A"], repo); _git(["commit", "-q", "-m", "init"], repo)
+    _git(["branch", "trunk"], repo)
+    (repo / "TRUNK.md").write_text("only on trunk\n")
+    _git(["checkout", "-q", "trunk"], repo); _git(["add", "-A"], repo); _git(["commit", "-q", "-m", "trunk"], repo)
+    _git(["checkout", "-q", "main"], repo)
+    _git(["config", "receive.denyCurrentBranch", "updateInstead"], repo)
+    return repo
+
+
+def _apply_world(tmp: Path, **flags: str) -> tuple[dict, Path]:
+    """The filer's environment with a stub gh first on PATH and the remote; (env, log)."""
+    stub_dir = tmp / "bin"
+    stub_dir.mkdir(exist_ok=True)
+    gh = stub_dir / "gh"
+    gh.write_text(STUB_GH.replace("__PY__", sys.executable), encoding="utf-8")
+    gh.chmod(0o755)
+    log = tmp / "gh.jsonl"
+    env = {**L.deterministic_env(), "PATH": f"{stub_dir}{os.pathsep}{os.environ['PATH']}",
+           "DOCTOR_STUB_GH_LOG": str(log), "DOCTOR_STUB_REMOTE": str(_remote(tmp)), "GH_TOKEN": "fleet_test_token",
+           **flags}
+    return env, log
+
+
+def _gh_calls(log: Path) -> list[list[str]]:
+    return [json.loads(x)["argv"][:2] for x in log.read_text().splitlines()] if log.exists() else []
+
+
+def test_the_real_filer_dry_run_writes_the_body_and_never_touches_gh_writes():
     c = ctx(Path(tempfile.mkdtemp()))
     item = item_for(c)
     v = validate(c, item, session([(GH_PR, "denied", True)]))
     assert v.ok, v.problems
     bodies = Path(tempfile.mkdtemp())
     argv = S.render_argv(SPEC.local.publish.argv, L.item_values(c, item, validated=v.publish_file))
-    dry = L.dash_gen([*argv[:-1], str(bodies), "--offline"]) if argv[-2] == "--bodies-dir" else None
-    assert dry is not None and dry.ok, (argv, dry and dry.err)
+    assert argv[-2] == "--bodies-dir", argv
+    dry = L.dash_gen([*argv[:-1], str(bodies), "--offline"])
+    assert dry.ok, (argv, dry.err)
     out = L.parse_last_json(dry.out)
-    assert out["filed"][0]["title"] == "ci: move off the retired runner" and Path(out["filed"][0]["body_file"]).is_file()
+    assert out["apply"] is False and out["filed"][0]["title"] == "ci: move off the retired runner"
     assert Path(out["filed"][0]["body_file"]).read_text().splitlines()[0] == MARKER
-    assert Path(out["filed"][0]["patch_file"]).read_text() == PATCH
-    applied = L.dash_gen([*argv[:-1], str(bodies), "--apply", "--reviewed-bodies", str(bodies)])
-    assert applied.code == 2 and "#488" in applied.err and "nothing was filed" in applied.err, applied.err
-    assert not list(bodies.glob("*")) or len(list(bodies.glob("*.md"))) == 1, "the apply wrote nothing new"
+    assert Path(out["filed"][0]["patch_file"]).read_text() == PATCH and out["filed"][0]["url"] is None
+    # the dry run with a live dedupe reads only; --reviewed-bodies alone and --apply --offline are usage errors
+    tmp = Path(tempfile.mkdtemp())
+    env, log = _apply_world(tmp)
+    live = L.dash_gen([*argv[:-1], str(tmp / "b2")], env=env)
+    assert live.ok and _gh_calls(log) == [["issue", "list"], ["pr", "list"]], (live.err, _gh_calls(log))
+    assert L.dash_gen([*argv[:-1], str(bodies), "--offline", "--reviewed-bodies", str(bodies)], env=env).code == 2
+    assert L.dash_gen([*argv[:-1], str(bodies), "--offline", "--apply", "--reviewed-bodies", str(bodies)],
+                      env=env).code == 2
+    assert L.dash_gen([*argv[:-1], str(bodies), "--apply"], env=env).code == 2, "--apply needs --reviewed-bodies"
+
+
+def test_the_filer_apply_makes_exactly_one_push_and_one_draft_pr_and_records_the_url():
+    c = ctx(Path(tempfile.mkdtemp()))
+    item = item_for(c)
+    v = validate(c, item, session([(GH_PR, "denied", True)]))
+    assert v.ok, v.problems
+    argv = S.render_argv(SPEC.local.publish.argv, L.item_values(c, item, validated=v.publish_file))
+    tmp = Path(tempfile.mkdtemp())
+    env, log = _apply_world(tmp)
+    reviewed = tmp / "bodies"
+    assert L.dash_gen([*argv[:-1], str(reviewed), "--offline"], env=env).ok, "the preview to review"
+    filed_dir = tmp / "filed"
+    res = L.dash_gen([*argv[:-1], str(filed_dir), "--apply", "--reviewed-bodies", str(reviewed)], env=env)
+    assert res.ok, res.err
+    out = L.parse_last_json(res.out)
+    assert out["apply"] is True and out["filed"][0]["url"] == "https://github.com/bamr87/bamr87/pull/77", out
+    assert out["skipped"] == [] and "publishing as bamr87" in res.err and "✓ filed" in res.err
+    calls = _gh_calls(log)
+    # the dedupe reads (open_markers), the readability probe (an apply never files on a failed list read as
+    # empty), the token probe, the labels, the scratch clone, the draft PR — and nothing else
+    assert calls == [["issue", "list"], ["pr", "list"], ["issue", "list"], ["pr", "list"], ["api", "user"],
+                     ["label", "create"], ["label", "create"], ["repo", "clone"], ["pr", "create"]], calls
+    rows = [json.loads(x) for x in log.read_text().splitlines()]
+    assert all(r["GH_TOKEN"] == "fleet_test_token" for r in rows), "the token reaches gh through the environment only"
+    create = next(r["argv"] for r in rows if r["argv"][:2] == ["pr", "create"])
+    assert "--draft" in create and create[create.index("--head") + 1] == "fix/fleet-doctor-ci"
+    assert create[create.index("--base") + 1] == "main" and create.count("--label") == 2
+    assert "fleet_test_token" not in " ".join(create) and "--body-file" in create
+    # the one push landed: the branch exists on the remote with the reviewed patch committed as fleet-doctor
+    remote = Path(env["DOCTOR_STUB_REMOTE"])
+    assert "fix/fleet-doctor-ci" in _git(["branch", "--list", "fix/fleet-doctor-ci"], remote)
+    assert "ubuntu-latest" in _git(["show", "fix/fleet-doctor-ci:.github/workflows/ci.yml"], remote)
+    assert "fleet-doctor <fleet-doctor@users.noreply.github.com>" in _git(["log", "-1", "--format=%an <%ae>",
+                                                                             "fix/fleet-doctor-ci"], remote)
+    assert "ci: move off the retired runner" in _git(["log", "-1", "--format=%s", "fix/fleet-doctor-ci"], remote)
+    assert (filed_dir / "bamr87-bamr87-.github-workflows-ci.yml.md").read_text().splitlines()[0] == MARKER
+    assert not list(tmp.glob("jev-doctor-apply-*")), "the scratch clone is removed"
+
+
+def test_the_filer_apply_refuses_a_rejected_token_an_unreadable_dedupe_and_an_unreviewed_body():
+    c = ctx(Path(tempfile.mkdtemp()))
+    item = item_for(c)
+    v = validate(c, item, session([(GH_PR, "denied", True)]))
+    argv = S.render_argv(SPEC.local.publish.argv, L.item_values(c, item, validated=v.publish_file))
+    # a rejected token: exit 3, nothing cloned, pushed or created
+    tmp = Path(tempfile.mkdtemp())
+    env, log = _apply_world(tmp, DOCTOR_STUB_USER_FAIL="1")
+    reviewed = tmp / "bodies"
+    assert L.dash_gen([*argv[:-1], str(reviewed), "--offline"], env=env).ok
+    res = L.dash_gen([*argv[:-1], str(tmp / "filed"), "--apply", "--reviewed-bodies", str(reviewed)], env=env)
+    assert res.code == 3 and FD.TOKEN_REFUSED in res.err and "nothing filed" in res.err, res.err
+    out = L.parse_last_json(res.out)
+    assert out["filed"] == [] and FD.TOKEN_REFUSED in out["skipped"][0]["reason"]
+    assert [c for c in _gh_calls(log) if c[0] in ("repo", "pr", "label", "issue") and c[1] != "list"] == []
+    # the dedupe list unreadable: exit 3, nothing filed, no token probe even
+    tmp = Path(tempfile.mkdtemp())
+    env, log = _apply_world(tmp, DOCTOR_STUB_LIST_FAIL="1")
+    reviewed = tmp / "bodies"
+    assert L.dash_gen([*argv[:-1], str(reviewed), "--offline"], env=env).ok
+    res = L.dash_gen([*argv[:-1], str(tmp / "filed"), "--apply", "--reviewed-bodies", str(reviewed)], env=env)
+    assert res.code == 3 and "files nothing without the duplicate check" in res.err, res.err
+    assert ["api", "user"] not in _gh_calls(log) and all(c[1] == "list" for c in _gh_calls(log)), _gh_calls(log)
+    # a body that is not the reviewed one: withheld (exit 0, NOT_REVIEWED), no write
+    tmp = Path(tempfile.mkdtemp())
+    env, log = _apply_world(tmp)
+    reviewed = tmp / "bodies"
+    assert L.dash_gen([*argv[:-1], str(reviewed), "--offline"], env=env).ok
+    body = next(reviewed.glob("*.md"))
+    body.write_text(body.read_text() + "\nedited after review\n")
+    res = L.dash_gen([*argv[:-1], str(tmp / "filed"), "--apply", "--reviewed-bodies", str(reviewed)], env=env)
+    assert res.ok, res.err
+    out = L.parse_last_json(res.out)
+    assert out["filed"] == [] and out["skipped"][0]["reason"] == FD_FILER_NOT_REVIEWED, out
+    assert all(c[1] == "list" for c in _gh_calls(log)), _gh_calls(log)
+    # the same with the patch changed since the review
+    tmp = Path(tempfile.mkdtemp())
+    env, log = _apply_world(tmp)
+    reviewed = tmp / "bodies"
+    assert L.dash_gen([*argv[:-1], str(reviewed), "--offline"], env=env).ok
+    next(reviewed.glob("*.patch")).write_text(PATCH.replace("ubuntu-latest", "ubuntu-24.04"))
+    out = L.parse_last_json(L.dash_gen([*argv[:-1], str(tmp / "filed"), "--apply", "--reviewed-bodies",
+                                        str(reviewed)], env=env).out)
+    assert out["filed"] == [] and out["skipped"][0]["reason"] == FD_FILER_NOT_REVIEWED
+
+
+def test_the_validated_document_carries_the_base_and_the_filer_refuses_a_pr_without_one():
+    c = ctx(Path(tempfile.mkdtemp()))
+    v = validate(c, item_for(c), session([(GH_PR, "denied", True)]))
+    assert v.ok, v.problems
+    doc = json.loads(v.publish_file.read_text())
+    assert doc["base"] == "main" == item_for(c).branch, "the PR's base is the target's registry branch, the row's"
+    assert any("base" in line and "main" in line for line in ADAPTER.apply_steps(c, item_for(c), SimpleNamespace(
+        rows=[{"kind": "pr", "repo": "bamr87/bamr87", "branch": "fix/fleet-doctor-ci", "base": "main"}])))
+    without = dict(doc); without.pop("base")
+    assert any("base" in p and "assumed default" in p for p in FILER.problems(without, v.publish_file.parent))
+    for bad in ("", "../main", "main/../x", "a b"):
+        assert any("base" in p for p in FILER.problems({**doc, "base": bad}, v.publish_file.parent)), bad
+    # an issue needs no base
+    issue = {**doc, "kind": "issue", "branch": None, "patch": None, "base": None}
+    assert not any("base" in p for p in FILER.problems(issue, v.publish_file.parent))
+
+
+def test_the_filer_apply_checks_out_the_targets_branch_and_opens_the_pr_against_it():
+    c = ctx(Path(tempfile.mkdtemp()))
+    item = item_for(c, row(branch="trunk"))   # the hub's registry branch here is trunk, not the clone's default
+    v = validate(c, item, session([(GH_PR, "denied", True)]))
+    assert v.ok and json.loads(v.publish_file.read_text())["base"] == "trunk", v.problems
+    argv = S.render_argv(SPEC.local.publish.argv, L.item_values(c, item, validated=v.publish_file))
+    tmp = Path(tempfile.mkdtemp())
+    env, log = _apply_world(tmp)
+    reviewed = tmp / "bodies"
+    assert L.dash_gen([*argv[:-1], str(reviewed), "--offline"], env=env).ok
+    res = L.dash_gen([*argv[:-1], str(tmp / "filed"), "--apply", "--reviewed-bodies", str(reviewed)], env=env)
+    assert res.ok, res.err
+    out = L.parse_last_json(res.out)
+    assert out["filed"] and out["filed"][0]["url"].endswith("/pull/77"), out
+    create = next(json.loads(x)["argv"] for x in log.read_text().splitlines() if '"create"' in x and '"pr"' in x)
+    assert create[create.index("--base") + 1] == "trunk", create
+    remote = Path(env["DOCTOR_STUB_REMOTE"])
+    fix_parent = _git(["rev-parse", "fix/fleet-doctor-ci^"], remote).strip()
+    assert fix_parent == _git(["rev-parse", "trunk"], remote).strip(), "the fix branch starts at the base, not main"
+    assert "only on trunk" in _git(["show", "fix/fleet-doctor-ci:TRUNK.md"], remote)
+    assert "ubuntu-latest" in _git(["show", "fix/fleet-doctor-ci:.github/workflows/ci.yml"], remote)
+    # a base the target does not have: refused after the clone, nothing pushed
+    item2 = item_for(c, row(branch="nope"))
+    v2 = validate(c, item2, session([(GH_PR, "denied", True)]))
+    argv2 = S.render_argv(SPEC.local.publish.argv, L.item_values(c, item2, validated=v2.publish_file))
+    tmp2 = Path(tempfile.mkdtemp())
+    env2, log2 = _apply_world(tmp2)
+    assert L.dash_gen([*argv2[:-1], str(tmp2 / "bodies"), "--offline"], env=env2).ok
+    out2 = L.parse_last_json(L.dash_gen([*argv2[:-1], str(tmp2 / "filed"), "--apply", "--reviewed-bodies",
+                                         str(tmp2 / "bodies")], env=env2).out)
+    assert out2["filed"] == [] and "base branch nope is not in" in out2["skipped"][0]["reason"], out2
+    assert ["pr", "create"] not in _gh_calls(log2)
+    assert "fix/fleet-doctor-ci" not in _git(["branch", "--list", "fix/fleet-doctor-ci"], Path(env2["DOCTOR_STUB_REMOTE"]))
+
+
+def test_the_filer_apply_files_nothing_when_a_label_cannot_be_created():
+    c = ctx(Path(tempfile.mkdtemp()))
+    item = item_for(c)
+    v = validate(c, item, session([(GH_PR, "denied", True)]))
+    argv = S.render_argv(SPEC.local.publish.argv, L.item_values(c, item, validated=v.publish_file))
+    tmp = Path(tempfile.mkdtemp())
+    env, log = _apply_world(tmp, DOCTOR_STUB_LABEL_FAIL="1")
+    reviewed = tmp / "bodies"
+    assert L.dash_gen([*argv[:-1], str(reviewed), "--offline"], env=env).ok
+    res = L.dash_gen([*argv[:-1], str(tmp / "filed"), "--apply", "--reviewed-bodies", str(reviewed)], env=env)
+    assert res.code == 3 and FD.LABELS_REFUSED in res.err and "nothing filed" in res.err, res.err
+    out = L.parse_last_json(res.out)
+    assert out["filed"] == [] and FD.LABELS_REFUSED in out["skipped"][0]["reason"], out
+    calls = _gh_calls(log)
+    assert ["label", "create"] in calls and ["repo", "clone"] not in calls and ["pr", "create"] not in calls, calls
+    remote = Path(env["DOCTOR_STUB_REMOTE"])
+    assert "fix/fleet-doctor-ci" not in _git(["branch", "--list", "fix/fleet-doctor-ci"], remote), "nothing pushed"
+
+
+def test_the_filer_apply_never_pushes_onto_an_existing_fix_branch():
+    c = ctx(Path(tempfile.mkdtemp()))
+    item = item_for(c)
+    v = validate(c, item, session([(GH_PR, "denied", True)]))
+    argv = S.render_argv(SPEC.local.publish.argv, L.item_values(c, item, validated=v.publish_file))
+    run_url = argv[argv.index("--run-url") + 1]
+    # someone else's commit on the fix branch: refused, the branch untouched, no PR
+    tmp = Path(tempfile.mkdtemp())
+    env, log = _apply_world(tmp)
+    remote = Path(env["DOCTOR_STUB_REMOTE"])
+    _git(["checkout", "-q", "-b", "fix/fleet-doctor-ci"], remote)
+    (remote / "OTHER.md").write_text("someone else's work\n")
+    _git(["add", "-A"], remote); _git(["commit", "-q", "-m", "unrelated"], remote); _git(["checkout", "-q", "main"], remote)
+    taken_tip = _git(["rev-parse", "fix/fleet-doctor-ci"], remote).strip()
+    reviewed = tmp / "bodies"
+    assert L.dash_gen([*argv[:-1], str(reviewed), "--offline"], env=env).ok
+    res = L.dash_gen([*argv[:-1], str(tmp / "filed"), "--apply", "--reviewed-bodies", str(reviewed)], env=env)
+    assert res.ok, res.err
+    out = L.parse_last_json(res.out)
+    assert out["filed"] == [] and FD.BRANCH_TAKEN in out["skipped"][0]["reason"], out
+    assert _git(["rev-parse", "fix/fleet-doctor-ci"], remote).strip() == taken_tip, "no push onto the branch"
+    assert ["pr", "create"] not in _gh_calls(log)
+    # this run's own commit already on the branch (a PR create that failed after its push): reused, no push
+    tmp = Path(tempfile.mkdtemp())
+    env, log = _apply_world(tmp)
+    remote = Path(env["DOCTOR_STUB_REMOTE"])
+    _git(["checkout", "-q", "-b", "fix/fleet-doctor-ci"], remote)
+    (remote / ".github" / "workflows" / "ci.yml").write_text("runs-on: ubuntu-latest\n")
+    _git(["add", "-A"], remote)
+    _git(["commit", "-q", "-m", "ci: move off the retired runner", "-m",
+          f"Fleet doctor, run locally ({run_url}); the pull request body carries the MARKER line."], remote)
+    _git(["checkout", "-q", "main"], remote)
+    ours_tip = _git(["rev-parse", "fix/fleet-doctor-ci"], remote).strip()
+    reviewed = tmp / "bodies"
+    assert L.dash_gen([*argv[:-1], str(reviewed), "--offline"], env=env).ok
+    res = L.dash_gen([*argv[:-1], str(tmp / "filed"), "--apply", "--reviewed-bodies", str(reviewed)], env=env)
+    assert res.ok, res.err
+    out = L.parse_last_json(res.out)
+    assert out["filed"] and out["filed"][0]["url"].endswith("/pull/77") and "reusing it, no push" in res.err, (out, res.err)
+    assert _git(["rev-parse", "fix/fleet-doctor-ci"], remote).strip() == ours_tip, "reused as it was"
+    assert ["pr", "create"] in _gh_calls(log)
 
 
 def test_context_request_names_the_hub_and_queries_the_candidate():
@@ -307,15 +598,23 @@ def test_recheck_reads_the_live_plan_for_the_one_candidate():
 # --------------------------------------------------------------------------- #
 # boundaries
 # --------------------------------------------------------------------------- #
-def test_the_adapter_and_filer_hold_no_route_to_a_merge_or_a_push():
-    for f in (HUB / "tools" / "jev" / "adapters" / "fleet_pulse_doctor.py",
-              HUB / ".github" / "scripts" / "dash-gen" / "fleet_doctor_file.py"):
+def test_the_adapter_and_filer_hold_no_route_to_a_merge_a_force_or_a_delete():
+    filer = HUB / ".github" / "scripts" / "dash-gen" / "fleet_doctor_file.py"
+    for f in (HUB / "tools" / "jev" / "adapters" / "fleet_pulse_doctor.py", filer):
         src = f.read_text(encoding="utf-8")
-        for bad in ("pr merge", "--admin", "git push", "push --force", "issue close", "issue edit", "dangerously",
-                    "bypassPermissions", "import ai_activity", "dash_gen.py", "type: ignore"):
+        for bad in ("pr merge", "--admin", "git push", "push --force", "--force-with-lease", "--mirror", "--delete",
+                    "issue close", "issue edit", "pr close", "dangerously", "bypassPermissions", "import ai_activity",
+                    "dash_gen.py", "type: ignore", "x-access-token"):
             assert bad not in src, f"{f.name}: {bad}"
         assert not re.search(r"^\s*except[^\n]*:\s*\n\s*pass\b", src, re.M), f"{f.name}: an empty handler"
     assert "sys.path" not in (HUB / "tools" / "jev" / "adapters" / "fleet_pulse_doctor.py").read_text()
+    # the filer's ONE push: an explicit src:dst refspec, git's own receive-pack pinned, the credential from gh
+    src = filer.read_text(encoding="utf-8")
+    pushes = [m.group(0) for m in re.finditer(r'_run\(\[[^\]]*"push",[^\]]*\]', src, re.S)]
+    assert len(pushes) == 1, pushes
+    push = pushes[0]
+    assert "HEAD:refs/heads/" in push and "RECEIVE_PACK" in push and "CREDENTIAL_HELPER" in push, push
+    assert '"-f"' not in src and "'-f'" not in src
 
 
 def test_the_markers_and_messages_agree_with_the_planner_and_the_filer():
@@ -324,7 +623,9 @@ def test_the_markers_and_messages_agree_with_the_planner_and_the_filer():
     import remediation
     assert remediation.MARKER_RE.fullmatch(MARKER) and FD.MARKER_RX.fullmatch(MARKER)
     assert remediation.doctor_marker(KEY) == MARKER
-    assert FD.NO_DEDUPE == filer.NO_DEDUPE and FD.APPLY_REFUSED in filer.APPLY_REFUSED
+    assert FD.NO_DEDUPE == filer.NO_DEDUPE and FD.NOT_REVIEWED in filer.NOT_REVIEWED
+    assert FD.TOKEN_REFUSED == filer.TOKEN_REFUSED and filer.RECEIVE_PACK == "--receive-pack=git-receive-pack"
+    assert FD.LABELS_REFUSED == filer.LABELS_REFUSED and FD.BRANCH_TAKEN == filer.BRANCH_TAKEN
     assert S.PUBLISH_COMMANDS["doctor-file"] == "--apply" and S.PUBLISH_REVIEWED_FLAGS["doctor-file"] == "--reviewed-bodies"
     assert S.PLANNER_BRIEFS["remediate"].fullmatch("doctor-workorder-law-ai-ci.md")
 

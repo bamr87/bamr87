@@ -158,6 +158,9 @@ Read tools are annotated `readOnlyHint: true`. Lists come back as `{count, items
 | `deep_dive` | `/api/data/deep_dive` | Deep-dive cycle progress and per-repo status |
 | `work_board` | `/api/work` | One page of the Work board (`lane`, `repo`, `kind`, `stage`, `priority`, `q`, `limit`, `offset`, `summary`) |
 | `loops` | `/api/state` `loops` | The control-plane loops |
+| `refine_status` | `/api/refine` | Harness refinement (docs/HARNESS-REFINEMENT.md): the hub's surface check, the fleet sweep's totals, one Propose–Probe–Compose plan per agent step with its ceiling, the library's count, the evidence trees and the review queue; `section` returns one key in full (surface, fleet_surface, plans, library, evidence, reviews, config) |
+| `refine_library` | `/api/refine` `library` | The experience library's lessons (cue, lesson, evidence, confidence, verdicts), newest first (`loop`, `domain`, `limit`) — data to re-verify, never a rule |
+| `refine_reviews` | `/api/refine` `reviews` | Every local loop-run attempt whose dry-run preview has not been filed, with whether its step can file (`can_apply`) |
 | `fleet_overview` / `fleet_apps` / `fleet_inbox` / `fleet_work` | committed signals (`tools/fleetcore`) | The merged `fleet` server's views; no console needed |
 | `console_ops` / `console_jobs` / `console_job_log` | as `ops_list` / `jobs_list` / `job_log` | Legacy `fleet` names |
 
@@ -166,7 +169,7 @@ Write tools — registered only with `HARNESS_MCP_ALLOW_WRITES=1`, annotated `de
 | Tool | Console route | Effect |
 | --- | --- | --- |
 | `run_op` | `POST /api/jobs` | Start an allowlisted operation (`op`, `params`) |
-| `run_op` with `op: loop-run` | `POST /api/jobs` | The JEV loop runner as a job: `params: {loop, step, target, rehearse}` — a dry run that files nothing; `rehearse: true` is $0, a live attempt spends and needs the console's confirm; `apply` is refused with #487 named until the § 11 write-path decision |
+| `run_op` with `op: loop-run` | `POST /api/jobs` | The JEV loop runner as a job: `params: {loop, step, target, rehearse}` — a dry run that files nothing; `rehearse: true` is $0, a live attempt spends and needs the console's confirm; `apply: true` files the reviewed preview through the engine's publish gate (constitution § 11.8, the OPS remote-write path) and needs `confirm=true` like every GitHub write — refused up front for a step whose `agent_steps` entry says `can_apply: false` (its filer cannot file yet, #488); `run_id` publishes an earlier reviewed preview, with `item` naming it by the preview's key (`owner/repo`, or `owner/repo:path` for the doctor) when the run has several |
 | `cancel_job` | `POST /api/jobs/{id}/cancel` | Cancel a running job |
 | `console_run` / `console_cancel` | as `run_op` / `cancel_job` | Legacy `fleet` names (also with `--fleet-compat`; the console's confirm gate still applies) |
 | `workflow_kill_switch` | `POST /api/github/repos/{owner}/{repo}/actions` | `workflow.enable` / `workflow.disable` by `workflow_id` (needs the console's GitHub writes on) |

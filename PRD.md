@@ -116,49 +116,59 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-069](features/features.yml) | Run a loop's agent step locally from the console, the TUI and the MCP (loop-run) | partial | route `/loops/repo_scout` · [`tools/console/README.md`](tools/console/README.md) | FR56, FR65 |
 | [HUB-070](features/features.yml) | JEV: the fleet doctor's step spec and local dry run (P3, step 1) | partial | [`tools/jev/steps/fleet-pulse/doctor.yml`](tools/jev/steps/fleet-pulse/doctor.yml) · [`docs/DAILY-ANALYSIS.md`](docs/DAILY-ANALYSIS.md) | FR56 |
 | [HUB-071](features/features.yml) | JEV: the evolution agent's step spec and local dry run (P3, step 2) | partial | [`tools/jev/steps/repo-evolution/evolve.yml`](tools/jev/steps/repo-evolution/evolve.yml) · [`docs/EVOLUTION.md`](docs/EVOLUTION.md) | FR56 |
+| [HUB-072](features/features.yml) | Fleet activity replay: live and historical animated view of agents, harnesses and containers (proposed) | planned | [`docs/prd/FLEET-ACTIVITY-REPLAY.md`](docs/prd/FLEET-ACTIVITY-REPLAY.md) | FR5, FR7, FR10, FR15, FR16, FR17, FR18, FR19, FR20, FR26, FR60, NFR4, NFR5, NFR6, NFR7, NFR9, FR66, FR67, FR68, NFR13, FR69 |
+| [HUB-073](features/features.yml) | Common harness protocol and platform: one agent-loop contract for console, CI, local and JEV harnesses (proposed) | planned | [`docs/prd/HARNESS-PROTOCOL.md`](docs/prd/HARNESS-PROTOCOL.md) | FR26, FR46, FR54, FR56, FR59, FR60, FR63, NFR9, NFR11, FR70, FR71, FR72, NFR14 |
+| [HUB-074](features/features.yml) | JEV: the fan-out agent fill's step specs and local dry run (P3, step 3) | partial | [`tools/jev/steps/fanout/agent-fill-standardize.yml`](tools/jev/steps/fanout/agent-fill-standardize.yml) · [`docs/SCHEMA-FRAMEWORK.md`](docs/SCHEMA-FRAMEWORK.md) | FR56 |
+| [HUB-075](features/features.yml) | Recursive harness refinement (Harness²): the surface check, the Propose–Probe–Compose plan and evidence tree, the experience library, the console's Refine page and review queue, the assistant | partial | route `/refine` · [`docs/HARNESS-REFINEMENT.md`](docs/HARNESS-REFINEMENT.md) | FR73 |
+| [HUB-076](features/features.yml) | The topic loop read back: directive → issue → pull request → merged, on the Content page | shipped | [`.github/scripts/dash-gen/content_atlas.py`](.github/scripts/dash-gen/content_atlas.py) · [`docs/CONTENT-ATLAS.md`](docs/CONTENT-ATLAS.md) | FR74 |
+| [HUB-077](features/features.yml) | The routine PM review: project, roadmap and release alignment | partial | [`tools/pm_review.py`](tools/pm_review.py) · [`docs/PM.md`](docs/PM.md) | FR75, NFR15 |
+| [HUB-078](features/features.yml) | The app portal: every fleet frontend opened inside the Harness Console, at its live address or its local stack | partial | route `/apps` · [`docs/FRONTEND-PLATFORM.md`](docs/FRONTEND-PLATFORM.md) | FR58, FR76 |
+| [HUB-079](features/features.yml) | The bashOS desktop: an icon for every fleet app, each opened in a window that shares one App Shell | partial | route `/desktop` · [`docs/FRONTEND-PLATFORM.md`](docs/FRONTEND-PLATFORM.md) | FR58, FR77 |
+| [HUB-080](features/features.yml) | The generated repo app: every repo in the fleet opens as an app, with or without a frontend of its own | partial | route `/apps/kvlite` · [`docs/FRONTEND-PLATFORM.md`](docs/FRONTEND-PLATFORM.md) | FR58, FR78 |
+| [HUB-081](features/features.yml) | Visual evidence standard: screenshots and front-end evidence for tutorials, guides and setup docs | planned | [`tools/guides_visual_lint.py`](tools/guides_visual_lint.py) · [`docs/VISUAL-EVIDENCE.md`](docs/VISUAL-EVIDENCE.md) | FR79 |
 
 **Requirement → feature trace**
 
 | Requirement | Features |
 | --- | --- |
 | FR2 | HUB-001, HUB-008 |
-| FR5 | HUB-001, HUB-002, HUB-003, HUB-004, HUB-005, HUB-006, HUB-007, HUB-013, HUB-022, HUB-015, HUB-016, HUB-017, HUB-028, HUB-030, HUB-034 |
+| FR5 | HUB-001, HUB-002, HUB-003, HUB-004, HUB-005, HUB-006, HUB-007, HUB-013, HUB-022, HUB-015, HUB-016, HUB-017, HUB-028, HUB-030, HUB-034, HUB-072 |
 | FR4 | HUB-007, HUB-023 |
 | FR1 | HUB-008, HUB-018 |
 | FR6 | HUB-009, HUB-010, HUB-019, HUB-023, HUB-027, HUB-028, HUB-033 |
 | NFR3 | HUB-011, HUB-012 |
 | TBD | HUB-014, HUB-021, HUB-020 |
-| FR7 | HUB-024 |
+| FR7 | HUB-024, HUB-072 |
 | FR8 | HUB-024 |
 | FR9 | HUB-024 |
-| FR10 | HUB-024 |
+| FR10 | HUB-024, HUB-072 |
 | FR11 | HUB-024 |
 | FR12 | HUB-024 |
 | FR13 | HUB-024 |
 | FR14 | HUB-024 |
-| FR15 | HUB-024 |
-| NFR4 | HUB-024 |
-| NFR5 | HUB-024 |
-| NFR6 | HUB-024 |
-| FR16 | HUB-025 |
-| FR17 | HUB-025 |
-| FR18 | HUB-025 |
-| FR19 | HUB-025 |
-| FR20 | HUB-025 |
-| NFR7 | HUB-025 |
+| FR15 | HUB-024, HUB-072 |
+| NFR4 | HUB-024, HUB-072 |
+| NFR5 | HUB-024, HUB-072 |
+| NFR6 | HUB-024, HUB-072 |
+| FR16 | HUB-025, HUB-072 |
+| FR17 | HUB-025, HUB-072 |
+| FR18 | HUB-025, HUB-072 |
+| FR19 | HUB-025, HUB-072 |
+| FR20 | HUB-025, HUB-072 |
+| NFR7 | HUB-025, HUB-072 |
 | FR21 | HUB-026, HUB-034 |
 | FR22 | HUB-027 |
 | FR23 | HUB-027 |
 | FR24 | HUB-029 |
 | FR25 | HUB-029 |
 | NFR8 | HUB-029, HUB-066 |
-| FR26 | HUB-031 |
-| NFR9 | HUB-031 |
+| FR26 | HUB-031, HUB-072, HUB-073 |
+| NFR9 | HUB-031, HUB-072, HUB-073 |
 | FR27 | HUB-032 |
 | NFR10 | HUB-032 |
 | FR3 | HUB-033 |
 | FR28 | HUB-035 |
-| NFR11 | HUB-035 |
+| NFR11 | HUB-035, HUB-073 |
 | FR29 | HUB-036, HUB-037 |
 | NFR12 | HUB-036, HUB-037, HUB-038 |
 | FR30 | HUB-038 |
@@ -177,7 +187,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR43 | HUB-046 |
 | FR44 | HUB-047 |
 | FR45 | HUB-048, HUB-059 |
-| FR46 | HUB-049 |
+| FR46 | HUB-049, HUB-073 |
 | FR47 | HUB-050 |
 | FR48 | HUB-051 |
 | FR49 | HUB-052 |
@@ -185,18 +195,35 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR51 | HUB-054 |
 | FR52 | HUB-055 |
 | FR53 | HUB-056 |
-| FR54 | HUB-057 |
+| FR54 | HUB-057, HUB-073 |
 | FR55 | HUB-058 |
-| FR56 | HUB-060, HUB-069, HUB-070, HUB-071 |
+| FR56 | HUB-060, HUB-069, HUB-070, HUB-071, HUB-073, HUB-074 |
 | FR57 | HUB-061 |
-| FR58 | HUB-062 |
-| FR59 | HUB-063 |
-| FR60 | HUB-064 |
+| FR58 | HUB-062, HUB-078, HUB-079, HUB-080 |
+| FR59 | HUB-063, HUB-073 |
+| FR60 | HUB-064, HUB-072, HUB-073 |
 | FR61 | HUB-065 |
 | FR62 | HUB-066 |
-| FR63 | HUB-067 |
+| FR63 | HUB-067, HUB-073 |
 | FR64 | HUB-068 |
 | FR65 | HUB-069 |
+| FR66 | HUB-072 |
+| FR67 | HUB-072 |
+| FR68 | HUB-072 |
+| NFR13 | HUB-072 |
+| FR69 | HUB-072 |
+| FR70 | HUB-073 |
+| FR71 | HUB-073 |
+| FR72 | HUB-073 |
+| NFR14 | HUB-073 |
+| FR73 | HUB-075 |
+| FR74 | HUB-076 |
+| FR75 | HUB-077 |
+| NFR15 | HUB-077 |
+| FR76 | HUB-078 |
+| FR77 | HUB-079 |
+| FR78 | HUB-080 |
+| FR79 | HUB-081 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -256,6 +283,20 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR63: Every development tool, loop, gate and surface of the hub is reachable from the editor through the same entry points the CLI, the Harness Console's job API and CI run (`tools/dash`, a tool's own entry point, or `docker compose` against the hub's services), never a second implementation; every port, project, site, scenario and loop an editor configuration names comes from its registry and a gate (`tools/test_vscode_launch.py`) holds the pickers equal to those registries; a new surface adds its editor entry in the same pull request; fleet repos with a run, test or debug command carry their own `.vscode/launch.json` + `tasks.json` calling their own one-command entry points (UPS-REPO-40); see constitution § 20 and `.vscode/README.md`
 - FR64: The placement of every hub service on a fleet node is declared once in `_data/fleet.yml` `nodes:` and resolved by one implementation shared by every surface; a placement that would pin an edge-bound service off the edge, make a workload node call back to the edge, put durable data on a node without an off-box backup, or collide a link port is refused before anything runs; a node's durable infrastructure (its network and data volumes) is owned by OpenTofu with durable volumes protected from deletion; and no step that changes a machine runs without an explicit, planned deploy (constitution § 10.5)
 - FR65: The product must let an operator run a loop's agent step on their own machine from the console, the terminal dash and the fleet MCP through one job API, as a dry run that files nothing, with a live attempt confirmed as spend, at most one run per loop at a time, and apply refused until the § 11 write-path decision.
+- FR66: The hub must capture, read-only and label-gated by com.bamr87.fleet.*, the lifecycle and resource events of every fleet Docker container, plus agent session, console job and fleet_event activity, into one append-only fleet_activity store in the fleet's Postgres, each event carrying a source, a monotonic sequence, the container/project/repo, a correlating run or trace id and a redacted payload.
+- FR67: The Harness Console must serve captured activity through one read-only API that streams live events (SSE with Last-Event-ID resume) and replays any past window in order at a chosen speed from the same cursor format, filterable by source, project, container, agent and run, and exposed as MCP read tools.
+- FR68: The Harness Console must render captured activity as an animated timeline and node graph console plugin (live and replay modes, play/pause/scrub/speed, per-event drill-down to Grafana, Kibana and Phoenix), which shows recorded history in snapshot mode on Pages and renders an explicit empty or degraded state when the store or stream is unavailable.
+- FR69: Every fleet agent turn and tool call must be recorded as an OpenTelemetry GenAI span through the fleet's OTel Collector into Phoenix as the trace store of record, with span-derived metrics in Prometheus/Grafana and the same trace_id carried on every activity event, so the console can open any event's trace tree.
+- FR70: Every fleet harness (the Harness Console API, CI agent steps, local headless runs and each JEV tier) must run work as tasks with sessions, a typed event stream (task, turn, tool call, interrupt, budget, artifact, error) validated by one versioned schema, interrupts that pause for approval and resume, and enforced budgets, using MCP for tools and AGENTS.md for repo instructions.
+- FR71: Every harness task must emit one OpenTelemetry GenAI span tree to Phoenix, a root span per task with a child span per turn and per tool call, whose trace id is stamped on every harness event and redacted before export.
+- FR72: External agent protocols (the Unified Harness Protocol, A2A, AG-UI, Agent Client Protocol) must connect only through adapters that map to the fleet contract, each off by default, version-pinned and removable without changing the core.
+- FR73: The hub must be able to refine a loop's harness from the evidence of its own attempts: validate the harness surface as a sensor, propose, probe and compose edits to the loop's tunable half under its own caps and gates (never to a step spec's hard rules), and keep what each refinement learned in a reviewed library the next attempt reads.
+- FR74: The hub must read a filed editorial directive back from the site that answers it — the issue's state and the pull request that closes it, with that pull request's state — and show it beside the directive in the report, the brief and the Content page, without writing to the site's repository.
+- FR75: The product must review, on a schedule, every open issue and pull request of the registry repos against the Fleet project, the roadmap and each repo's release train, and report each mismatch with its evidence and a proposed fix.
+- FR76: The product must let a person open any frontend the registry declares from one place, in the browser and from a terminal, at its deployed address or at its local development stack and at a chosen device size, framing only addresses the registry declares and asking a visitor's own machine nothing unprompted.
+- FR77: The product must present the fleet as a desktop in the browser on the bashOS layout engine: an icon for every app, each opened in a window that shares one set of controls, every repo listed by the frontend component it has or is owed, and the same desktop usable at a phone's width.
+- FR78: The product must open every repo in the registry as an app, generating one from what the hub holds about a repo that has no frontend of its own, and must never publish a repo's README on the public site.
+- FR79: Tutorials, how-tos, setup docs, console/UI help pages and walkthrough articles must ship visual front-end evidence (screenshots, a short recording or a GIF) under docs/assets/guides/<slug>/ or test/evidence/<slug>/ with meaningful alt text and redaction of secrets/PII/tokens, or a one-line skip-visuals reason; a guides visual lint must flag gaps (warn-only per repo until adoption, then hard fail); when a PR changes a depicted UI it must update or re-capture the guide visuals in the same PR.
 
 **Non-functional**
 
@@ -271,6 +312,9 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - NFR10: the spend ledger never presents a measured figure as a complete one — every aggregate carries its estimated share, a model with no rate row is surfaced (`unpriced_models`) instead of being priced at zero, and locally published interactive spend is never folded into the CI totals or judged against the CI ceiling
 - NFR11: JEV never merges a pull request, never force-pushes or rebases, never uses `--admin` and never changes repository settings or secrets — it pushes merge commits only to same-repo pull-request branches whose authors are listed in `_data/fleet.yml` `jev.allowed_authors`, and comments; every model call is capped per attempt and the engine is capped at `budget.jev.monthly_usd` ($10) a month inside the $75 fleet ceiling, with scheduled runs stopping at `scheduled_stop_pct` of it, and every attempt is recorded in `_data/jev_resolutions.yml` with whether its cost was reported or estimated
 - NFR12: work tracking never depends on a token scope silently — every projects tool and collector reports `scope_missing: project` instead of an empty result, and project mutations run only from the sanctioned sync workflow or the MCP layer's confirm-gated write tools
+- NFR13: Activity capture and replay never block, slow or fail a fleet container, agent or loop: the collector is read-only (docker.sock read-only, no exec), bounded (rate, payload and retention caps from _data/fleet.yml), redacts before storage, counts every dropped event, binds to loopback, and never stores, prints or returns a secret.
+- NFR14: The harness core never depends on a single-vendor or pre-1.0 protocol: core tests pass with every adapter removed, a pinned spec drifting raises an attention item instead of a failure, and no adapter can bypass risk tiers, kill switches or budgets.
+- NFR15: The PM review must not write to GitHub: the Fleet project ops it plans are applied only through the § 11 write-back service after a person has read them, and its public outputs must not list a private repo's items.
 
 ## 6. Success metrics (proposed — not defined in sources)
 

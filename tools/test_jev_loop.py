@@ -274,6 +274,10 @@ if argv[:2] == ["api", "user"]:
     print("bamr87"); sys.exit(0)
 if argv[:2] == ["label", "create"]:
     sys.exit(0)
+if argv[:2] == ["pr", "list"]:
+    print("[]"); sys.exit(0)
+if argv[:2] == ["pr", "create"]:
+    print(f"https://github.com/{argv[argv.index('-R') + 1]}/pull/77"); sys.exit(0)
 if argv[:2] == ["issue", "create"]:
     count = sum(1 for line in open(os.environ["STUB_GH_LOG"]) if '"create"' in line and '"issue"' in line)
     if os.environ.get("STUB_GH_CREATE_FAIL") or count > int(os.environ.get("STUB_GH_CREATE_FAIL_AFTER") or 10 ** 6):
@@ -545,7 +549,7 @@ def jev(*argv: str) -> tuple[int, str, str]:
 
 def no_writes(box: Box) -> None:
     writes = [c for c in box.gh_calls() if c[:2] in (["issue", "create"], ["label", "create"], ["issue", "edit"],
-                                                     ["pr", "merge"], ["variable", "set"])
+                                                     ["pr", "create"], ["pr", "merge"], ["variable", "set"])
               or (c[:1] == ["api"] and common._api_method(c) != "GET")]
     assert not writes, writes
     assert not box.prompted(), "a real prompt reached claude"
@@ -601,6 +605,22 @@ def test_apply_with_scheduled_or_rehearse_and_reduced_with_scheduled_are_refused
             code, _, err = jev("run", "repo-scout", *argv)
             assert code == 2 and needle in err, (argv, err)
     assert not box.run_dirs() and not box.gh_calls()
+
+
+def test_apply_is_refused_before_any_spend_for_a_filer_that_cannot_file():
+    # evolve-file and agent-fill-file take --apply only to refuse it (#488): the engine says so before a clone,
+    # a token probe or an attempt, as usage (exit 2), with no run directory and no live call
+    assert L.apply_refusal(L.load_step("repo-scout")) is None
+    assert L.apply_refusal(L.load_step("fleet-pulse", "doctor")) is None
+    why = L.apply_refusal(L.load_step("repo-evolution"))
+    assert why and "#488" in why and "evolve-file" in why and "without --apply" in why, why
+    box = Box()
+    with world(box, FLEET_TOKEN=FLEET_TOKEN):
+        box.seed_live({"kind": "ok", "proposals": GOOD})
+        code, _, err = jev("run", "repo-evolution", "--target", "README", "--apply")
+        assert code == 2 and "#488" in err and "evolve-file" in err, err
+        assert not box.live_calls() and not box.ledger_rows() and not box.gh_calls()
+    assert not box.run_dirs(), "refused before a run directory exists"
 
 
 def test_a_step_with_no_local_block_is_refused():
@@ -2930,7 +2950,7 @@ def test_plan_previews_each_items_context_and_off_skips_it():
         assert c["missing"] == ["index_code", "telemetry_errors"] and c["ages"]["lake_ci"] == 1.0, c
         assert "rows" not in json.dumps(c), "statuses and ages only"
         code, out, _ = jev("plan", "repo-scout", "--target", TARGET, "--context", "require")
-        assert code == 0 and "context (require): history empty · lake_issues empty" in out, out
+        assert code == 0 and "context (require): history empty · library empty · lake_issues empty" in out, out
         assert "a run fails this item before any spend: index_code, telemetry_errors unavailable" in out, out
         calls = len(box.planes_calls())
         code, out, _ = jev("plan", "repo-scout", "--target", TARGET, "--json", "--context", "off")
@@ -3332,8 +3352,8 @@ def test_an_attempt_with_no_fix_and_no_filing_is_rejected_and_apply_is_refused_b
         code, _, _ = jev("run", "fleet-pulse", "--plan-file", str(plan), "--item", "ci", "--context", "off",
                          "--apply", "--fresh")
         item = box.last()["items"][0]
-    # the live recheck (the real planner against today's queue) or the filer's own refusal (#488) stops the
-    # filing: either way nothing is written, and the preview is on disk for the reviewer
+    # the live recheck (the real planner against today's queue, where this fixture candidate is not) stops
+    # the filing before the filer's apply runs: nothing is written, and the preview is on disk for the reviewer
     assert item["status"] in ("publish-skipped", "publish-failed", "partial") and item.get("published", 0) == 0, item
     assert item["publishable"] and item["would_file"] == 1
     no_writes(box)

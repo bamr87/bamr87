@@ -4,10 +4,10 @@
 // through the pages in this order — the same keys that move between tabs in
 // the terminal dash.
 import {
-  IconActivity, IconAppWindow, IconBox, IconBrandGithub, IconBrandDocker, IconBriefcase, IconCalendarTime, IconChartBar, IconCoin,
+  IconActivity, IconAppWindow, IconApps, IconBox, IconDeviceDesktop, IconBrandGithub, IconBrandDocker, IconBriefcase, IconCalendarTime, IconChartBar, IconCoin,
   IconFileText, IconGauge, IconGitBranch, IconHeartbeat, IconHome, IconInbox, IconKey, IconLayoutGrid, IconLayoutKanban, IconListCheck, IconMicroscope, IconListDetails, IconLogs,
   IconMail, IconPencil, IconPlayerPlay, IconPlugConnected, IconReceipt, IconRepeat, IconRoute, IconRoadSign, IconSearch, IconSettings,
-  IconTerminal2, IconTool, IconTools, IconTopologyStar3, IconUser, type Icon,
+  IconTerminal2, IconTool, IconTools, IconTopologyStar3, IconUser, IconFlask, IconSparkles, type Icon,
 } from '@tabler/icons-react';
 
 import { BASENAME } from './api/backend';
@@ -51,6 +51,8 @@ export const NAV: NavSection[] = [
     label: 'Fleet',
     items: [
       { label: 'Projects', to: '/projects', icon: IconAppWindow, hint: 'every registry project — the TUI’s Apps view' },
+      { label: 'Desktop', to: '/desktop', icon: IconDeviceDesktop, hint: 'the bashOS desktop: an icon per app, each in a window with the same controls' },
+      { label: 'Apps', to: '/apps', icon: IconApps, hint: 'every fleet frontend, opened here: the live site or a local stack' },
       { label: 'Inbox', to: '/inbox', icon: IconInbox, hint: 'flagged issues, PRs and failing workflows' },
       { label: 'Roadmap', to: '/roadmap', icon: IconRoadSign, hint: 'feature specs across the fleet' },
       { label: 'Features', to: '/features', icon: IconListCheck, hint: 'what each repo does and what proves it' },
@@ -69,6 +71,7 @@ export const NAV: NavSection[] = [
       { label: 'Workflows', to: '/workflows', icon: IconGitBranch, hint: 'every hub workflow and action: standards, failures, retirement, design' },
       { label: 'Work board', to: '/work', icon: IconLayoutKanban, hint: 'every open item in the order the loops take it — drag to reprioritise' },
       { label: 'Deep dive', to: '/deep-dive', icon: IconMicroscope, hint: 'one repo a day, every repo once per cycle' },
+      { label: 'Refine', to: '/refine', icon: IconFlask, hint: 'the harness itself: surface check, Propose–Probe–Compose plans, evidence, the experience library, the review queue' },
     ],
   },
   {
@@ -97,6 +100,7 @@ export const NAV: NavSection[] = [
       { label: 'Operations', to: '/ops', icon: IconPlayerPlay, hint: 'the allowlisted operations' },
       { label: 'Toolbox', to: '/toolbox', icon: IconTools, hint: 'scripts, skills and kits the hub provides' },
       { label: 'Terminal', to: '/terminal', icon: IconTerminal2, hint: 'the terminal dash, in the page' },
+      { label: 'Assist', to: '/assist', icon: IconSparkles, hint: 'ask the read-only assistant; it reads the fleet through the MCP server' },
     ],
   },
   {

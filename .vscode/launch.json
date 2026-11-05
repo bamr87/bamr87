@@ -115,6 +115,30 @@
       "presentation": { "group": "0-fleet", "order": 8 }
     },
     {
+      "name": "🧭 Fleet: apps (every frontend, live and local addresses)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash apps",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "0-fleet", "order": 8 }
+    },
+    {
+      "name": "🧭 Fleet: apps check (does each address answer, can the shell frame it)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash apps check",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "0-fleet", "order": 8 }
+    },
+    {
+      "name": "🧭 Fleet: apps plan (every repo's frontend component and what it is owed)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash apps plan",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "0-fleet", "order": 8 }
+    },
+    {
       "name": "📜 Fleet: dev logs (pick a project)",
       "type": "node-terminal",
       "request": "launch",
@@ -686,6 +710,40 @@
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "4-generate", "order": 19 }
     },
+    {
+      "name": "📋 Projects: triage + Fleet board backfill plan (dry run)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash projects plan --board",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 20 }
+    },
+    // The routine PM review (docs/PM.md): read-only on GitHub. `review` writes
+    // only .fleet/pm/; applying its plan is `tools/dash projects apply`, typed.
+    {
+      "name": "🧭 PM review: project, roadmap and release alignment (read-only)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash pm review",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 21 }
+    },
+    {
+      "name": "🧭 PM review: the Fleet project plan, before → after (last review)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash pm plan",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 22 }
+    },
+    {
+      "name": "🧭 PM review: the release train (last review)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash pm releases",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 23 }
+    },
 
     // ----------------------------------------------------------------- LOOPS
     // Every loop's agent step runs locally through JEV (docs/JEV.md): `plan`
@@ -770,6 +828,23 @@
       "command": "tools/dash evidence ${input:evidenceRepo} ${input:evidenceIssue}",
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "5-loops", "order": 10 }
+    },
+    // Harness refinement (docs/HARNESS-REFINEMENT.md): every subcommand is $0.
+    {
+      "name": "🧪 Refine: surface check (the hub's harness surface)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash refine surface check",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 11 }
+    },
+    {
+      "name": "🧪 Refine: plan (pick a loop; one Propose–Probe–Compose step, never calls a model)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash refine plan ${input:refineLoop}",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 12 }
     },
 
     // ---------------------------------------------------------------- VERIFY
@@ -1471,6 +1546,13 @@
       "default": "repo-scout/scout"
     },
     {
+      // Loops with a step spec (tools/jev/steps/<loop>/): the refinement's unit.
+      "id": "refineLoop",
+      "description": "Loop (a tools/jev/steps/ directory: repo-scout, repo-evolution, fleet-pulse)",
+      "type": "promptString",
+      "default": "repo-scout"
+    },
+    {
       // _data/fleet.yml `content.sites`.
       "id": "contentSite",
       "description": "Content site (fleet.yml content.sites)",
@@ -1483,7 +1565,7 @@
       "id": "verifyScenario",
       "description": "Scenario id (verify/scenarios/)",
       "type": "pickString",
-      "options": ["home", "dashboard", "connect", "engagements", "features", "harnesses", "monitor", "roadmap", "triage", "work", "workflows", "loop-run"],
+      "options": ["home", "dashboard", "connect", "engagements", "features", "harnesses", "monitor", "roadmap", "triage", "work", "workflows", "loop-run", "refine", "apps", "desktop", "repo-app"],
       "default": "home"
     },
     {

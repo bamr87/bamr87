@@ -1,0 +1,32 @@
+# The generated repo app on the published site: a repo with no interface is still an app, and its README stays off the public page.
+id: repo-app
+feature: HUB-NEW:repo-app
+title: "A repo with no frontend opens as a generated app, and the public page carries no README"
+description: "Every repo in the registry is an app. One with no interface of its own (a CLI, a library, a kernel) opens as the repo app the console generates from what the hub holds about it: its description and stack, its health, CI and open work, its standards audit, how to get it. The README is read only by a console from the repo's checkout, so the public build shows none and says where to read it. Nothing is framed and nothing scrolls sideways."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_"]
+steps:
+  - goto: "/apps/?type=generated"
+  - expect: { status: 200 }
+  - wait: { selector: "text=opens as the generated repo app" }
+  - expect: { text: "kvlite" }
+  - expect: { count: { selector: "main a[href*='/apps/']", min: 10 } }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: no-interface-list
+  - goto: /apps/kvlite/
+  - expect: { status: 200 }
+  - wait: { selector: "text=has no interface of its own" }
+  - wait: { selector: "text=Last commit" }
+  - expect: { text: "git clone https://github.com/bamr87/kvlite" }
+  - expect: { text: "Standards" }
+  - expect: { count: { selector: "iframe", max: 0 } }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: repo-app-overview
+  - click: "role=tab[name=/README/]"
+  - wait: { selector: "text=The public page carries no README" }
+  - expect: { text: "Read it in the repository" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: repo-app-readme
+  - click: "role=tab[name=/Open work/]"
+  - wait: { selector: "text=Every open issue and pull request" }
+  - expect: { no_horizontal_scroll: true }

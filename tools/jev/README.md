@@ -1,6 +1,6 @@
 # tools/jev/ — JEV
 
-> The fleet's harness-level AI agent logic engine: conflict-free numbering (ids assigned at merge, never in a pull request), tiered pull-request conflict triage and resolution, loop step specs that CI and a local run render alike, and the local loop runner that runs them.
+> The fleet's harness-level AI agent logic engine: conflict-free numbering (ids assigned at merge, never in a pull request), tiered pull-request conflict triage and resolution, loop step specs that CI and a local run render alike, the local loop runner that runs them, and recursive harness refinement (the surface check, the Propose–Probe–Compose plan and evidence tree, the experience library).
 
 JEV is the fleet's planned agent logic layer ([bamr87/it-journey](https://github.com/bamr87/it-journey) `PRD.md`, Roadmap 2027 Q1). This directory holds its first two working capabilities, the headless executor layer, and the second one's local runner built on it. The first answers one question the fleet asks several times a week: **a pull request says `This branch has conflicts that must be resolved` — now what?**
 
@@ -44,12 +44,19 @@ python3 -m tools.jev loop run repo-scout --target SCHEMA --apply     # … and f
 python3 -m tools.jev loop publish <run_id> --apply      # file a reviewed earlier dry run (once)
 python3 -m tools.jev loop plan fleet-pulse              # the fleet doctor: today's queue, one item per candidate
 python3 -m tools.jev loop run fleet-pulse --target bamr87/law-ai:.github/workflows/ci.yml --rehearse   # one candidate, $0
-python3 -m tools.jev loop run fleet-pulse --target bamr87/law-ai:.github/workflows/ci.yml   # one capped attempt ($40): the patch + the filing it asked for, previewed; --apply is refused until #488's publish step
+python3 -m tools.jev loop run fleet-pulse --target bamr87/law-ai:.github/workflows/ci.yml   # one capped attempt ($40): the patch + the filing it asked for, previewed; --apply files it (§ 11.8)'s publish step
 python3 -m tools.jev loop plan repo-evolution           # the evolution agent: today's opted-in targets, one open pass per repo
 python3 -m tools.jev loop run repo-evolution --target README --rehearse   # one target, $0
 python3 -m tools.jev loop run repo-evolution --target README   # one capped attempt ($20): the patch + the draft PR body, previewed; a budget hit is previewed flagged
 python3 -m tools.jev loop show --latest
 python3 -m tools.jev loop budget                        # the month against budget.loops and budget.jev; exit 1 when together they exceed harnesses.budget.monthly_ai_usd
+
+python3 -m tools.jev refine surface check [ROOT]        # a repository's harness surface (context files, skills, agents, hooks, MCP): exit 1 on an error
+python3 -m tools.jev refine surface census [ROOT] [--json]   # the eight-component inventory
+python3 -m tools.jev refine plan repo-scout --target SCHEMA [--k 1] [--mode parallel|sequential]   # one Propose–Probe–Compose step: schedule, R=4k/P=3k, ceiling vs budget.loops, $0
+python3 -m tools.jev refine evidence repo-scout --item bamr87/SCHEMA [--run ID]… [--stage compose]   # the redacted evidence tree a proposer reads, from real local attempts
+python3 -m tools.jev refine missions list|render NAME --set TOKEN=value …   # the five stage prompts
+python3 -m tools.jev refine library list|show|add|check|index …   # the experience library (_data/harness_library)
 ```
 
 Run from the repository root — `tools.jev` is imported as a package, so `python3 tools/jev/conflicts.py` will not work.
@@ -87,6 +94,10 @@ tools/dash ai run --call-site repo-scout.yml:scout --stream --timeout 1800 --iso
 ## The context pack
 
 [`context.py`](context.py) is the loop runner's context pack, engine half (#486; operator doc [docs/JEV.md](../../docs/JEV.md#the-context-pack)). A local attempt's agent is sealed, so before an attempt the host assembles a read-only, capped, redacted, freshness-stamped `context.md` (and its `context.json` twin, both 0600, in the item's run directory) from the planes — `tools/dash-gen context` (`fleet-context/v1`: the lake, the code index, the telemetry), reached through `ctx.dash_gen`, never imported — plus a `history` section of this loop's earlier agent attempts on the item (rehearsals, tier-0 skips and the engine's blocks are left out). `render` drops the controls, the invisible format characters and every other default-ignorable code point (the whole tag block, U+E0000–E0FFF, included) and the basic variation selectors' hidden runs (`_CTRL`, the planes' rule), puts every row inside a fenced block no row can close and cuts rows, lowest priority first, to the 16,000-character cap; `redact` masks secrets, the home, the work root and the host name in both files, field by field (`redact_obj`, which keeps the document's own words, `SCHEMA_WORDS`, as the planes keep `fleet_context.DOC_WORDS`) and then line by line (`redact_lines`, which keeps the engine's own fences, section headings and title prefix, and masks only the values in its header sentences and provenance prefixes, so a host named `text`, `Code` or `never` still gets a whole pack and an intact data-not-instructions rule), and a pack that loses the structure the engine wrote (`structure_problem`, `redaction_problem`) keeps only its header. Modes: `auto` notes an unavailable plane, `require` fails the item before any spend (`Pack.blocked`), `off` is a CI-identical run. `pointer()` is the fixed paragraph the engine appends to the clone's copy of the brief. `loop run` builds the pack per item after tier 0, classify and the clone, before the budget lock (offline: into the item directory only), with the adapter's `context_request` (scout: queries from its brief), the clone's realpath as its `target_dir` (sent as `--target-dir`, checked by `check_target_dir` and again by the planes, so the target's code hits are checked against the files the agent reads; none offline) and the spec's `local.context` (mode, file, providers, cap, deadline, window), and places it as `<brief_dir>/<file>` beside the brief, the clone's brief written once as the plan's bytes plus the pointer; the plan's brief, and so tier 0's reuse key, never changes. Both are new files under directories `lstat`-ed as real ones (`workspace.place_bytes`: `O_EXCL`, no link followed). `--context auto|off|require` overrides the spec for one run (`off`: nothing built or placed, the CI-identical attempt; `require`: an unavailable plane fails the item as `context-blocked` before any spend); `--refresh-context` runs the lake's local session import (`dash-gen lake sessions --claude-dir=…`, from `$CLAUDE_CONFIG_DIR/projects` or `~/.claude/projects`, never `lake sync`) once before the first pack, never with `--scheduled`. The item's `run.json` entry, every later attempt row (`context_sha256`, `context_status`), `argv.json` (`context_sha256`, `prompt_sha256` unchanged) and `summary.md` record it; `loop plan` previews each item's statuses and ages, and `loop doctor` shows the hub's planes (an unavailable one with its reason, a stale one with its refresh command, the code index as up when its probe search answers) without changing its exit code.
+
+## Harness refinement
+
+Capability three ([docs/HARNESS-REFINEMENT.md](../../docs/HARNESS-REFINEMENT.md), [ADR 0004](../../docs/adr/0004-recursive-harness-refinement.md)): the Harness² method on the hub's loops, at $0 in this release. [`surface.py`](surface.py) reads a repository's harness as Harness²'s eight components (the context-file chain always on and capped, `settings.json` permissions and hooks, agents, skills and commands, hook scripts, instructions, `.mcp.json`) and validates it with the rules the production harnesses converge on: a skill without `description` frontmatter or with a `name` that is not its directory is dropped silently, a hooks block of the wrong shape never fires, a script a component names must exist, injection phrasing in a context file is flagged. [`library.py`](library.py) is the experience library under `_data/harness_library/<loop>/<domain>/<entry>/` (`experience.yml` + `harness.diff`), written on a branch only and held to its schema and to the context pack's redaction; [`context.py`](context.py)'s `library` provider puts a domain's lessons beside the brief of every local attempt. [`refine.py`](refine.py) is the step itself: the schedule in both modes with its R = 4k / P = 3k identity and the ledger that asserts it, the plan with the ceiling from the step's own cap judged against `budget.loops`, the evidence tree built from real `.fleet/runs` attempts (every file redacted, the hard rules read-only, the tunable half the tree a candidate edits), and the five missions under [`missions/`](missions/README.md) rendered one-pass. Nothing here calls a model; the model-backed stages are P1 and run only through the loop runner's executor, behind `--apply`.
 
 ## The merge driver
 
@@ -156,6 +167,9 @@ python3 tools/test_jev_workspace.py   # the hardened clone, the tamper baseline,
 python3 tools/test_jev_adapter_repo_scout.py   # the scout adapter and the engine's source guard
 python3 tools/test_jev_loop.py        # the runner end to end against a stub claude and gh: every verb, live attempts, the gate, the context pack
 python3 tools/test_jev_context.py     # the context pack: history, gather, the fenced render and its cap, redaction, modes
+python3 tools/test_jev_surface.py     # the harness surface: every rule on fixtures, the hub's own surface clean, the CLI
+python3 tools/test_jev_library.py     # the experience library: round trip, refusals, leaks, check, the registry domain, the pack's section
+python3 tools/test_jev_refine.py      # the refinement step: the schedule and its identity, the ledger, the config, the missions, the plan, the evidence tree
 ```
 
 They are standalone scripts — no pytest, no network, no `gh` — and `tools/run-all-tests.sh` and `.github/workflows/python-tests.yml` pick them up automatically.

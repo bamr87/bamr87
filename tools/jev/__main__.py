@@ -7,12 +7,14 @@ Description: The JEV command line — `python3 -m tools.jev <group> <action>`.
              acceptance records a maintainer's merge decided), `conflicts`
              (the tiered conflict triage and resolution engine), `generated`
              (the main-only generated files guard), `steps` (the loop step
-             specs: parity check and byte-exact prompt render) and `loop` (the
+             specs: parity check and byte-exact prompt render), `loop` (the
              local loop runner: a loop's agent step on this workstation,
-             isolated and sandboxed). Doc: docs/JEV.md.
+             isolated and sandboxed) and `refine` (recursive harness
+             refinement: the surface check, the Propose–Probe–Compose plan,
+             the evidence tree and the experience library). Doc: docs/JEV.md.
 Author: bamr87
 Created: 2026-10-29
-Version: 0.3.0
+Version: 0.4.0
 Usage:
   python3 -m tools.jev number    plan|apply|next|lint  [--repo .] [--base origin/main]
   python3 -m tools.jev ratify    plan [--json] | apply [--plan F] | check-diff --base REV | pr-body [--title]
@@ -21,6 +23,8 @@ Usage:
   python3 -m tools.jev steps     check | render <loop> <step> [--set TOKEN=value …]
   python3 -m tools.jev loop      list | doctor [--live] | plan <loop> | run <loop> [--rehearse|--apply]
                                  | publish <run_id> [--apply] | show <run_id>|--latest | budget
+  python3 -m tools.jev refine    surface check|census|diff | plan <loop> | evidence <loop> --item KEY
+                                 | missions list|render | library list|show|add|check|index
 Exit: 0 clean, 1 a problem the caller must fix, 2 usage (`loop` adds 3 credential,
       4 host safety, 127 no claude CLI, 130 interrupted; docs/JEV.md).
 """
@@ -29,7 +33,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import VERSION, conflicts, generated, loop, number, ratify, spec
+from . import VERSION, conflicts, generated, loop, number, ratify, refine, spec
 from .common import JevError
 
 
@@ -47,6 +51,9 @@ def build_parser() -> argparse.ArgumentParser:
     loop.add_arguments(sub.add_parser(
         "loop", help="run a loop's agent step locally with headless Claude Code: isolated, sandboxed; a run "
                      "previews, --apply files"))
+    refine.add_arguments(sub.add_parser(
+        "refine", help="recursive harness refinement (Harness²): the surface check, the Propose–Probe–Compose "
+                       "plan and evidence tree, the experience library — all $0 (docs/HARNESS-REFINEMENT.md)"))
     return ap
 
 
@@ -54,7 +61,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         mod = {"number": number, "ratify": ratify, "conflicts": conflicts, "generated": generated,
-               "steps": spec, "loop": loop}[args.group]
+               "steps": spec, "loop": loop, "refine": refine}[args.group]
         return mod.main(args)
     except JevError as exc:
         print(f"jev: {exc}", file=sys.stderr)
