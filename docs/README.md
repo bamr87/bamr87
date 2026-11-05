@@ -40,6 +40,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/DOCKER.md`](DOCKER.md) | One image standard for every Dockerfile and compose file in the fleet — versions from `_data/fleet.yml`, a harmonizer, a fan-out — and the `/docker/` view. |
 | [`docs/DOCS-SYSTEM.md`](DOCS-SYSTEM.md) | Plan (2026-10-03) for documentation by role across the fleet — a Jekyll front door, MkDocs guides, Sphinx API reference and a private handbook, on one content contract; its repo layer is now specs/DOCS.md. |
 | [`docs/ESTIMATION.md`](ESTIMATION.md) | Every project as a client: deterministic estimates from open issues, actuals from usage evidence, and the leverage between them. |
+| [`docs/EVALS.md`](EVALS.md) | The agent eval sets, the runner and the eval-regression check (constitution § 13.1–13.2): what each role is held to, how to run it, and how to grow a set. |
 | [`docs/EVOLUTION.md`](EVOLUTION.md) | The weekly repo-evolution loop — a signal-led, draft-only AI improvement pass in each opted-in submodule's own repository. |
 | [`docs/FLEET-COMPOSE.md`](FLEET-COMPOSE.md) | Launching and debugging any submodule from the hub with its real services, on a port nobody else claims, without a commit in the submodule. |
 | [`docs/FORGE-HOST.md`](FORGE-HOST.md) | Running the fleet's containers on the `forge` LAN host while the Mac runs the terminal dash. |
@@ -59,6 +60,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/SCHEMA-FRAMEWORK.md`](SCHEMA-FRAMEWORK.md) | The Pyramid Schema — `SCHEMA.md` structural contracts across the fleet, and how to follow, propagate and verify them. |
 | [`docs/SCHEMA.md`](SCHEMA.md) | Operator documentation for the dash machinery — how the hub, gates, and fleet workflows are meant to be run. |
 | [`docs/SCOUT.md`](SCOUT.md) | The daily repo-scout loop — a sample of repos a day, an agent that proposes, a filer that opens issues for the issue pipeline. |
+| [`docs/SECURITY-POSTURE.md`](SECURITY-POSTURE.md) | A weekly, read-only OpenSSF Scorecard sweep of every public registry repo, recorded as the `security:` block of the conformance snapshot and shown as the dash's `scorecard` column. It files nothing and changes nothing. |
 | [`docs/SHOWCASE.md`](SHOWCASE.md) | The Quest Log campaign: each repo the daily deep dive processes is also showcased on LinkedIn (an article and a post on Amr's profile, a post on the BASH Consulting page) and given a better first screen, each piece a PR Amr merges. |
 | [`docs/SMOKE.md`](SMOKE.md) | The live smoke test: record every running container's probes, then re-run them and fail on any regression. |
 | [`docs/SPEC-DRIVEN.md`](SPEC-DRIVEN.md) | How a fleet repo turns a backlog item into a merged change with a machine-checked spec record, using machinery the hub owns. |

@@ -1774,3 +1774,74 @@ features:
     - tools/test_guides_visual_lint.py
     prd:
     - FR79
+  - id: HUB-082
+    title: 'Fleet activity replay: live and historical animated view of agents, harnesses and containers
+      (proposed)'
+    description: 'Design only (Draft). Captures container lifecycle and stats, agent session, job and fleet_event
+      activity from the fleet Docker stack into the fleet''s own storage (an append-only fleet_activity
+      table in the fleet-db Postgres, hot tail in Redis Streams), serves it through one read-only console
+      API that both streams live (SSE, the /api/live/stream pattern) and replays any past window at a chosen
+      speed, and renders it as an animated timeline + node graph console plugin (/replay) in the fleet shell,
+      with Grafana, Kibana and Phoenix deep links per event. Builds on the activity log (HUB-024), the pipeline
+      map (HUB-025) and /live (HUB-030); it is the runtime/history layer the /map roadmap item (bamr87/bamr87#479)
+      consumes. Spec: docs/prd/FLEET-ACTIVITY-REPLAY.md.'
+    implemented: false
+    status: planned
+    surface: ui
+    link: docs/prd/FLEET-ACTIVITY-REPLAY.md
+    docs: docs/prd/FLEET-ACTIVITY-REPLAY.md
+    tags:
+    - console
+    - observability
+    - activity-log
+    - replay
+    - timeline
+    - docker
+    - storage
+    - visualization
+    date: 2026-11-03
+    tests:
+    - na: design-only PRD; nothing implemented yet
+    prd:
+    - FR5
+    - FR7
+    - FR10
+    - FR15
+    - FR16
+    - FR17
+    - FR18
+    - FR19
+    - FR20
+    - FR26
+    - FR60
+    - NFR4
+    - NFR5
+    - NFR6
+    - NFR7
+    - NFR9
+    - FR80
+    - FR81
+    - FR82
+    - NFR16
+  - id: HUB-083
+    title: Fleet security posture from a weekly OpenSSF Scorecard sweep
+    description: 'A weekly, read-only OpenSSF Scorecard sweep of every public registry repo (scorecard-sweep.yml,
+      job token, contents: read) records seven checks as the security: block of _data/conformance.yml, rendered
+      by tools/scorecard_snapshot.py with a --check gate, carried over by conformance.py fleet --write,
+      and shown as the Projects scorecard column; Pinned-Dependencies excluded (always-latest), no issues
+      filed, published through publish-data with auto-merge off.'
+    implemented: true
+    status: partial
+    surface: infra
+    link: tools/scorecard_snapshot.py
+    docs: docs/SECURITY-POSTURE.md
+    tags:
+    - security
+    - conformance
+    - loop
+    date: 2026-11-05
+    tests:
+    - tools/test_scorecard_snapshot.py
+    - tools/test_tui_fleet.py
+    prd:
+    - FR83
