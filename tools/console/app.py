@@ -20,7 +20,8 @@ A Content-Security-Policy rides alongside that guard: the page is a built
 bundle with no inline script, so `script-src 'self'` holds; frame-src names
 the observability UIs the Observe pages embed and the fleet frontends the Apps
 page frames (the launcher's own origins, nothing wider), and frame-ancestors
-'none' stops anything embedding this console in turn. The WebSocket the Terminal
+'self' lets only this console frame itself (the Desktop opens its own pages as
+windows) and stops every other origin embedding it. The WebSocket the Terminal
 page uses never passes through HTTP middleware, so tui_bridge.py repeats the
 Host check and adds an Origin check of its own.
 Credentials: jobs inherit the process environment exactly like a terminal
@@ -128,9 +129,13 @@ def content_policy(path: str, host: str) -> str:
     xterm.js set style attributes; that admits no script.
 
     frame-src names the observability UIs the Observe pages embed
-    (_data/fleet.yml `observability.portal.frame_src`) and frame-ancestors
-    'none' stops anything embedding this console — it can dispatch workflows
-    with the operator's FLEET_TOKEN. connect-src names the page's own ws://
+    (_data/fleet.yml `observability.portal.frame_src`). frame-ancestors is
+    'self': the Desktop opens this console's own pages as windows, so the page
+    may be framed by this origin and by no other — it can dispatch workflows
+    with the operator's FLEET_TOKEN, and a page that could be embedded
+    elsewhere could be clicked through. Every ancestor must be this origin, so
+    a fleet app framed here cannot frame the console in turn. Swagger UI
+    (/docs) keeps 'none': nothing opens it in a window. connect-src names the page's own ws://
     origin explicitly, for the Terminal page, because older Safari does not
     let 'self' cover WebSocket schemes; the Host is echoed only when it is a
     plain host[:port], so a crafted Host cannot inject a directive.
@@ -157,7 +162,7 @@ def content_policy(path: str, host: str) -> str:
         "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'",
         # The GitHub page shows the connected account's avatar.
         "img-src 'self' data: https://avatars.githubusercontent.com", "font-src 'self' data:", f"connect-src 'self'{ws} {apps_src}".strip(),
-        f"frame-src 'self' {frames} {apps_src}".strip(), "frame-ancestors 'none'",
+        f"frame-src 'self' {frames} {apps_src}".strip(), "frame-ancestors 'self'",
         "object-src 'none'", "base-uri 'self'", "form-action 'self'",
     ])
 
