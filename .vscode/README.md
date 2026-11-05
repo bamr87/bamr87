@@ -23,7 +23,7 @@ The groups follow the console's own sections, in its order.
 
 | Group | What it covers |
 | --- | --- |
-| **0-fleet** | `tools/dash up` (core, or core + a profile), `tools/dash dev up` one, several, or `--debug`; `ps` fleet-wide and per project; `ports`; `apps` (every frontend with its live and local address) and `apps check` (does each answer, can the shell frame it); `logs`; `smoke check/record`; `docker view --write`; `doctor`; `down` |
+| **0-fleet** | `tools/dash up` (core, or core + a profile), `tools/dash dev up` one, several, or `--debug`; `ps` fleet-wide and per project; `ports`; `apps` (every frontend with its live and local address) `apps check` (does each answer, can the shell frame it) and `apps plan` (every repo's frontend component and what it is owed); `logs`; `smoke check/record`; `docker view --write`; `doctor`; `down` |
 | **1-console** | the Harness Console three ways (native `debugpy` on :4004 with the page's dev server proxied to it, the compose service on :4001, native with `CONSOLE_RELOAD=1`), the page in Edge against either, attach to Edge, the TUI native or in Docker, the MCP layer (list tools, HTTP on :4002, compose + tunnel URL, live smoke test); the compound **Console: full stack** starts API + page + browser together |
 | **2-site** | `tools/dash serve` (the console built static on :4000), Edge against it, the CI-exact build into `_site`, `tools/dash verify` (all scenarios, one headed, or the list) |
 | **3-observe** | the lake (`sync`, `sessions`, `review`, `status`, `export` dry run or ship to Phoenix :6006), the log plane (`observe status/up/ship/down`, the Claude Code OTel status), the code index (`index status/coverage/search`), the content atlas (`report`, `sync`, `brief`) |

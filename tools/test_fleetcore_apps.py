@@ -103,6 +103,63 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(s["by_type"], {"app": 1, "site": 1, "ext": 1})
 
 
+class ComponentTests(unittest.TestCase):
+    """Every repo gets a frontend component: its kind follows from the
+    registry, its state from the addresses the shell can show."""
+
+    def kind_state(self, e):
+        c = apps.component(e, apps.targets(e, PORTS))
+        return c["kind"], c["state"]
+
+    def test_kind_and_state_follow_from_the_registry(self):
+        self.assertEqual(self.kind_state(entry()), ("own", "live"))
+        self.assertEqual(self.kind_state(entry(entry_url=None)), ("own", "local"))            # shop has a compose stack
+        self.assertEqual(self.kind_state(entry("w", entry_url=None)), ("own", "none"))        # a frontend, no address
+        self.assertEqual(self.kind_state(entry("x", type="ext", tier="tokens", surfaces=["vscode"], entry_url=None)), ("preview", "none"))
+        self.assertEqual(self.kind_state(entry("m", surfaces=["mobile"], entry_url=None)), ("preview", "none"))
+        self.assertEqual(self.kind_state(entry("t", type="none", tier="none", surfaces=["terminal"], entry_url=None)), ("terminal", "none"))
+        self.assertEqual(self.kind_state(entry("n", type="none", tier="none", surfaces=[], entry_url=None)), ("generated", "none"))
+        # a repo with no UI stays "generated" even when it has a homepage
+        self.assertEqual(self.kind_state(entry("d", type="none", tier="none", surfaces=[])), ("generated", "none"))
+
+    def test_every_kind_and_state_has_words_and_a_next_step(self):
+        for (kind, state), step in apps.COMPONENT_NEXT.items():
+            self.assertIn(kind, apps.COMPONENT_KINDS)
+            self.assertIn(state, apps.STATE_WORDS)
+            self.assertTrue(step)
+
+    def test_repos_lists_the_whole_fleet_and_the_launcher_only_frontends(self):
+        reg = [entry(), entry("n", type="none", tier="none", surfaces=[], entry_url=None),
+               {**entry("gone"), "status": "archived"}, {"name": "external", "frontend": entry()["frontend"]}]
+        rows = apps.repos(reg, PORTS)
+        self.assertEqual([r["id"] for r in rows], ["shop", "n"], "submodules only, archived out")
+        self.assertEqual([r["framed"] for r in rows], [True, False])
+        self.assertEqual([a["id"] for a in apps.launcher(reg, PORTS)["apps"]], ["shop", "external"])
+        table = apps.plan_table(rows)
+        self.assertIn("| shop | own (react) | in the shell |", table)
+        self.assertIn("| n | generated | not yet |", table)
+
+    def test_the_hub_plan_accounts_for_every_submodule(self):
+        doc = apps.apps_view(HUB)
+        reg = apps._load(HUB / "_data" / "projects.yml")
+        subs = [e["name"] for e in reg if e.get("submodule_path") and e.get("status") != "archived"]
+        self.assertEqual([r["name"] for r in doc["repos"]], subs)
+        self.assertEqual(doc["summary"]["repos"], len(subs))
+        self.assertEqual(sum(doc["summary"]["components"].values()), len(subs))
+        framed = {r["id"] for r in doc["repos"] if r["framed"]}
+        self.assertEqual(framed, {a["id"] for a in doc["apps"] if a["embed"] == "frame"},
+                         "a repo opens in a window exactly when the launcher can frame it")
+        code, out, _ = CliTests.run_cli(self, "plan")
+        self.assertEqual((code, len(out.strip().splitlines())), (0, len(subs) + 2))
+
+    def test_the_plan_table_in_the_platform_doc_is_the_registrys(self):
+        """docs/FRONTEND-PLATFORM.md carries the per-repo plan; it is printed
+        from the registry, so the copy in the doc must be the current print."""
+        doc = (HUB / "docs" / "FRONTEND-PLATFORM.md").read_text(encoding="utf-8")
+        table = apps.plan_table(apps.apps_view(HUB)["repos"])
+        self.assertIn(table, doc, "docs/FRONTEND-PLATFORM.md's plan table is stale — paste `tools/dash apps plan`")
+
+
 class ResolveTests(unittest.TestCase):
     def setUp(self):
         self.apps = apps.launcher([entry(), entry("w", entry_url=None)], PORTS)["apps"]

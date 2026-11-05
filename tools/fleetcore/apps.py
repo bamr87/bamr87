@@ -18,6 +18,7 @@ Usage (from tools/, as `tools/dash apps` runs it):
     python3 -m fleetcore.apps [list]                       # the table
     python3 -m fleetcore.apps url <app> [--target T] [--path /p]
     python3 -m fleetcore.apps json                         # the launcher document
+    python3 -m fleetcore.apps plan                         # every repo's frontend component
 """
 from __future__ import annotations
 
@@ -133,6 +134,66 @@ def launcher(registry: list[dict], ports: dict | None = None) -> dict:
     return {"schema": SCHEMA, "source": "_data/projects.yml frontend: ⨝ _data/ports.yml", "apps": apps}
 
 
+# Every repo gets a frontend component (ADR 0005, "A frontend component for
+# every repo"). What kind it is follows from what the registry already says
+# about the repo; how much of it exists follows from its targets.
+COMPONENT_KINDS = {
+    "own": "its own frontend, mounted in the shell",
+    "preview": "a web preview of a surface a browser cannot host (an editor extension, a mobile or desktop app)",
+    "terminal": "its terminal UI in a shell window",
+    "generated": "the repo app the shell generates from its README, features, docs and commands",
+}
+COMPONENT_NEXT = {
+    ("own", "live"): "the bridge and the public and private modes (P3, P4)",
+    ("own", "local"): "a public build with an address (F2)",
+    ("own", "none"): "an address: a public build or a dev-stack port (F2)",
+    ("preview", "none"): "a web preview published beside the repo (F3)",
+    ("terminal", "none"): "its terminal UI in a shell window and a demo for the public page (F3)",
+    ("generated", "none"): "the generated repo app (F1), then a component of its own (F4)",
+}
+
+
+def component(entry: dict, tg: list[dict]) -> dict:
+    """This repo's frontend component: its kind, and its state — `live` (the
+    shell shows it at a deployed address), `local` (only at a dev stack) or
+    `none` (nothing the shell can show yet)."""
+    fe = entry.get("frontend") or {}
+    surfaces = fe.get("surfaces") or []
+    if fe.get("type") in EMBED_TYPES and "browser" in surfaces:
+        kind = "own"
+    elif "terminal" in surfaces:
+        kind = "terminal"
+    elif fe.get("type") == "ext" or surfaces:
+        kind = "preview"
+    else:
+        kind = "generated"
+    kinds = {t["kind"] for t in tg}
+    state = "none" if kind != "own" else "live" if "live" in kinds else "local" if "local" in kinds else "none"
+    return {"kind": kind, "state": state, "next": COMPONENT_NEXT[(kind, state)]}
+
+
+def repos(registry: list[dict], ports: dict | None = None) -> list[dict]:
+    """Every submodule the registry carries, with its frontend component. The
+    launcher lists what has a frontend; this lists the whole fleet, so the
+    desktop can show a repo that has none yet and say what it is owed."""
+    out = []
+    for e in registry or []:
+        if not isinstance(e, dict) or not e.get("name") or not e.get("submodule_path") or e.get("status") == "archived":
+            continue
+        fe = e.get("frontend") or {}
+        tg = targets(e, ports)
+        comp = component(e, tg)
+        out.append({
+            "id": app_id(e), "name": e["name"], "description": e.get("description", ""),
+            "category": e.get("category"), "status": e.get("status"), "repo_url": e.get("repo_url"),
+            "type": fe.get("type"), "framework": fe.get("framework"), "surfaces": list(fe.get("surfaces") or []),
+            "component": comp,
+            # the shell can frame it today: it is an app in the launcher
+            "framed": comp["kind"] == "own" and comp["state"] != "none",
+        })
+    return out
+
+
 def viewports(root: Path) -> list[dict]:
     """The device matrix, from the verify kit so the portal and a scenario agree."""
     doc = _load(root / "verify" / "verify.yml") or {}
@@ -159,9 +220,18 @@ def summary(apps: list[dict]) -> dict:
 
 def apps_view(root: Path) -> dict:
     """The portal document (/api/apps): the launcher, the device matrix, the counts."""
-    doc = launcher(_load(root / "_data" / "projects.yml") or [], _load(root / "_data" / "ports.yml") or {})
+    registry = _load(root / "_data" / "projects.yml") or []
+    ports = _load(root / "_data" / "ports.yml") or {}
+    doc = launcher(registry, ports)
     doc["viewports"] = viewports(root)
     doc["summary"] = summary(doc["apps"])
+    doc["repos"] = repos(registry, ports)
+    states: dict[str, int] = {}
+    for r in doc["repos"]:
+        key = f"{r['component']['kind']}:{r['component']['state']}"
+        states[key] = states.get(key, 0) + 1
+    doc["summary"]["repos"] = len(doc["repos"])
+    doc["summary"]["components"] = states
     return doc
 
 
@@ -230,11 +300,25 @@ def _table(apps: list[dict]) -> str:
     return "\n".join("  ".join(c.ljust(w) for c, w in zip(r, widths)).rstrip() for r in rows)
 
 
+STATE_WORDS = {"live": "in the shell", "local": "in the shell, local only", "none": "not yet"}
+
+
+def plan_table(rows: list[dict]) -> str:
+    """The per-repo plan as a Markdown table (docs/FRONTEND-PLATFORM.md)."""
+    out = ["| repo | frontend component | state | next step |", "| --- | --- | --- | --- |"]
+    for r in rows:
+        c = r["component"]
+        what = c["kind"] if c["kind"] != "own" else f"own ({r['framework']})"
+        out.append(f"| {r['name']} | {what} | {STATE_WORDS[c['state']]} | {c['next']} |")
+    return "\n".join(out)
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="dash apps", description="The fleet's frontends and where each one runs.")
     sub = ap.add_subparsers(dest="cmd")
     sub.add_parser("list", help="every frontend with its live and local address (the default)")
     sub.add_parser("json", help="the launcher document (fleet-launcher/v1)")
+    sub.add_parser("plan", help="every repo's frontend component: its kind, its state and its next step")
     u = sub.add_parser("url", help="print the address of one app at one target")
     u.add_argument("app")
     u.add_argument("--target", help="live, local or local-<service> (default: the app's first target)")
@@ -243,6 +327,9 @@ def main(argv: list[str] | None = None) -> int:
     doc = apps_view(HUB)
     if a.cmd == "json":
         print(json.dumps(doc, indent=2))
+        return 0
+    if a.cmd == "plan":
+        print(plan_table(doc["repos"]))
         return 0
     if a.cmd == "url":
         try:
