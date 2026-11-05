@@ -53,6 +53,25 @@ AMEND_RE = re.compile(r"^(\d{4})-[a-z0-9][a-z0-9-]*\.md$")
 FIELD_RE = r"^\s*[-*]?\s*\*\*{name}:?\*\*:?\s*(.+?)\s*$"
 
 
+ROADMAP_FILE = "_data/roadmap.yml"
+
+
+def _roadmap_ids(repo: Path) -> set[str] | None:
+    """FF-NNNN ids in the roadmap, or None when the repo keeps no roadmap.
+
+    `FF-NEW:<slug>` in a pending amendment never reaches here: the token
+    pattern needs digits, and tools/jev/number.py resolves the slug at merge.
+    """
+    path = repo / ROADMAP_FILE
+    if not path.is_file():
+        return None
+    try:
+        rows = yaml.safe_load(path.read_text(encoding="utf-8")) or []
+    except yaml.YAMLError:
+        return None
+    return {str(e["id"]) for e in rows if isinstance(e, dict) and e.get("id")} if isinstance(rows, list) else None
+
+
 # --------------------------------------------------------------------------- #
 # discovery
 # --------------------------------------------------------------------------- #
@@ -297,6 +316,7 @@ def check(repo: Path) -> dict:
         if not (adir / "README.md").exists():
             W(f"{adir.relative_to(repo)}/README.md missing (the index)")
         seen: dict[str, str] = {}
+        roadmap_ids = _roadmap_ids(repo)
         records = sorted(p for p in adir.glob("*.md") if p.name not in ("README.md", "SCHEMA.md"))
         for p in records:
             m = AMEND_RE.match(p.name)
@@ -324,6 +344,11 @@ def check(repo: Path) -> dict:
                 for tok in re.findall(r"(?<![\w-])[A-Z][A-Z0-9-]*-\d+(?![\w-])", aff):
                     if tok.startswith("UPS-"):
                         continue  # fleet spec row ids, not repo refs
+                    if re.fullmatch(r"FF-\d{4,}", tok):
+                        # roadmap entry ids (_data/roadmap.yml); unknown only if the roadmap is present and lacks it
+                        if roadmap_ids is not None and tok not in roadmap_ids:
+                            W(f"{rel}: Affects names {tok}, which is not an id in {ROADMAP_FILE}")
+                        continue
                     if ids and tok not in ids and not ref_exists(prd_text, tok):
                         W(f"{rel}: Affects names {tok}, which is neither a feature id nor a PRD ref")
             res["amendments"].append({"file": rel, "status": st})

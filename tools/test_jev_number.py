@@ -100,7 +100,8 @@ def features_of(repo: Path) -> list[dict]:
 # --------------------------------------------------------------------------- #
 def test_next_ids_reads_every_series():
     d = mk()
-    assert n.next_ids(d) == {"HUB": "HUB-002", "FR": "FR3", "NFR": "NFR2", "amendment": "0002"}
+    assert n.next_ids(d) == {"HUB": "HUB-002", "FR": "FR3", "NFR": "NFR2", "amendment": "0002",
+                             "FF": "FF-0001"}
 
 
 def test_a_retired_id_is_never_reused():
@@ -296,6 +297,115 @@ def test_rewrite_refs_leaves_an_unknown_slug_legible():
     out = n.rewrite_refs(text, {"HUB-NEW:known": "HUB-050"})
     assert out == "see HUB-050 and HUB-NEW:unknown"
     assert n.unresolved_refs(out) == ["HUB-NEW:unknown"]
+
+
+# --------------------------------------------------------------------------- #
+# roadmap entries (FF-NNNN)
+# --------------------------------------------------------------------------- #
+ROADMAP = """\
+# the roadmap header (schema lives here)
+
+- id: FF-0001
+  title: First
+  status: shipped
+
+- id: FF-0021
+  title: Before the gap
+  status: approved
+
+- id: FF-0024
+  title: After the gap
+  status: proposed
+"""
+
+
+def ff_frag(title: str, **extra) -> str:
+    return yaml.safe_dump({"id": "FF-NEW", "title": title, "project": "bamr87", "status": "proposed",
+                           "priority": "P2", **extra}, sort_keys=False)
+
+
+def test_next_ff_is_one_past_the_highest_and_gaps_are_never_back_filled():
+    d = mk({"_data/roadmap.yml": ROADMAP})
+    assert n.next_ids(d)["FF"] == "FF-0025", "FF-0022/0023 are a gap, never reused"
+
+
+def test_a_retired_ff_named_elsewhere_is_spent():
+    d = mk({"_data/roadmap.yml": ROADMAP,
+            "docs/amendments/0002-x.md": "# 0002 — X\n\n- **Affects:** FF-0030\n"})
+    assert n.next_ids(d)["FF"] == "FF-0031"
+
+
+def test_a_roadmap_fragment_is_numbered_appended_and_consumed():
+    d = mk({"_data/roadmap.yml": ROADMAP, "_data/roadmap.d/thing.yml": ff_frag("A thing")})
+    plan = n.apply(d)
+    assert not plan.errors, plan.errors
+    assert plan.assignments == {"FF-NEW:thing": "FF-0025"}
+    text = (d / "_data/roadmap.yml").read_text()
+    assert text.startswith("# the roadmap header"), "the header survives: appended as text"
+    rows = yaml.safe_load(text)
+    assert [r["id"] for r in rows] == ["FF-0001", "FF-0021", "FF-0024", "FF-0025"]
+    assert rows[-1]["title"] == "A thing" and "slug" not in rows[-1]
+    assert list(rows[-1])[0] == "id"
+    assert not (d / "_data/roadmap.d/thing.yml").exists()
+
+
+def test_two_roadmap_fragments_number_in_filename_order():
+    d = mk({"_data/roadmap.yml": ROADMAP, "_data/roadmap.d/beta.yml": ff_frag("B"),
+            "_data/roadmap.d/alpha.yml": ff_frag("A")})
+    plan = n.apply(d)
+    assert plan.assignments == {"FF-NEW:alpha": "FF-0025", "FF-NEW:beta": "FF-0026"}
+
+
+def test_a_roadmap_fragment_that_picked_its_own_number_is_an_error():
+    d = mk({"_data/roadmap.yml": ROADMAP,
+            "_data/roadmap.d/thing.yml": ff_frag("A").replace("FF-NEW", "FF-0040")})
+    plan = n.apply(d)
+    assert plan.errors and "FF-NEW" in plan.errors[0]
+    assert (d / "_data/roadmap.d/thing.yml").exists()
+    assert "FF-0040" not in (d / "_data/roadmap.yml").read_text()
+
+
+def test_ff_slug_references_resolve_across_fragments():
+    amend = ("# NEW — X\n\n- **Status:** proposed\n- **Number:** NEW\n"
+             "- **Affects:** FF-NEW:thing; HUB-NEW:feat\n")
+    feat = yaml.safe_dump({"id": "HUB-NEW", "title": "F", "description": "roadmap FF-NEW:thing"})
+    d = mk({"_data/roadmap.yml": ROADMAP, "_data/roadmap.d/thing.yml": ff_frag("A"),
+            "features/features.d/feat.yml": feat, "docs/amendments/proposed/x.md": amend})
+    plan = n.apply(d)
+    assert not plan.errors, plan.errors
+    rec = (d / "docs/amendments/0002-x.md").read_text()
+    assert "FF-0025" in rec and "FF-NEW" not in rec
+    assert features_of(d)[-1]["description"] == "roadmap FF-0025"
+
+
+def test_an_unresolved_ff_reference_is_an_error():
+    amend = "# NEW — X\n\n- **Status:** proposed\n- **Number:** NEW\n- **Affects:** FF-NEW:nobody\n"
+    d = mk({"docs/amendments/proposed/x.md": amend})
+    plan = n.plan(d)
+    assert plan.errors and "FF-NEW:nobody" in plan.errors[0]
+
+
+def test_a_roadmap_plan_changes_nothing():
+    d = mk({"_data/roadmap.yml": ROADMAP, "_data/roadmap.d/thing.yml": ff_frag("A")})
+    plan = n.apply(d, write=False)
+    assert plan.assignments == {"FF-NEW:thing": "FF-0025"} and not plan.empty
+    assert (d / "_data/roadmap.yml").read_text() == ROADMAP
+
+
+def test_lint_rejects_a_hand_picked_ff_in_the_roadmap():
+    diff = ("--- a/_data/roadmap.yml\n+++ b/_data/roadmap.yml\n"
+            "+- id: FF-0040\n"
+            "+  title: hand-picked\n")
+    problems = n.lint_diff(diff)
+    assert len(problems) == 1 and "_data/roadmap.d/<slug>.yml" in problems[0], problems
+
+
+def test_lint_leaves_roadmap_fragments_and_status_edits_alone():
+    diff = ("--- /dev/null\n+++ b/_data/roadmap.d/thing.yml\n+id: FF-NEW\n"
+            "--- a/_data/roadmap.yml\n+++ b/_data/roadmap.yml\n+  status: shipped\n"
+            "+  issue_url: https://github.com/o/r/issues/1\n"
+            "+++ b/docs/x.md\n+FF-0039 is cited in prose.\n")
+    assert n.lint_diff(diff) == []
 
 
 if __name__ == "__main__":

@@ -3,12 +3,13 @@
 File: tools/jev/number.py
 Description: ASSIGN AT MERGE. The compiler that turns the fragments a pull
              request writes — `features/features.d/<slug>.yml`,
-             `changelog.d/<slug>.md`, `docs/amendments/proposed/<slug>.md` —
-             into the numbered, compiled files on the default branch:
-             `features/features.yml`, `CHANGELOG.md`, `docs/amendments/NNNN-*.md`
-             and the PRD's requirement list. A pull request never picks the next
+             `changelog.d/<slug>.md`, `docs/amendments/proposed/<slug>.md`,
+             `_data/roadmap.d/<slug>.yml` — into the numbered, compiled files
+             on the default branch: `features/features.yml`, `CHANGELOG.md`,
+             `docs/amendments/NNNN-*.md`, `_data/roadmap.yml` (FF-NNNN) and
+             the PRD's requirement list. A pull request never picks the next
              sequential number; it writes `HUB-NEW` / `FR-NEW:<key>` /
-             `number: NEW` and references other new things by slug. This program
+             `FF-NEW` / `number: NEW` and references other new things by slug. This program
              is the only thing that resolves those, it runs serialized on the
              default branch, and an id it has assigned is never reused.
 Author: bamr87
@@ -43,13 +44,16 @@ CHANGELOG_D = "changelog.d"
 AMENDMENTS = "docs/amendments"
 AMENDMENTS_PROPOSED = "docs/amendments/proposed"
 AMEND_INDEX = "docs/amendments/README.md"
+ROADMAP = "_data/roadmap.yml"
+ROADMAP_D = "_data/roadmap.d"
 PRD = "PRD.md"
 
 #: The placeholder a pull request writes instead of a number, and the shape of
 #: a reference to something else that is also unnumbered yet.
 NEW = "NEW"
-SLUG_REF = re.compile(r"\b(HUB|FR|NFR|AMEND)-NEW:([a-z0-9][a-z0-9-]*)\b")
+SLUG_REF = re.compile(r"\b(HUB|FR|NFR|AMEND|FF)-NEW:([a-z0-9][a-z0-9-]*)\b")
 FEATURE_ID = re.compile(r"\bHUB-(\d{3,})\b")
+ROADMAP_ID = re.compile(r"\bFF-(\d{4,})\b")
 REQ_ID = re.compile(r"(?<![\w-])(N?FR)(\d+)(?![\w-])")
 AMEND_FILE = re.compile(r"^(\d{4})-([a-z0-9][a-z0-9-]*)\.md$")
 UNRELEASED = re.compile(r"^## \[Unreleased\]\s*$", re.M)
@@ -140,6 +144,25 @@ def highest_amendment(repo: Path) -> int:
                 for m in [AMEND_FILE.match(p.name)] if m] or [0])
 
 
+def highest_roadmap(repo: Path) -> int:
+    """Highest FF number ever seen — the roadmap AND everything that may cite one.
+
+    Same rule as HUB: an id that was ever published is spent. The roadmap has
+    gaps (FF-0022, FF-0023, FF-0027, FF-0028 were never kept), and a gap is
+    never back-filled: the next id is always one past the highest seen in the
+    roadmap, the catalog, the PRD, the changelog or a numbered amendment.
+    """
+    nums: list[int] = []
+    paths = [repo / ROADMAP, repo / FEATURES, repo / PRD, repo / CHANGELOG]
+    adir = repo / AMENDMENTS
+    if adir.is_dir():
+        paths += sorted(adir.glob("[0-9][0-9][0-9][0-9]-*.md"))
+    for path in paths:
+        if path.is_file():
+            nums += [int(m.group(1)) for m in ROADMAP_ID.finditer(path.read_text(encoding="utf-8"))]
+    return max(nums or [0])
+
+
 def next_ids(repo: Path) -> dict[str, str]:
     fr, nfr = highest_requirements(repo)
     return {
@@ -147,6 +170,7 @@ def next_ids(repo: Path) -> dict[str, str]:
         "FR": f"FR{fr + 1}",
         "NFR": f"NFR{nfr + 1}",
         "amendment": f"{highest_amendment(repo) + 1:04d}",
+        "FF": f"FF-{highest_roadmap(repo) + 1:04d}",
     }
 
 
@@ -160,19 +184,21 @@ class Plan:
     assignments: dict[str, str] = field(default_factory=dict)   # slug ref -> id
     features: list[str] = field(default_factory=list)           # fragment paths
     amendments: list[str] = field(default_factory=list)
+    roadmap: list[str] = field(default_factory=list)            # roadmap fragment paths
     changelog: list[str] = field(default_factory=list)
     requirements: list[tuple[str, str, str]] = field(default_factory=list)  # (id, kind, text)
     errors: list[str] = field(default_factory=list)
 
     @property
     def empty(self) -> bool:
-        return not (self.features or self.amendments or self.changelog)
+        return not (self.features or self.amendments or self.roadmap or self.changelog)
 
     def to_json(self) -> str:
         return json.dumps({
             "assignments": self.assignments,
             "features": self.features,
             "amendments": self.amendments,
+            "roadmap": self.roadmap,
             "changelog": self.changelog,
             "requirements": [{"id": i, "kind": k, "text": t} for i, k, t in self.requirements],
             "errors": self.errors,
@@ -211,7 +237,7 @@ def unresolved_error(rel: str, left: list[str]) -> str:
     """
     return (f"{rel}: unresolved reference(s) {', '.join(left)} — no pending fragment defines that key; it may "
             f"already have been compiled in an earlier run, so reference its assigned id instead (look it up in "
-            f"{FEATURES} or {PRD})")
+            f"{FEATURES}, {PRD} or {ROADMAP})")
 
 
 def plan(repo: Path) -> Plan:
@@ -226,6 +252,26 @@ def plan(repo: Path) -> Plan:
     fr_n, nfr_n = highest_requirements(repo)
     fr, nfr = Series("FR", 1, fr_n), Series("NFR", 1, nfr_n)
     amend = Series("", 4, highest_amendment(repo))
+    ff = Series("FF-", 4, highest_roadmap(repo))
+
+    # Roadmap entries first: a feature or amendment fragment in the same run
+    # may cite one as `FF-NEW:<slug>`.
+    for frag in _fragments(repo, ROADMAP_D, ".yml"):
+        try:
+            entry = yaml.safe_load(frag.read_text(encoding="utf-8")) or {}
+        except yaml.YAMLError as exc:
+            p.errors.append(f"{frag.name}: YAML parse error: {str(exc).splitlines()[0]}")
+            continue
+        if not isinstance(entry, dict):
+            p.errors.append(f"{frag.name}: a roadmap fragment is ONE mapping (one entry per file)")
+            continue
+        slug = str(entry.get("slug") or frag.stem)
+        if str(entry.get("id") or "") not in (f"FF-{NEW}", ""):
+            p.errors.append(f"{frag.name}: a roadmap fragment carries `id: FF-NEW`, never a number "
+                            f"({entry.get('id')}) — numbers are assigned here")
+            continue
+        p.assignments[f"FF-{NEW}:{slug}"] = ff.take()
+        p.roadmap.append(frag.relative_to(repo).as_posix())
 
     for frag in _fragments(repo, FEATURES_D, ".yml"):
         try:
@@ -262,7 +308,7 @@ def plan(repo: Path) -> Plan:
 
     # A reference nothing in this run defines fails the plan, so `number plan`
     # (and the PR-side dry run) reports it before `apply` consumes anything.
-    for rel in p.features + p.amendments:
+    for rel in p.roadmap + p.features + p.amendments:
         left = unresolved_refs(rewrite_refs((repo / rel).read_text(encoding="utf-8"), p.assignments))
         if left:
             p.errors.append(unresolved_error(rel, left))
@@ -286,6 +332,21 @@ def _append_feature(repo: Path, entry: dict) -> None:
     block = "\n".join(("  " + line) if line.strip() else line for line in body.splitlines())
     text = path.read_text(encoding="utf-8").rstrip("\n")
     path.write_text(f"{text}\n{block}\n", encoding="utf-8")
+
+
+def _append_roadmap(repo: Path, entry: dict) -> None:
+    """Append one compiled entry to _data/roadmap.yml as TEXT.
+
+    The roadmap is a top-level YAML list with a long comment header (its
+    schema). Appending the rendered block keeps every existing byte — the
+    header, the folded prose — exactly as the Work board's editor does.
+    """
+    path = repo / ROADMAP
+    body = yaml.safe_dump([entry], sort_keys=False, width=100, allow_unicode=True,
+                          default_flow_style=False).rstrip("\n")
+    text = path.read_text(encoding="utf-8").rstrip("\n") if path.is_file() else ""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"{text}\n\n{body}\n" if text else f"{body}\n", encoding="utf-8")
 
 
 def _insert_requirement(repo: Path, req_id: str, kind: str, text: str) -> None:
@@ -400,6 +461,20 @@ def apply(repo: Path, *, write: bool = True) -> Plan:
     if p.errors or not write:
         return p
 
+    for rel in p.roadmap:
+        frag = repo / rel
+        entry = yaml.safe_load(rewrite_refs(frag.read_text(encoding="utf-8"), p.assignments)) or {}
+        slug = str(entry.pop("slug", None) or frag.stem)
+        entry.pop("id", None)
+        ordered = {"id": p.assignments[f"FF-{NEW}:{slug}"]}
+        ordered.update(entry)
+        left = unresolved_refs(yaml.safe_dump(ordered))
+        if left:
+            p.errors.append(unresolved_error(rel, left))
+            continue
+        _append_roadmap(repo, ordered)
+        frag.unlink()
+
     for rel in p.features:
         frag = repo / rel
         entry = yaml.safe_load(rewrite_refs(frag.read_text(encoding="utf-8"), p.assignments)) or {}
@@ -454,8 +529,9 @@ def lint_diff(diff: str) -> list[str]:
     allowed to mention an existing id (that is how it references one), and a
     doc that quotes `HUB-001` is not assigning anything. The signal this looks
     for is narrow on purpose: a new `id: HUB-NNN` row in the catalog, a new
-    `FRn:` / `NFRn:` requirement bullet in the PRD, or a new numbered amendment
-    file. Those are exactly the three races the scheme removes. A numbered
+    `FRn:` / `NFRn:` requirement bullet in the PRD, a new `- id: FF-NNNN` row
+    in the roadmap, or a new numbered amendment file. Those are exactly the
+    races the scheme removes. A numbered
     amendment counts only when it is ADDED (its `--- ` side is /dev/null): a
     ratification-record PR modifies a numbered record's Status line, which
     assigns nothing (tools/jev/ratify.py).
@@ -480,6 +556,9 @@ def lint_diff(diff: str) -> list[str]:
         if current == FEATURES and re.match(r"\s*-?\s*id:\s*HUB-\d+\s*$", body):
             problems.append(f"{FEATURES}: `{body.strip()}` — a new feature is a "
                             f"{FEATURES_D}/<slug>.yml fragment with `id: HUB-NEW`")
+        if current == ROADMAP and re.match(r"\s*-?\s*id:\s*FF-\d+\s*$", body):
+            problems.append(f"{ROADMAP}: `{body.strip()}` — a new roadmap entry is a "
+                            f"{ROADMAP_D}/<slug>.yml fragment with `id: FF-NEW`")
         if current == PRD and re.match(r"\s*[-*]\s+N?FR\d+:", body):
             problems.append(f"{PRD}: `{body.strip()[:60]}` — a new requirement is declared in the "
                             f"feature fragment's `prd_new:` and numbered at merge")
@@ -534,6 +613,7 @@ def main(args: argparse.Namespace) -> int:
         for err in p.errors:
             print(f"  error: {err}", file=sys.stderr)
         if args.action == "apply" and not p.empty and not p.errors:
-            print(f"compiled {len(p.features)} feature(s), {len(p.amendments)} amendment(s), "
+            print(f"compiled {len(p.roadmap)} roadmap entr(ies), {len(p.features)} feature(s), "
+                  f"{len(p.amendments)} amendment(s), "
                   f"{len(p.changelog)} changelog fragment(s)")
     return 1 if p.errors else 0

@@ -125,7 +125,7 @@ def main() -> None:
         + '). Before you stop, invoke the `feature-scout` sub-agent (Task/Agent tool, '
         'subagent_type "feature-scout") to analyze the whole thread and author '
         "roadmap-ready specs. Present each proposed spec for the user's "
-        "review/approval; append only approved entries to `_data/roadmap.yml` "
+        "review/approval; write only approved entries, as `_data/roadmap.d/<slug>.yml` fragments (id: FF-NEW), "
         "(route each to the right repo via `_data/projects.yml`, or `bamr87` for the "
         "monorepo). If, on reflection, nothing rises to a genuine feature request, say "
         "so in one line and stop. (Fires at most once per session; disable with "

@@ -88,6 +88,27 @@ def test_site_root_link_is_a_route_not_an_empty_link():
     assert g._where(d, prd, {"link": "/"}) == "route `/`"
     assert "[``]" not in g._where(d, prd, {"link": "/", "docs": "README.md"})
 
+
+def test_amendment_affects_accepts_roadmap_ids():
+    d = full()
+    (d / "_data").mkdir()
+    (d / "_data/roadmap.yml").write_text("# header\n- id: FF-0032\n  title: x\n")
+    (d / "docs/amendments/0002-ff.md").write_text(
+        "# 0002 — FF\n\n- **Status:** proposed\n- **Date:** 2026-11-05\n- **Affects:** § 9; FF-0032; R-001\n")
+    r = g.check(d)
+    assert r["ok"] and not [w for w in r["warnings"] if "FF-" in w], r
+    (d / "docs/amendments/0003-ff.md").write_text(
+        "# 0003 — FF\n\n- **Status:** proposed\n- **Date:** 2026-11-05\n- **Affects:** FF-0099\n")
+    ws = " ".join(g.check(d)["warnings"])
+    assert "FF-0099" in ws and "_data/roadmap.yml" in ws
+
+
+def test_amendment_affects_ff_without_a_roadmap_is_not_flagged():
+    d = full()
+    (d / "docs/amendments/0002-ff.md").write_text(
+        "# 0002 — FF\n\n- **Status:** proposed\n- **Date:** 2026-11-05\n- **Affects:** FF-0007\n")
+    assert not [w for w in g.check(d)["warnings"] if "FF-0007" in w]
+
 if __name__ == "__main__":
     fails = 0
     for n, f in sorted(globals().items()):
