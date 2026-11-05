@@ -1,10 +1,10 @@
 # 0023 — The bamr87 account holds at most 42 repositories, and a new repo needs a consolidation
 
-- **Status:** proposed (ratification pending — Amr ratifies by merging this PR)
+- **Status:** ratified (ratification pending — Amr ratifies by merging this PR)
 - **Number:** 0023
 - **Date:** 2026-11-04
 - **Proposed by:** Grok Bot (agent), on Amr's instruction as owner
-- **Ratified by:** the merged PR URL (leave blank until merged)
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/660 (merged 2026-11-05 by @bamr87)
 - **Affects:** constitution § 22 (new, follows § 21 `container-management`); feature `0023` follow-up (`HUB-NEW`, not created here); requirements: none yet
 - **Supersedes:** none
 - **Related:** none
