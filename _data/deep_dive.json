@@ -11,14 +11,14 @@
     "cycle_days": 42,
     "total": 38,
     "day": 6,
-    "processed": 3,
+    "processed": 4,
     "counts": {
-      "pending": 35,
+      "pending": 34,
       "in_progress": 0,
-      "done": 3,
+      "done": 4,
       "skipped": 0
     },
-    "progress": 0.0789,
+    "progress": 0.1053,
     "today": {
       "date": "2026-11-04",
       "cycle": 1,
@@ -35,9 +35,9 @@
       "kind": "scheduled",
       "repo": "scripts"
     },
-    "last": "fredgar-ai",
-    "last_date": "2026-11-02",
-    "avg_score": 52.5,
+    "last": "djangoerp",
+    "last_date": "2026-11-04",
+    "avg_score": 41.0,
     "open_issues": 30,
     "open_prs": 4
   },
@@ -180,16 +180,29 @@
       "day": 6,
       "repo": "djangoerp",
       "scheduled": "2026-11-04",
-      "status": "pending",
-      "last_processed": null,
+      "status": "done",
+      "last_processed": "2026-11-04",
       "cycle": 1,
-      "issues": [],
-      "prs": [],
+      "issues": [
+        "https://github.com/bamr87/djangoerp/issues/36",
+        "https://github.com/bamr87/djangoerp/issues/37",
+        "https://github.com/bamr87/djangoerp/issues/38",
+        "https://github.com/bamr87/djangoerp/issues/39",
+        "https://github.com/bamr87/djangoerp/issues/40",
+        "https://github.com/bamr87/djangoerp/issues/41",
+        "https://github.com/bamr87/djangoerp/issues/42",
+        "https://github.com/bamr87/djangoerp/issues/43",
+        "https://github.com/bamr87/djangoerp/issues/44",
+        "https://github.com/bamr87/djangoerp/issues/45"
+      ],
+      "prs": [
+        "https://github.com/bamr87/djangoerp/pull/46"
+      ],
       "open_issues": 0,
       "open_prs": 0,
-      "findings": "",
-      "score": null,
-      "next_focus": ""
+      "findings": "DELETE bypasses posted-history immutability on JE/invoice/payment/stock moves (#36); JournalLine.account CASCADE lets any user delete an account and unbalance the ledger (#37); manual JE path accepts negative/two-sided/zero lines, no DB constraints (#38); client entry_number collides with JE sequence \u2192 IntegrityError (#39); authz drift on ledger lines/invoices (#40); prod SECRET_KEY default + missing /healthz,/readyz (#41); landing a11y (#42); PRD trace all TBD (#43). Features DJERP-007 reversing entries, DJERP-008 period close. 96 tests pass. deep-dive label missing (not created).",
+      "score": 6.5,
+      "next_focus": "Fix #36-#38 (immutability + JE validation + PROTECT) with tests, then permission matrix #40"
     },
     {
       "day": 7,

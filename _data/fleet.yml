@@ -159,6 +159,8 @@ schedule:
   repo_scout: "37 4 * * *"        # daily proactive ISSUE pass (see scout:) — before fleet-pulse (05:37)
                                   # snapshots what it filed and issue-pipeline (07:37) intakes it, same day
   api_keys: "47 6 * * *"          # daily Anthropic key expiry check (see api_keys:); files ONE issue
+  fleet_pm: "7 7 * * *"           # daily PM review (see pm:): project, roadmap and release alignment; read-only,
+                                  # after fleet-pulse (05:37) has refreshed the triage snapshot it reads
   python_tests: "17 9 * * *"      # nightly hub Python tests — catches always-latest dependency drift on main
   backlog_fanout: "27 8 * * *"    # daily backlog → fleet PRs (cadence + apply switch in _data/backlog_fanout.yml; dry run until apply: true)
   deep_dive: "17 12 * * *"        # daily deep-dive tracker refresh PR, after the 06:00 MDT one-repo-a-day routine (docs/DEEP-DIVE.md)
@@ -490,6 +492,48 @@ scout:
   signals:
     max_issues: 10          # open issues quoted into the brief so nothing is proposed twice
     max_prs: 5
+
+# --------------------------------------------------------------------------- #
+# PM — the routine PM review (docs/PM.md, fleet-pm.yml, `tools/dash pm`).
+#
+# Every day it reads the open issues and pull requests of the registry repos,
+# their pull-request state, recent comments, releases and the Fleet project,
+# and reports what is out of line with three records: the Fleet project
+# (constitution § 9, § 10), the roadmap (_data/roadmap.yml) and each repo's
+# release train (docs/RELEASES.md). It is read-only. What it plans for the
+# project is applied through the § 11 service after a person has read it
+# (`tools/dash projects apply`); roadmap edits land in the working tree.
+# Status / Priority / Area rules are the reviewed ones in
+# _data/projects_backfill.yml `board:`, not a second copy here.
+# --------------------------------------------------------------------------- #
+pm:
+  project:
+    owner: bamr87
+    number: 14                # the Fleet project (constitution § 10.1)
+  lanes: [project, roadmap, release, hygiene]
+  scope:
+    skip_statuses: [archived] # registry statuses the review leaves out; upstream mirrors are never in scope
+  board:
+    aliases:                  # templates/projects/framework.yml option -> the live project's, where they differ
+      Triaged: Triage
+      Blocked: Hold
+    held: ["Needs Amr", Hold, Blocked, "Won't do"]   # a Status a person set on purpose: never planned over
+    early: [Inbox, Triage, Triaged, Ready]           # a linked pull request may move an issue on from these
+    mirror_fields: [CI, "Merge state"]               # pull-request state mirrored onto the project (#588)
+  thresholds:
+    stale_in_progress_days: 14
+    pr_idle_days: 14
+    release_pr_waiting_days: 7
+    unreleased_commits: 5     # feat + fix + breaking since the last tag before a repo with no engine is reported
+    proposed_aging_days: 30
+  comments:
+    lookback_days: 2          # a newer comment from someone outside the fleet is "awaiting reply"
+  release:
+    engines:                  # where the registry's `release:` block does not say (UPS-REPO-21 deviation)
+      bamr87/bamr87: hand-cut
+  snapshot:
+    max_findings: 150         # rows kept in _data/pm_review.yml; the counts are always whole
+    max_per_kind: 20
 
 # --------------------------------------------------------------------------- #
 # Verification — the AGENT VERIFICATION standard's knobs (docs/VERIFICATION.md).
@@ -1477,6 +1521,21 @@ tokens:
       them by dependency. Optional: without it the workflow packs and verifies
       only. Granular npm automation token, publish scope, hub-only.
     used_by: [publish-kits.yml]
+    rotation:
+      enabled: false
+  - name: PROJECTS_TOKEN
+    scope: hub
+    required: false
+    purpose: >-
+      Reads the Fleet project (GitHub Projects v2, a user-level project the
+      job token cannot see) for the routine PM review, fleet-pm.yml. Read is
+      all that loop needs: `read:project` and `read:org`. Constitution § 11.7
+      names the same secret for the console's guarded write-back, which also
+      needs `project` and issues / pull-requests write on registry repos.
+      Optional: without it the review still runs the roadmap, release and
+      pull-request lanes and reports the project as unreadable. Only Amr
+      provisions it; hub only.
+    used_by: [fleet-pm.yml]
     rotation:
       enabled: false
   - name: RELEASE_PLEASE_TOKEN

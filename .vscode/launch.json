@@ -694,6 +694,32 @@
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "4-generate", "order": 20 }
     },
+    // The routine PM review (docs/PM.md): read-only on GitHub. `review` writes
+    // only .fleet/pm/; applying its plan is `tools/dash projects apply`, typed.
+    {
+      "name": "🧭 PM review: project, roadmap and release alignment (read-only)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash pm review",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 21 }
+    },
+    {
+      "name": "🧭 PM review: the Fleet project plan, before → after (last review)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash pm plan",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 22 }
+    },
+    {
+      "name": "🧭 PM review: the release train (last review)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash pm releases",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 23 }
+    },
 
     // ----------------------------------------------------------------- LOOPS
     // Every loop's agent step runs locally through JEV (docs/JEV.md): `plan`

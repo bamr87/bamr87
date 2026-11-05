@@ -114,6 +114,7 @@ Where each spec row was lifted from — go here for a proven implementation, not
 | [`health_thresholds.yml`](_data/health_thresholds.yml) | Thresholds for the monitor board's attention signals | — |
 | [`issue_pipeline.yml`](_data/issue_pipeline.yml) | Committed three-tier issue-pipeline state (stages, queues, caps, taxonomy, every open issue under `backlog:` and every pipeline PR) for /issue-pipeline/ and the Work boa… | generated |
 | [`jev_resolutions.yml`](_data/jev_resolutions.yml) | JEV's conflict-resolution ledger (`jev-resolutions/v1`) — one append-only row per triage/resolution attempt (repo, PR, tier, model, outcome, cost and whether that cost w… | generated |
+| [`pm_review.yml`](_data/pm_review.yml) | The routine PM review's public snapshot (`pm-review/v1`): Fleet project coverage, findings per lane, the planned project ops and roadmap edits, the release train and a 3… | generated |
 | [`portfolio.yml`](_data/portfolio.yml) | HOW the profile README groups the portfolio — group headings, repo → group map, display-only extras (hand-edited; read by `.github/scripts/dash-gen` `readme`) | required |
 | [`ports.yml`](_data/ports.yml) | THE fleet port allocation — bands, shared services, and every project's published ports; projected onto the dev stack by `tools/fleet-compose.py`, gated by drift check (… | required |
 | [`profile.yml`](_data/profile.yml) | WHO the public site is about — name, title, links, avatar, the site's own title and description (hand-edited; read by `tools/console/site_docs.py`; replaced the identity… | required |
@@ -170,6 +171,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`macos-register-nerd-fonts.swift`](tools/macos-register-nerd-fonts.swift) | One-shot CoreText helper for `setup-terminal.sh` — registers the MesloLGS Nerd Font `.ttf`s with the user's font registry so Terminal.app can see them without a logout/l… |
 | [`pg-major-upgrade.sh`](tools/pg-major-upgrade.sh) | Upgrade a compose service's Postgres across a MAJOR without losing data (`dash dev db-upgrade`; `--check` is the `dash up` and `dash dev up` preflight): backs up the raw… |
 | [`pipeline_map.py`](tools/pipeline_map.py) | pipeline_map.py — the data layer of the harness pipeline map (HUB-025, HUB-026). |
+| [`pm_review.py`](tools/pm_review.py) | The **routine PM review** (`dash pm`; [docs/PM.md](../docs/PM.md)). |
 | [`projects_backfill.py`](tools/projects_backfill.py) | The issue-triage and **Fleet board backfill** pass (constitution § 10 / § 11; `dash projects`). |
 | [`projects_lint.py`](tools/projects_lint.py) | Work-tracking gate (constitution § 9, amendment 0003, feature projects-coverage-gate). |
 | [`protect-branch.sh`](tools/protect-branch.sh) | Requires the CI gate on a repo's default branch (wrapped by `dash protect`) |
@@ -216,6 +218,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_jev_workspace.py`](tools/test_jev_workspace.py) | Fixture tests for tools/jev/workspace.py — the local loop engine's throwaway workspaces (#486, ADR 0002 P1). |
 | [`test_pin_policy.py`](tools/test_pin_policy.py) | Fixture tests for the UPS-QA-40 pin policy in tools/conformance.py. |
 | [`test_pipeline_map.py`](tools/test_pipeline_map.py) | Offline tests for tools/pipeline_map.py (HUB-025, HUB-026): pipeline definition integrity, status derivation over the EXAMPLE fixture, drill-down, unavailable log, workf… |
+| [`test_pm_review.py`](tools/test_pm_review.py) | Offline tests for `pm_review.py`: the scope, the gather against a recording fake `gh` that would see a write, each lane's rules, the preview the § 11 service accepts, th… |
 | [`test_projects_backfill.py`](tools/test_projects_backfill.py) | Offline tests for `projects_backfill.py` — decisions validation and compilation, the 50-op batching, the REST state reader and executor against a recording fake `gh`, th… |
 | [`test_projects_lint.py`](tools/test_projects_lint.py) | — |
 | [`test_quality_contract.py`](tools/test_quality_contract.py) | Tests specs/QUALITY.contract.yml against _data/specs.yml and every tool that reads it. |
@@ -246,6 +249,7 @@ The control-plane automation; standards and the full table in [`.github/workflow
 | [`fanout.yml`](.github/workflows/fanout.yml) | fanout | dispatch (`kit`, `target` = repo / `all` / `gaps`) | **One dispatch surface for every kit** the hub pushes down, through `tools/fanout.sh`: dry-run by default, PRs only, external upstreams skipped, additive. |
 | [`fleet-conformance.yml`](.github/workflows/fleet-conformance.yml) | fleet-conformance (reusable) | `workflow_call` | The Universal Project Standard gate (`tools/conformance.py`, offline); advisory until the caller sets `gate: true`. |
 | [`fleet-engines-contract.yml`](.github/workflows/fleet-engines-contract.yml) | fleet-engines-contract | PR, push `main` (`templates/fleet-engines/**`) | Typecheck, vitest, build, pack and VERSION ↔ `package.json` parity for `@bamr87/fleet-engines`. |
+| [`fleet-pm.yml`](.github/workflows/fleet-pm.yml) | Fleet PM review | daily 07:07, dispatch (`dry_run`, default true) | **The PM review**: reads every open issue and pull request of the registry repos, their pull-request state, recent comments, releases and the Fleet project, and reports… |
 | [`fleet-pulse.yml`](.github/workflows/fleet-pulse.yml) | 🩺 Fleet Pulse | daily 05:37, dispatch | **The daily loop.** `pulse` gathers every fleet signal (Actions analytics, Claude usage, engagements, the prior-day digest, triage, the harness inventory, features index… |
 | [`fleet-verify.yml`](.github/workflows/fleet-verify.yml) | fleet-verify (reusable) | `workflow_call` | Agent verification: feature index, Playwright scenarios, optional Claude pass through the Playwright MCP. |
 | [`infra.yml`](.github/workflows/infra.yml) | infra | PR, push `main` (`infra/**`) | The IaC layer's gate (ADR 0003): `tofu fmt -check`, then `init -backend=false` + `validate` for every OpenTofu root module under `infra/`. |
@@ -398,6 +402,7 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`MACHINE-API.md`](docs/MACHINE-API.md) | The agent-facing JSON the site publishes (`/api/v1/*.json`, `llms.txt`) and how to start from it. |
 | [`OBSERVABILITY.md`](docs/OBSERVABILITY.md) | The local log, metrics and trace planes joined on one `trace.id`: retention, redaction, the console's Observe portal and the code index. |
 | [`PLATFORM.md`](docs/PLATFORM.md) | How the fleet's development platform spreads its workloads across the Mac and forge, which layer owns what, and how the same definitions scale out to any cloud or on-pre… |
+| [`PM.md`](docs/PM.md) | A daily, read-only review that keeps three records in line with what GitHub actually holds: the Fleet project, the roadmap and each repo's release train. |
 | [`PORTFOLIO.md`](docs/PORTFOLIO.md) | The portfolio standard: repository descriptions, the topic taxonomy, the homepage rule, the README skeleton and the profile index. |
 | [`PROJECTS-FRAMEWORK.md`](docs/PROJECTS-FRAMEWORK.md) | Status: **ratified** (amendment 0003, 2026-10-30; § 10 by 0005, § 11 by 0006) — [amendment 0003](amendments/0003-github-projects-work-tracking.md), features `github-proj… |
 | [`RELEASES.md`](docs/RELEASES.md) | Release and versioning methodology across the fleet. |

@@ -58,9 +58,10 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash config [show|audit|sync|auth]${c_off} read _data/fleet.yml (\`show [dotted.key]\`); \`audit\` = \`dash secrets\`; \`sync --apply\` projects canonical variables onto the fleet; \`auth [sync --apply]\` resolves the per-repo AI auth order (ai_auth:) and projects CLAUDE_AUTH_ORDER
   ${c_bold}dash estimate${c_off}          draft client-engagement estimates from open issues → _data/engagements.yml
   ${c_bold}dash projects [inventory|plan|apply]${c_off} the issue-triage + Fleet-board backfill pass (constitution § 10/§ 11): \`inventory\` counts open work per repo; \`plan [--board]\` compiles _data/projects_backfill.yml into § 11 ops and previews before → after with plan ids (GraphQL for the board, skipped where unreachable); \`apply FILE --confirm\` writes through the service, only with HARNESS_PROJECTS_WRITES=1 (docs/PROJECTS-FRAMEWORK.md § 3b)
+  ${c_bold}dash pm [review|plan|roadmap|releases|status]${c_off} the routine PM review (docs/PM.md), read-only: \`review\` reads every open issue and PR of the registry repos, their pull-request state, recent comments, releases and the Fleet project, and reports what is out of line with the project, the roadmap and each release train; \`plan\` prints the Fleet project ops as before → after (applied by \`dash projects apply\`, § 11); \`roadmap [--write]\` the status edits for _data/roadmap.yml (working tree only); \`releases\` the release train; \`status\` the committed snapshot's headline
   ${c_bold}dash ledger${c_off}            accrue engagement actuals + variance from usage evidence (/engagements/ portal)
   ${c_bold}dash lake [sync|sessions|review|status|export]${c_off} the local data lake — \`sync\` extracts GitHub runs/jobs/steps/logs/issues/workflows/.factory into .dash-lake/fleet.sqlite; \`sessions\` extracts this machine's Claude Code transcripts; \`review\` analyzes BOTH planes offline; \`status\` reports it; \`export [--local] [--dry-run]\` ships OpenInference traces to Phoenix (:6006; docs/HARNESS-OPS.md)
-  ${c_bold}dash content [sync|report|plan|brief|file]${c_off} the CONTENT ATLAS — \`sync\` extracts the fleet.yml \`content.sites\` (lifehacker.dev, it-journey, …) into the lake; \`report\` shows topics/activity/aging/hygiene/pillar coverage + suggestions; \`plan\` approves/rejects directives in _data/editorial.yml; \`brief\` renders a site's brief; \`file [--apply]\` opens approved directives as issues in the site's repo (docs/CONTENT-ATLAS.md)
+  ${c_bold}dash content [sync|report|plan|brief|file|trace]${c_off} the CONTENT ATLAS — \`sync\` extracts the fleet.yml \`content.sites\` (lifehacker.dev, it-journey, …) into the lake; \`report\` shows topics/activity/aging/hygiene/pillar coverage + suggestions; \`plan\` approves/rejects directives in _data/editorial.yml; \`brief\` renders a site's brief; \`file [--apply]\` opens approved directives as issues in the site's repo; \`trace [--apply]\` reads back the pull request that answers each filed directive (docs/CONTENT-ATLAS.md)
   ${c_bold}dash dev <cmd> [project...]${c_off} the fleet DEV STACK — launch/debug any submodule from the hub
                          up|down|ps|logs|exec|build|config|ports|list; --all for everything,
                          --debug to layer a repo's own debugpy compose (docs/FLEET-COMPOSE.md)
@@ -627,6 +628,8 @@ cmd_config() {
 }
 cmd_estimate() { "${TOOLS}/dash-gen" estimate "$@"; }
 cmd_projects() { "$PY" "${TOOLS}/projects_backfill.py" "$@"; }
+# The routine PM review (docs/PM.md): read-only; bare `dash pm` runs the review.
+cmd_pm() { "$PY" "${TOOLS}/pm_review.py" "${@:-review}"; }
 cmd_ledger() { "${TOOLS}/dash-gen" ledger "$@"; }
 # The local data lake + trace export (local stack; docs/HARNESS-OPS.md).
 # Two EXTRACT commands, one for each plane Claude runs in, then one analysis:
@@ -644,6 +647,7 @@ cmd_lake() { "${TOOLS}/dash-gen" lake "$@"; }
 #   dash content plan approve|reject|add|status --site S --key K   decide (_data/editorial.yml)
 #   dash content brief --site S      the site's editorial brief (Markdown)
 #   dash content file --site S [--apply]   approved directives → issues in the site's repo
+#   dash content trace [--site S] [--apply]   filed directives → the pull request that answers each
 cmd_content() { "${TOOLS}/dash-gen" content "${@:-report}"; }
 
 # The local LOG plane (docs/OBSERVABILITY.md). Phoenix holds traces, Grafana
@@ -909,6 +913,7 @@ main() {
     config)  cmd_config "$@" ;;
     estimate) cmd_estimate "$@" ;;
     projects) cmd_projects "$@" ;;
+    pm)      cmd_pm "$@" ;;
     ledger)  cmd_ledger "$@" ;;
     lake)    cmd_lake "$@" ;;
     dev)     cmd_dev "$@" ;;
