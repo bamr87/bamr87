@@ -455,6 +455,7 @@ The pages of the public site — the Harness Console built static ([`docs/CONSOL
 | Harnesses | Workflows | `/workflows` | every hub workflow and action: standards, failures, retirement, design |
 | Harnesses | Work board | `/work` | every open item in the order the loops take it — drag to reprioritise |
 | Harnesses | Deep dive | `/deep-dive` | one repo a day, every repo once per cycle |
+| Harnesses | Refine | `/refine` | the harness itself: surface check, Propose–Probe–Compose plans, evidence, the experience library, the review queue |
 | Spend | Costs | `/costs` | Claude spend and Actions minutes vs budget |
 | Spend | Live activity | `/live` | sessions, jobs, spend, health and deep-dive — pushed every 5 s |
 | Spend | Agent activity | `/activity` | local sessions + CI agent runs, from the lake |
@@ -468,6 +469,7 @@ The pages of the public site — the Harness Console built static ([`docs/CONSOL
 | Operate | Operations | `/ops` | the allowlisted operations |
 | Operate | Toolbox | `/toolbox` | scripts, skills and kits the hub provides |
 | Operate | Terminal | `/terminal` | the terminal dash, in the page |
+| Operate | Assist | `/assist` | ask the read-only assistant; it reads the fleet through the MCP server |
 | Settings | Config | `/config` | _data/fleet.yml, block by block |
 | Settings | Credentials | `/auth` | tokens, gh login, rotation |
 | Settings | Connect | `/connect` | give the public page GitHub, or a running console |
