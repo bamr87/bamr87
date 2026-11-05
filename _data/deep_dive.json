@@ -11,14 +11,14 @@
     "cycle_days": 42,
     "total": 38,
     "day": 7,
-    "processed": 4,
+    "processed": 5,
     "counts": {
-      "pending": 34,
+      "pending": 33,
       "in_progress": 0,
-      "done": 4,
+      "done": 5,
       "skipped": 0
     },
-    "progress": 0.1053,
+    "progress": 0.1316,
     "today": {
       "date": "2026-11-05",
       "cycle": 1,
@@ -35,9 +35,9 @@
       "kind": "scheduled",
       "repo": "githubai"
     },
-    "last": "djangoerp",
-    "last_date": "2026-11-04",
-    "avg_score": 41.0,
+    "last": "scripts",
+    "last_date": "2026-11-05",
+    "avg_score": 34.0,
     "open_issues": 37,
     "open_prs": 4
   },
@@ -216,16 +216,27 @@
       "day": 7,
       "repo": "scripts",
       "scheduled": "2026-11-05",
-      "status": "pending",
-      "last_processed": null,
+      "status": "done",
+      "last_processed": "2026-11-05",
       "cycle": 1,
-      "issues": [],
-      "prs": [],
+      "issues": [
+        "https://github.com/bamr87/scripts/issues/29",
+        "https://github.com/bamr87/scripts/issues/30",
+        "https://github.com/bamr87/scripts/issues/31",
+        "https://github.com/bamr87/scripts/issues/32",
+        "https://github.com/bamr87/scripts/issues/33",
+        "https://github.com/bamr87/scripts/issues/34",
+        "https://github.com/bamr87/scripts/issues/35"
+      ],
+      "prs": [
+        "https://github.com/bamr87/scripts/pull/36",
+        "https://github.com/bamr87/scripts/pull/37"
+      ],
       "open_issues": 0,
       "open_prs": 0,
-      "findings": "",
-      "score": null,
-      "next_focus": ""
+      "findings": "Confirmed eval injection in project-init prompt_user (sandbox repro) plus eval/source of user input in forkme, stashme, git_init, ./.env; install.sh lacks pipefail/dry-run and edits rc silently; project-init/rename-directory/create_package lack --dry-run (FR3); smoke misses dry-run contracts; no .claude/settings.json (UPS-AGENT-10); SCRIPTS-005 docs path broken. Shellcheck clean, smoke green, vendored tools in sync. Hub conformance snapshot (2026-10-20) is stale for scripts.",
+      "score": 6.0,
+      "next_focus": "Land #29 injection fixes with smoke regressions, then dry-run parity (#30/#31/#32)."
     },
     {
       "day": 8,
