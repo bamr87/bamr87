@@ -315,6 +315,9 @@ export interface FleetRow {
   triage_issues?: number | null;
   triage_prs?: number | null;
   failing: { workflow: string; url: string }[];
+  /** OpenSSF Scorecard aggregate from conformance.yml `security:` (0-10; -1 inconclusive; null = not swept). */
+  scorecard?: number | null;
+  scorecard_checks?: Record<string, number>;
   docker_up?: number;
   docker_total?: number;
   docker_status?: string | null;

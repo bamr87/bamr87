@@ -80,6 +80,9 @@ class AppRow:
     triage_issues: int | None = None
     triage_prs: int | None = None
     failing: list[tuple[str, str]] = field(default_factory=list)  # (workflow, run_url)
+    # conformance.yml `security:` — the weekly OpenSSF Scorecard sweep (0-10; -1 inconclusive)
+    scorecard: float | None = None
+    scorecard_checks: dict[str, float] = field(default_factory=dict)
     # host.attach — live containers
     docker_name: str | None = None
     docker_status: str | None = None
@@ -252,6 +255,23 @@ def attach_triage(rows: list[AppRow], triage: Any) -> None:
         ]
 
 
+def attach_security(rows: list[AppRow], conformance: Any) -> None:
+    """Join conformance.yml `security.repos` (keyed by registry name) onto the rows."""
+    sec = (conformance or {}).get("security") if isinstance(conformance, dict) else None
+    repos = (sec or {}).get("repos") if isinstance(sec, dict) else None
+    by_name = {str(k).lower(): v for k, v in (repos or {}).items() if isinstance(v, dict)}
+    for r in rows:
+        s = by_name.get(r.name.lower())
+        if not s:
+            continue
+        agg = s.get("aggregate")
+        r.scorecard = float(agg) if isinstance(agg, (int, float)) and not isinstance(agg, bool) else None
+        r.scorecard_checks = {
+            str(k): float(v) for k, v in (s.get("checks") or {}).items()
+            if isinstance(v, (int, float)) and not isinstance(v, bool)
+        }
+
+
 def inbox_items(triage: Any) -> list[InboxItem]:
     """fleet_triage.yml `inbox`, highest priority first (stable for ties)."""
     raw = (triage or {}).get("inbox") if isinstance(triage, dict) else None
@@ -412,6 +432,7 @@ def load_snapshot(root: Path, *, now: datetime | None = None) -> Snapshot:
     rows, health_present = join_fleet(root)
     triage = load_yaml(root / "_data" / "fleet_triage.yml")
     attach_triage(rows, triage)
+    attach_security(rows, load_yaml(root / "_data" / "conformance.yml"))
     harness = load_yaml(root / "_data" / "harness_health.yml")
     harness = harness if isinstance(harness, dict) else {}
     wires = [w for w in (harness.get("trip_wires") or []) if isinstance(w, dict)]

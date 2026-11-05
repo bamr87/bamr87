@@ -95,6 +95,16 @@ export function Projects() {
               { key: 'prs', header: 'PRs', num: true, sort: (r) => r.triage_prs ?? r.prs_open ?? 0, render: (r) => r.triage_prs ?? r.prs_open ?? '—' },
               { key: 'failing', header: 'failing', num: true, sort: (r) => r.failing.length, render: (r) => (r.failing.length ? <Text c="var(--critical)" size="sm" fw={600}>{r.failing.length}</Text> : '') },
               { key: 'sec', header: 'sec', num: true, title: 'security alerts', sort: (r) => r.security_alerts ?? 0, render: (r) => r.security_alerts || '' },
+              {
+                key: 'scorecard', header: 'scorecard', num: true,
+                title: 'OpenSSF Scorecard aggregate, 0-10, from the weekly read-only sweep (conformance.yml security:); ? = inconclusive',
+                sort: (r) => r.scorecard ?? -2,
+                render: (r) => (r.scorecard == null ? '' : (
+                  <Text size="sm" title={Object.entries(r.scorecard_checks ?? {}).map(([k, v]) => `${k}: ${v < 0 ? '?' : v}`).join('\n')}>
+                    {r.scorecard < 0 ? '?' : r.scorecard}
+                  </Text>
+                )),
+              },
               { key: 'docker', header: 'docker', sort: (r) => r.docker_total ?? 0, render: (r) => (r.docker_total ? `${r.docker_up}/${r.docker_total}` : '') },
             ]}
           />
