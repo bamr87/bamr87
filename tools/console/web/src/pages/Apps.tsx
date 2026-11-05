@@ -17,21 +17,22 @@ import {
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { hasConsole } from '../api/backend';
 import { useApps, useReach } from '../api/hooks';
-import type { AppTarget, AppsDoc, FleetApp } from '../api/types';
+import type { AppTarget, AppsDoc, FleetApp, FleetRepo } from '../api/types';
 import { Banner, External, Load, Mono, PageHeader, Section, Spinner, StatTile, Status } from '../components/ui';
 import { to } from '../lib/links';
 import u from '../styles/utils.module.css';
 import c from './Apps.module.css';
+import { RepoApp } from './RepoApp';
 
 const SURFACE: Record<string, string> = {
   browser: 'browser', desktop: 'desktop', mobile: 'mobile', vscode: 'VS Code', terminal: 'terminal',
 };
 const TYPE_FILTERS = [
   { value: 'all', label: 'All' }, { value: 'app', label: 'Apps' }, { value: 'site', label: 'Sites' },
-  { value: 'game', label: 'Games' }, { value: 'other', label: 'Other surfaces' },
+  { value: 'game', label: 'Games' }, { value: 'other', label: 'Other surfaces' }, { value: 'generated', label: 'No interface' },
 ];
 const matchesType = (a: FleetApp, f: string) =>
-  f === 'all' || (f === 'other' ? a.embed === 'none' : a.embed === 'frame' && (a.type === f || (f === 'app' && a.type === 'console')));
+  f === 'all' || (f === 'other' ? a.embed === 'none' : f !== 'generated' && a.embed === 'frame' && (a.type === f || (f === 'app' && a.type === 'console')));
 
 // What a framed app may do. Never top-navigation: an app cannot take the
 // console's tab away. An app served from this page's own origin (the public
@@ -100,6 +101,23 @@ function AppCard({ app, probe }: { app: FleetApp; probe: boolean }) {
   );
 }
 
+/** A repo the launcher has no frontend for: it opens as the generated repo app. */
+function RepoCard({ repo }: { repo: FleetRepo }) {
+  return (
+    <Paper p="md" component={Link} to={to.app(repo.id)} className={`${u.tileLink} ${c.card}`} data-embed="none">
+      <Stack gap={8} h="100%">
+        <Group justify="space-between" wrap="nowrap" gap="xs">
+          <Text fw={600} className={u.anywhere}>{repo.name}</Text>
+          <Badge variant="default" size="sm">{repo.component.kind === 'terminal' ? 'terminal' : 'repo'}</Badge>
+        </Group>
+        <Text size="sm" c="dimmed" lineClamp={2}>{repo.description}</Text>
+        <Mono dim>{(repo.stack ?? []).slice(0, 4).join(' · ') || repo.category}</Mono>
+        <Text size="xs" c="dimmed" mt="auto">opens as the generated repo app</Text>
+      </Stack>
+    </Paper>
+  );
+}
+
 export function Apps() {
   const apps = useApps();
   const [sp, setSp] = useSearchParams();
@@ -119,7 +137,7 @@ export function Apps() {
     <>
       <PageHeader
         title="Apps"
-        description={<>Every frontend the registry declares, opened inside the console: the live site or the stack running on this machine, at any device size. The same list <Code>tools/dash apps</Code> prints.</>}
+        description={<>Every repo in the fleet as an app. A repo with a frontend opens it inside the console: the live site or the stack running on this machine, at any device size. A repo without one opens as the app the console generates for it. <Code>tools/dash apps</Code> prints the frontends, <Code>tools/dash apps plan</Code> every repo.</>}
       />
       <Load q={apps} rows={8}>
         {(doc) => {
@@ -128,10 +146,16 @@ export function Apps() {
             .filter((a) => matchesType(a, type))
             .filter((a) => !needle || `${a.name} ${a.framework ?? ''} ${a.description ?? ''} ${a.type}`.toLowerCase().includes(needle))
             .sort((a, b) => Number(b.embed === 'frame') - Number(a.embed === 'frame'));
+          // Every repo is an app: the ones the launcher has no frontend for come last.
+          const listed = new Set(doc.apps.map((a) => a.id));
+          const rest = doc.repos
+            .filter((r) => !listed.has(r.id) && (type === 'all' || type === 'generated'))
+            .filter((r) => !needle || `${r.name} ${(r.stack ?? []).join(' ')} ${r.description ?? ''}`.toLowerCase().includes(needle));
+          const total = doc.apps.length + doc.repos.filter((r) => !listed.has(r.id)).length;
           return (
             <>
               <SimpleGrid cols={{ base: 2, md: 4 }} spacing="md" mb="lg">
-                <StatTile label="Frontends" value={doc.summary.apps} sub="registry entries with a frontend tier" />
+                <StatTile label="Repos" value={total} sub={`${doc.summary.apps} with a frontend of their own`} />
                 <StatTile label="Open here" value={doc.summary.embeddable} sub="a browser surface with an address" />
                 <StatTile label="Live" value={doc.summary.live} sub="deployed sites" />
                 <StatTile label="Local stack" value={doc.summary.local} sub="a dev stack with a fixed port" />
@@ -140,13 +164,14 @@ export function Apps() {
                 <TextInput data-page-search leftSection={<IconSearch size={15} />} placeholder="Search apps, frameworks…  ( / )" value={q} w={280}
                   onChange={(e) => { setQ(e.currentTarget.value); set('q', e.currentTarget.value); }} aria-label="Search apps" />
                 <SegmentedControl size="xs" value={type} onChange={(v) => set('type', v)} data={TYPE_FILTERS} aria-label="Kind of frontend" />
-                <Text size="sm" c="dimmed">{rows.length}/{doc.apps.length} shown</Text>
+                <Text size="sm" c="dimmed">{rows.length + rest.length}/{total} shown</Text>
               </Group>
-              {rows.length ? (
+              {rows.length + rest.length ? (
                 <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
                   {rows.map((a) => <AppCard key={a.id} app={a} probe={probe} />)}
+                  {rest.map((r) => <RepoCard key={r.id} repo={r} />)}
                 </SimpleGrid>
-              ) : <Text size="sm" c="dimmed" py="sm">No frontend matches.</Text>}
+              ) : <Text size="sm" c="dimmed" py="sm">No repo matches.</Text>}
             </>
           );
         }}
@@ -381,7 +406,23 @@ function Workspace({ app, doc }: { app: FleetApp; doc: AppsDoc }) {
 export function AppWorkspace() {
   const { id = '' } = useParams();
   const apps = useApps();
-  const app = apps.data?.apps.find((a) => a.id.toLowerCase() === id.toLowerCase() || a.name.toLowerCase() === id.toLowerCase());
+  const same = (x: { id: string; name: string }) => x.id.toLowerCase() === id.toLowerCase() || x.name.toLowerCase() === id.toLowerCase();
+  const app = apps.data?.apps.find(same);
+  const repo = apps.data?.repos.find(same);
+  // The repo app is what a repo opens as when the shell has nothing of its own to frame.
+  const generated = repo && !(app && app.embed === 'frame') ? repo : undefined;
+  if (generated) {
+    return (
+      <>
+        <PageHeader
+          crumbs={[{ label: 'Apps', to: to.apps() }, { label: generated.name }]}
+          title={generated.name}
+          badges={<Badge variant="default">{generated.component.kind === 'generated' ? 'repo app' : `repo app · ${generated.component.kind} owed`}</Badge>}
+        />
+        <RepoApp repo={generated} />
+      </>
+    );
+  }
   return (
     <>
       <PageHeader

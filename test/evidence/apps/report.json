@@ -5,7 +5,7 @@
     "HUB-NEW:app-portal"
   ],
   "path": "verify/scenarios/apps.yml",
-  "started": "2026-11-05T04:09:39.421Z",
+  "started": "2026-11-05T06:34:35.900Z",
   "viewports": [
     {
       "name": "desktop",
@@ -17,7 +17,7 @@
           "step": "goto",
           "arg": "/apps",
           "ok": true,
-          "ms": 694
+          "ms": 679
         },
         {
           "step": "expect",
@@ -33,7 +33,7 @@
             "selector": "text=Open here"
           },
           "ok": true,
-          "ms": 19
+          "ms": 17
         },
         {
           "step": "expect",
@@ -60,7 +60,7 @@
             }
           },
           "ok": true,
-          "value": 23,
+          "value": 38,
           "ms": 1
         },
         {
@@ -90,13 +90,13 @@
           "arg": "apps-list",
           "ok": true,
           "file": "test/evidence/apps/desktop-apps-list.png",
-          "ms": 47
+          "ms": 50
         },
         {
           "step": "click",
           "arg": "text=Other surfaces",
           "ok": true,
-          "ms": 68
+          "ms": 53
         },
         {
           "step": "wait",
@@ -104,7 +104,7 @@
             "selector": "text=zpl-viewer"
           },
           "ok": true,
-          "ms": 34
+          "ms": 26
         },
         {
           "step": "expect",
@@ -130,7 +130,7 @@
           "step": "goto",
           "arg": "/apps/zpl-viewer/",
           "ok": true,
-          "ms": 547
+          "ms": 552
         },
         {
           "step": "expect",
@@ -143,15 +143,15 @@
         {
           "step": "wait",
           "arg": {
-            "selector": "text=has no address the console can open"
+            "selector": "text=is not in the shell yet"
           },
           "ok": true,
-          "ms": 11
+          "ms": 10
         },
         {
           "step": "expect",
           "arg": {
-            "text": "VS Code"
+            "text": "a web preview"
           },
           "ok": true,
           "ms": 1
@@ -166,20 +166,20 @@
             "sw": 1280,
             "cw": 1280
           },
-          "ms": 1
+          "ms": 0
         },
         {
           "step": "screenshot",
           "arg": "app-without-an-address",
           "ok": true,
           "file": "test/evidence/apps/desktop-app-without-an-address.png",
-          "ms": 17
+          "ms": 20
         },
         {
           "step": "goto",
           "arg": "/apps/gitorio/?target=local",
           "ok": true,
-          "ms": 536
+          "ms": 532
         },
         {
           "step": "expect",
@@ -195,7 +195,7 @@
             "selector": "text=A local stack answers only on the machine that runs it."
           },
           "ok": true,
-          "ms": 11
+          "ms": 10
         },
         {
           "step": "expect",
@@ -203,7 +203,7 @@
             "text": "not checked"
           },
           "ok": true,
-          "ms": 1
+          "ms": 2
         },
         {
           "step": "expect",
@@ -223,7 +223,7 @@
             "text": "tools/dash dev up gitorio"
           },
           "ok": true,
-          "ms": 1
+          "ms": 0
         },
         {
           "step": "expect",
@@ -242,7 +242,7 @@
           "arg": "app-local-asks-first",
           "ok": true,
           "file": "test/evidence/apps/desktop-app-local-asks-first.png",
-          "ms": 23
+          "ms": 27
         }
       ],
       "console_errors": [],
@@ -266,7 +266,7 @@
           "step": "goto",
           "arg": "/apps",
           "ok": true,
-          "ms": 618
+          "ms": 622
         },
         {
           "step": "expect",
@@ -282,7 +282,7 @@
             "selector": "text=Open here"
           },
           "ok": true,
-          "ms": 16
+          "ms": 14
         },
         {
           "step": "expect",
@@ -298,7 +298,7 @@
             "text": "tools/dash apps"
           },
           "ok": true,
-          "ms": 1
+          "ms": 0
         },
         {
           "step": "expect",
@@ -309,8 +309,8 @@
             }
           },
           "ok": true,
-          "value": 23,
-          "ms": 2
+          "value": 38,
+          "ms": 1
         },
         {
           "step": "eval",
@@ -320,7 +320,7 @@
           },
           "ok": true,
           "value": 0,
-          "ms": 0
+          "ms": 1
         },
         {
           "step": "expect",
@@ -332,20 +332,20 @@
             "sw": 390,
             "cw": 390
           },
-          "ms": 1
+          "ms": 0
         },
         {
           "step": "screenshot",
           "arg": "apps-list",
           "ok": true,
           "file": "test/evidence/apps/mobile-apps-list.png",
-          "ms": 28
+          "ms": 24
         },
         {
           "step": "click",
           "arg": "text=Other surfaces",
           "ok": true,
-          "ms": 28
+          "ms": 29
         },
         {
           "step": "wait",
@@ -353,7 +353,7 @@
             "selector": "text=zpl-viewer"
           },
           "ok": true,
-          "ms": 4
+          "ms": 2
         },
         {
           "step": "expect",
@@ -373,13 +373,13 @@
             "sw": 390,
             "cw": 390
           },
-          "ms": 2
+          "ms": 0
         },
         {
           "step": "goto",
           "arg": "/apps/zpl-viewer/",
           "ok": true,
-          "ms": 545
+          "ms": 552
         },
         {
           "step": "expect",
@@ -392,15 +392,15 @@
         {
           "step": "wait",
           "arg": {
-            "selector": "text=has no address the console can open"
+            "selector": "text=is not in the shell yet"
           },
           "ok": true,
-          "ms": 10
+          "ms": 9
         },
         {
           "step": "expect",
           "arg": {
-            "text": "VS Code"
+            "text": "a web preview"
           },
           "ok": true,
           "ms": 1
@@ -415,7 +415,7 @@
             "sw": 390,
             "cw": 390
           },
-          "ms": 0
+          "ms": 1
         },
         {
           "step": "screenshot",
@@ -428,7 +428,7 @@
           "step": "goto",
           "arg": "/apps/gitorio/?target=local",
           "ok": true,
-          "ms": 554
+          "ms": 532
         },
         {
           "step": "expect",
@@ -452,7 +452,7 @@
             "text": "not checked"
           },
           "ok": true,
-          "ms": 2
+          "ms": 1
         },
         {
           "step": "expect",
@@ -491,7 +491,7 @@
           "arg": "app-local-asks-first",
           "ok": true,
           "file": "test/evidence/apps/mobile-app-local-asks-first.png",
-          "ms": 14
+          "ms": 18
         }
       ],
       "console_errors": [],
@@ -507,6 +507,6 @@
     }
   ],
   "ok": true,
-  "finished": "2026-11-05T04:09:43.466Z",
+  "finished": "2026-11-05T06:34:39.935Z",
   "base": "http://127.0.0.1:5113"
 }

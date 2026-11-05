@@ -2,7 +2,7 @@
 id: apps
 feature: HUB-NEW:app-portal
 title: "The Apps page lists every fleet frontend and opens one without sending a visitor's browser anywhere unasked"
-description: "/apps lists every frontend the registry declares with its live and local addresses and filters them by kind; the public build asks none of those addresses anything while the list is on screen. A frontend with no browser surface says why it cannot be opened, and a local dev stack is checked only after the reader asks, because a public page must not reach into a visitor's own machine on load. Nothing scrolls sideways."
+description: "/apps lists every frontend the registry declares with its live and local addresses and filters them by kind; the public build asks none of those addresses anything while the list is on screen. A frontend with no browser surface opens as the generated repo app and says which component it is owed, and a local dev stack is checked only after the reader asks, because a public page must not reach into a visitor's own machine on load. Nothing scrolls sideways."
 viewports: [desktop, mobile]
 ignore_console: ["Failed to load resource", "net::ERR_"]
 steps:
@@ -22,8 +22,8 @@ steps:
   - expect: { no_horizontal_scroll: true }
   - goto: /apps/zpl-viewer/
   - expect: { status: 200 }
-  - wait: { selector: "text=has no address the console can open" }
-  - expect: { text: "VS Code" }
+  - wait: { selector: "text=is not in the shell yet" }
+  - expect: { text: "a web preview" }
   - expect: { no_horizontal_scroll: true }
   - screenshot: app-without-an-address
   - goto: "/apps/gitorio/?target=local"

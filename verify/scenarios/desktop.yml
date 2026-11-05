@@ -2,7 +2,7 @@
 id: desktop
 feature: HUB-NEW:bashos-desktop-shell
 title: "The Desktop shows an icon for every fleet app and a window for every repo, at desktop and phone widths"
-description: "/desktop is the bashOS OS shell in the browser: one icon per fleet frontend, each opening in a window that carries the common App Shell. The Fleet window lists every repo in the registry by the frontend component it has or is owed, and a repo with no frontend opens a window that says which component it gets next. The public build fetches nothing from another origin while the desktop is on screen. At a phone's width the desktop is a home screen that opens one app at a time. Nothing scrolls sideways."
+description: "/desktop is the bashOS OS shell in the browser: one icon per fleet frontend, each opening in a window that carries the common App Shell. The Fleet window lists every repo in the registry by the frontend component it has or is owed, and a repo with no frontend opens the repo app the shell generates for it. The public build fetches nothing from another origin while the desktop is on screen. At a phone's width the desktop is a home screen that opens one app at a time. Nothing scrolls sideways."
 viewports: [desktop, mobile]
 ignore_console: ["Failed to load resource", "net::ERR_"]
 steps:
@@ -19,14 +19,14 @@ steps:
   - expect: { no_horizontal_scroll: true }
   - screenshot: desktop
   - click: "nav[aria-label='Apps'] button:has-text('Fleet')"
-  - wait: { selector: "text=No frontend yet" }
+  - wait: { selector: "text=No interface of its own" }
   - expect: { text: "In the shell" }
   - expect: { text: "A surface a browser cannot host" }
   - expect: { text: "kvlite" }
   - expect: { no_horizontal_scroll: true }
   - screenshot: fleet-window
   - click: "button:has-text('kvlite')"
-  - wait: { selector: "text=No frontend component yet." }
-  - expect: { text: "the generated repo app (F1)" }
+  - wait: { selector: "text=has no interface of its own" }
+  - expect: { text: "git clone https://github.com/bamr87/kvlite" }
   - expect: { no_horizontal_scroll: true }
   - screenshot: repo-window

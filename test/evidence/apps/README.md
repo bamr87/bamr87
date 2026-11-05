@@ -6,13 +6,13 @@ The console's **Apps** page lists every frontend the registry declares and opens
 
 ## The public build (the scenario)
 
-Every step passed at both viewports: `/apps` answered 200 and listed the frontends with `tools/dash apps` named as the same list; the page had fetched nothing from another origin (`off_site_requests: 0`); the **Other surfaces** filter showed `zpl-viewer` with "no address yet"; `/apps/zpl-viewer/` explained why it cannot be opened; `/apps/gitorio/?target=local` showed "A local stack answers only on the machine that runs it.", the status **not checked** and no frame; nothing scrolled sideways. No console errors were recorded.
+Every step passed at both viewports: `/apps` answered 200 and listed the frontends with `tools/dash apps` named as the same list; the page had fetched nothing from another origin (`off_site_requests: 0`); the **Other surfaces** filter showed `zpl-viewer` with "no address yet"; `/apps/zpl-viewer/` opened as the generated repo app and said which component the repo is owed; `/apps/gitorio/?target=local` showed "A local stack answers only on the machine that runs it.", the status **not checked** and no frame; nothing scrolled sideways. No console errors were recorded.
 
 | Image | Viewport | What to look at |
 | --- | --- | --- |
 | `desktop-apps-list.png` | 1280×800 | four counts (frontends, open here, live, local stack), the kind filter, one card per frontend with its framework; the **Live** and **Local** pills are neutral because the public page has asked no address anything |
 | `mobile-apps-list.png` | 390×844 | the same list in one column; the filter wraps and nothing scrolls sideways |
-| `desktop-app-without-an-address.png`, `mobile-app-without-an-address.png` | both | a VS Code extension's page: "has no address the console can open", its surface, and the two registry facts that would give it one |
+| `desktop-app-without-an-address.png`, `mobile-app-without-an-address.png` | both | a VS Code extension's page: no frame; it opens as the generated repo app (`test/evidence/repo-app/`) and says it is owed a web preview |
 | `desktop-app-local-asks-first.png`, `mobile-app-local-asks-first.png` | both | the Local target on the public page: no frame, **not checked**, and a button to check 127.0.0.1 only when the reader asks |
 
 ## A running console (the interactive pass)

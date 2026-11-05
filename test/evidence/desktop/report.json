@@ -5,7 +5,7 @@
     "HUB-NEW:bashos-desktop-shell"
   ],
   "path": "verify/scenarios/desktop.yml",
-  "started": "2026-11-05T05:30:27.738Z",
+  "started": "2026-11-05T06:34:39.935Z",
   "viewports": [
     {
       "name": "desktop",
@@ -17,7 +17,7 @@
           "step": "goto",
           "arg": "/desktop",
           "ok": true,
-          "ms": 646
+          "ms": 573
         },
         {
           "step": "expect",
@@ -33,7 +33,7 @@
             "selector": "nav[aria-label='Apps']"
           },
           "ok": true,
-          "ms": 33
+          "ms": 10
         },
         {
           "step": "expect",
@@ -61,7 +61,7 @@
             "text": "gitorio"
           },
           "ok": true,
-          "ms": 2
+          "ms": 0
         },
         {
           "step": "expect",
@@ -110,21 +110,21 @@
           "arg": "desktop",
           "ok": true,
           "file": "test/evidence/desktop/desktop-desktop.png",
-          "ms": 50
+          "ms": 20
         },
         {
           "step": "click",
           "arg": "nav[aria-label='Apps'] button:has-text('Fleet')",
           "ok": true,
-          "ms": 71
+          "ms": 42
         },
         {
           "step": "wait",
           "arg": {
-            "selector": "text=No frontend yet"
+            "selector": "text=No interface of its own"
           },
           "ok": true,
-          "ms": 4
+          "ms": 2
         },
         {
           "step": "expect",
@@ -148,7 +148,7 @@
             "text": "kvlite"
           },
           "ok": true,
-          "ms": 1
+          "ms": 0
         },
         {
           "step": "expect",
@@ -160,33 +160,33 @@
             "sw": 1280,
             "cw": 1280
           },
-          "ms": 0
+          "ms": 1
         },
         {
           "step": "screenshot",
           "arg": "fleet-window",
           "ok": true,
           "file": "test/evidence/desktop/desktop-fleet-window.png",
-          "ms": 32
+          "ms": 45
         },
         {
           "step": "click",
           "arg": "button:has-text('kvlite')",
           "ok": true,
-          "ms": 38
+          "ms": 36
         },
         {
           "step": "wait",
           "arg": {
-            "selector": "text=No frontend component yet."
+            "selector": "text=has no interface of its own"
           },
           "ok": true,
-          "ms": 2
+          "ms": 1
         },
         {
           "step": "expect",
           "arg": {
-            "text": "the generated repo app (F1)"
+            "text": "git clone https://github.com/bamr87/kvlite"
           },
           "ok": true,
           "ms": 0
@@ -201,7 +201,7 @@
             "sw": 1280,
             "cw": 1280
           },
-          "ms": 1
+          "ms": 0
         },
         {
           "step": "screenshot",
@@ -248,7 +248,7 @@
             "selector": "nav[aria-label='Apps']"
           },
           "ok": true,
-          "ms": 27
+          "ms": 10
         },
         {
           "step": "expect",
@@ -256,7 +256,7 @@
             "title": "Desktop · bashOS"
           },
           "ok": true,
-          "ms": 1
+          "ms": 0
         },
         {
           "step": "expect",
@@ -284,7 +284,7 @@
             "text": "classic console"
           },
           "ok": true,
-          "ms": 1
+          "ms": 0
         },
         {
           "step": "eval",
@@ -318,25 +318,25 @@
             "sw": 390,
             "cw": 390
           },
-          "ms": 1
+          "ms": 0
         },
         {
           "step": "screenshot",
           "arg": "desktop",
           "ok": true,
           "file": "test/evidence/desktop/mobile-desktop.png",
-          "ms": 11
+          "ms": 8
         },
         {
           "step": "click",
           "arg": "nav[aria-label='Apps'] button:has-text('Fleet')",
           "ok": true,
-          "ms": 36
+          "ms": 38
         },
         {
           "step": "wait",
           "arg": {
-            "selector": "text=No frontend yet"
+            "selector": "text=No interface of its own"
           },
           "ok": true,
           "ms": 2
@@ -382,18 +382,18 @@
           "arg": "fleet-window",
           "ok": true,
           "file": "test/evidence/desktop/mobile-fleet-window.png",
-          "ms": 59
+          "ms": 39
         },
         {
           "step": "click",
           "arg": "button:has-text('kvlite')",
           "ok": true,
-          "ms": 34
+          "ms": 40
         },
         {
           "step": "wait",
           "arg": {
-            "selector": "text=No frontend component yet."
+            "selector": "text=has no interface of its own"
           },
           "ok": true,
           "ms": 1
@@ -401,10 +401,10 @@
         {
           "step": "expect",
           "arg": {
-            "text": "the generated repo app (F1)"
+            "text": "git clone https://github.com/bamr87/kvlite"
           },
           "ok": true,
-          "ms": 0
+          "ms": 1
         },
         {
           "step": "expect",
@@ -416,14 +416,14 @@
             "sw": 390,
             "cw": 390
           },
-          "ms": 1
+          "ms": 0
         },
         {
           "step": "screenshot",
           "arg": "repo-window",
           "ok": true,
           "file": "test/evidence/desktop/mobile-repo-window.png",
-          "ms": 15
+          "ms": 17
         }
       ],
       "console_errors": [],
@@ -439,6 +439,6 @@
     }
   ],
   "ok": true,
-  "finished": "2026-11-05T05:30:29.642Z",
+  "finished": "2026-11-05T06:34:41.503Z",
   "base": "http://127.0.0.1:5113"
 }

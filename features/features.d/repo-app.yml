@@ -1,0 +1,25 @@
+# features/features.d/repo-app.yml — numbered at merge (amendment 0002)
+id: HUB-NEW
+slug: repo-app
+title: "The generated repo app: every repo in the fleet opens as an app, with or without a frontend of its own"
+description: "ADR 0005 decision 10, phase F1. A repo the shell has no frontend to frame (a CLI, a library, infrastructure, a kernel; an editor extension, a terminal UI or an app with no address until its own component exists) opens as one generated app, at /apps/<id> and in a window on the Desktop: an overview from the registry and the hub's signals (stack, licence, health, CI, last commit, open work, the standards audit, automation, how to get it), the repo's README, its open work and its automation. GET /api/project/<name>/readme reads the README from the repo's submodule checkout on the console's machine (the registry's path, directly under projects/, no symlink, capped); the public snapshot publishes none, because some fleet repos are private. The Apps page lists all 38 repos. The panels by kind (an API explorer, a CLI run in a terminal) are not built."
+implemented: true
+status: partial
+surface: ui
+link: /apps/kvlite
+docs: docs/FRONTEND-PLATFORM.md
+tags: [ console, frontend, portal, registry, desktop ]
+date: 2026-11-05
+tests:
+  - tools/console/test_console.py
+  - tools/console/test_pages.py
+  - tools/test_fleetcore_apps.py
+scenarios:
+  - repo-app
+evidence:
+  - test/evidence/repo-app
+prd: ["FR58", "FR-NEW:repo-app"]
+prd_new:
+  - key: repo-app
+    kind: FR
+    text: "The product must open every repo in the registry as an app, generating one from what the hub holds about a repo that has no frontend of its own, and must never publish a repo's README on the public site."

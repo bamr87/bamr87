@@ -344,9 +344,24 @@ export interface FleetRepo {
   type?: string | null;
   framework?: string | null;
   surfaces: string[];
+  stack?: string[];
+  license?: string | null;
+  branch?: string | null;
+  docs_url?: string | null;
+  /** Where it answers, whether or not the shell can frame it. */
+  targets: AppTarget[];
   component: RepoComponent;
   /** The shell can frame it today: it is an app in the launcher. */
   framed: boolean;
+}
+
+/** A repo's README from its checkout on the console's machine (never in the public snapshot). */
+export interface ProjectReadme {
+  present: boolean;
+  reason?: string;
+  path?: string;
+  markdown?: string;
+  truncated?: boolean;
 }
 
 export interface AppsDoc {

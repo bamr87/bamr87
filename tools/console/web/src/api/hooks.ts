@@ -7,7 +7,7 @@ import { api } from './client';
 import { STATIC } from './backend';
 import { manifest } from './static';
 import type {
-  AppsDoc, AuthDoc, Capabilities, ConfigDoc, DockerView, FleetView, Job, LakeLine, LakeRun, Op,
+  AppsDoc, AuthDoc, Capabilities, ProjectReadme, ConfigDoc, DockerView, FleetView, Job, LakeLine, LakeRun, Op,
   ProjectDetail, StateDoc, TuiStatus, Dict, GithubStatus, GhRepo, GhRepoDetail, GhAction, GhIssue,
   SiteIndex, SitePage, SitePost, GithubFleet, PullSpecs, WorkBoard, WorkItemDetail, WorkPlan,
   WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint, RefineDoc, EvidenceDoc, TextFile, AssistDoc, JobTail,
@@ -81,6 +81,15 @@ export const useReach = (url: string | null | undefined, enabled = true) =>
 export const useDocker = () => useQuery({ queryKey: ['docker'], queryFn: () => api<DockerView>('/api/fleet/docker'), staleTime: 15_000 });
 export const useProject = (name: string) =>
   useQuery({ queryKey: ['project', name], queryFn: () => api<ProjectDetail>(`/api/project/${encodeURIComponent(name)}`), staleTime: 30_000 });
+
+/** A repo's README, read on the console's machine; the public build answers "absent". */
+export const useProjectReadme = (name: string, enabled = true) =>
+  useQuery({
+    queryKey: ['project-readme', name],
+    queryFn: () => api<ProjectReadme>(`/api/project/${encodeURIComponent(name)}/readme`),
+    enabled: enabled && Boolean(name),
+    staleTime: 5 * minute,
+  });
 
 export const useLake = () => useQuery({ queryKey: ['lake'], queryFn: () => api<Dict<any>>('/api/lake'), staleTime: 30_000 });
 export const useLakeRuns = (limit = 100) =>

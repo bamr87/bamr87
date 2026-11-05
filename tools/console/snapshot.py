@@ -283,6 +283,9 @@ def routes(docs: dict) -> dict[str, tuple[str, str]]:
     out.setdefault(f"github/{hub}", (hub, f"Issues, pull requests, runs and workflows of {hub}."))
     for a in docs["apps"]["apps"]:
         out[f"apps/{a['id']}"] = (f"{a['name']} · app", str(a.get("description") or ""))
+    # Every repo is an app: one without a frontend gets the generated repo app.
+    for r in docs["apps"]["repos"]:
+        out.setdefault(f"apps/{r['id']}", (f"{r['name']} · app", str(r.get("description") or "")))
     for wf in docs["workflows"]["workflows"]:
         out[f"workflows/{wf['id']}"] = (f"{wf['name']} · workflow", str(wf.get("purpose_text") or ""))
     for act in docs["workflows"]["actions"]:

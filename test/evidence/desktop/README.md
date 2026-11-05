@@ -6,13 +6,13 @@ The console's **Desktop** page is the bashOS OS shell in the browser. Its window
 
 ## The public build (the scenario)
 
-Every step passed at both viewports: `/desktop` answered 200 with the title `Desktop · bashOS` and an icon per app; the page had fetched nothing from another origin and held no frame (`off_site_requests: 0`); the **Fleet** icon opened the list of every repo in its four groups; `kvlite` opened a window saying it has no frontend component yet and which one it is owed; nothing scrolled sideways. No console errors were recorded.
+Every step passed at both viewports: `/desktop` answered 200 with the title `Desktop · bashOS` and an icon per app; the page had fetched nothing from another origin and held no frame (`off_site_requests: 0`); the **Fleet** icon opened the list of every repo in its four groups; `kvlite` opened as the generated repo app in a window; nothing scrolled sideways. No console errors were recorded.
 
 | Image | Viewport | What to look at |
 | --- | --- | --- |
 | `desktop-desktop.png` | 1280×800 | dotted paper, the dock of icons (the apps, then Fleet and Console), the Welcome window focused in orange, the taskbar with the bashOS button and the window's chip; the menu bar reads **public snapshot** |
-| `desktop-fleet-window.png` | 1280×800 | the Fleet window: "In the shell" 16, "A frontend with no address yet" 4, "A surface a browser cannot host" 5, "No frontend yet" 13, each row with its next step |
-| `desktop-repo-window.png` | 1280×800 | `kvlite · no frontend yet`: the component it is owed and the phase that builds it |
+| `desktop-fleet-window.png` | 1280×800 | the Fleet window: "In the shell" 16, "A frontend with no address yet" 4, "A surface a browser cannot host" 5, "No interface of its own" 13, each row with its next step |
+| `desktop-repo-window.png` | 1280×800 | `kvlite · repo app`: the generated repo app in a window (`test/evidence/repo-app/`) |
 | `mobile-desktop.png`, `mobile-fleet-window.png`, `mobile-repo-window.png` | 390×844 | the same as a home screen: a grid of icons, then one window at a time with a back button; no taskbar |
 
 ## A running console (the interactive pass)
@@ -24,7 +24,7 @@ Driven with Playwright against a console started from this branch's worktree on 
 | `console-welcome-desktop.png` | the first load: the dock, the Welcome window, **console connected** |
 | `console-windows-desktop.png` | gitorio and it-journey opened from their icons: cascaded windows, each with the App Shell (Live/Local, device size, path, reload, open outside) around the live app; the open apps' icons are marked |
 | `console-tiled-desktop.png` | the taskbar's tile button: the windows fill the window area beside the dock |
-| `console-fleet-and-repo-desktop.png` | the Fleet window and a repo with no frontend (`kvlite`) opened from it |
+| `console-fleet-and-repo-desktop.png` | the Fleet window and a repo with no frontend (`kvlite`) opened from it as the generated repo app (recaptured 2026-11-05 with that app) |
 | `console-dark-desktop.png` | dark theme: the paper palette's dark roles, law-ai and rewind-arcade running in windows |
 | `console-home-mobile.png`, `console-app-mobile.png` | 390 wide: the home screen, and it-journey filling the screen with the App Shell above it |
 
@@ -48,4 +48,4 @@ Raw data: [`report.json`](report.json): every scenario step's status, timings, t
 
 ## Not covered
 
-Chromium only. Touch dragging was not tried (the phone layout has no floating windows). No project stack was started, so a window on a Local target shows the stopped state (covered in `test/evidence/apps/`). Console pages do not open as windows yet: the **Console** icon leaves the desktop. The generated repo app does not exist yet; a repo without a frontend opens a placeholder that says so.
+Chromium only. Touch dragging was not tried (the phone layout has no floating windows). No project stack was started, so a window on a Local target shows the stopped state (covered in `test/evidence/apps/`). Console pages do not open as windows yet: the **Console** icon leaves the desktop. The other interactive images predate the generated repo app; none of them shows a repo window.

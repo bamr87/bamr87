@@ -9,8 +9,8 @@
 //   App Shell  what every window shares — AppPane (./Apps): where the app
 //              runs, a device size, a path, reload, open outside.
 //   App        a fleet frontend from the launcher, framed under the same rules
-//              as the Apps page; or, for a repo with no frontend yet, the
-//              panel that says which component it is owed.
+//              as the Apps page; or, for a repo with no frontend the shell can
+//              show, the repo app the shell generates (./RepoApp).
 //
 // A layout carries scene and app ids and geometry, never an address: a shared
 // link can only open what the registry declares. Below the reducer's narrow
@@ -31,13 +31,14 @@ import { hasConsole } from '../api/backend';
 import { useApps } from '../api/hooks';
 import type { AppsDoc, FleetApp, FleetRepo } from '../api/types';
 import { ThemeToggle } from '../components/Shell';
-import { External, Load, Status } from '../components/ui';
+import { Load, Status } from '../components/ui';
 import { to } from '../lib/links';
 import {
   MAX_WINDOWS, decodeLayout, effectiveExperience, encodeLayout, initialState, reduce,
   type ShellAction, type ShellState, type ShellWindow,
 } from '../vendor/bashos/shell.js';
 import { AppPane, type AppView } from './Apps';
+import { RepoApp } from './RepoApp';
 import c from './Desktop.module.css';
 
 /** What a window can hold. `app` and `repo` name a registry id in resourceId. */
@@ -48,13 +49,6 @@ const TAB_KEY = 'bashos_desktop_layout';
 const MENUBAR_PX = 44;
 const TASKBAR_PX = 48;
 const DOCK_ROW_PX = 82; // an icon row (80) and its gap
-
-const KIND_TEXT: Record<FleetRepo['component']['kind'], string> = {
-  own: 'its own frontend, mounted in the shell',
-  preview: 'a web preview of a surface a browser cannot host',
-  terminal: 'its terminal UI in a shell window',
-  generated: 'the repo app the shell generates from its README, features, docs and commands',
-};
 
 function typeIcon(type: string | null | undefined, size = 22): ReactNode {
   if (type === 'site') return <IconWorld size={size} stroke={1.6} />;
@@ -141,7 +135,7 @@ function WelcomePanel({ doc, open }: { doc: AppsDoc; open: Open }) {
       </Text>
       <Group gap="xs">
         <Status tone="good">{doc.summary.embeddable} apps open in a window</Status>
-        <Status tone="info">{owed} repos owed a frontend component</Status>
+        <Status tone="info">{owed} more open as the generated repo app</Status>
       </Group>
       <Group gap="md">
         <Anchor component="button" type="button" size="sm" onClick={() => open('fleet', null)}>Every repo and its component</Anchor>
@@ -157,14 +151,14 @@ const FLEET_GROUPS: { title: string; note: string; match: (r: FleetRepo) => bool
   { title: 'In the shell', note: 'opens in a window today', match: (r) => r.framed },
   { title: 'A frontend with no address yet', note: 'needs a public build or a dev-stack port', match: (r) => r.component.kind === 'own' && !r.framed },
   { title: 'A surface a browser cannot host', note: 'needs a web preview or a terminal window', match: (r) => r.component.kind === 'preview' || r.component.kind === 'terminal' },
-  { title: 'No frontend yet', note: 'gets the generated repo app, then a component of its own', match: (r) => r.component.kind === 'generated' },
+  { title: 'No interface of its own', note: 'opens as the generated repo app', match: (r) => r.component.kind === 'generated' },
 ];
 
 function FleetPanel({ doc, open }: { doc: AppsDoc; open: Open }) {
   return (
     <Stack gap="md" className={c.panel}>
       <Text size="sm" c="dimmed">
-        All {doc.repos.length} repos in the registry. {doc.repos.filter((r) => r.framed).length} open in a window today; the rest say which frontend component they are owed.
+        All {doc.repos.length} repos in the registry. {doc.repos.filter((r) => r.framed).length} open their own frontend in a window; the rest open as the repo app the shell generates, and say which component of their own they are owed.
       </Text>
       {FLEET_GROUPS.map((g) => {
         const rows = doc.repos.filter(g.match);
@@ -190,29 +184,6 @@ function FleetPanel({ doc, open }: { doc: AppsDoc; open: Open }) {
   );
 }
 
-function RepoPanel({ repo }: { repo: FleetRepo }) {
-  return (
-    <Stack gap="sm" className={c.panel}>
-      <Group gap="xs">
-        <Title order={3} fz={18}>{repo.name}</Title>
-        {repo.status ? <Badge variant="default">{repo.status}</Badge> : null}
-        {repo.category ? <Badge variant="light">{repo.category}</Badge> : null}
-      </Group>
-      <Text size="sm">{repo.description}</Text>
-      <Text size="sm">
-        <b>No frontend component yet.</b> This repo is owed {KIND_TEXT[repo.component.kind]}. Next: {repo.component.next}.
-      </Text>
-      <Text size="xs" c="dimmed">
-        This window is the placeholder that component replaces. What exists today is in the classic console.
-      </Text>
-      <Group gap="md">
-        <Anchor component={Link} to={to.project(repo.name)} size="sm">Project signals</Anchor>
-        {repo.repo_url ? <External href={repo.repo_url} size="sm">repository</External> : null}
-      </Group>
-    </Stack>
-  );
-}
-
 // ------------------------------------------------------------------- window
 type Open = (sceneId: string, resourceId: string | null, another?: boolean) => void;
 
@@ -226,7 +197,7 @@ function describe(win: ShellWindow, doc: AppsDoc, view: AppView | undefined): De
   }
   if (win.sceneId === 'repo') {
     const repo = doc.repos.find((r) => r.id === win.resourceId);
-    return { title: repo?.name ?? String(win.resourceId), sub: 'no frontend yet', icon: repo ? repoIcon(repo, 16) : typeIcon(null, 16) };
+    return { title: repo?.name ?? String(win.resourceId), sub: 'repo app', icon: repo ? repoIcon(repo, 16) : typeIcon(null, 16) };
   }
   if (win.sceneId === 'fleet') return { title: 'Fleet', sub: 'every repo', icon: <IconFolder size={16} stroke={1.6} /> };
   return { title: 'Welcome', icon: <IconPlayerPlayFilled size={14} /> };
@@ -241,7 +212,7 @@ function Scene({ win, doc, view, onView, open }: {
   }
   if (win.sceneId === 'repo') {
     const repo = doc.repos.find((r) => r.id === win.resourceId);
-    return repo ? <RepoPanel repo={repo} /> : <Text className={c.panel} size="sm">The registry no longer lists this repo.</Text>;
+    return repo ? <RepoApp repo={repo} fill /> : <Text className={c.panel} size="sm">The registry no longer lists this repo.</Text>;
   }
   if (win.sceneId === 'fleet') return <FleetPanel doc={doc} open={open} />;
   return <WelcomePanel doc={doc} open={open} />;

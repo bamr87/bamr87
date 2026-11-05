@@ -1,0 +1,4 @@
+/* The generated repo app. On a page it sits in the page's own padding; in a
+   Desktop window it brings its own. Roles only. */
+.root[data-fill] { padding: rem(14px) rem(16px) rem(18px); }
+.command { overflow-wrap: anywhere; }

@@ -137,7 +137,9 @@ class ComponentTests(unittest.TestCase):
         self.assertEqual([a["id"] for a in apps.launcher(reg, PORTS)["apps"]], ["shop", "external"])
         table = apps.plan_table(rows)
         self.assertIn("| shop | own (react) | in the shell |", table)
-        self.assertIn("| n | generated | not yet |", table)
+        self.assertIn("| n | generated | generated app for now |", table)
+        self.assertEqual(rows[0]["targets"][0]["url"], "https://shop.test/")
+        self.assertEqual(rows[1]["targets"], [], "a repo row carries its addresses, and none is not an error")
 
     def test_the_hub_plan_accounts_for_every_submodule(self):
         doc = apps.apps_view(HUB)
