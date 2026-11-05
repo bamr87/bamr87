@@ -4,8 +4,7 @@ Briefly describe what changed and why.
 
 ## Governance Trace
 
-Governed by: <!-- amendment (docs/amendments/NNNN-*.md or AMEND-NNNN) and/or requirement (FRn / NFRn / FR-NEW:<key>); constitution § 28 -->
-Handoff: <!-- Fleet issue or console job, if any -->
+Governed by: <!-- amendment (docs/amendments/NNNN-*.md or AMEND-NNNN) and/or requirement (FRn / NFRn / FR-NEW:<key>); constitution § 28 --> Handoff: <!-- Fleet issue or console job, if any -->
 
 ## Related Issues
 
