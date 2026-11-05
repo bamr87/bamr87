@@ -2,15 +2,15 @@
   "schema": "deep-dive/v1",
   "owner": "bamr87",
   "label": "deep-dive",
-  "refreshed_at": "2026-11-04T12:25:37Z",
+  "refreshed_at": "2026-11-05T12:26:54Z",
   "summary": {
-    "as_of": "2026-11-04",
+    "as_of": "2026-11-05",
     "cycle": 1,
     "cycle_start": "2026-10-30",
     "cycle_end": "2026-12-10",
     "cycle_days": 42,
     "total": 38,
-    "day": 6,
+    "day": 7,
     "processed": 4,
     "counts": {
       "pending": 34,
@@ -20,14 +20,6 @@
     },
     "progress": 0.1053,
     "today": {
-      "date": "2026-11-04",
-      "cycle": 1,
-      "day": 6,
-      "cycle_days": 42,
-      "kind": "scheduled",
-      "repo": "djangoerp"
-    },
-    "next": {
       "date": "2026-11-05",
       "cycle": 1,
       "day": 7,
@@ -35,10 +27,18 @@
       "kind": "scheduled",
       "repo": "scripts"
     },
+    "next": {
+      "date": "2026-11-06",
+      "cycle": 1,
+      "day": 8,
+      "cycle_days": 42,
+      "kind": "scheduled",
+      "repo": "githubai"
+    },
     "last": "djangoerp",
     "last_date": "2026-11-04",
     "avg_score": 41.0,
-    "open_issues": 30,
+    "open_issues": 37,
     "open_prs": 4
   },
   "repos": [
@@ -168,9 +168,17 @@
       "status": "pending",
       "last_processed": null,
       "cycle": 1,
-      "issues": [],
+      "issues": [
+        "https://github.com/bamr87/zer0-mistakes/issues/597",
+        "https://github.com/bamr87/zer0-mistakes/issues/596",
+        "https://github.com/bamr87/zer0-mistakes/issues/595",
+        "https://github.com/bamr87/zer0-mistakes/issues/594",
+        "https://github.com/bamr87/zer0-mistakes/issues/593",
+        "https://github.com/bamr87/zer0-mistakes/issues/592",
+        "https://github.com/bamr87/zer0-mistakes/issues/591"
+      ],
       "prs": [],
-      "open_issues": 0,
+      "open_issues": 7,
       "open_prs": 0,
       "findings": "",
       "score": null,
