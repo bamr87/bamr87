@@ -23,6 +23,7 @@ const GROUPS: [string, string][] = [
   ['lake', 'Lake — the local data lake and traces'],
   ['content', 'Content — the content atlas'],
   ['deploy', 'Deploy — writes to GitHub with apply'],
+  ['refine', 'Refine — the harness itself: surface, plans, evidence, the library; and the assistant'],
 ];
 
 function OpCard({ o }: { o: Op }) {

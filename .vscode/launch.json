@@ -1565,7 +1565,7 @@
       "id": "verifyScenario",
       "description": "Scenario id (verify/scenarios/)",
       "type": "pickString",
-      "options": ["home", "dashboard", "connect", "engagements", "features", "harnesses", "monitor", "roadmap", "triage", "work", "workflows", "loop-run", "apps", "desktop"],
+      "options": ["home", "dashboard", "connect", "engagements", "features", "harnesses", "monitor", "roadmap", "triage", "work", "workflows", "loop-run", "refine", "apps", "desktop"],
       "default": "home"
     },
     {

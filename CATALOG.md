@@ -229,6 +229,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`unpin-deps.sh`](tools/unpin-deps.sh) | Converts one repo to the fleet's **always-latest** dependency policy — strips exact pins, deletes + gitignores lockfiles, adapts CI installs (idempotent; the `deps-lates… |
 | [`unwrap-prose.py`](tools/unwrap-prose.py) | Liquid-safe one-paragraph-per-line unwrapper for markdown prose and list items (`--check`/`--diff`/`--write`); vendored into the fleet by the prose kit |
 | [`update-submodules.sh`](tools/update-submodules.sh) | Refresh `projects/` — bring each submodule onto its declared branch at the remote tip (safe by default) and record moved pointers |
+| [`voices.py`](tools/voices.py) | voices.py — validate the canonical fleet voice config (_data/voices/voices.yml, voices/v1). |
 
 ## 6. Workflows and loops
 
@@ -455,6 +456,7 @@ The pages of the public site — the Harness Console built static ([`docs/CONSOL
 | Harnesses | Workflows | `/workflows` | every hub workflow and action: standards, failures, retirement, design |
 | Harnesses | Work board | `/work` | every open item in the order the loops take it — drag to reprioritise |
 | Harnesses | Deep dive | `/deep-dive` | one repo a day, every repo once per cycle |
+| Harnesses | Refine | `/refine` | the harness itself: surface check, Propose–Probe–Compose plans, evidence, the experience library, the review queue |
 | Spend | Costs | `/costs` | Claude spend and Actions minutes vs budget |
 | Spend | Live activity | `/live` | sessions, jobs, spend, health and deep-dive — pushed every 5 s |
 | Spend | Agent activity | `/activity` | local sessions + CI agent runs, from the lake |
@@ -468,6 +470,7 @@ The pages of the public site — the Harness Console built static ([`docs/CONSOL
 | Operate | Operations | `/ops` | the allowlisted operations |
 | Operate | Toolbox | `/toolbox` | scripts, skills and kits the hub provides |
 | Operate | Terminal | `/terminal` | the terminal dash, in the page |
+| Operate | Assist | `/assist` | ask the read-only assistant; it reads the fleet through the MCP server |
 | Settings | Config | `/config` | _data/fleet.yml, block by block |
 | Settings | Credentials | `/auth` | tokens, gh login, rotation |
 | Settings | Connect | `/connect` | give the public page GitHub, or a running console |

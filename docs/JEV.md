@@ -268,7 +268,8 @@ Every harness the loops run on changed by hand, after an incident; nothing propo
 | **Missions** | [`tools/jev/missions/`](../tools/jev/missions/README.md) — `propose-invariant`, `propose-domain`, `compose`, `select`, `reflect`, adapted from Harness² (Apache-2.0) under the step-spec prompt rules, rendered one-pass |
 | **Config** | `_data/fleet.yml` `harness_refinement:` — `enabled` (the model-backed stages, off), `k_max`, `mode`, the surface caps, `stage_usd`, `model` (an exact id, § 13.3), `max_turns`, `library_dir`, `obs_trunc_chars` |
 | **The rule** | a refinement edits only the loop's tunable half (`.github/scout/`, `.github/evolution/`); a step spec's prompt, grant and caps are gated (§ 12.3), and a lesson that needs one is a proposal in `context/proposals/hard-rules.md` for a person to review |
-| **Tests** | `tools/test_jev_surface.py`, `tools/test_jev_library.py`, `tools/test_jev_refine.py`, the library cases of `tools/test_jev_context.py` |
+| **Console** | Harnesses → **Refine** (`/refine`, `/api/refine`; the ops `refine-surface`, `refine-plan`, `refine-evidence`, `refine-library-check`; the review queue's *Approve and file* is `loop-run` with `run_id` + `apply` behind the confirm) and Operate → **Assist** (the `assist` op: one read-only headless session with the fleet MCP server); the MCP tools `refine_status`, `refine_library`, `refine_reviews` ([tools/console/README.md](../tools/console/README.md)) |
+| **Tests** | `tools/test_jev_surface.py`, `tools/test_jev_library.py`, `tools/test_jev_refine.py`, the library cases of `tools/test_jev_context.py`; the console's `tools/console/test_console.py` and `test_mcp_layer.py` |
 
 ```bash
 tools/dash refine surface check                       # the hub's harness surface, $0

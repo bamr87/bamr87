@@ -38,6 +38,8 @@ import { Containers } from './pages/Containers';
 import { Inventory } from './pages/Inventory';
 import { HealthPage } from './pages/HealthPage';
 import { Schedules } from './pages/Schedules';
+import { Refine } from './pages/Refine';
+import { Assist } from './pages/Assist';
 import { Loops, LoopPage } from './pages/Loops';
 import { Workflows } from './pages/Workflows';
 import { ActionPage, WorkflowPage } from './pages/WorkflowPage';
@@ -108,6 +110,8 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="workflows/actions/*" element={<ActionPage />} />
                   <Route path="workflows/:id" element={<WorkflowPage />} />
                   <Route path="work" element={<Work />} />
+                  <Route path="refine" element={<Refine />} />
+                  <Route path="assist" element={<Assist />} />
                   <Route path="deep-dive" element={<DeepDive />} />
                   <Route path="costs" element={<Costs />} />
                   <Route path="activity" element={<Activity />} />

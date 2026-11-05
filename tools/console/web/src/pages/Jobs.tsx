@@ -24,6 +24,7 @@ import { LogView, useJobTail } from '../jobs/JobLog';
 import { useRunner } from '../jobs/JobRunner';
 import { JobStatus } from '../jobs/JobStatus';
 import { LoopRunSummary } from '../jobs/LoopRunSummary';
+import { AssistAnswer } from '../jobs/AssistAnswer';
 import { duration, includesText, when } from '../lib/format';
 import { to } from '../lib/links';
 import u from '../styles/utils.module.css';
@@ -256,6 +257,7 @@ export function JobPage() {
         </Paper>
       ) : null}
       {tail?.loop ? <LoopRunSummary f={tail.loop} done={Boolean(tail.done)} /> : null}
+      {tail?.assist ? <AssistAnswer a={tail.assist} done={Boolean(tail.done)} /> : null}
       <LogView raw={raw} height="calc(100vh - 300px)" />
     </>
   );

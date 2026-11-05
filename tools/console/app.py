@@ -253,6 +253,25 @@ class WorkPlan(BaseModel):
     confirm: bool = False
 
 
+class LibraryEntry(BaseModel):
+    """One experience-library entry to write on the working tree (docs/HARNESS-REFINEMENT.md)."""
+    loop: str = Field(..., max_length=64)
+    step: str = Field(..., max_length=64)
+    domain: str = Field(..., max_length=64)
+    item: str = Field(..., max_length=200)
+    run_id: str = Field(..., max_length=128)
+    adopted: str = Field(..., max_length=64)
+    cue: str = Field(..., max_length=400)
+    lesson: str = Field(..., max_length=800)
+    evidence: str = Field(..., max_length=1200)
+    confidence: str = Field(..., max_length=16)
+    date: str = Field("", max_length=10)
+    source: str = Field("human", max_length=16)
+    notes: str = Field("", max_length=2000)
+    edits: list[dict] = Field(default_factory=list)
+    diff: str | None = Field(None, max_length=262_144)
+
+
 class WorkflowDraft(BaseModel):
     text: str = Field(..., max_length=200_000)
     id: str = Field("draft", max_length=64)
@@ -506,6 +525,58 @@ def work_item(key: str = Query(..., max_length=200)) -> dict:
         return core.work_item(key)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.get("/api/refine", dependencies=[Depends(require_token)])
+def refine() -> dict:
+    """Harness refinement (JEV capability three, docs/HARNESS-REFINEMENT.md): the hub's surface
+    check, the fleet sweep, one Propose–Probe–Compose plan per loop, the experience library, the
+    evidence trees and the review queue of unfiled loop-run previews."""
+    return core.refine_doc()
+
+
+@app.get("/api/refine/evidence/{stamp}", dependencies=[Depends(require_token)])
+def refine_evidence(stamp: str) -> dict:
+    """One evidence tree's manifest and file list (.fleet/refine/<stamp>/)."""
+    try:
+        return core.refine_evidence_doc(stamp)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.get("/api/refine/evidence/{stamp}/file", dependencies=[Depends(require_token)])
+def refine_evidence_file(stamp: str, path: str = Query(..., max_length=300)) -> dict:
+    """One file of an evidence tree, as the redacted text the proposer would read."""
+    try:
+        return core.refine_evidence_file(stamp, path)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.get("/api/refine/review/{run_id}/file", dependencies=[Depends(require_token)])
+def refine_review_file(run_id: str, path: str = Query(..., max_length=300)) -> dict:
+    """A reviewed preview's text: a run's summary, an item's publish-plan.md or one body."""
+    try:
+        return core.refine_review_file(run_id, path)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.post("/api/refine/library", dependencies=[Depends(require_token)], status_code=201)
+def refine_library_add(req: LibraryEntry) -> dict:
+    """Write one experience entry on the working tree — validated and leak-checked, never committed;
+    a person reviews it and the pull request carries it (the human-gated inbox)."""
+    try:
+        return core.refine_library_add(req.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/api/assist", dependencies=[Depends(require_token)])
+def assist() -> dict:
+    """The in-page assistant: its configuration (_data/fleet.yml assistant:), the tools a session gets,
+    and why it cannot run here, if it cannot."""
+    return core.assist_doc()
 
 
 @app.get("/api/workflows", dependencies=[Depends(require_token)])

@@ -10,7 +10,7 @@ import type {
   AppsDoc, AuthDoc, Capabilities, ConfigDoc, DockerView, FleetView, Job, LakeLine, LakeRun, Op,
   ProjectDetail, StateDoc, TuiStatus, Dict, GithubStatus, GhRepo, GhRepoDetail, GhAction, GhIssue,
   SiteIndex, SitePage, SitePost, GithubFleet, PullSpecs, WorkBoard, WorkItemDetail, WorkPlan,
-  WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint,
+  WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint, RefineDoc, EvidenceDoc, TextFile, AssistDoc, JobTail,
 } from './types';
 
 const minute = 60_000;
@@ -186,3 +186,37 @@ export const useData = <T = any>(name: string) =>
 export const useGithubFleet = () => useQuery({ queryKey: ['github', 'fleet'], queryFn: () => api<GithubFleet>('/api/github/fleet'), staleTime: Infinity });
 /** The published snapshot's own record (public build only). */
 export const useManifest = () => useQuery({ queryKey: ['manifest'], queryFn: manifest, enabled: STATIC, staleTime: 5 * minute });
+
+// --- Harness refinement + the assistant (docs/HARNESS-REFINEMENT.md) --------
+export const useRefine = () => useQuery({ queryKey: ['refine'], queryFn: () => api<RefineDoc>('/api/refine'), staleTime: minute });
+export const useEvidence = (stamp: string | null) =>
+  useQuery({
+    queryKey: ['refine', 'evidence', stamp],
+    queryFn: () => api<EvidenceDoc>(`/api/refine/evidence/${encodeURIComponent(stamp ?? '')}`),
+    enabled: Boolean(stamp),
+    retry: false,
+  });
+export const useEvidenceFile = (stamp: string | null, path: string | null) =>
+  useQuery({
+    queryKey: ['refine', 'evidence', stamp, path],
+    queryFn: () => api<TextFile>(`/api/refine/evidence/${encodeURIComponent(stamp ?? '')}/file?path=${encodeURIComponent(path ?? '')}`),
+    enabled: Boolean(stamp && path),
+    retry: false,
+  });
+export const useReviewFile = (runId: string | null, path: string | null) =>
+  useQuery({
+    queryKey: ['refine', 'review', runId, path],
+    queryFn: () => api<TextFile>(`/api/refine/review/${encodeURIComponent(runId ?? '')}/file?path=${encodeURIComponent(path ?? '')}`),
+    enabled: Boolean(runId && path),
+    retry: false,
+  });
+export const useAssist = () => useQuery({ queryKey: ['assist'], queryFn: () => api<AssistDoc>('/api/assist'), staleTime: minute });
+/** One job's tail from offset 0: the Assist page reads a finished answer through it. */
+export const useJobTail = (id: string | null, live = false) =>
+  useQuery({
+    queryKey: ['job-tail', id],
+    queryFn: () => api<JobTail>(`/api/jobs/${encodeURIComponent(id ?? '')}?offset=0`),
+    enabled: Boolean(id),
+    refetchInterval: live ? 2000 : false,
+    retry: false,
+  });

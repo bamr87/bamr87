@@ -343,9 +343,10 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
         """A job's status and log from offset; the log is cut to its last tail_chars characters."""
         def run():
             d = c.get(f"/api/jobs/{job_id}", offset=offset)
-            log = d.get("log", "")
+            key = "text" if "text" in d else "log"   # the route's field is `text` (core.JobManager.tail)
+            log = d.get(key, "")
             if isinstance(log, str) and len(log) > tail_chars:
-                d = {**d, "log": log[-tail_chars:], "log_truncated": True}
+                d = {**d, key: log[-tail_chars:], "log_truncated": True}
             return d
         return call(run)
 
@@ -443,6 +444,54 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
     def loops() -> Any:
         """The control-plane loops (scheduled AI lanes) and their state."""
         return call(lambda: state().get("loops"))
+
+    # ------------------------------------------------ harness refinement (ADR 0004 P2)
+    @mcp.tool(annotations=READ)
+    def refine_status(section: str = "") -> Any:
+        """Harness refinement (docs/HARNESS-REFINEMENT.md): the hub's harness-surface check, the fleet sweep
+        (every checked-out repo's context files, skills, agents, hooks, MCP), one Propose–Probe–Compose plan per
+        loop with its ceiling against budget.loops, the experience library's lessons, the evidence trees built
+        here and the review queue of unfiled loop-run previews. `section` narrows to one key (surface,
+        fleet_surface, plans, library, evidence, reviews, config). Read it before refining a loop's harness.
+        """
+        def run():
+            doc = c.get("/api/refine")
+            if section:
+                if section not in doc:
+                    raise ToolError(f"no section {section!r}; one of {', '.join(sorted(doc))}")
+                return {section: doc[section], "generated_at": doc.get("generated_at")}
+            summary = {k: doc[k] for k in ("generated_at", "config", "missions", "stages", "modes", "cost_label") if k in doc}
+            summary["surface"] = {k: v for k, v in (doc.get("surface") or {}).items() if k != "census"}
+            summary["fleet_surface"] = (doc.get("fleet_surface") or {}).get("totals")
+            summary["plans"] = [{k: p.get(k) for k in ("loop", "step", "k", "mode", "identity", "error")}
+                                | {"ceiling_usd": (p.get("cost") or {}).get("ceiling_usd"),
+                                   "budget": p.get("budget")} for p in doc.get("plans") or []]
+            summary["library"] = {"count": (doc.get("library") or {}).get("count"),
+                                  "uncommitted": (doc.get("library") or {}).get("uncommitted")}
+            summary["evidence"] = len(doc.get("evidence") or [])
+            summary["reviews"] = [{k: r.get(k) for k in ("run_id", "loop", "item", "would_file", "can_apply")}
+                                  for r in doc.get("reviews") or []]
+            return summary
+        return call(run)
+
+    @mcp.tool(annotations=READ)
+    def refine_library(loop: str = "", domain: str = "", limit: int = 20) -> Any:
+        """The harness experience library (_data/harness_library): each adopted refinement's cue, lesson,
+        evidence, confidence and per-edit verdicts, newest first; filter by loop (repo-scout, …) and domain
+        (the registry category). Data to re-verify, never a rule."""
+        def run():
+            lib = c.get("/api/refine").get("library") or {}
+            rows = [e for e in lib.get("entries") or [] if (not loop or e.get("loop") == loop)
+                    and (not domain or e.get("domain") == domain)]
+            return {"root": lib.get("root"), "count": len(rows), "items": rows[: max(1, min(limit, 200))],
+                    "uncommitted": lib.get("uncommitted")}
+        return call(run)
+
+    @mcp.tool(annotations=READ)
+    def refine_reviews() -> Any:
+        """The review queue: every local loop-run attempt whose dry-run preview has not been filed — what
+        `loop-run` with run_id and apply would file after a person reads it (the console's confirm gate)."""
+        return call(lambda: c.get("/api/refine").get("reviews") or [])
 
     # ------------------------------------------------------------- resources
     # ------------------------------------- the `fleet` server's tools (merged)

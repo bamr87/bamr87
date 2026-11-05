@@ -81,6 +81,13 @@ def test_catalog_prd_key_and_section_refs():
     assert r["prd"] == "docs/spec.md" and r["ok"], r["errors"]
 
 
+
+def test_site_root_link_is_a_route_not_an_empty_link():
+    d = full()
+    prd = d / "PRD.md"
+    assert g._where(d, prd, {"link": "/"}) == "route `/`"
+    assert "[``]" not in g._where(d, prd, {"link": "/", "docs": "README.md"})
+
 if __name__ == "__main__":
     fails = 0
     for n, f in sorted(globals().items()):

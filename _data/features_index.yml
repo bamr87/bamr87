@@ -9,7 +9,7 @@
 # Rendered at /features/ on the dash. Kit: templates/verify/ · doc: docs/VERIFICATION.md
 # =============================================================================
 schema: features-index/v1
-generated_at: '2026-11-04T06:03:39Z'
+generated_at: '2026-11-05T06:02:57Z'
 kit_version: 0.1.0
 totals:
   repos_scanned: 1
@@ -17,21 +17,21 @@ totals:
   repos_with_kit: 1
   repos_prose_only: 0
   repos_no_index: 0
-  features: 74
-  implemented: 47
-  covered: 68
+  features: 77
+  implemented: 50
+  covered: 71
   evidenced: 11
   verified: 8
-  ui: 19
-  ui_covered: 19
+  ui: 20
+  ui_covered: 20
   ui_verified: 8
   scenarios: 12
   screenshots: 59
   dangling: 6
 pct:
-  coverage: 145
-  evidence: 23
-  verified: 17
+  coverage: 142
+  evidence: 22
+  verified: 16
   ui_coverage: 100
 attention:
 - repo: bamr87
@@ -92,19 +92,19 @@ repos:
     legacy_evidence_kit: false
     legacy_visual_evidence_skill: false
   counts:
-    features: 74
-    implemented: 47
-    covered: 68
+    features: 77
+    implemented: 50
+    covered: 71
     evidenced: 11
     verified: 8
-    ui: 19
-    ui_covered: 19
+    ui: 20
+    ui_covered: 20
     ui_verified: 8
     dangling: 6
   pct:
     coverage: 100
-    evidence: 23
-    verified: 17
+    evidence: 22
+    verified: 16
   last_run: null
   gaps:
   - 6 dangling test/scenario/evidence link(s)
@@ -2842,6 +2842,116 @@ repos:
       - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_adapter_fanout_agent_fill.py
       - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_loop.py
       - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_ai_budget.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-075
+    title: 'Recursive harness refinement (Harness²): the surface check, the Propose–Probe–Compose plan and evidence tree,
+      the experience library'
+    surface: cli
+    implemented: true
+    link: tools/jev/refine.py
+    docs: docs/HARNESS-REFINEMENT.md
+    tags:
+    - jev
+    - harness
+    - refinement
+    - loops
+    - sensor
+    date: '2026-11-04'
+    provenance: null
+    tests:
+    - tools/test_jev_surface.py
+    - tools/test_jev_library.py
+    - tools/test_jev_refine.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'JEV capability three adopts the Harness² method onto the hub''s own loops at $0: `tools/dash refine surface
+      check` validates any repository''s harness surface (the context-file chain, settings permissions and hooks, agents,
+      skills, commands, '
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/jev/refine.py
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/HARNESS-REFINEMENT.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_surface.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_library.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_refine.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-076
+    title: 'The topic loop read back: directive → issue → pull request → merged, on the Content page'
+    surface: ui
+    implemented: true
+    link: .github/scripts/dash-gen/content_atlas.py
+    docs: docs/CONTENT-ATLAS.md
+    tags:
+    - content
+    - editorial
+    - loop
+    date: '2026-11-04'
+    provenance: null
+    tests:
+    - .github/scripts/dash-gen/test_content_atlas.py
+    - tools/console/test_console.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'tools/dash content trace [--site S] [--apply] (also run by every content file pass) reads each filed editorial
+      directive''s issue timeline and records the pull request in the site''s own repo that answers it (pr, pr_state: draft,
+      open, merged'
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/content_atlas.py
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/CONTENT-ATLAS.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_content_atlas.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/console/test_console.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-077
+    title: 'The routine PM review: project, roadmap and release alignment'
+    surface: cli
+    implemented: true
+    link: tools/pm_review.py
+    docs: docs/PM.md
+    tags:
+    - pm
+    - projects
+    - roadmap
+    - releases
+    - loops
+    date: '2026-11-04'
+    provenance: null
+    tests:
+    - tools/test_pm_review.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: A daily, read-only review (`tools/dash pm`, fleet-pm.yml) reads every open issue and pull request of the registry
+      repos, their pull-request state, recent comments and releases, and the Fleet project, and reports what is out of line
+      with thr
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/pm_review.py
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/PM.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_pm_review.py
       scenarios: []
       screenshots: []
   truncated: false

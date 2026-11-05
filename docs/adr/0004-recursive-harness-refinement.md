@@ -52,9 +52,9 @@ JEV gains capability three, `python3 -m tools.jev refine` (`tools/dash refine`),
 
 The proposer, composer, selector and reflector sessions run through `tools/dash-gen ai-run --isolate` with the evidence tree as the working directory, under the step's own posture and the loop runner's budget lock, each capped at `stage_usd`; a candidate's rollout is a `loop run` attempt whose clone carries the candidate's tunable files in place of the hub's; selection is blind over the validated deliverables; the reflector's entry lands as a draft PR to `_data/harness_library/`; the adopted tunable edits land as a draft PR to `.github/`. `harness_refinement.enabled` and the maintainer's `--apply` gate every spend; the first live step is a canary at k = 1 on the scout, the cheapest loop, and the whole step is refused when `budget.loops` cannot absorb its ceiling.
 
-### P2 — the console surface
+### P2 — the console surface and the assistant
 
-`/loops` offers *Refine* beside *Run locally*, showing the plan, the evidence tree and the library; the TUI and the fleet MCP read the same run record. Writes stay behind the console's confirm (§ 11.8).
+The Harness Console's **Refine** page (`/refine`, `/api/refine`): the surface check and the fleet sweep, one plan per agent step with its ceiling against the month, the evidence trees, the experience library with the $0 reflector's form, and the **review queue** of every unfiled local loop-run preview with *Check it still matches* ($0) and *Approve and file* (the engine's publish gate, § 11.8, behind the confirm); the ops `refine-surface`, `refine-plan`, `refine-evidence`, `refine-library-check`; the MCP tools `refine_status`, `refine_library`, `refine_reviews`. The **Assist** page: one read-only headless Claude Code session per question (`tools/dash-gen ai-run`, the prompt in `tools/console/assist.prompt.txt`) with the console's own MCP layer as its only server, the hub checkout readable, every writing tool denied, capped by `_data/fleet.yml` `assistant:` and confirm-gated because it spends. Writes stay behind the console's confirm; the model-backed refinement stages (P1) are not reachable from the page until they exist.
 
 ### P3 — the surface check in the fleet
 
