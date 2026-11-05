@@ -1642,7 +1642,7 @@ features:
     description: 'P0 of ADR 0005. One launcher (fleet-launcher/v1, tools/fleetcore/apps.py) joins each registry
       `frontend:` block to its live address and to the ports its compose-hosted dev stack publishes in _data/ports.yml.
       The console''s Apps page (/apps, GET /api/apps, the public snapshot) lists every frontend and opens
-      one in a sandboxed frame at /apps/<id>: Live or Local, at the page width or one of the verify kit''s
+      one in a sandboxed frame at /apps/ID: Live or Local, at the page width or one of the verify kit''s
       device sizes, with a path box that stays inside the app. A stopped local stack shows the command that
       starts it; the public page asks no address anything until a reader opens an app. `tools/dash apps`
       prints the same list in a terminal, `apps open` opens one in the console, and `apps check` reports
@@ -1668,7 +1668,7 @@ features:
     - tools/console/test_console.py
     - tools/console/test_pages.py
     scenarios:
-    - apps
+    - verify/scenarios/apps.yml
     evidence:
     - test/evidence/apps
     prd:
@@ -1685,9 +1685,11 @@ features:
       as a ?windows= link that carries ids and geometry and never an address. Every window hosts the common
       App Shell (the Apps page''s controls) around the framed app. The Fleet window lists every repo in
       the registry by the frontend component it has or is owed (fleetcore.apps repos, `tools/dash apps plan`),
-      and a repo with no frontend opens a window that says which component it gets. Below 900 px the desktop
-      is a home screen that opens one app at a time. Console pages as windows and the generated repo app
-      are later phases.'
+      and a repo with no frontend opens as the generated repo app (HUB-080). The console''s own pages open
+      as windows too (phase D1): framed without their header and sidebar, titled after the page they are
+      on, opened from the bashOS start menu, the Console icon or the command palette, and remembered in the
+      layout where they are now; the console lets only its own origin frame it (frame-ancestors ''self'').
+      Below 900 px the desktop is a home screen that opens one app at a time.'
     implemented: true
     status: partial
     surface: ui
@@ -1706,10 +1708,13 @@ features:
     - tools/test_fleetcore_apps.py
     - tools/test_fleetcore.py
     - tools/console/test_pages.py
+    - tools/console/test_console.py
     scenarios:
-    - desktop
+    - verify/scenarios/desktop.yml
+    - verify/scenarios/desktop-pages.yml
     evidence:
     - test/evidence/desktop
+    - test/evidence/desktop-pages
     prd:
     - FR58
     - FR77
@@ -1718,10 +1723,10 @@ features:
       of its own'
     description: 'ADR 0005 decision 10, phase F1. A repo the shell has no frontend to frame (a CLI, a library,
       infrastructure, a kernel; an editor extension, a terminal UI or an app with no address until its own
-      component exists) opens as one generated app, at /apps/<id> and in a window on the Desktop: an overview
+      component exists) opens as one generated app, at /apps/ID and in a window on the Desktop: an overview
       from the registry and the hub''s signals (stack, licence, health, CI, last commit, open work, the
       standards audit, automation, how to get it), the repo''s README, its open work and its automation.
-      GET /api/project/<name>/readme reads the README from the repo''s submodule checkout on the console''s
+      GET /api/project/NAME/readme reads the README from the repo''s submodule checkout on the console''s
       machine (the registry''s path, directly under projects/, no symlink, capped); the public snapshot
       publishes none, because some fleet repos are private. The Apps page lists all 38 repos. The panels
       by kind (an API explorer, a CLI run in a terminal) are not built.'
@@ -1742,7 +1747,7 @@ features:
     - tools/console/test_pages.py
     - tools/test_fleetcore_apps.py
     scenarios:
-    - repo-app
+    - verify/scenarios/repo-app.yml
     evidence:
     - test/evidence/repo-app
     prd:
