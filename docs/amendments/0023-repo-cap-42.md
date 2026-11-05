@@ -1,11 +1,11 @@
-# NEW — The bamr87 account holds at most 42 repositories, and a new repo needs a consolidation
+# 0023 — The bamr87 account holds at most 42 repositories, and a new repo needs a consolidation
 
 - **Status:** proposed (ratification pending — Amr ratifies by merging this PR)
-- **Number:** NEW
+- **Number:** 0023
 - **Date:** 2026-11-04
 - **Proposed by:** Grok Bot (agent), on Amr's instruction as owner
 - **Ratified by:** the merged PR URL (leave blank until merged)
-- **Affects:** constitution § 22 (new, follows § 21 `container-management`); feature `AMEND-NEW:repo-cap-42` follow-up (`HUB-NEW`, not created here); requirements: none yet
+- **Affects:** constitution § 22 (new, follows § 21 `container-management`); feature `0023` follow-up (`HUB-NEW`, not created here); requirements: none yet
 - **Supersedes:** none
 - **Related:** none
 
