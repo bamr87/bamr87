@@ -106,6 +106,10 @@ def test_the_launcher_is_published_as_addresses_with_a_page_per_app():
     for a in doc["apps"]:
         assert f"apps/{a['id']}" in routes, f"/apps/{a['id']} would 404 on Pages"
     assert routes["apps"][0] == "Apps"
+    # The desktop's Fleet window lists every repo with the component it is owed.
+    assert routes["desktop"][0] == "Desktop"
+    assert doc["repos"] and doc["summary"]["repos"] == len(doc["repos"])
+    assert {r["component"]["kind"] for r in doc["repos"]} <= {"own", "preview", "terminal", "generated"}
 
 
 def test_every_app_route_has_a_page_in_the_build():

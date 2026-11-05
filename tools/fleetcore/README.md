@@ -5,7 +5,7 @@ The Harness Console (browser, `tools/console/`) and the terminal dash (TTY, `too
 | Module | Browser console | Terminal dash |
 | --- | --- | --- |
 | `fleet.py` + `views.py` | `/api/fleet`, `/api/fleet/docker`, `/api/project/:name` → **Projects**, **Inbox**, **Containers** and each project's page | Apps, Inbox, Attention, Monitor, Harness, Docker tabs |
-| `apps.py` | `/api/apps` → **Apps** (every fleet frontend, framed at its live or local address) and the origins in the console's Content-Security-Policy | — (planned: the Apps tab opens and checks a frontend); today `tools/dash apps` |
+| `apps.py` | `/api/apps` → **Desktop** (an icon per app, each in a window; the Fleet window from `repos`), **Apps** (every fleet frontend, framed at its live or local address) and the origins in the console's Content-Security-Policy | — (planned: the Apps tab opens and checks a frontend); today `tools/dash apps` |
 | `keys.py` (keys v1) | `/api/keys` → the page's key handler and `?` sheet | its Bindings, footer and `?` panel |
 | `theme.py` (bashOS palette) | `/theme.css` (Mantine's variables point at it) and `/api/theme` (the Terminal page's xterm colours) | the `bashos-dark` Textual theme |
 | `client.py` | — (the console *is* the runtime) | the **Jobs** tab and the `:` palette submit jobs to the console |

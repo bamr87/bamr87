@@ -28,6 +28,7 @@ export const to = {
   connect: () => '/connect',
   projects: () => '/projects',
   project: (name: string, tab?: string) => `/projects/${enc(name)}${tab ? `?tab=${enc(tab)}` : ''}`,
+  desktop: () => '/desktop',
   apps: () => '/apps',
   app: (id: string, f: { target?: string; path?: string; device?: string } = {}) => {
     const qs = new URLSearchParams();

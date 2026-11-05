@@ -36,6 +36,28 @@ TOKENS: dict[str, dict[str, str]] = {
     },
 }
 
+# The OS shell's own surface (the console's Desktop page): the paper palette of
+# the bashOS GUI desktop (bashos src/bashos/gui/web/app.css), so the browser
+# desktop the fleet opens looks like the one bashOS ships. Kept apart from the
+# dashboard roles above: a window's chrome is paper and orange, what is inside
+# a console page stays what it was.
+OS_TOKENS: dict[str, dict[str, str]] = {
+    "light": {
+        "paper": "#eeefe9", "paper_sunk": "#e6e7df", "surface": "#ffffff", "ink": "#16171b", "muted": "#61636b",
+        "line": "#d5d6cd", "line_soft": "#e4e5dd", "accent": "#f54e00", "accent_soft": "#fde8de",
+    },
+    "dark": {
+        "paper": "#16171d", "paper_sunk": "#101116", "surface": "#1e2029", "ink": "#edeee8", "muted": "#9a9ca6",
+        "line": "#33353f", "line_soft": "#2a2c35", "accent": "#ff6b28", "accent_soft": "#3a2015",
+    },
+}
+# console CSS variable  ←  OS-shell role
+OS_CSS_ROLES = {
+    "--os-paper": "paper", "--os-paper-sunk": "paper_sunk", "--os-surface": "surface", "--os-ink": "ink",
+    "--os-muted": "muted", "--os-line": "line", "--os-line-soft": "line_soft", "--os-accent": "accent",
+    "--os-accent-soft": "accent_soft",
+}
+
 LEVEL_ROLE = {"red": "error", "amber": "warning", "green": "success"}
 
 # console CSS variable  ←  token role
@@ -59,7 +81,8 @@ def level_color(level: str | None, mode: str = "dark") -> str:
 def _block(mode: str) -> str:
     t = TOKENS[mode]
     decls = " ".join(f"{var}: {t[role]};" for var, role in CSS_ROLES.items())
-    return f"color-scheme: {mode}; {decls}"
+    shell = " ".join(f"{var}: {OS_TOKENS[mode][role]};" for var, role in OS_CSS_ROLES.items())
+    return f"color-scheme: {mode}; {decls} {shell}"
 
 
 def css() -> str:

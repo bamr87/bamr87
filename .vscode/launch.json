@@ -131,6 +131,14 @@
       "presentation": { "group": "0-fleet", "order": 8 }
     },
     {
+      "name": "🧭 Fleet: apps plan (every repo's frontend component and what it is owed)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash apps plan",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "0-fleet", "order": 8 }
+    },
+    {
       "name": "📜 Fleet: dev logs (pick a project)",
       "type": "node-terminal",
       "request": "launch",
@@ -1557,7 +1565,7 @@
       "id": "verifyScenario",
       "description": "Scenario id (verify/scenarios/)",
       "type": "pickString",
-      "options": ["home", "dashboard", "connect", "engagements", "features", "harnesses", "monitor", "roadmap", "triage", "work", "workflows", "loop-run", "apps"],
+      "options": ["home", "dashboard", "connect", "engagements", "features", "harnesses", "monitor", "roadmap", "triage", "work", "workflows", "loop-run", "apps", "desktop"],
       "default": "home"
     },
     {

@@ -1,6 +1,6 @@
 # Fleet frontend platform — layers, tiers and fan-out
 
-> How the fleet's frontends share one platform without sharing one framework: six standard layers (tokens, Web Components, one app shell with micro-frontends, one OIDC identity, contracts, a registry with conformance), four tiers, the surfaces, the app portal that opens every frontend inside the Harness Console, the public and private modes, who owns what, and the fan-out plan. Rule: constitution § 18 ([amendment 0016](amendments/0016-fleet-design-consistency.md)); composition and surfaces: [ADR 0005](adr/0005-console-as-fleet-portal.md) (proposed); phases: [DESIGN-HARMONIZATION.md](DESIGN-HARMONIZATION.md); shell item: roadmap FF-0032.
+> How the fleet's frontends share one platform without sharing one framework: six standard layers (tokens, Web Components, one app shell with micro-frontends, one OIDC identity, contracts, a registry with conformance), four tiers, the surfaces, bashOS as the OS shell that hosts them, the frontend component every repo gets, the app portal that opens every frontend inside the Harness Console, the public and private modes, who owns what, and the fan-out plan. Rule: constitution § 18 ([amendment 0016](amendments/0016-fleet-design-consistency.md)); composition and surfaces: [ADR 0005](adr/0005-console-as-fleet-portal.md) (proposed); phases: [DESIGN-HARMONIZATION.md](DESIGN-HARMONIZATION.md); shell item: roadmap FF-0032.
 
 ## Principle
 
@@ -40,6 +40,72 @@ A **fork** is a tracked copy of a token or shell build (`fleet-tokens.*`, `fleet
 | Mobile | the web shell as a PWA first; fleet-mobile (Compose Multiplatform) as the native shell, or Capacitor wrapping the web shell, reading the same launcher | Kotlin and Swift constants |
 | VS Code | planned: an extension in the hub hosting the web shell in a webview, with the launcher as a tree; extension webviews map `--vscode-*` | CSS |
 | Terminal | `tools/dash apps` (list, address, open, check) and the terminal dash; terminal themes (bashOS) | ANSI theme |
+
+## The OS shell: bashOS
+
+The console's **Desktop** page (`/desktop`) is the bashOS desktop in the browser ([ADR 0005](adr/0005-console-as-fleet-portal.md) decision 9, proposed): an icon for every fleet app, each opened in a window. Three layers, each owned once:
+
+| Layer | What it is | Owner |
+| --- | --- | --- |
+| **OS shell** | the desktop, the dock of icons, floating windows, the taskbar, the shareable layout | bashOS: its layout reducer, vendored byte-identical in `tools/console/web/src/vendor/bashos/`, and its paper palette (`--os-*` in `/theme.css`) |
+| **App Shell** | what every window shares: where the app runs, a device size, a path, reload, open outside | the hub (`AppPane`, the app portal below) |
+| **App** | a fleet frontend at its live or local address | each repo |
+
+| You want to | Do this |
+| --- | --- |
+| Open an app in a window | click its icon; shift-click for a second window (Live beside Local) |
+| Fill half the desktop, or all of it | drag the window to the left or right edge, or to the top; double-click the title bar |
+| Get a window back | its button on the taskbar; `⌘\` cycles |
+| Arrange everything | the tile and cascade buttons on the taskbar |
+| Send someone this desktop | the link button: a `?windows=` address of ids and geometry, never of URLs |
+| See every repo, with or without a frontend | the **Fleet** icon |
+
+On a phone the desktop is a home screen: the icons, then one app at a time. Console pages do not open as windows yet; the **Console** icon leaves the desktop for the classic console.
+
+## A frontend component for every repo
+
+Every repo gets one, so every repo is an app on the desktop ([ADR 0005](adr/0005-console-as-fleet-portal.md) decision 10, proposed). The kind follows from the registry: **own** (it has a web frontend), **preview** (an editor extension, a mobile or desktop app: a web preview of it), **terminal** (its terminal UI in a shell window), **generated** (no UI: the repo app the shell builds from the repo's README, feature index, docs and commands). Regenerate this table with `tools/dash apps plan`; the phases (F1 to F4) are in the ADR.
+
+| repo | frontend component | state | next step |
+| --- | --- | --- | --- |
+| README | own (mkdocs) | in the shell | the bridge and the public and private modes (P3, P4) |
+| scripts | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
+| skills | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
+| it-journey | own (jekyll-zer0) | in the shell | the bridge and the public and private modes (P3, P4) |
+| zer0-mistakes | own (jekyll-zer0) | in the shell | the bridge and the public and private modes (P3, P4) |
+| gitorio | own (react-vite-tailwind) | in the shell | the bridge and the public and private modes (P3, P4) |
+| law-ai | own (nextjs-tailwind) | in the shell | the bridge and the public and private modes (P3, P4) |
+| githubai | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
+| fredgar-ai | own (react-vite+django) | in the shell | the bridge and the public and private modes (P3, P4) |
+| vs-sonic-pi | preview | not yet | a web preview published beside the repo (F3) |
+| zpl-viewer | preview | not yet | a web preview published beside the repo (F3) |
+| bashcrawl | own (react-vite-tailwind) | in the shell | the bridge and the public and private modes (P3, P4) |
+| bamr87.github.io | own (jekyll-zer0) | in the shell | the bridge and the public and private modes (P3, P4) |
+| lifehacker.dev | own (jekyll-zer0) | in the shell | the bridge and the public and private modes (P3, P4) |
+| djangoerp | own (django-templates) | in the shell, local only | a public build with an address (F2) |
+| zer0-CMS | own (react-mantine+vscode+django) | in the shell, local only | a public build with an address (F2) |
+| bashos | terminal | not yet | its terminal UI in a shell window and a demo for the public page (F3) |
+| ocrmd | own (static-html) | not yet | an address: a public build or a dev-stack port (F2) |
+| rewind-arcade | own (react-vite-tailwind-canvas) | in the shell | the bridge and the public and private modes (P3, P4) |
+| outbox | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
+| cv-pro | own (react-vite-tailwind) | not yet | an address: a public build or a dev-stack port (F2) |
+| godotgo | own (godot) | not yet | an address: a public build or a dev-stack port (F2) |
+| bash-365-apex | own (static-html) | in the shell | the bridge and the public and private modes (P3, P4) |
+| year-of-ai.github.io | own (jekyll-zer0) | in the shell | the bridge and the public and private modes (P3, P4) |
+| ai-world-view.github.io | own (jekyll-zer0) | in the shell | the bridge and the public and private modes (P3, P4) |
+| bash-365.com | own (jekyll-zer0) | in the shell | the bridge and the public and private modes (P3, P4) |
+| fleet-infra | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
+| kvlite | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
+| netprobe | terminal | not yet | its terminal UI in a shell window and a demo for the public page (F3) |
+| fleet-observe | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
+| zer0-id | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
+| sec-lab | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
+| edgar-pipeline | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
+| zer0-kernel | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
+| sensor-mesh | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
+| fleet-mobile | preview | not yet | a web preview published beside the repo (F3) |
+| schema-lang | generated | not yet | the generated repo app (F1), then a component of its own (F4) |
+| ragio-ai | own (static-html+fastapi) | not yet | an address: a public build or a dev-stack port (F2) |
 
 ## The app portal
 

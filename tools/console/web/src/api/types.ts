@@ -307,12 +307,41 @@ export interface FleetApp {
   local_host?: string | null;
 }
 
+/** A repo's frontend component (ADR 0005): what kind it is and how much of it exists. */
+export interface RepoComponent {
+  /** own: its own frontend · preview: a web preview of a non-browser surface · terminal: its TUI in a window · generated: the repo app the shell builds. */
+  kind: 'own' | 'preview' | 'terminal' | 'generated';
+  /** live: the shell shows it at a deployed address · local: only at a dev stack · none: nothing to show yet. */
+  state: 'live' | 'local' | 'none';
+  next: string;
+}
+
+/** Every submodule in the registry, with or without a frontend. */
+export interface FleetRepo {
+  id: string;
+  name: string;
+  description?: string;
+  category?: string | null;
+  status?: string | null;
+  repo_url?: string | null;
+  type?: string | null;
+  framework?: string | null;
+  surfaces: string[];
+  component: RepoComponent;
+  /** The shell can frame it today: it is an app in the launcher. */
+  framed: boolean;
+}
+
 export interface AppsDoc {
   schema: string;
   source: string;
   apps: FleetApp[];
+  repos: FleetRepo[];
   viewports: { id: string; width: number; height: number }[];
-  summary: { apps: number; embeddable: number; live: number; local: number; by_type: Dict<number>; by_shell: Dict<number>; by_tier: Dict<number> };
+  summary: {
+    apps: number; embeddable: number; live: number; local: number; repos: number;
+    by_type: Dict<number>; by_shell: Dict<number>; by_tier: Dict<number>; components: Dict<number>;
+  };
 }
 
 export interface FleetRow {
