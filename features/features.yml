@@ -1748,3 +1748,29 @@ features:
     prd:
     - FR58
     - FR78
+  - id: HUB-081
+    title: 'Visual evidence standard: screenshots and front-end evidence for tutorials, guides and setup
+      docs'
+    description: 'A hub-owned standard (constitution § 24) that requires tutorials, how-tos, setup docs,
+      console/UI help and walkthrough articles to ship screenshots, GIFs or recordings — with naming under
+      docs/assets/guides/<slug>/ or test/evidence/<slug>/, meaningful alt text, redaction of secrets/PII/tokens,
+      and re-capture when the depicted UI changes — plus a warn-then-fail guides lint (tools/guides_visual_lint.py),
+      Harness Console capture/attach helpers (phased), and fleet fan-out from the hub. Distinct from § 15
+      frontend-PR evidence; epic #678, backlog #679, roadmap FF-0039.'
+    implemented: false
+    status: planned
+    surface: infra
+    link: tools/guides_visual_lint.py
+    docs: docs/VISUAL-EVIDENCE.md
+    tags:
+    - docs
+    - guides
+    - evidence
+    - console
+    - lint
+    - standards
+    date: 2026-11-05
+    tests:
+    - tools/test_guides_visual_lint.py
+    prd:
+    - FR79

@@ -165,6 +165,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`gen-projects-schema.py`](tools/gen-projects-schema.py) | Regenerates `projects/SCHEMA.md` from `.gitmodules` + the registry (`--check` gates staleness) |
 | [`gen-specs-data.py`](tools/gen-specs-data.py) | Regenerates `_data/specs.yml` (the machine-readable Universal Project Standard) from the requirement tables in `specs/*.md` (`--check` gates staleness) |
 | [`governance_lint.py`](tools/governance_lint.py) | The fleet GOVERNANCE check: validate, and keep in sync, the chain |
+| [`guides_visual_lint.py`](tools/guides_visual_lint.py) | Warn-then-fail lint for guide-like Markdown that lacks visual |
 | [`install-prose-hook.sh`](tools/install-prose-hook.sh) | Installs a **global** git `pre-commit` hook (`~/.git-hooks`, `core.hooksPath`) that runs `unwrap-prose.py` over the staged markdown and restages it, so a commit is born… |
 | [`install-workspace-sync.sh`](tools/install-workspace-sync.sh) | Installs the `com.bamr87.workspace-sync` LaunchAgent (macOS) that runs `update-submodules.sh --no-commit --no-push` daily and at login, keeping the local clone on `main`… |
 | [`issue-evidence.sh`](tools/issue-evidence.sh) | Builds one issue's **evidence bundle** in an isolated virtual environment — fresh clone, own toolchain (`venv`/`node_modules`/`vendor/bundle`), the project's own lint/te… |
@@ -199,6 +200,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_fleetcore_nodes.py`](tools/test_fleetcore_nodes.py) | Fixture tests for tools/fleetcore/nodes.py — where each hub workload runs (ADR 0003, docs/PLATFORM.md). |
 | [`test_frontend_registry.py`](tools/test_frontend_registry.py) | Tests for tools/frontend_registry.py — the § 18 frontend: block lint and the launcher projection. |
 | [`test_governance_lint.py`](tools/test_governance_lint.py) | Tests for tools/governance_lint.py (stdlib + PyYAML). |
+| [`test_guides_visual_lint.py`](tools/test_guides_visual_lint.py) | Fixture tests for tools/guides_visual_lint.py (constitution § 24).""" from __future__ import annotations |
 | [`test_jev_adapter_fanout_agent_fill.py`](tools/test_jev_adapter_fanout_agent_fill.py) | Fixture tests for tools/jev/adapters/fanout_agent_fill.py — the fan-out agent fill's adapter on the loop engine (bamr87/bamr87#488, ADR 0002 P3, step 3). |
 | [`test_jev_adapter_fleet_pulse_doctor.py`](tools/test_jev_adapter_fleet_pulse_doctor.py) | Fixture tests for tools/jev/adapters/fleet_pulse_doctor.py — the fleet doctor's adapter on the loop engine (bamr87/bamr87#488, ADR 0002 P3). |
 | [`test_jev_adapter_repo_evolution_evolve.py`](tools/test_jev_adapter_repo_evolution_evolve.py) | Fixture tests for tools/jev/adapters/repo_evolution_evolve.py — the evolution agent's adapter on the loop engine (bamr87/bamr87#488, ADR 0002 P3, step 2). |
@@ -419,11 +421,13 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`TOKEN-ROTATION.md`](docs/TOKEN-ROTATION.md) | The weekly credential loop: what rotating a browser-minted token can mean, the propagate / audit / re-mint split, and the values-free ledger. |
 | [`UX-HARNESS.md`](docs/UX-HARNESS.md) | Continuous UI/UX audit for the fleet: the `ux-audit` kit's computational gate and the hub's critique loop. |
 | [`VERIFICATION.md`](docs/VERIFICATION.md) | The agent verification standard — feature index, user scenarios, evidence bundles, the `fleet-verify.yml` gate and the fleet coverage index. |
+| [`VISUAL-EVIDENCE.md`](docs/VISUAL-EVIDENCE.md) | Status: **proposed** (constitution § 24, amendment `visual-evidence`; epic [#678](https://github.com/bamr87/bamr87/issues/678), backlog [#679](https://github.com/bamr87/… |
 | [`WORK-BOARD.md`](docs/WORK-BOARD.md) | Every open issue, pull request, roadmap spec, spec package and backlog item in one place, in the order the loops will take it, with drag and drop to reorder, move and re… |
 | [`WORKFLOW-ATLAS.md`](docs/WORKFLOW-ATLAS.md) | The hub's own GitHub Actions read as one model: what each workflow and composite action does, the standards they are held to, why their runs fail, what can be retired, a… |
 | [`WORKFLOW-OPTIMIZATION.md`](docs/WORKFLOW-OPTIMIZATION.md) | The fleet-wide GitHub Actions audit of 2026-09 and the record of what changed because of it. |
 | [`WORKFLOW-VERSIONING.md`](docs/WORKFLOW-VERSIONING.md) | How the reusable workflows are tagged (`vX.Y.Z` plus a floating `vX`), what each bump promises, and how a release is cut and rolled back. |
 | [`constitution.md`](docs/constitution.md) | The rules every change to this repo must satisfy, whoever makes it — a human or an AI agent. |
+| [`visual-evidence-backlog.md`](docs/visual-evidence-backlog.md) | First coverage set for epic [#678](https://github.com/bamr87/bamr87/issues/678) / backlog [#679](https://github.com/bamr87/bamr87/issues/679). |
 | [`AGENTS.md`](AGENTS.md) | The fleet's control plane: about forty projects mounted as Git submodules and managed, monitored and standardized from one hub, which is also the GitHub profile and the… |
 | [`CLAUDE.md`](CLAUDE.md) | bamr87 |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to contribute: branches, commits, local gates and pull requests. |

@@ -27,6 +27,7 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - The OPS remote-write path (constitution § 11.8, amendment `ops-remote-write-path`; option (a) of bamr87/bamr87#487): the console `loop-run` op takes `apply` (and `run_id` to publish an earlier reviewed preview) behind the confirm gate, and `dash-gen doctor-file --apply --reviewed-bodies` publishes the fleet doctor dry run as one pushed branch and a draft PR, or the hub issue, as CI would, with the token probed by `gh api user` and never with `--scheduled`.
 - Constitution § 23 (amendment `writing-chronicle`): the writing section (`pages/posts/`) keeps a daily, summarized chronicle of all fleet operations, AI prompting and agent work — working on, pushing, committing and deploying — across all repos, with secrets always redacted; entries are drafts by default and publish only after review by a human and/or an agent.
 - Shared voice model `voices/v1`: `_data/voices/voices.yml` (canonical; lifehacker.dev's SDLC persona cast) and `voices.schema.json`, validated by `tools/voices.py check` (with `--against` drift check and `assign`). § 23 also brings lifehacker.dev in as the hub-originated news agency.
+- Constitution § 24 (amendment `visual-evidence`): tutorials, guides and setup docs ship screenshots or other visual front-end evidence (naming, alt text, redaction, freshness), with a warn-then-fail guides lint and hub-first fleet fan-out.
 
 ### Changed
 

@@ -125,6 +125,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-078](features/features.yml) | The app portal: every fleet frontend opened inside the Harness Console, at its live address or its local stack | partial | route `/apps` · [`docs/FRONTEND-PLATFORM.md`](docs/FRONTEND-PLATFORM.md) | FR58, FR76 |
 | [HUB-079](features/features.yml) | The bashOS desktop: an icon for every fleet app, each opened in a window that shares one App Shell | partial | route `/desktop` · [`docs/FRONTEND-PLATFORM.md`](docs/FRONTEND-PLATFORM.md) | FR58, FR77 |
 | [HUB-080](features/features.yml) | The generated repo app: every repo in the fleet opens as an app, with or without a frontend of its own | partial | route `/apps/kvlite` · [`docs/FRONTEND-PLATFORM.md`](docs/FRONTEND-PLATFORM.md) | FR58, FR78 |
+| [HUB-081](features/features.yml) | Visual evidence standard: screenshots and front-end evidence for tutorials, guides and setup docs | planned | [`tools/guides_visual_lint.py`](tools/guides_visual_lint.py) · [`docs/VISUAL-EVIDENCE.md`](docs/VISUAL-EVIDENCE.md) | FR79 |
 
 **Requirement → feature trace**
 
@@ -222,6 +223,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR76 | HUB-078 |
 | FR77 | HUB-079 |
 | FR78 | HUB-080 |
+| FR79 | HUB-081 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -294,6 +296,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR76: The product must let a person open any frontend the registry declares from one place, in the browser and from a terminal, at its deployed address or at its local development stack and at a chosen device size, framing only addresses the registry declares and asking a visitor's own machine nothing unprompted.
 - FR77: The product must present the fleet as a desktop in the browser on the bashOS layout engine: an icon for every app, each opened in a window that shares one set of controls, every repo listed by the frontend component it has or is owed, and the same desktop usable at a phone's width.
 - FR78: The product must open every repo in the registry as an app, generating one from what the hub holds about a repo that has no frontend of its own, and must never publish a repo's README on the public site.
+- FR79: Tutorials, how-tos, setup docs, console/UI help pages and walkthrough articles must ship visual front-end evidence (screenshots, a short recording or a GIF) under docs/assets/guides/<slug>/ or test/evidence/<slug>/ with meaningful alt text and redaction of secrets/PII/tokens, or a one-line skip-visuals reason; a guides visual lint must flag gaps (warn-only per repo until adoption, then hard fail); when a PR changes a depicted UI it must update or re-capture the guide visuals in the same PR.
 
 **Non-functional**
 

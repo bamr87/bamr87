@@ -68,6 +68,8 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/TOKEN-ROTATION.md`](TOKEN-ROTATION.md) | The weekly credential loop: what rotating a browser-minted token can mean, the propagate / audit / re-mint split, and the values-free ledger. |
 | [`docs/UX-HARNESS.md`](UX-HARNESS.md) | Continuous UI/UX audit for the fleet: the `ux-audit` kit's computational gate and the hub's critique loop. |
 | [`docs/VERIFICATION.md`](VERIFICATION.md) | The agent verification standard — feature index, user scenarios, evidence bundles, the `fleet-verify.yml` gate and the fleet coverage index. |
+| [`docs/visual-evidence-backlog.md`](visual-evidence-backlog.md) | First coverage set for epic [#678](https://github.com/bamr87/bamr87/issues/678) / backlog [#679](https://github.com/bamr87/bamr87/issues/679). Audit date: **2026-11-05** (America/Denver). Scope: `bamr87/bamr87` hub only — docs, `pages/`… |
+| [`docs/VISUAL-EVIDENCE.md`](VISUAL-EVIDENCE.md) | Status: **proposed** (constitution § 24, amendment `visual-evidence`; epic [#678](https://github.com/bamr87/bamr87/issues/678), backlog [#679](https://github.com/bamr87/bamr87/issues/679)). Feature: `HUB-NEW` / slug `visual-evidence`.… |
 | [`docs/WORK-BOARD.md`](WORK-BOARD.md) | Every open issue, pull request, roadmap spec, spec package and backlog item in one place, in the order the loops will take it, with drag and drop to reorder, move and reprioritise that work and a file the loops read back. |
 | [`docs/WORKFLOW-ATLAS.md`](WORKFLOW-ATLAS.md) | The hub's own GitHub Actions read as one model: what each workflow and composite action does, the standards they are held to, why their runs fail, what can be retired, and a designer that writes a new workflow already inside the standards. |
 | [`docs/WORKFLOW-OPTIMIZATION.md`](WORKFLOW-OPTIMIZATION.md) | The fleet-wide GitHub Actions audit of 2026-09 and the record of what changed because of it. |
@@ -75,6 +77,12 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/adr/`](adr/README.md) | Decisions for bamr87 that are hard to reverse — the stack, data model, security model, public interfaces, and any relaxation of a gate — one file each. |
 | [`docs/agentic-patterns/`](agentic-patterns/README.md) | How each pattern in Antonio Gulli's *Agentic Design Patterns* shows up in the bamr87 fleet: one page per chapter, each rated proven, partial or gap against pinned, reproducible evidence. |
 | [`docs/amendments/`](amendments/README.md) | The append-only log of numbered changes to the constitution, ratified only when the maintainer merges the PR. |
+
+### `docs/assets/`
+
+| Document | What it covers |
+| --- | --- |
+| [`docs/assets/SCHEMA.md`](assets/SCHEMA.md) | Static assets referenced from hub docs — screenshots and visual evidence for tutorials and setup guides (constitution section 24). |
 
 ### `docs/prd/`
 
@@ -86,5 +94,12 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/prd/HARNESS-PIPELINE-MAP.md`](prd/HARNESS-PIPELINE-MAP.md) | **Status: Draft / proposed.** Data layer implemented in this PR; the console page is specified, not built. Features: `HUB-025` (pipeline map) and `HUB-026` (GitHub workflow nodes) in [`features/features.yml`](../features/features.yml).… |
 | [`docs/prd/HARNESS-PROTOCOL.md`](prd/HARNESS-PROTOCOL.md) | **Status: Draft / proposed.** Design only; nothing here is implemented yet. Feature: `HUB-NEW` (slug `harness-protocol`) in [`features/features.d/harness-protocol.yml`](../features/features.d/harness-protocol.yml). The number is… |
 | [`docs/prd/SCHEMA.md`](prd/SCHEMA.md) | Sub-PRDs: detailed product requirements for one feature area. The root `PRD.md` owns every requirement id (`FRn`/`NFRn`); a sub-PRD expands them and is linked from it and from the feature's `docs:` in `features/features.yml`. |
+| [`docs/prd/VISUAL-EVIDENCE.md`](prd/VISUAL-EVIDENCE.md) | **Status: Draft / proposed.** Design + governance first; lint warn-only on the hub. Feature: `HUB-NEW` (slug `visual-evidence`) in [`features/features.d/visual-evidence.yml`](../features/features.d/visual-evidence.yml). Number assigned… |
+
+### `docs/assets/guides/`
+
+| Document | What it covers |
+| --- | --- |
+| [`docs/assets/guides/SCHEMA.md`](assets/guides/SCHEMA.md) | One directory per hub guide that carries visual evidence; files are referenced from the guide Markdown (constitution section 24). |
 
 <!-- AUTO:docs-index:end -->

@@ -1,11 +1,11 @@
-# NEW — Visual evidence is required for tutorials, guides and setup docs
+# 0022 — Visual evidence is required for tutorials, guides and setup docs
 
 - **Status:** proposed (ratification pending — Amr ratifies by merging this PR)
-- **Number:** NEW
+- **Number:** 0022
 - **Date:** 2026-11-05
 - **Proposed by:** Grok Bot (agent), on Amr's instruction as owner
 - **Ratified by:** the merged PR URL (leave blank until merged)
-- **Affects:** constitution § 24 (new, follows § 23 `writing-chronicle` on main; § 22 is proposed by open PR #660 `repo-cap-42` — § 24 stays free either way; renumber only if a later amendment claims 24 first); § 15 by reference (PR evidence stays there); feature `HUB-NEW:visual-evidence`; requirement `FR-NEW:visual-evidence`; roadmap FF-0039; docs `VISUAL-EVIDENCE.md`, `prd/VISUAL-EVIDENCE.md`
+- **Affects:** constitution § 24 (new, follows § 23 `writing-chronicle` on main; § 22 is proposed by open PR #660 `repo-cap-42` — § 24 stays free either way; renumber only if a later amendment claims 24 first); § 15 by reference (PR evidence stays there); feature `HUB-081`; requirement `FR79`; roadmap FF-0039; docs `VISUAL-EVIDENCE.md`, `prd/VISUAL-EVIDENCE.md`
 - **Supersedes:** none (extends § 7, § 15 and UPS-QA-52 to *guides*, without changing frontend-PR rules)
 - **Related:** epic #678, backlog #679; amendment 0010 `major-change-evidence` (§ 15); `docs/VERIFICATION.md`; `test/evidence/`; Design for Failure (DFF, `.github/copilot-instructions.md`)
 
@@ -38,7 +38,7 @@ New constitution section:
 > 4. **Alt text** — every image has meaningful alt text that describes what the reader should notice; decorative spacer images are forbidden in guides.
 > 5. **Redaction** — a guide image never shows tokens, secrets, credentials, keys, cookies, private URLs with embedded credentials, or unredacted PII; redact before commit (same bar as § 23.3).
 > 6. **Freshness** — when a change alters a UI a guide depicts, the same PR updates or re-captures the guide visuals (or adds `skip-visuals` with why). Stale screenshots are a defect, not documentation debt to ignore.
-> 7. **Harness Console** — the console gains capture/attach helpers so operators and agents can record guide evidence without leaving the control plane (phased; see feature `HUB-NEW:visual-evidence`).
+> 7. **Harness Console** — the console gains capture/attach helpers so operators and agents can record guide evidence without leaving the control plane (phased; see feature `HUB-081`).
 > 8. **Enforcement** — a guides visual lint (`tools/guides_visual_lint.py`) flags guide-like Markdown lacking an image, an evidence-bundle reference, or a `skip-visuals` reason; warn-only per repo until its adoption/fan-out PR lands, then a hard failure. Fleet fan-out follows the 0007 pattern (one spoke PR per repo).
 > 9. **Fit with § 15** — frontend *PR* evidence stays under § 15; this section covers *published guides*. A change may need both.
 
@@ -64,6 +64,6 @@ New constitution section:
 - Follow-up on #679: finish the lint fixtures, wire warn-only into hub CI, then P2 backfill of `docs/visual-evidence-backlog.md`.
 - Follow-up (epic #678 P1): console capture/attach/redaction UX.
 - Follow-up (epic #678 P3): spoke fan-out kit.
-- Feature fragment `features/features.d/visual-evidence.yml` (`HUB-NEW`, `FR-NEW:visual-evidence`); roadmap `FF-0039`.
+- Feature fragment `features/features.d/visual-evidence.yml` (`HUB-NEW`, `FR79`); roadmap `FF-0039`.
 - Predicted ids at merge (as of 2026-11-05 on main): amendment **0022** if this merges before #660, else **0023**; feature **HUB-081**; requirement **FR79**. Section number **§ 24** either way relative to #660.
 - Ratification: Amr ratifies this amendment by merging the PR; agents propose, never merge (§ 8).
