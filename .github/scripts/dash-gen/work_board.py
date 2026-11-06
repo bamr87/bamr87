@@ -91,6 +91,26 @@ def _now() -> dt.datetime:
     return dt.datetime.now(dt.timezone.utc)
 
 
+def _load_roadmap(path: Path) -> list:
+    """_data/roadmap.yml plus pending _data/roadmap.d/<slug>.yml fragments.
+
+    A fragment is numbered on main by tools/jev/number.py; until then it shows
+    as `FF-NEW:<slug>` (amendment `roadmap-numbering-at-merge`). Its status
+    lives in the fragment, so the board's roadmap editor (which edits
+    _data/roadmap.yml) refuses it until it is numbered.
+    """
+    rows = _load_yaml(path)
+    rows = rows if isinstance(rows, list) else []
+    frag_dir = path.parent / "roadmap.d"
+    if frag_dir.is_dir():
+        for frag in sorted(frag_dir.glob("*.yml")):
+            e = _load_yaml(frag)
+            if isinstance(e, dict):
+                slug = str(e.pop("slug", None) or frag.stem)
+                rows.append({**e, "id": f"FF-NEW:{slug}", "pending": True})
+    return rows
+
+
 def _load_yaml(path: Path):
     if not path.exists():
         return None
@@ -353,7 +373,7 @@ def load_inputs(root: Path = REPO_ROOT, *, local: bool = True, queue_path: Path 
     registry = [p for p in (_load_yaml(data / "projects.yml") or []) if isinstance(p, dict) and p.get("name")]
     fleet = _load_yaml(data / "fleet.yml") or {}
     queue, problems = wq.load(queue_path or (data / "work_queue.yml"))
-    roadmap = _load_yaml(roadmap_path or (data / "roadmap.yml"))
+    roadmap = _load_roadmap(roadmap_path or (data / "roadmap.yml"))
     return {
         "root": root,
         "now": now or _now(),

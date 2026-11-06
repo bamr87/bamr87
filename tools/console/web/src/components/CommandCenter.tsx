@@ -3,11 +3,12 @@
 // allowlisted operations. Picking an operation that takes parameters opens its
 // page with the form; one that takes none runs (through the same confirm gate).
 import { useMemo } from 'react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { Spotlight, type SpotlightActionGroupData } from '@mantine/spotlight';
 import { Badge } from '@mantine/core';
 import { IconAppWindow, IconApps, IconFileText, IconGitBranch, IconPlayerPlay, IconRepeat, IconSearch, IconSettings } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { OPEN_EVENT } from '../api/backend';
 import { useOps, useStateDoc } from '../api/hooks';
 import type { AppsDoc, Dict, WorkflowAtlas } from '../api/types';
 import { useRunner } from '../jobs/JobRunner';
@@ -15,13 +16,19 @@ import { FLAT } from '../nav';
 import { to } from '../lib/links';
 
 export function CommandCenter() {
-  const navigate = useNavigate();
+  const routerNavigate = useNavigate();
+  const onDesktop = useLocation().pathname.startsWith('/desktop');
   const state = useStateDoc();
   const ops = useOps();
   const qc = useQueryClient();
   const { runOp } = useRunner();
 
   const actions = useMemo<SpotlightActionGroupData[]>(() => {
+    // On the Desktop a pick opens a window there instead of leaving it.
+    const navigate = (path: string) => {
+      if (onDesktop) window.dispatchEvent(new CustomEvent(OPEN_EVENT, { detail: { path } }));
+      else routerNavigate(path);
+    };
     const go = (path: string) => () => navigate(path);
     const pages = FLAT.map((it) => ({
       id: `page:${it.to}`, label: it.label, description: it.hint, leftSection: <it.icon size={18} stroke={1.6} />, onClick: go(it.to),
@@ -71,7 +78,7 @@ export function CommandCenter() {
       { group: 'Content sites', actions: sites },
       { group: 'Config', actions: config },
     ];
-  }, [state.data, ops.data, navigate, runOp, qc]);
+  }, [state.data, ops.data, routerNavigate, onDesktop, runOp, qc]);
 
   return (
     <Spotlight

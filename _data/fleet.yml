@@ -758,6 +758,7 @@ jev:
     - "features/features.d/*"
     - "changelog.d/*"
     - "docs/amendments/proposed/*"
+    - "_data/roadmap.d/*"
   union_paths:
     - "docs/amendments/README.md"
     - "_data/jev_resolutions.yml"
