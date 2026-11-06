@@ -67,7 +67,7 @@ A console page in a window is the same page without its header and sidebar: the 
 
 Every repo gets one, so every repo is an app on the desktop ([ADR 0005](adr/0005-console-as-fleet-portal.md) decision 10, proposed). The kind follows from the registry: **own** (it has a web frontend), **preview** (an editor extension, a mobile or desktop app: a web preview of it), **terminal** (its terminal UI in a shell window), **generated** (no UI: the repo app the shell builds from the repo's README, feature index, docs and commands). Regenerate this table with `tools/dash apps plan`; the phases (F1 to F4) are in the ADR.
 
-Until a repo's own component is in the shell it opens as the **generated repo app** (`tools/console/web/src/pages/RepoApp.tsx`), so all 38 repos are apps today: an overview from the registry and the hub's signals (health, CI, open work, the standards audit, automation, how to get it), the repo's README, its open work and its automation. A console reads the README from the repo's checkout on the operator's machine; the public site carries none.
+Until a repo's own component is in the shell it opens as the **generated repo app** (`tools/console/web/src/pages/RepoApp.tsx`), so all 39 repos are apps today: an overview from the registry and the hub's signals (health, CI, open work, the standards audit, automation, how to get it), the repo's README, its open work and its automation. A console reads the README from the repo's checkout on the operator's machine; the public site carries none.
 
 | repo | frontend component | state | next step |
 | --- | --- | --- | --- |
@@ -104,6 +104,7 @@ Until a repo's own component is in the shell it opens as the **generated repo ap
 | zer0-id | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
 | sec-lab | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
 | edgar-pipeline | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
+| recon-engine | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
 | zer0-kernel | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
 | sensor-mesh | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
 | fleet-mobile | preview | generated app for now | a web preview published beside the repo (F3) |
@@ -193,6 +194,7 @@ Every submodule carries a `frontend:` block; `TBD` marks what inspection could n
 | zer0-id | none | none | TBD | — | none |
 | sec-lab | none | none | none | — | none |
 | edgar-pipeline | none | none | none | — | none |
+| recon-engine | none | none | none | — | none |
 | zer0-kernel | none | none | none | — | none |
 | sensor-mesh | none | none | none | — | none |
 | fleet-mobile | app | shell | compose-multiplatform | mobile | TBD |
