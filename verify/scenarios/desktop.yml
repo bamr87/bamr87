@@ -1,6 +1,6 @@
 # The bashOS desktop on the published site: an icon per app, the whole fleet in one window, and nothing fetched until asked.
 id: desktop
-feature: HUB-NEW:bashos-desktop-shell
+feature: HUB-079
 title: "The Desktop shows an icon for every fleet app and a window for every repo, at desktop and phone widths"
 description: "/desktop is the bashOS OS shell in the browser: one icon per fleet frontend, each opening in a window that carries the common App Shell. The Fleet window lists every repo in the registry by the frontend component it has or is owed, and a repo with no frontend opens the repo app the shell generates for it. The public build fetches nothing from another origin while the desktop is on screen. At a phone's width the desktop is a home screen that opens one app at a time. Nothing scrolls sideways."
 viewports: [desktop, mobile]

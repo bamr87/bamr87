@@ -1,6 +1,6 @@
 # The app portal on the published site: every fleet frontend listed, one opened, and a visitor's machine left alone.
 id: apps
-feature: HUB-NEW:app-portal
+feature: HUB-078
 title: "The Apps page lists every fleet frontend and opens one without sending a visitor's browser anywhere unasked"
 description: "/apps lists every frontend the registry declares with its live and local addresses and filters them by kind; the public build asks none of those addresses anything while the list is on screen. A frontend with no browser surface opens as the generated repo app and says which component it is owed, and a local dev stack is checked only after the reader asks, because a public page must not reach into a visitor's own machine on load. Nothing scrolls sideways."
 viewports: [desktop, mobile]
