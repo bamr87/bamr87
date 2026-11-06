@@ -151,3 +151,7 @@
 	path = projects/ragio-ai
 	url = https://github.com/bamr87/ragio-ai.git
 	branch = main
+[submodule "projects/recon-engine"]
+	path = projects/recon-engine
+	url = https://github.com/bamr87/recon-engine.git
+	branch = main
