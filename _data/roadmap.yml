@@ -1681,3 +1681,38 @@
   created: 2026-11-05
   issue_url: https://github.com/bamr87/bamr87/issues/678
 
+- id: FF-0043
+  title: "Grok ↔ Claude Code governance: handoff, audit trail, roles, escalation"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P0
+  effort: M
+  category: governance
+  problem: >-
+    § 26 (proposed, #686) splits Grok direction from Claude Code execution but
+    does not define the handoff, an audit trail, or escalation, so orphan
+    changes and scope drift remain possible.
+  proposal: >-
+    Ratify constitution § 28 (amendment grok-claude-governance): handoff issue
+    or console job with requirement + ratified governing link; Claude Code
+    executes; Grok direction review before merge; Governed by: PR line with a
+    warn-then-fail trace lint; stop and ask Amr when Claude Code cannot run.
+    FF-0043 (FF-0040/41/42 claimed by #685/#686/#693; no FF-NEW numbering yet).
+  acceptance:
+    - "Amendment grok-claude-governance and constitution § 28 (renumbered by merge order) are merged by Amr."
+    - "AGENTS.md documents handoff, direction review and escalation."
+    - "PR template carries a Governed by: field; warn-only governance_trace_lint exists with tests."
+  scope:
+    in:
+      - "amendment, constitution § 28, AGENTS.md, PRD sub-doc, feature/FR, roadmap, changelog, PR template, warn-only lint"
+    out:
+      - "hard-fail CI wiring; handoff issue template; fleet fan-out"
+  risks:
+    - "Depends on unmerged #686."
+    - "FF-0043 collision if another open PR claims it."
+    - "Section number depends on merge order of #685/#686/#693."
+  source: manual
+  created: 2026-11-05
+  issue_url: ""
+
