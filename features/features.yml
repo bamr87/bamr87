@@ -1920,3 +1920,40 @@ features:
     date: 2026-11-05
     prd:
     - FR85
+  - id: HUB-088
+    title: 'Typed decisions gate the pipeline: a decision lockfile, traces and replay, the trim and verify
+      loops'
+    description: 'Every skip, retry and auto-fix in a fleet pipeline is a typed, thresholded, replayable
+      decision that fails closed: _data/decisions.yml holds each question, its options, its confidence threshold
+      and its conservative branch; the typed-decision composite action asks TypeSafe Jev (or claude -p)
+      and returns answer, confidence and cleared; every decision writes a trace the lake keeps beside run
+      cost, queue time, cache hit rate, flake rate and time-to-green; the doctor and the issue pipeline
+      classify a failure before any agent turn and a 0.70-floor patch screen checks every PR; a per-PR trim
+      loop selects tests and prunes matrix legs in shadow until the nightly decision-verify loop has reported
+      zero missed failures, and a missed failure becomes a regression case and a demotion. Plan and phases:
+      docs/prd/AGENTIC-SDLC.md; decision: ADR 0008.'
+    implemented: false
+    status: planned
+    surface: infra
+    link: docs/prd/AGENTIC-SDLC.md
+    docs: docs/prd/AGENTIC-SDLC.md
+    tags:
+    - ci
+    - jev
+    - decisions
+    - optimization
+    - governance
+    date: 2026-11-06
+    tests: []
+    prd:
+    - FR86
+    - FR87
+    - FR88
+    - NFR17
+    - FR7
+    - FR10
+    - FR15
+    - FR26
+    - FR60
+    - NFR4
+    - NFR9
