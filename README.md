@@ -155,6 +155,7 @@ Personal forks of other projects.
 ### 🚀 Full-Stack & AI Applications
 
 - **[cv-pro](https://github.com/bamr87/cv-pro)**: CV as code and the CV Builder Pro app in one repository: cv/ holds the data, the CVData contract and every render; app/ is the React builder.
+- **[recon-engine](https://github.com/bamr87/recon-engine)**: Recon Engine: operational events reconciled against the general ledger — one monthly residual, six gross-not-net buckets, a statistical layer scoring where interpretation drifts from fact. Spec stage; Django ERP adapter first. · `🧪 experimental`
 
 ### 🛠️ Developer Tools & Experiments
 
