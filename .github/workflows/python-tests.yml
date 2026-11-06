@@ -30,6 +30,16 @@ name: 🐍 Python Tests
 # every shard passed. It keeps this workflow's check name, which the ratify guard
 # reads with every other check on a commit (tools/jev/ratify.py).
 #
+# DOCS-ONLY PRS
+# -------------
+# The `changes` job skips the shards on a PR that touches only docs/, changelog.d/
+# or features/features.d/. A read trace of all 93 test files (2026-11-05) found
+# tests read only the three docs its case statement names, and none of the rest.
+# Markdown outside docs/ and _data/ are NOT skippable: 17 files read prompts and
+# templates, and 54 read _data/. It reads the merge commit with git, so it spends
+# no API quota, and it fails open. drift-check.yml and markdown-oneline.yml still
+# run on those PRs, and the push and nightly runs below always run everything.
+#
 # Triggers: every PR, every push to main, and nightly. The console's
 # dependencies float (UPS-QA-40: always-latest, no pins, no lockfiles — the
 # hub-only lockfile exception in specs/QUALITY.contract.yml covers only a
@@ -57,7 +67,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.diff.outputs.run }}
+    steps:
+      # fetch-depth 2: a PR's checkout is GitHub's merge commit, whose first
+      # parent is the base, so the two diff to exactly what the PR changes.
+      - uses: actions/checkout@v7
+        if: ${{ github.event_name == 'pull_request' }}
+        with:
+          fetch-depth: 2
+
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          # Fail open: anything unexpected means "run the suites".
+          run=true
+          if [ "$EVENT" = pull_request ] && files=$(git diff --name-only HEAD^1 HEAD) && [ -n "$files" ]; then
+            run=false
+            while IFS= read -r f; do
+              case "$f" in
+                docs/JEV.md|docs/FRONTEND-PLATFORM.md|docs/SCHEMA-FRAMEWORK.md) run=true ;;
+                docs/*|changelog.d/*|features/features.d/*) ;;
+                *) run=true ;;
+              esac
+            done <<< "$files"
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          if [ "$run" = false ]; then echo "::notice::docs-only change; skipping the test shards"; fi
+
   tests:
+    needs: changes
+    if: ${{ needs.changes.outputs.run != 'false' }}
     name: tests (${{ matrix.shard }})
     runs-on: ubuntu-latest
     # The slowest shard takes about 7 minutes; this still stops a hung test.
@@ -151,7 +195,7 @@ jobs:
           retention-days: 1
 
   python-tests:
-    needs: tests
+    needs: [changes, tests]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -159,20 +203,24 @@ jobs:
       # Advisory: coverage of the console and fleetcore, one table in the job
       # summary. Never gates — the last step does.
       - uses: actions/checkout@v7
+        if: ${{ needs.tests.result != 'skipped' }}
         continue-on-error: true
 
       - uses: actions/setup-python@v7
+        if: ${{ needs.tests.result != 'skipped' }}
         continue-on-error: true
         with:
           python-version: '3.12'
 
       - uses: actions/download-artifact@v8
+        if: ${{ needs.tests.result != 'skipped' }}
         continue-on-error: true
         with:
           pattern: coverage-*
           merge-multiple: true
 
       - name: Coverage summary (console + fleetcore)
+        if: ${{ needs.tests.result != 'skipped' }}
         continue-on-error: true
         run: |
           python -m pip install --quiet coverage
@@ -185,7 +233,11 @@ jobs:
 
       - name: Every shard passed
         env:
+          CHANGES: ${{ needs.changes.result }}
+          RUN: ${{ needs.changes.outputs.run }}
           TESTS: ${{ needs.tests.result }}
         run: |
+          if [ "$CHANGES" != success ]; then echo "::error::the changes job ended $CHANGES"; exit 1; fi
+          if [ "$RUN" = false ] && [ "$TESTS" = skipped ]; then echo "Docs-only change: no shard ran."; exit 0; fi
           if [ "$TESTS" != success ]; then echo "::error::the test shards ended $TESTS"; exit 1; fi
           echo "Every shard passed."
