@@ -1,6 +1,7 @@
 # ADR 0007 — The Workflow Studio: the atlas grown to the fleet, one read model on every surface, every change planned and reviewed
 
-- **Status**: proposed
+- **Status**: accepted
+- **Accepted in**: https://github.com/bamr87/bamr87/pull/727 (merged 2026-11-06 by @bamr87)
 - **Date**: 2026-11-05
 - **Deciders**: proposed by an agent at the maintainer's request (2026-11-05: "a centralized console/studio that allows for greater management of all workflows and their configurations/interactions"); the maintainer accepts or rejects it by merging the PR that adds it
 - **Related**: constitution § 10.8 (prior art first), § 11 (write-back), § 12.3 (gated changes), § 13.6 (irreversible actions), § 20 (the editor is a front door), [ADR 0005](0005-console-as-fleet-portal.md), [ADR 0006](0006-django-management-backend.md), [docs/WORKFLOW-ATLAS.md](../WORKFLOW-ATLAS.md), [docs/WORKFLOW-OPTIMIZATION.md](../WORKFLOW-OPTIMIZATION.md), #698, #699
