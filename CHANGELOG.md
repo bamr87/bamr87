@@ -36,6 +36,7 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - `_data/fleet.yml` `budget.loops.monthly_usd`: $25 → $50, so the month can afford one $40 doctor attempt (`test_ai_budget.py` pairs the two).
 - `_data/fleet.yml` gains `evolution.model: claude-opus-5-5`, the exact id the workflow's `--model opus` resolved to; `test_evolution.py` reads the hard rules from the spec's render and holds the workflow's literals to `fleet.yml`.
 - `_data/roadmap.yml`: roadmap ids (`FF-NNNN`) are now assigned at merge. A new entry is a fragment `_data/roadmap.d/<slug>.yml` with `id: FF-NEW`, cited elsewhere as `FF-NEW:<slug>`; `python3 -m tools.jev number apply` numbers it on `main` and appends it, and `number lint` rejects a hand-picked `- id: FF-NNNN`.
+- `fleet-verify.yml`: a repo whose `app:` block gives nothing to start or serve on a local URL now stops in seconds with a **Not verified** warning and job summary, and fails under `gate: true`. An app that is configured but fails to build or start now fails the job whatever `gate` says, because no scenario ran. Until now both cases waited out the readiness timeout and passed.
 
 ### Fixed
 
