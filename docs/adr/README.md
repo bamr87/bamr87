@@ -31,4 +31,4 @@ Add an ADR in the same PR as the change it justifies.
 | 0005 | [The Harness Console is the fleet's portal: one launcher from the registry, frontends mounted by frame and bridge, one shell per surface](0005-console-as-fleet-portal.md) | accepted |
 | 0006 | [Django is the hub's management backend and what a frontend's private mode signs in to: accounts, admin and operational records in a database, the registries still in git, the FastAPI console ported route family by route family](0006-django-management-backend.md) | accepted |
 | 0007 | [The Workflow Studio: the atlas grown to the fleet, one read model on every surface, every change planned and reviewed](0007-workflow-studio.md) | accepted |
-| 0008 | [GitHub Actions as the agentic SDLC substrate: typed decisions gate risk, telemetry scores efficiency, tests gate correctness](0008-typed-decisions-as-pipeline-gates.md) | proposed |
+| 0008 | [GitHub Actions as the agentic SDLC substrate: typed decisions gate risk, telemetry scores efficiency, tests gate correctness](0008-typed-decisions-as-pipeline-gates.md) | accepted |
