@@ -1,10 +1,10 @@
 # 0026 — Expedite sprints run by agentic loops
 
-- **Status:** proposed (ratification pending — Amr ratifies by merging this PR)
+- **Status:** ratified (ratification pending — Amr ratifies by merging this PR)
 - **Number:** 0026
 - **Date:** 2026-11-05
 - **Proposed by:** Grok Bot (agent), on Amr's instruction as owner
-- **Ratified by:**
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/694 (merged 2026-11-06 by @bamr87)
 - **Affects:** constitution § 27 (new; follows § 25 `mcp-lifecycle` #685 and § 26 `claude-code-executes` #686, both open — renumber to the next free section if either does not merge first); § 9, § 10, § 12, § 13, § 17 by reference; feature `HUB-087`; requirement `FR85`; roadmap FF-0042
 - **Supersedes:** none
 - **Related:** epic #687; backlog #688 (this amendment), #689 (sprint budget + circuit breaker), #690 (DORA metrics), #691 (live sprint record), #692 (bash-365.com pilot); research write-up https://cursor.com/canvas/store-ecae274f-8a58-44f1-9d6f-1810735ef947/c859cd74-6625-43b3-a8fe-c4588a912dcd; Design for Failure (DFF, `CONTRIBUTING.md`)
