@@ -1,10 +1,10 @@
 name: 🐍 Python Tests
 
-# EVERY Python fixture test the hub carries, in one job: the control plane's
-# generators (.github/scripts/dash-gen/test_*.py — the computational sensors
-# for every deterministic planner the loops act on: budget caps, remediation
-# guards, harness scorecard, schedule), tools/test_*.py (docker harmonize/view,
-# features index, fleet config, terminal-dash data layer), the Harness Console
+# EVERY Python fixture test the hub carries: the control plane's generators
+# (.github/scripts/dash-gen/test_*.py — the computational sensors for every
+# deterministic planner the loops act on: budget caps, remediation guards,
+# harness scorecard, schedule), tools/test_*.py (docker harmonize/view, features
+# index, fleet config, terminal-dash data layer), the Harness Console
 # (tools/console/test_*.py), the terminal dash (tools/tui/test_*.py; textual
 # comes in through the console requirements) and every kit's own test
 # (templates/*/test_*.py).
@@ -18,6 +18,17 @@ name: 🐍 Python Tests
 #
 # Kept as its own workflow, separate from drift-check.yml (the gate), so a
 # test edit and a gate edit never collide.
+#
+# SHARDS
+# ------
+# One serial job took 21 minutes against a 25-minute timeout, so the files run as
+# four parallel jobs: three files were 72% of that time. `rest` is the glob minus
+# the named files, so a new test file can never be left out, and renaming a named
+# file fails its shard instead of dropping it. Re-balance by moving a name.
+#
+# The `python-tests` job is the one result: it combines coverage and fails unless
+# every shard passed. It keeps this workflow's check name, which the ratify guard
+# reads with every other check on a commit (tools/jev/ratify.py).
 #
 # Triggers: every PR, every push to main, and nightly. The console's
 # dependencies float (UPS-QA-40: always-latest, no pins, no lockfiles — the
@@ -46,12 +57,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  python-tests:
+  tests:
+    name: tests (${{ matrix.shard }})
     runs-on: ubuntu-latest
-    # The suite is serial and takes ~11 min on main (2026-10-31; test_pages ~6),
-    # ~14 with the JEV loop runner's tests (#486): 25 leaves room to grow and
-    # still stops a hung test.
-    timeout-minutes: 25
+    # The slowest shard takes about 7 minutes; this still stops a hung test.
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [pages, jev-loop, console, rest]
     steps:
       - uses: actions/checkout@v7
 
@@ -67,6 +81,7 @@ jobs:
       # Always-latest means every run may resolve different versions. Record
       # them (not a lockfile: nothing reads this back) so a drift break is a diff.
       - name: Record resolved dependency versions
+        if: ${{ matrix.shard == 'rest' }}
         run: |
           pip freeze --all | sort > python-deps-resolved.txt
           {
@@ -75,18 +90,38 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v7
+        if: ${{ matrix.shard == 'rest' }}
         with:
           name: python-deps-resolved
           path: python-deps-resolved.txt
           retention-days: 30
 
-      - name: Run every hub Python test suite
+      - name: Run this shard's test files
+        env:
+          SHARD: ${{ matrix.shard }}
         run: |
           shopt -s nullglob
-          files=(.github/scripts/dash-gen/test_*.py tools/test_*.py tools/console/test_*.py tools/tui/test_*.py templates/*/test_*.py)
-          [ "${#files[@]}" -gt 0 ] || { echo "::error::no test files found"; exit 1; }
+          all=(.github/scripts/dash-gen/test_*.py tools/test_*.py tools/console/test_*.py tools/tui/test_*.py templates/*/test_*.py)
+          [ "${#all[@]}" -gt 0 ] || { echo "::error::no test files found"; exit 1; }
+          named=(tools/console/test_pages.py tools/test_jev_loop.py tools/console/test_console.py tools/test_jev_spec.py)
+          files=()
+          case "$SHARD" in
+            pages)    files=(tools/console/test_pages.py) ;;
+            jev-loop) files=(tools/test_jev_loop.py) ;;
+            console)  files=(tools/console/test_console.py tools/test_jev_spec.py) ;;
+            rest)
+              for t in "${all[@]}"; do
+                case " ${named[*]} " in *" $t "*) ;; *) files+=("$t") ;; esac
+              done ;;
+            *) echo "::error::unknown shard $SHARD"; exit 1 ;;
+          esac
+          [ "${#files[@]}" -gt 0 ] || { echo "::error::shard $SHARD has no test files"; exit 1; }
           failed=()
           for t in "${files[@]}"; do
+            if [ ! -f "$t" ]; then
+              echo "::error::$t is named in this workflow but does not exist; update the shard list"
+              failed+=("$t"); continue
+            fi
             if ! grep -q "__main__" "$t"; then
               echo "::error file=$t::$t has no __main__ runner; python3 would exit 0 without running it"
               failed+=("$t"); continue
@@ -104,17 +139,53 @@ jobs:
             printf 'FAILED: %s\n' "${failed[@]}"
             exit 1
           fi
-          echo "All ${#files[@]} test files passed."
+          echo "All ${#files[@]} test files in the $SHARD shard passed."
 
-      # Advisory: coverage of the console and fleetcore, one table in the job
-      # summary. Never gates — the tests above do.
-      - name: Coverage summary (console + fleetcore)
+      - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
+        with:
+          name: coverage-${{ matrix.shard }}
+          path: .coverage.*
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 1
+
+  python-tests:
+    needs: tests
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Advisory: coverage of the console and fleetcore, one table in the job
+      # summary. Never gates — the last step does.
+      - uses: actions/checkout@v7
+        continue-on-error: true
+
+      - uses: actions/setup-python@v7
+        continue-on-error: true
+        with:
+          python-version: '3.12'
+
+      - uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          pattern: coverage-*
+          merge-multiple: true
+
+      - name: Coverage summary (console + fleetcore)
         continue-on-error: true
         run: |
+          python -m pip install --quiet coverage
           python -m coverage combine -q
           {
             echo "### Coverage — tools/console + tools/fleetcore"
             python -m coverage report --format=markdown --omit='*/test_*.py' --sort=cover
           } >> "$GITHUB_STEP_SUMMARY"
           python -m coverage report --omit='*/test_*.py' --sort=cover
+
+      - name: Every shard passed
+        env:
+          TESTS: ${{ needs.tests.result }}
+        run: |
+          if [ "$TESTS" != success ]; then echo "::error::the test shards ended $TESTS"; exit 1; fi
+          echo "Every shard passed."
