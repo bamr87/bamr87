@@ -17,9 +17,9 @@
 schema: verify/v1
 
 app:
-  build: "CONSOLE_BASE=/ SITE_URL=http://127.0.0.1:4000 OUT=_site tools/console/build-pages.sh"
+  build: ""
   start: ""
-  static_dir: _site
+  static_dir: ""
   url: http://127.0.0.1:4000
   ready: /
   timeout_s: 240
