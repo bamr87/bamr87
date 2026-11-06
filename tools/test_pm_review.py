@@ -372,6 +372,18 @@ class RoadmapLaneTests(unittest.TestCase):
             pm.apply_roadmap_edits(ROADMAP_TEXT, [{"id": "FF-0099", "to": "shipped"}])
 
 
+class RoadmapFragmentTests(unittest.TestCase):
+    def test_pending_fragment_reads_as_ff_new_slug(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            data = Path(tmp) / "_data"
+            (data / "roadmap.d").mkdir(parents=True)
+            (data / "roadmap.yml").write_text("# header\n- id: FF-0001\n  title: one\n  status: shipped\n")
+            (data / "roadmap.d" / "two.yml").write_text("id: FF-NEW\ntitle: two\nstatus: proposed\n")
+            rows = pm.load_roadmap(data / "roadmap.yml")
+            self.assertEqual([r["id"] for r in rows], ["FF-0001", "FF-NEW:two"])
+            self.assertTrue(rows[1]["pending"])
+
+
 class ReleaseLaneTests(unittest.TestCase):
     def test_bump_follows_conventional_commits(self):
         self.assertEqual(pm.bump_of(["feat: a", "fix(x): b", "docs: c", "perf: d"]),

@@ -2,8 +2,8 @@ name: 🔢 JEV — assign numbers at merge
 
 # The merge half of the conflict-free numbering scheme (amendment 0002,
 # docs/JEV.md). A pull request writes FRAGMENTS — features/features.d/<slug>.yml,
-# changelog.d/<slug>.md, docs/amendments/proposed/<slug>.md — with `HUB-NEW`,
-# `FR-NEW:<key>` and `number: NEW` placeholders, and never picks a sequential
+# changelog.d/<slug>.md, docs/amendments/proposed/<slug>.md, _data/roadmap.d/<slug>.yml
+# — with `HUB-NEW`, `FR-NEW:<key>`, `FF-NEW` and `number: NEW` placeholders, and never picks a sequential
 # number. This workflow is the only thing that assigns one.
 #
 # WHY IT RUNS ON main AND NOWHERE ELSE
@@ -129,7 +129,7 @@ jobs:
         if: ${{ !inputs.dry-run }}
         uses: ./.github/actions/utilities/publish-data
         with:
-          paths: 'features/ changelog.d/ docs/ PRD.md CHANGELOG.md CATALOG.md README.md'
+          paths: 'features/ changelog.d/ _data/roadmap.yml _data/roadmap.d/ docs/ PRD.md CHANGELOG.md CATALOG.md README.md'
           message: 'chore(jev): assign ids and compile pending fragments'
           title: 'chore(jev): assign ids and compile pending fragments'
           body: |

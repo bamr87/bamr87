@@ -12,7 +12,7 @@ import {
 } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, type ReactNode } from 'react';
-import { asset, consoleOrigin, hasConsole, mode } from '../api/backend';
+import { EMBEDDED, asset, consoleOrigin, hasConsole, mode } from '../api/backend';
 import { useCaps, useGithubStatus, useJobs, useManifest, useSite, useStateDoc } from '../api/hooks';
 import { clearSnapshotCache } from '../api/static';
 import { when } from '../lib/format';
@@ -126,12 +126,18 @@ const LEGACY: Record<string, string> = {
 
 export function Shell() {
   const [opened, { toggle, close }] = useDisclosure();
-  const { pathname, hash } = useLocation();
+  const { pathname, hash, search } = useLocation();
   const navigate = useNavigate();
   useEffect(() => {
     const dest = pathname === '/' && LEGACY[hash.replace('#', '')];
     if (dest) navigate(dest, { replace: true });
   }, [pathname, hash, navigate]);
+  // Inside a Desktop window: say where this page is, so the window's title and
+  // a shared layout follow it. Addressed to this origin only — a parent on any
+  // other origin never receives it.
+  useEffect(() => {
+    if (EMBEDDED) window.parent.postMessage({ bridge: 'fleet', v: 1, type: 'route', path: `${pathname}${search}` }, window.location.origin);
+  }, [pathname, search]);
   const qc = useQueryClient();
   const site = useSite();
   const brand = site.data?.profile.site?.title ?? 'Harness Console';
@@ -145,6 +151,17 @@ export function Shell() {
     clearSnapshotCache();
     void qc.invalidateQueries();
   };
+
+  // The reducer's "plain" experience: one scene, chrome unmounted. The window
+  // on the Desktop is this page's frame, so the header and sidebar would be a
+  // second one inside it.
+  if (EMBEDDED) {
+    return (
+      <Box p="md" mih="100dvh" bg="var(--page)">
+        <Outlet />
+      </Box>
+    );
+  }
 
   return (
     <AppShell header={{ height: LAYOUT.headerHeight }} navbar={{ width: LAYOUT.navbarWidth, breakpoint: 'sm', collapsed: { mobile: !opened } }} padding="lg">

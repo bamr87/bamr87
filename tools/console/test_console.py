@@ -386,7 +386,7 @@ def test_the_policy_names_exactly_the_origins_the_apps_page_frames():
         assert "*" not in policy[directive], f"{directive} carries a wildcard"
     extra = set(policy["frame-src"].split()) - set(wanted) - set(core.frame_src()) - {"'self'"}
     assert not extra, f"frame-src allows origins no registry declares: {sorted(extra)}"
-    assert policy["script-src"] == "'self'" and policy["frame-ancestors"] == "'none'"
+    assert policy["script-src"] == "'self'" and policy["frame-ancestors"] == "'self'"
 
 
 def test_the_apps_route_serves_the_launcher():
@@ -1027,11 +1027,17 @@ def test_http_refuses_a_rebound_host():
 
     # The frame policy rides alongside that guard. frame-src must name every
     # origin the Observe tab embeds (a browser refuses a missing one with
-    # nothing but a console line), and frame-ancestors must be 'none' — this
-    # origin can dispatch workflows with the operator's FLEET_TOKEN, so it is
-    # not something to be embedded by anyone.
+    # nothing but a console line), and frame-ancestors must be exactly 'self':
+    # the Desktop opens this console's own pages as windows, and this origin
+    # can dispatch workflows with the operator's FLEET_TOKEN, so no other
+    # origin may embed it — not a fleet app, not a wildcard, not a scheme.
     csp = client.get("/").headers.get("content-security-policy", "")
-    assert "frame-ancestors 'none'" in csp, csp
+    ancestors = next(d.strip() for d in csp.split(";") if d.strip().startswith("frame-ancestors"))
+    assert ancestors == "frame-ancestors 'self'", ancestors
+    for path in ("/desktop", "/overview", "/apps/gitorio", "/api/state"):
+        got = console_app.content_policy(path, "127.0.0.1:4001")
+        assert got.count("frame-ancestors") == 1 and "frame-ancestors 'self'" in got, f"{path}: {got}"
+    assert "x-frame-options" not in {k.lower() for k in client.get("/").headers}, "X-Frame-Options would contradict the policy"
     for src in core.frame_src():
         assert src in csp, f"{src} is embedded but not in frame-src: {csp}"
     # The page is a built bundle with no inline script, so it carries a real

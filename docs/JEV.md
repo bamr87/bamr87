@@ -26,14 +26,15 @@ A pull request never picks a number. It writes a **fragment**:
 | Requirement | the same fragment's `prd_new:` | `kind: FR` + a slug `key:` |
 | Changelog entry | [`changelog.d/<slug>.md`](../changelog.d/README.md) | — (no number to pick) |
 | Amendment | [`docs/amendments/proposed/<slug>.md`](amendments/proposed/README.md) | `**Number:** NEW` |
+| Roadmap entry | [`_data/roadmap.d/<slug>.yml`](../_data/roadmap.d/README.md) | `id: FF-NEW` |
 
-Fragments reference each other by slug — `HUB-NEW:<slug>`, `FR-NEW:<key>`, `NFR-NEW:<key>`, `AMEND-NEW:<slug>` — so a feature can name the requirement it serves before either has a number.
+Fragments reference each other by slug — `HUB-NEW:<slug>`, `FR-NEW:<key>`, `NFR-NEW:<key>`, `AMEND-NEW:<slug>`, `FF-NEW:<slug>` — so a feature can name the requirement it serves before either has a number.
 
 When the pull request lands, [`jev-number.yml`](../.github/workflows/jev-number.yml) runs on `main` under `concurrency: jev-number`, which is what makes the assignment safe: two pushes a second apart compile one after the other instead of both reading "the next free id is 033". `tools/jev/number.py` then
 
-1. reads the highest id ever used in each series — the catalog, the PRD, the changelog and every amendment record, so an id that was published and later removed is still spent;
+1. reads the highest id ever used in each series — the catalog, the PRD, the changelog and every amendment record (and, for `FF`, `_data/roadmap.yml` and the feature catalog), so an id that was published and later removed is still spent;
 2. assigns the next free one to each fragment, in sorted filename order, so the same tree always produces the same numbers;
-3. compiles the fragments into `features/features.yml`, the PRD's requirement list, `CHANGELOG.md`'s `[Unreleased]` section and `docs/amendments/NNNN-<slug>.md`, and appends the amendment's index row;
+3. compiles the fragments into `features/features.yml`, the PRD's requirement list, `CHANGELOG.md`'s `[Unreleased]` section and `docs/amendments/NNNN-<slug>.md` and `_data/roadmap.yml` (appended as text, header kept), and appends the amendment's index row;
 4. rewrites every slug reference to its number, and **reports** (never silently drops) one it cannot resolve;
 5. deletes the fragment — the entry now lives in the compiled file and nowhere else;
 6. regenerates the PRD feature block, the docs index and `CATALOG.md` (and the other generated spans — see [Main-only generated files](#main-only-generated-files); it runs after every push to `main`, not only fragment pushes);
