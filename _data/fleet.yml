@@ -11,6 +11,7 @@
 #   - .github/scripts/dash-gen/remediation.py — ranking + cap defaults
 #   - .github/scripts/dash-gen/harness.py   — scorecard thresholds + trip wires
 #   - .github/scripts/dash-gen/harness_registry.py — fleet harness/schedule contract
+#   - tools/test_loop_switches.py   — validates `switches:` (constitution § 17)
 #
 # WHY A FILE INSTEAD OF ORG SETTINGS
 # ----------------------------------
@@ -1758,6 +1759,703 @@ variables:
   PYTHON_VERSION: "3.12"
   RUBY_VERSION: "3.3"
   FLEET_HUB: bamr87/bamr87
+
+# --------------------------------------------------------------------------- #
+# Loop switches — constitution § 17 (amendment 0014, feature HUB-057, FR54).
+# THE map of every loop's kill switch: global → groups → loops → repos; the
+# most restrictive level wins. Live `*_ENABLED` repo variables are PROJECTIONS
+# of this map. Projection tooling (dry-run first, § 17.3) and the drift check
+# (§ 17.5) are not built yet, so today a flip is: run the entry's `flip`
+# command, then record state/reason/set_by/set_at here in a PR the same day.
+#   gate.kind      repo_variable | env (hard-coded job env) | fleet_config | none | planned
+#   gate.semantics opt_in  = runs only when the variable is 'true' (unset = off)
+#                  opt_out = runs unless the variable is 'false' (unset = on)
+#   state          on | off | unverified (live variable not read when this
+#                  was written; `gh variable get <NAME> -R <repo>` checks it)
+#   dispatch_bypasses  a manual workflow_dispatch runs even when off
+# Validated by tools/test_loop_switches.py (every hub scheduled or switched
+# workflow must have an entry here).
+# --------------------------------------------------------------------------- #
+switches:
+  schema: switches/v1
+  global:
+    state: 'on'
+    reason: null
+    set_by: null
+    set_at: null
+    expires: null
+    gate:
+      kind: planned
+      name: FLEET_AGENTS_PAUSED
+      source: bamr87/bamr87#511 (not wired in any workflow yet)
+  groups:
+    hub-loops:
+      state: 'on'
+      reason: null
+      expires: null
+    hub-maintenance:
+      state: 'on'
+      reason: null
+      expires: null
+    hub-agents:
+      state: 'on'
+      reason: null
+      expires: null
+    lifehacker-loops:
+      state: 'on'
+      reason: null
+      expires: null
+    lifehacker-agents:
+      state: 'on'
+      reason: null
+      expires: null
+  loops:
+    hub/api-keys:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/api-keys.yml
+      group: hub-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: API_KEYS_ENABLED
+        semantics: opt_out
+      default: 'on'
+      state: unverified
+      verified: false
+      flip: 'gh variable set API_KEYS_ENABLED -R bamr87/bamr87 --body false  # pause; record the flip here in the same PR'
+      cron: 47 6 * * *
+      dispatch_bypasses: true
+    hub/fleet-pm:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/fleet-pm.yml
+      group: hub-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: FLEET_PM_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set FLEET_PM_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
+      cron: 7 7 * * *
+      dispatch_bypasses: true
+    hub/fleet-pulse:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/fleet-pulse.yml
+      group: hub-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: FLEET_PULSE_ENABLED
+        semantics: opt_out
+      default: 'on'
+      state: unverified
+      verified: false
+      flip: 'gh variable set FLEET_PULSE_ENABLED -R bamr87/bamr87 --body false  # pause; record the flip here in the same PR'
+      cron: 37 5 * * *
+      dispatch_bypasses: true
+      note: also gated by remediation.enabled in this file
+    hub/issue-pipeline:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/issue-pipeline.yml
+      group: hub-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: ISSUE_PIPELINE_ENABLED
+        semantics: opt_out
+      default: 'on'
+      state: unverified
+      verified: false
+      flip: 'gh variable set ISSUE_PIPELINE_ENABLED -R bamr87/bamr87 --body false  # pause; record the flip here in the same PR'
+      cron: 37 7 * * *
+      dispatch_bypasses: true
+      note: also gated by issue_pipeline.enabled in this file
+    hub/jev-conflicts:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/jev-conflicts.yml
+      group: hub-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: JEV_CONFLICTS_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set JEV_CONFLICTS_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
+      cron: 23 */6 * * *
+      dispatch_bypasses: true
+    hub/jev-ratify:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/jev-number.yml
+      group: hub-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: JEV_RATIFY_ENABLED
+        semantics: opt_out
+      default: 'on'
+      state: unverified
+      verified: false
+      flip: 'gh variable set JEV_RATIFY_ENABLED -R bamr87/bamr87 --body false  # pause; record the flip here in the same PR'
+      dispatch_bypasses: true
+      note: push/issues triggered, not scheduled; gates the ratify job only
+    hub/repo-evolution:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/repo-evolution.yml
+      group: hub-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: REPO_EVOLUTION_ENABLED
+        semantics: opt_out
+      default: 'on'
+      state: unverified
+      verified: false
+      flip: 'gh variable set REPO_EVOLUTION_ENABLED -R bamr87/bamr87 --body false  # pause; record the flip here in the same PR'
+      cron: 37 10 * * 1
+      dispatch_bypasses: true
+      note: also gated by evolution.enabled in this file
+    hub/repo-scout:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/repo-scout.yml
+      group: hub-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: REPO_SCOUT_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set REPO_SCOUT_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
+      cron: 37 4 * * *
+      dispatch_bypasses: true
+      note: also gated by scout.enabled in this file
+    hub/scorecard-sweep:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/scorecard-sweep.yml
+      group: hub-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: SCORECARD_SWEEP_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set SCORECARD_SWEEP_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
+      cron: 17 6 * * 0
+      dispatch_bypasses: true
+    hub/token-rotation:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/token-rotation.yml
+      group: hub-maintenance
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: fleet_config
+        name: rotation.enabled
+      default: 'on'
+      state: 'on'
+      verified: false
+      cron: 7 2 * * 1
+      note: gated by fleet config, not a repo variable
+      flip: set `rotation.enabled` in _data/fleet.yml by PR
+    hub/backlog-fanout:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/backlog-fanout.yml
+      group: hub-maintenance
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: none
+      default: 'on'
+      state: 'on'
+      verified: false
+      cron: 27 8 * * *
+      note: per-item enablement lives in _data/backlog_fanout.yml; no whole-loop switch
+      flip: 'no switch yet (§ 17 gap): `gh workflow disable backlog-fanout.yml -R bamr87/bamr87` is the only lever; record it here'
+    hub/build-dash:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/build-dash.yml
+      group: hub-maintenance
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: none
+      default: 'on'
+      state: 'on'
+      verified: false
+      cron: 37 8 * * *
+      note: deterministic site build; also runs on push/PR
+      flip: 'no switch yet (§ 17 gap): `gh workflow disable build-dash.yml -R bamr87/bamr87` is the only lever; record it here'
+    hub/deep-dive:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/deep-dive.yml
+      group: hub-maintenance
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: none
+      default: 'on'
+      state: 'on'
+      verified: false
+      cron: 17 12 * * *
+      note: scheduled, no switch
+      flip: 'no switch yet (§ 17 gap): `gh workflow disable deep-dive.yml -R bamr87/bamr87` is the only lever; record it here'
+    hub/python-tests:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/python-tests.yml
+      group: hub-maintenance
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: none
+      default: 'on'
+      state: 'on'
+      verified: false
+      cron: 17 9 * * *
+      note: nightly test run; also runs on push/PR
+      flip: 'no switch yet (§ 17 gap): `gh workflow disable python-tests.yml -R bamr87/bamr87` is the only lever; record it here'
+    hub/reconcile-registry:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/reconcile-registry.yml
+      group: hub-maintenance
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: none
+      default: 'on'
+      state: 'on'
+      verified: false
+      cron: 7 5 * * *
+      note: scheduled, no switch
+      flip: 'no switch yet (§ 17 gap): `gh workflow disable reconcile-registry.yml -R bamr87/bamr87` is the only lever; record it here'
+    hub/schema-vendor:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/schema-vendor.yml
+      group: hub-maintenance
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: none
+      default: 'on'
+      state: 'on'
+      verified: false
+      cron: 7 8 * * 1
+      note: scheduled, no switch
+      flip: 'no switch yet (§ 17 gap): `gh workflow disable schema-vendor.yml -R bamr87/bamr87` is the only lever; record it here'
+    hub/update-submodules:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/update-submodules.yml
+      group: hub-maintenance
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: none
+      default: 'on'
+      state: 'on'
+      verified: false
+      cron: 7 3 * * *
+      note: scheduled, no switch
+      flip: 'no switch yet (§ 17 gap): `gh workflow disable update-submodules.yml -R bamr87/bamr87` is the only lever; record it here'
+    hub/claude:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/claude.yml
+      group: hub-agents
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: none
+      default: 'on'
+      state: 'on'
+      verified: false
+      note: '@claude mention handler (AI call, no schedule); § 17 rule 1 requires a switch — none yet'
+      flip: 'no switch yet (§ 17 gap): `gh workflow disable claude.yml -R bamr87/bamr87`; record it here'
+    lifehacker.dev/agent-review:
+      repo: bamr87/lifehacker.dev
+      workflow: .github/workflows/agent-review.yml
+      group: lifehacker-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: AGENT_REVIEW_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set AGENT_REVIEW_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
+      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      set_by: bamr87
+      set_at: '2026-10-31'
+    lifehacker.dev/ai-usage:
+      repo: bamr87/lifehacker.dev
+      workflow: .github/workflows/ai-usage.yml
+      group: lifehacker-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: AI_USAGE_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set AI_USAGE_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
+      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      set_by: bamr87
+      set_at: '2026-10-31'
+    lifehacker.dev/auto-fix:
+      repo: bamr87/lifehacker.dev
+      workflow: .github/workflows/auto-fix.yml
+      group: lifehacker-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: AUTO_FIX_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set AUTO_FIX_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
+      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      set_by: bamr87
+      set_at: '2026-10-31'
+    lifehacker.dev/auto-merge:
+      repo: bamr87/lifehacker.dev
+      workflow: .github/workflows/auto-merge.yml
+      group: lifehacker-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: AUTO_MERGE_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set AUTO_MERGE_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
+      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      set_by: bamr87
+      set_at: '2026-10-31'
+      hold:
+        kind: env
+        name: HUB_ORIGINATION_HOLD
+        value: 'true'
+        source: bamr87/lifehacker.dev#800 (open, not merged)
+        lift: bamr87/lifehacker.dev#801 removes the job env once hub-originated intake lands
+    lifehacker.dev/auto-update:
+      repo: bamr87/lifehacker.dev
+      workflow: .github/workflows/auto-update.yml
+      group: lifehacker-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: AUTO_UPDATE_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set AUTO_UPDATE_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
+      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      set_by: bamr87
+      set_at: '2026-10-31'
+    lifehacker.dev/brand-sweep:
+      repo: bamr87/lifehacker.dev
+      workflow: .github/workflows/brand-sweep.yml
+      group: lifehacker-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: BRAND_SWEEP_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set BRAND_SWEEP_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
+      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      set_by: bamr87
+      set_at: '2026-10-31'
+    lifehacker.dev/content-factory:
+      repo: bamr87/lifehacker.dev
+      workflow: .github/workflows/content-factory.yml
+      group: lifehacker-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: CONTENT_FACTORY_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set CONTENT_FACTORY_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
+      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      set_by: bamr87
+      set_at: '2026-10-31'
+      hold:
+        kind: env
+        name: HUB_ORIGINATION_HOLD
+        value: 'true'
+        source: bamr87/lifehacker.dev#800 (open, not merged)
+        lift: bamr87/lifehacker.dev#801 removes the job env once hub-originated intake lands
+    lifehacker.dev/content-scout:
+      repo: bamr87/lifehacker.dev
+      workflow: .github/workflows/content-scout.yml
+      group: lifehacker-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: CONTENT_SCOUT_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set CONTENT_SCOUT_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
+      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      set_by: bamr87
+      set_at: '2026-10-31'
+    lifehacker.dev/explore:
+      repo: bamr87/lifehacker.dev
+      workflow: .github/workflows/explore.yml
+      group: lifehacker-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: EXPLORER_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set EXPLORER_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
+      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      set_by: bamr87
+      set_at: '2026-10-31'
+    lifehacker.dev/factory--issue-factory-1:
+      repo: bamr87/lifehacker.dev
+      workflow: .github/workflows/factory--issue-factory-1.yml
+      group: lifehacker-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: ISSUE_FACTORY_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set ISSUE_FACTORY_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
+      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      set_by: bamr87
+      set_at: '2026-10-31'
+    lifehacker.dev/factory--issue-factory-2:
+      repo: bamr87/lifehacker.dev
+      workflow: .github/workflows/factory--issue-factory-2.yml
+      group: lifehacker-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: ISSUE_FACTORY_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set ISSUE_FACTORY_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
+      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      set_by: bamr87
+      set_at: '2026-10-31'
+    lifehacker.dev/fleet-dispatch:
+      repo: bamr87/lifehacker.dev
+      workflow: .github/workflows/fleet-dispatch.yml
+      group: lifehacker-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: FLEET_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set FLEET_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
+      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      set_by: bamr87
+      set_at: '2026-10-31'
+    lifehacker.dev/loop-tuner:
+      repo: bamr87/lifehacker.dev
+      workflow: .github/workflows/loop-tuner.yml
+      group: lifehacker-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: LOOP_TUNER_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set LOOP_TUNER_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
+      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      set_by: bamr87
+      set_at: '2026-10-31'
+    lifehacker.dev/quest-forge:
+      repo: bamr87/lifehacker.dev
+      workflow: .github/workflows/quest-forge.yml
+      group: lifehacker-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: QUEST_FORGE_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set QUEST_FORGE_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
+      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      set_by: bamr87
+      set_at: '2026-10-31'
+    lifehacker.dev/theme-scout:
+      repo: bamr87/lifehacker.dev
+      workflow: .github/workflows/theme-scout.yml
+      group: lifehacker-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: THEME_SCOUT_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set THEME_SCOUT_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
+      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      set_by: bamr87
+      set_at: '2026-10-31'
+    lifehacker.dev/triage:
+      repo: bamr87/lifehacker.dev
+      workflow: .github/workflows/triage.yml
+      group: lifehacker-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: TRIAGE_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set TRIAGE_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
+      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      set_by: bamr87
+      set_at: '2026-10-31'
+    lifehacker.dev/weekly-epic:
+      repo: bamr87/lifehacker.dev
+      workflow: .github/workflows/weekly-epic.yml
+      group: lifehacker-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: WEEKLY_EPIC_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set WEEKLY_EPIC_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
+      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      set_by: bamr87
+      set_at: '2026-10-31'
+      hold:
+        kind: env
+        name: HUB_ORIGINATION_HOLD
+        value: 'true'
+        source: bamr87/lifehacker.dev#800 (open, not merged)
+        lift: bamr87/lifehacker.dev#801 removes the job env once hub-originated intake lands
+      note: images additionally need OPENAI_IMAGES_ENABLED=true (opt_in) plus the OPENAI_API_KEY secret
+    lifehacker.dev/wire-scout:
+      repo: bamr87/lifehacker.dev
+      workflow: .github/workflows/wire-scout.yml
+      group: lifehacker-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: WIRE_SCOUT_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set WIRE_SCOUT_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
+      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      set_by: bamr87
+      set_at: '2026-10-31'
+      hold:
+        kind: env
+        name: HUB_ORIGINATION_HOLD
+        value: 'true'
+        source: bamr87/lifehacker.dev#800 (open, not merged)
+        lift: bamr87/lifehacker.dev#801 removes the job env once hub-originated intake lands
+    lifehacker.dev/nightly:
+      repo: bamr87/lifehacker.dev
+      workflow: .github/workflows/nightly.yml
+      group: lifehacker-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: none
+      default: 'on'
+      state: unverified
+      verified: false
+      note: scheduled, no switch (amendment 0014 follow-up)
+      flip: 'no switch yet: `gh workflow disable nightly.yml -R bamr87/lifehacker.dev` (was disabled by hand 2026-10-31); record it here'
+    lifehacker.dev/zer0-doctor:
+      repo: bamr87/lifehacker.dev
+      workflow: .github/workflows/zer0-doctor.yml
+      group: lifehacker-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: none
+      default: 'on'
+      state: unverified
+      verified: false
+      note: scheduled, no switch (amendment 0014 follow-up)
+      flip: 'no switch yet: `gh workflow disable zer0-doctor.yml -R bamr87/lifehacker.dev` (was disabled by hand 2026-10-31); record it here'
+    lifehacker.dev/claude:
+      repo: bamr87/lifehacker.dev
+      workflow: .github/workflows/claude.yml
+      group: lifehacker-agents
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: none
+      default: 'on'
+      state: unverified
+      verified: false
+      note: '@claude mention handler, disabled by hand 2026-10-31 (amendment 0014); no switch yet'
+      flip: '`gh workflow enable|disable claude.yml -R bamr87/lifehacker.dev`; record it here'
+  repos: {}
+
 
 # --------------------------------------------------------------------------- #
 # UX audit harness — templates/ux-audit/ (OPT-IN kit; see docs/UX-HARNESS.md)
