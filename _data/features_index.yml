@@ -9,7 +9,7 @@
 # Rendered at /features/ on the dash. Kit: templates/verify/ · doc: docs/VERIFICATION.md
 # =============================================================================
 schema: features-index/v1
-generated_at: '2026-11-05T06:02:57Z'
+generated_at: '2026-11-06T06:05:49Z'
 kit_version: 0.1.0
 totals:
   repos_scanned: 1
@@ -17,21 +17,21 @@ totals:
   repos_with_kit: 1
   repos_prose_only: 0
   repos_no_index: 0
-  features: 77
-  implemented: 50
-  covered: 71
-  evidenced: 11
+  features: 84
+  implemented: 55
+  covered: 78
+  evidenced: 15
   verified: 8
-  ui: 20
-  ui_covered: 20
+  ui: 24
+  ui_covered: 24
   ui_verified: 8
-  scenarios: 12
-  screenshots: 59
+  scenarios: 17
+  screenshots: 102
   dangling: 6
 pct:
   coverage: 142
-  evidence: 22
-  verified: 16
+  evidence: 27
+  verified: 15
   ui_coverage: 100
 attention:
 - repo: bamr87
@@ -78,11 +78,12 @@ repos:
     - 'features/features.yml HUB-069: scenarios path not found: loop-run'
     - 'features/features.yml HUB-071: description contains ''<'' or ''>'' — renders as markup on the features page'
     - 'features/features.yml HUB-074: description contains ''<'' or ''>'' — renders as markup on the features page'
+    - 'features/features.yml HUB-081: description contains ''<'' or ''>'' — renders as markup on the features page'
     - 'verify/scenarios/loop-run.yml: references unknown feature id HUB-NEW:console-loop-run-op'
   kit:
     config: true
     runner: true
-    scenarios: 12
+    scenarios: 17
     workflow: true
     workflow_fleet_caller: true
     workflow_gate: false
@@ -92,19 +93,19 @@ repos:
     legacy_evidence_kit: false
     legacy_visual_evidence_skill: false
   counts:
-    features: 77
-    implemented: 50
-    covered: 71
-    evidenced: 11
+    features: 84
+    implemented: 55
+    covered: 78
+    evidenced: 15
     verified: 8
-    ui: 20
-    ui_covered: 20
+    ui: 24
+    ui_covered: 24
     ui_verified: 8
     dangling: 6
   pct:
     coverage: 100
-    evidence: 22
-    verified: 16
+    evidence: 27
+    verified: 15
   last_run: null
   gaps:
   - 6 dangling test/scenario/evidence link(s)
@@ -2846,10 +2847,10 @@ repos:
       screenshots: []
   - id: HUB-075
     title: 'Recursive harness refinement (Harness²): the surface check, the Propose–Probe–Compose plan and evidence tree,
-      the experience library'
-    surface: cli
+      the experience library, the console''s Refine page and review queue, the assistant'
+    surface: ui
     implemented: true
-    link: tools/jev/refine.py
+    link: /refine
     docs: docs/HARNESS-REFINEMENT.md
     tags:
     - jev
@@ -2863,27 +2864,53 @@ repos:
     - tools/test_jev_surface.py
     - tools/test_jev_library.py
     - tools/test_jev_refine.py
+    - tools/console/test_console.py
+    - tools/console/test_mcp_layer.py
+    - tools/console/test_pages.py
     waived: []
-    scenarios: []
-    evidence: []
-    screenshots: []
+    scenarios:
+    - verify/scenarios/refine.yml
+    evidence:
+    - test/evidence/refine
+    screenshots:
+    - test/evidence/refine/assist-desktop.png
+    - test/evidence/refine/assist-mobile.png
+    - test/evidence/refine/refine-library-desktop.png
+    - test/evidence/refine/refine-plans-desktop.png
+    - test/evidence/refine/refine-review-desktop.png
+    - test/evidence/refine/refine-review-mobile.png
+    - test/evidence/refine/refine-surface-desktop.png
+    - test/evidence/refine/refine-surface-mobile.png
     verified: null
     covered: true
-    evidenced: false
+    evidenced: true
     dangling: []
     summary: 'JEV capability three adopts the Harness² method onto the hub''s own loops at $0: `tools/dash refine surface
       check` validates any repository''s harness surface (the context-file chain, settings permissions and hooks, agents,
       skills, commands, '
     urls:
-      link: https://github.com/bamr87/bamr87/blob/main/tools/jev/refine.py
+      link: https://bamr87.github.io/bamr87/refine
       docs: https://github.com/bamr87/bamr87/blob/main/docs/HARNESS-REFINEMENT.md
-      evidence: []
+      evidence:
+      - https://github.com/bamr87/bamr87/tree/main/test/evidence/refine
       tests:
       - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_surface.py
       - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_library.py
       - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_refine.py
-      scenarios: []
-      screenshots: []
+      - https://github.com/bamr87/bamr87/blob/main/tools/console/test_console.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/console/test_mcp_layer.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/console/test_pages.py
+      scenarios:
+      - https://github.com/bamr87/bamr87/blob/main/verify/scenarios/refine.yml
+      screenshots:
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/refine/assist-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/refine/assist-mobile.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/refine/refine-library-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/refine/refine-plans-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/refine/refine-review-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/refine/refine-review-mobile.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/refine/refine-surface-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/refine/refine-surface-mobile.png
   - id: HUB-076
     title: 'The topic loop read back: directive → issue → pull request → merged, on the Content page'
     surface: ui
@@ -2951,6 +2978,361 @@ repos:
       docs: https://github.com/bamr87/bamr87/blob/main/docs/PM.md
       evidence: []
       tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_pm_review.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-078
+    title: 'The app portal: every fleet frontend opened inside the Harness Console, at its live address or its local stack'
+    surface: ui
+    implemented: true
+    link: /apps
+    docs: docs/FRONTEND-PLATFORM.md
+    tags:
+    - console
+    - frontend
+    - portal
+    - registry
+    - launcher
+    - cli
+    date: '2026-11-04'
+    provenance: null
+    tests:
+    - tools/test_fleetcore_apps.py
+    - tools/test_frontend_registry.py
+    - tools/console/test_console.py
+    - tools/console/test_pages.py
+    waived: []
+    scenarios:
+    - verify/scenarios/apps.yml
+    evidence:
+    - test/evidence/apps
+    screenshots:
+    - test/evidence/apps/console-all-live-before-address-fix.png
+    - test/evidence/apps/console-all-live-framed.png
+    - test/evidence/apps/console-list-desktop.png
+    - test/evidence/apps/console-list-mobile.png
+    - test/evidence/apps/console-live-desktop.png
+    - test/evidence/apps/console-live-mobile.png
+    - test/evidence/apps/console-local-phone-preset-desktop.png
+    - test/evidence/apps/console-local-stopped-desktop.png
+    - test/evidence/apps/desktop-app-local-asks-first.png
+    - test/evidence/apps/desktop-app-without-an-address.png
+    - test/evidence/apps/desktop-apps-list.png
+    - test/evidence/apps/isolated-same-origin-apps.png
+    verified: null
+    covered: true
+    evidenced: true
+    dangling: []
+    summary: 'P0 of ADR 0005. One launcher (fleet-launcher/v1, tools/fleetcore/apps.py) joins each registry `frontend:` block
+      to its live address and to the ports its compose-hosted dev stack publishes in _data/ports.yml. The console''s Apps
+      page (/apps, '
+    urls:
+      link: https://bamr87.github.io/bamr87/apps
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/FRONTEND-PLATFORM.md
+      evidence:
+      - https://github.com/bamr87/bamr87/tree/main/test/evidence/apps
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_fleetcore_apps.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_frontend_registry.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/console/test_console.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/console/test_pages.py
+      scenarios:
+      - https://github.com/bamr87/bamr87/blob/main/verify/scenarios/apps.yml
+      screenshots:
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/apps/console-all-live-before-address-fix.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/apps/console-all-live-framed.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/apps/console-list-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/apps/console-list-mobile.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/apps/console-live-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/apps/console-live-mobile.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/apps/console-local-phone-preset-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/apps/console-local-stopped-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/apps/desktop-app-local-asks-first.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/apps/desktop-app-without-an-address.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/apps/desktop-apps-list.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/apps/isolated-same-origin-apps.png
+  - id: HUB-079
+    title: 'The bashOS desktop: an icon for every fleet app, each opened in a window that shares one App Shell'
+    surface: ui
+    implemented: true
+    link: /desktop
+    docs: docs/FRONTEND-PLATFORM.md
+    tags:
+    - console
+    - frontend
+    - bashos
+    - desktop
+    - portal
+    - registry
+    date: '2026-11-05'
+    provenance: null
+    tests:
+    - tools/console/test_bashos_shell.py
+    - tools/test_fleetcore_apps.py
+    - tools/test_fleetcore.py
+    - tools/console/test_pages.py
+    - tools/console/test_console.py
+    waived: []
+    scenarios:
+    - verify/scenarios/desktop.yml
+    - verify/scenarios/desktop-pages.yml
+    evidence:
+    - test/evidence/desktop
+    - test/evidence/desktop-pages
+    screenshots:
+    - test/evidence/desktop-pages/console-page-windows-desktop.png
+    - test/evidence/desktop-pages/desktop-console-pages-in-windows.png
+    - test/evidence/desktop/console-app-mobile.png
+    - test/evidence/desktop/console-dark-desktop.png
+    - test/evidence/desktop/console-fleet-and-repo-desktop.png
+    - test/evidence/desktop/console-home-mobile.png
+    - test/evidence/desktop/console-tiled-desktop.png
+    - test/evidence/desktop/console-welcome-desktop.png
+    - test/evidence/desktop/console-windows-desktop.png
+    - test/evidence/desktop/desktop-desktop.png
+    - test/evidence/desktop/desktop-fleet-window.png
+    - test/evidence/desktop/desktop-repo-window.png
+    verified: null
+    covered: true
+    evidenced: true
+    dangling: []
+    summary: 'ADR 0005 decisions 9 and 10 (phase D0). The console''s Desktop page (/desktop) is the bashOS OS shell in the
+      browser: a dock of icons, one per fleet frontend, floating windows and a taskbar, in the bashOS GUI''s paper palette
+      (--os-* in /them'
+    urls:
+      link: https://bamr87.github.io/bamr87/desktop
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/FRONTEND-PLATFORM.md
+      evidence:
+      - https://github.com/bamr87/bamr87/tree/main/test/evidence/desktop
+      - https://github.com/bamr87/bamr87/tree/main/test/evidence/desktop-pages
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/console/test_bashos_shell.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_fleetcore_apps.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_fleetcore.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/console/test_pages.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/console/test_console.py
+      scenarios:
+      - https://github.com/bamr87/bamr87/blob/main/verify/scenarios/desktop.yml
+      - https://github.com/bamr87/bamr87/blob/main/verify/scenarios/desktop-pages.yml
+      screenshots:
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/desktop-pages/console-page-windows-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/desktop-pages/desktop-console-pages-in-windows.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/desktop/console-app-mobile.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/desktop/console-dark-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/desktop/console-fleet-and-repo-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/desktop/console-home-mobile.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/desktop/console-tiled-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/desktop/console-welcome-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/desktop/console-windows-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/desktop/desktop-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/desktop/desktop-fleet-window.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/desktop/desktop-repo-window.png
+  - id: HUB-080
+    title: 'The generated repo app: every repo in the fleet opens as an app, with or without a frontend of its own'
+    surface: ui
+    implemented: true
+    link: /apps/kvlite
+    docs: docs/FRONTEND-PLATFORM.md
+    tags:
+    - console
+    - frontend
+    - portal
+    - registry
+    - desktop
+    date: '2026-11-05'
+    provenance: null
+    tests:
+    - tools/console/test_console.py
+    - tools/console/test_pages.py
+    - tools/test_fleetcore_apps.py
+    waived: []
+    scenarios:
+    - verify/scenarios/repo-app.yml
+    evidence:
+    - test/evidence/repo-app
+    screenshots:
+    - test/evidence/repo-app/console-list-desktop.png
+    - test/evidence/repo-app/console-page-desktop.png
+    - test/evidence/repo-app/console-page-mobile.png
+    - test/evidence/repo-app/console-window-overview-desktop.png
+    - test/evidence/repo-app/console-window-readme-desktop.png
+    - test/evidence/repo-app/desktop-no-interface-list.png
+    - test/evidence/repo-app/desktop-repo-app-overview.png
+    - test/evidence/repo-app/desktop-repo-app-readme.png
+    - test/evidence/repo-app/mobile-no-interface-list.png
+    - test/evidence/repo-app/mobile-repo-app-overview.png
+    - test/evidence/repo-app/mobile-repo-app-readme.png
+    verified: null
+    covered: true
+    evidenced: true
+    dangling: []
+    summary: 'ADR 0005 decision 10, phase F1. A repo the shell has no frontend to frame (a CLI, a library, infrastructure,
+      a kernel; an editor extension, a terminal UI or an app with no address until its own component exists) opens as one
+      generated app, '
+    urls:
+      link: https://bamr87.github.io/bamr87/apps/kvlite
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/FRONTEND-PLATFORM.md
+      evidence:
+      - https://github.com/bamr87/bamr87/tree/main/test/evidence/repo-app
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/console/test_console.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/console/test_pages.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_fleetcore_apps.py
+      scenarios:
+      - https://github.com/bamr87/bamr87/blob/main/verify/scenarios/repo-app.yml
+      screenshots:
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/repo-app/console-list-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/repo-app/console-page-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/repo-app/console-page-mobile.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/repo-app/console-window-overview-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/repo-app/console-window-readme-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/repo-app/desktop-no-interface-list.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/repo-app/desktop-repo-app-overview.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/repo-app/desktop-repo-app-readme.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/repo-app/mobile-no-interface-list.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/repo-app/mobile-repo-app-overview.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/repo-app/mobile-repo-app-readme.png
+  - id: HUB-081
+    title: 'Visual evidence standard: screenshots and front-end evidence for tutorials, guides and setup docs'
+    surface: infra
+    implemented: false
+    link: tools/guides_visual_lint.py
+    docs: docs/VISUAL-EVIDENCE.md
+    tags:
+    - docs
+    - guides
+    - evidence
+    - console
+    - lint
+    - standards
+    date: '2026-11-05'
+    provenance: null
+    tests:
+    - tools/test_guides_visual_lint.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: A hub-owned standard (constitution § 24) that requires tutorials, how-tos, setup docs, console/UI help and walkthrough
+      articles to ship screenshots, GIFs or recordings — with naming under docs/assets/guides/<slug>/ or test/evidence/<slug>/,
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/guides_visual_lint.py
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/VISUAL-EVIDENCE.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_guides_visual_lint.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-082
+    title: 'Fleet activity replay: live and historical animated view of agents, harnesses and containers (proposed)'
+    surface: ui
+    implemented: false
+    link: docs/prd/FLEET-ACTIVITY-REPLAY.md
+    docs: docs/prd/FLEET-ACTIVITY-REPLAY.md
+    tags:
+    - console
+    - observability
+    - activity-log
+    - replay
+    - timeline
+    - docker
+    - storage
+    - visualization
+    date: '2026-11-03'
+    provenance: null
+    tests: []
+    waived:
+    - design-only PRD; nothing implemented yet
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: Design only (Draft). Captures container lifecycle and stats, agent session, job and fleet_event activity from
+      the fleet Docker stack into the fleet's own storage (an append-only fleet_activity table in the fleet-db Postgres, hot
+      tail in Red
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/docs/prd/FLEET-ACTIVITY-REPLAY.md
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/prd/FLEET-ACTIVITY-REPLAY.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-083
+    title: Fleet security posture from a weekly OpenSSF Scorecard sweep
+    surface: infra
+    implemented: true
+    link: tools/scorecard_snapshot.py
+    docs: docs/SECURITY-POSTURE.md
+    tags:
+    - security
+    - conformance
+    - loop
+    date: '2026-11-05'
+    provenance: null
+    tests:
+    - tools/test_scorecard_snapshot.py
+    - tools/test_tui_fleet.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'A weekly, read-only OpenSSF Scorecard sweep of every public registry repo (scorecard-sweep.yml, job token, contents:
+      read) records seven checks as the security: block of _data/conformance.yml, rendered by tools/scorecard_snapshot.py
+      with a '
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/scorecard_snapshot.py
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/SECURITY-POSTURE.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_scorecard_snapshot.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_tui_fleet.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-084
+    title: 'JEV: roadmap FF ids assigned at merge'
+    surface: infra
+    implemented: true
+    link: tools/jev/number.py
+    docs: docs/JEV.md
+    tags:
+    - jev
+    - governance
+    - numbering
+    - roadmap
+    date: '2026-11-05'
+    provenance: null
+    tests:
+    - tools/test_jev_number.py
+    - tools/test_governance_lint.py
+    - tools/test_pm_review.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'Roadmap entries join conflict-free numbering. A pull request (or the /future-features flow, or the feature-scout)
+      writes a new roadmap entry as _data/roadmap.d/SLUG.yml with id: FF-NEW and cites it elsewhere as FF-NEW:SLUG; tools/jev/number'
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/jev/number.py
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/JEV.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_number.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_governance_lint.py
       - https://github.com/bamr87/bamr87/blob/main/tools/test_pm_review.py
       scenarios: []
       screenshots: []

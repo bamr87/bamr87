@@ -84,7 +84,7 @@ Reusable (`workflow_call`), adopted by the thin caller the kit seeds. One job:
 | step | what | when |
 | --- | --- | --- |
 | index | `features_index.py check` + `coverage` → job summary | always |
-| app | install deps (always-latest: `npm install`, never `ci`), `npx playwright install chromium`, build → start (or serve `static_dir`), poll readiness | when `verify/verify.yml` exists |
+| app | install deps (always-latest: `npm install`, never `ci`), `npx playwright install chromium`, build → start (or serve `static_dir`), poll readiness | when `verify/verify.yml` gives something to start or serve |
 | scenarios | `verify/runner.mjs --no-fail --by ci` → `verify-evidence` artifact + summary | when the app started |
 | agent | brief (diff + results) → `claude-code-action` with `--mcp-config verify/mcp.json`, allowlist = browser + runner + read/write in the tree, **no git write verbs, no gh** → the *workflow* posts `verify/AGENT-REPORT.md` as a sticky PR comment | `agent: true` (the `verify` label or dispatch) and Claude auth present |
 | gate | fail on invalid index / app not started / scenario failures | `gate: true` |
@@ -92,6 +92,8 @@ Reusable (`workflow_call`), adopted by the thin caller the kit seeds. One job:
 Auth is OAuth-first per the house convention; a missing credential skips the agent step with a notice and never fails the scenario half. The agent runs on a checkout with no persisted credentials and cannot merge, push, or comment — the same posture as `repo-evolution.yml`. Callers need `permissions: {contents: read, pull-requests: write, id-token: write}` and `secrets: inherit`.
 
 Labels (declared in `_data/fleet.yml` `verification.labels`): `verify` requests the agent pass; `skip-evidence` waives UPS-QA-52 with a reason in the PR body.
+
+A green `fleet-verify.yml` means scenarios ran. When `app:` gives nothing to start or serve on a local URL, the job stops in seconds with a **Not verified** warning and a summary, and fails if the repo has set `gate: true`. An app that is configured but fails to build or start fails the job whatever `gate` says, because no scenario ran.
 
 ## Fleet-wide: `dash features` and `/features/`
 
