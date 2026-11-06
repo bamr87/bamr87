@@ -8,7 +8,7 @@ label: deep-dive
 cycle: 1
 cycle_start: '2026-10-30'
 cycle_days: 42
-refreshed_at: '2026-11-05T12:26:54Z'
+refreshed_at: '2026-11-06T12:25:39Z'
 repos:
 - day: 1
   repo: it-journey
@@ -63,7 +63,7 @@ repos:
   - https://github.com/bamr87/bamr87/pull/509
   - https://github.com/bamr87/bamr87/pull/508
   - https://github.com/bamr87/bamr87/pull/579
-  open_issues: 16
+  open_issues: 15
   open_prs: 0
   findings: 'Cycle 1 day 2, final. Outcomes: Amr merged #508 (docs_index --lint fix) and #509 (governance-records-lint feature); issues #500-#505 filed (dead amendment links + FR45/HUB-049 #500, amendment status/§ 13 ordering #501, NFR11 budget mismatch #502, ungated docs_index lint #503, console a11y #504, governance-records-lint #505). Previously known python-tests and v1/v2 tag items were already fixed. HUB-039 has no PRD requirement (warning).'
   score: 78.0
@@ -81,7 +81,7 @@ repos:
   prs:
   - https://github.com/bamr87/bamr87.github.io/pull/54
   open_issues: 3
-  open_prs: 1
+  open_prs: 0
   findings: ''
   score: null
   next_focus: ''
