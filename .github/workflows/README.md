@@ -83,6 +83,7 @@ Each standard below is also a rule in the [workflow atlas](../../docs/WORKFLOW-A
 - **A spent Claude usage window is capacity, not a defect.** Every scheduled agent step is `continue-on-error: true` and its cost step passes `usage-limit: skip`. A 429 then becomes a warning, `usage_limit=true` (later issue-pipeline tiers skip on it), and a green run; every other failure still fails the job. The two halves only work together, so `test_ai_budget.py` requires them as a pair on every scheduled site.
 - **A job whose workspace is another repository** (repo-evolution `evolve`, fanout `agent-fill`, `fleet-verify.yml`) takes the hub's composite actions from a sparse `.fleet-hub` checkout, never from a floating tag.
 - **Toolchain versions come from `vars.*`**, resolved caller input → repo variable → default, so `dash config sync` can move the fleet from `_data/fleet.yml`.
+- **`node-version` is a number, never `lts/*`.** An alias needs `setup-node`'s manifest from the GitHub API and has no fallback, so a spent quota fails the step; a number checks the runner's cache and falls back to nodejs.org.
 - **Fan-outs go through `tools/fanout.sh`** (dry-run default, PRs only, external-upstream guard). Do not inline a new clone → seed → PR loop.
 - **Bot identity:** `bamr87-bot <10567847+bamr87@users.noreply.github.com>`; the noreply form is required by email-privacy push protection.
 - Update this README, `AGENTS.md`'s loop table and `_data/fleet.yml` `schedule:` when adding, removing or renaming a workflow.
