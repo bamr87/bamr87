@@ -1681,3 +1681,41 @@
   created: 2026-11-05
   issue_url: https://github.com/bamr87/bamr87/issues/678
 
+- id: FF-0040
+  title: "MCP server lifecycle — centralized registry, setup, config and fan-out"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P1
+  effort: L
+  category: infra
+  problem: >-
+    MCP servers are already in use (hub .mcp.json, verify Playwright, Harness
+    Console MCP / HUB-031, compose mcp tunnels, spoke kits) but setup is
+    fragmented: no single registry, easy to commit tokens, quick-tunnel URLs go
+    stale, and spoke repos drift from the hub template.
+  proposal: >-
+    Ratify constitution § 25 (amendment mcp-lifecycle): hub registry
+    (_data/mcp_servers.yml), docs/MCP-SERVERS.md, env-only secrets, transport
+    and tunnel rules, health and write kill switches, warn-then-fail
+    mcp_servers_lint, then console status (P1), consolidation + server.json
+    (P2), spoke fan-out (P3). Spec docs/prd/MCP-SERVERS.md; epic #683,
+    P0 backlog #684.
+  acceptance:
+    - "Amendment mcp-lifecycle and constitution § 25 are merged."
+    - "mcp_servers_lint.py flags a fixture config with an inline token or bad shape; hub CI is warn-only until adoption."
+    - "Feature HUB-NEW:mcp-lifecycle and FR-NEW:mcp-lifecycle compile at merge; backlog #684 checklist is the consolidation set."
+    - "Console MCP admin UI, named-tunnel automation and spoke fan-out are later epic phases, not blockers for the standard."
+  scope:
+    in:
+      - "the standard, amendment, registry stub, lint, inventory, roadmap and feature/FR fragments"
+    out:
+      - "editing submodule checkouts in the ratification PR; running anything on Amr's Mac without yes; printing tokens"
+  risks:
+    - "Warn-only lint ignored — mitigate with the #684 checklist and a dated adoption flip."
+    - "Quick-tunnel hostname committed by mistake — forbid in lint/docs; prefer named tunnel."
+    - "Section numbering — § 25 follows § 24 on main; renumber only if another amendment claims 25 first."
+  source: manual
+  created: 2026-11-05
+  issue_url: https://github.com/bamr87/bamr87/issues/683
+

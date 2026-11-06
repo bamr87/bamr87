@@ -301,3 +301,18 @@ _(amendment `visual-evidence`, numbered at merge — see the [amendment log](ame
 8. **Enforcement** — a guides visual lint (`tools/guides_visual_lint.py`) flags guide-like Markdown lacking an image, an evidence-bundle reference, or a `skip-visuals` reason; warn-only per repo until its adoption/fan-out PR lands, then a hard failure. Fleet fan-out follows the 0007 pattern (one spoke PR per repo).
 9. **Fit with § 15** — frontend *PR* evidence stays under § 15; this section covers *published guides*. A change may need both.
 
+## 25. MCP server lifecycle
+
+_(amendment `mcp-lifecycle`, numbered at merge — see the [amendment log](amendments/README.md); follows § 24 `visual-evidence` on main; renumber only if another amendment claims 25 first; extends § 16)_
+
+1. **Hub owns the lifecycle** — every MCP server the fleet builds, runs or registers for agents is declared in a hub registry (`_data/mcp_servers.yml`), documented under `docs/MCP-SERVERS.md`, and configured without credentials in git.
+2. **Single registry** — the registry lists each server's id, owner repo/path, role (client-config | hub-server | spoke-server | kit), transport(s), entrypoint, health probe, required secret *names* (never values), and status (`canonical` | `legacy` | `spoke` | `proposed`).
+3. **Config schema** — committed MCP client configs (`.mcp.json`, `verify/mcp.json`, kit templates) use the MCP `mcpServers` object shape; secret values appear only as `${ENV_NAME}` (or equivalent host env interpolation); literal tokens, PATs, API keys and passwords are forbidden in the tree.
+4. **Naming** — server ids are kebab-case, stable, and unique in the registry; the interactive console/fleet server remains registered to agents as `fleet` (HUB-031) unless a migration PR updates permissions and the registry together.
+5. **Transports** — stdio for local agent hosts; streamable HTTP only on loopback by default with a dedicated bearer (`HARNESS_MCP_TOKEN` for the console MCP, never the console's own token on the wire to clients); non-loopback bind requires an explicit allow-host list.
+6. **Tunnels** — public or remote access is opt-in (`mcp-tunnel` profile or `dash mcp --tunnel`); quick-tunnel hostnames are unstable and must not be committed; prefer a named tunnel or Tailscale for standing remote access; `dash mcp --tunnel-url` is the refresh path.
+7. **Writes and kill switch** — MCP write tools stay off unless an explicit env flag enables them; destructive tools require `confirm=true`; console allowlists and workflow kill switches remain authoritative for GitHub writes.
+8. **Health and versioning** — HTTP MCP servers expose a probe the compose/healthcheck or `dash mcp` can run; package pins prefer dist-tags the registry documents (`@latest` only when the UPS baseline allows); breaking tool renames need a registry note and a migration window.
+9. **Enforcement** — `tools/mcp_servers_lint.py` validates client configs and registry rows (schema, no inline secrets, unknown ids); warn-only per repo until adoption/fan-out, then hard fail. Fleet fan-out follows the 0007 pattern.
+10. **Fit with § 16 / HUB-031** — AI-ready per-repo MCP exposure and the console MCP layer stay the implementations; this section is the lifecycle and governance umbrella.
+

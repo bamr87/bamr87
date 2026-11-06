@@ -1,0 +1,134 @@
+# mcp-servers/v1 — hub registry of fleet MCP servers (constitution § 25)
+# Secret fields are NAMES only. Never commit token values.
+schema: mcp-servers/v1
+updated: "2026-11-05"
+docs: docs/MCP-SERVERS.md
+inventory: docs/mcp-servers-inventory.md
+servers:
+  - id: github
+    role: client-config
+    status: canonical
+    owner: bamr87/bamr87
+    path: .mcp.json
+    transports: [stdio]
+    entrypoint: "npx -y @modelcontextprotocol/server-github"
+    secret_env: [GITHUB_TOKEN]
+    notes: "UPS baseline; maps env GITHUB_PERSONAL_ACCESS_TOKEN ← ${GITHUB_TOKEN}"
+
+  - id: memory
+    role: client-config
+    status: canonical
+    owner: bamr87/bamr87
+    path: .mcp.json
+    transports: [stdio]
+    entrypoint: "npx -y @modelcontextprotocol/server-memory"
+    secret_env: []
+
+  - id: sequentialthinking
+    role: client-config
+    status: canonical
+    owner: bamr87/bamr87
+    path: .mcp.json
+    transports: [stdio]
+    entrypoint: "npx -y @modelcontextprotocol/server-sequential-thinking"
+    secret_env: []
+
+  - id: context7
+    role: client-config
+    status: canonical
+    owner: bamr87/bamr87
+    path: .mcp.json
+    transports: [stdio]
+    entrypoint: "npx -y @upstash/context7-mcp@latest"
+    secret_env: []
+
+  - id: playwright
+    role: client-config
+    status: canonical
+    owner: bamr87/bamr87
+    path: .mcp.json
+    transports: [stdio]
+    entrypoint: "npx -y @playwright/mcp@latest"
+    secret_env: []
+    notes: "Also the verify-kit server in verify/mcp.json"
+
+  - id: fleet
+    role: hub-server
+    status: canonical
+    owner: bamr87/bamr87
+    path: tools/console/mcp_layer/
+    transports: [stdio, http]
+    entrypoint: tools/console/mcp.sh
+    http_url: "http://127.0.0.1:4002/mcp"
+    health: "GET /mcp → 401 without bearer"
+    secret_env: [HARNESS_MCP_TOKEN, DASH_CONSOLE_TOKEN]
+    write_env: HARNESS_MCP_ALLOW_WRITES
+    notes: "HUB-031; agent name fleet (--fleet-compat). Compose profiles mcp / mcp-tunnel."
+
+  - id: fleet-legacy-stdlib
+    role: hub-server
+    status: legacy
+    owner: bamr87/bamr87
+    path: tools/fleetcore/mcp_server.py
+    transports: [stdio]
+    entrypoint: "FLEET_MCP_STDLIB=1 python3 tools/fleetcore/mcp_server.py"
+    secret_env: []
+    notes: "Default path delegates to mcp_layer; do not extend."
+
+  - id: verify-playwright
+    role: kit
+    status: canonical
+    owner: bamr87/bamr87
+    path: verify/mcp.json
+    transports: [stdio]
+    entrypoint: "npx -y @playwright/mcp@latest"
+    secret_env: []
+    notes: "templates/verify/mcp.json is the fan-out seed"
+
+  - id: ccusage
+    role: client-config
+    status: proposed
+    owner: bamr87/bamr87
+    path: docs/DASH.md
+    transports: [stdio]
+    entrypoint: "documented opt-in snippet only"
+    secret_env: []
+    notes: "Must not be committed to .mcp.json by default (session overhead)"
+
+  - id: it-journey-quests
+    role: spoke-server
+    status: spoke
+    owner: bamr87/it-journey
+    path: scripts/quest/mcp_server.py
+    transports: [stdio]
+    entrypoint: "python3 scripts/quest/mcp_server.py"
+    secret_env: []
+
+  - id: it-journey-github-readonly
+    role: client-config
+    status: spoke
+    owner: bamr87/it-journey
+    path: scripts/ai/mcp/github-readonly.json
+    transports: [stdio]
+    entrypoint: "npx -y @modelcontextprotocol/server-github"
+    secret_env: [GITHUB_MCP_TOKEN]
+
+  - id: gitorio-gitnexus
+    role: spoke-server
+    status: spoke
+    owner: bamr87/gitorio
+    path: packages/gitnexus/
+    transports: [http]
+    entrypoint: "gitnexus MCP route (app)"
+    secret_env: []
+    notes: "App-served MCP; hub tracks only"
+
+  - id: aieo-mcp-server
+    role: spoke-server
+    status: proposed
+    owner: unknown
+    path: fleet-aieo-mcp-server
+    transports: []
+    entrypoint: "compose service mcp-server (no host port)"
+    secret_env: []
+    notes: "Seen in _data/docker.yml / smoke.yml; confirm owning repo"
