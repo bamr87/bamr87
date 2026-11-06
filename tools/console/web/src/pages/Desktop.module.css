@@ -203,6 +203,14 @@ a.pill:hover { color: var(--os-ink); border-color: var(--os-muted); }
   background: var(--surface);
   color: var(--ink);
 }
+/* One of the console's own pages, filling its window. */
+.pageFrame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--page);
+}
 .resize {
   position: absolute;
   right: 0;
