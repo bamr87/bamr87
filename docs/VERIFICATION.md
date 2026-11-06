@@ -84,7 +84,7 @@ Reusable (`workflow_call`), adopted by the thin caller the kit seeds. One job:
 | step | what | when |
 | --- | --- | --- |
 | index | `features_index.py check` + `coverage` → job summary | always |
-| app | install deps (always-latest: `npm install`, never `ci`), `npx playwright install chromium`, build → start (or serve `static_dir`), poll readiness | when `verify/verify.yml` exists |
+| app | install deps (always-latest: `npm install`, never `ci`), `npx playwright install chromium`, build → start (or serve `static_dir`), poll readiness | when `verify/verify.yml` gives something to start or serve |
 | scenarios | `verify/runner.mjs --no-fail --by ci` → `verify-evidence` artifact + summary | when the app started |
 | agent | brief (diff + results) → `claude-code-action` with `--mcp-config verify/mcp.json`, allowlist = browser + runner + read/write in the tree, **no git write verbs, no gh** → the *workflow* posts `verify/AGENT-REPORT.md` as a sticky PR comment | `agent: true` (the `verify` label or dispatch) and Claude auth present |
 | gate | fail on invalid index / app not started / scenario failures | `gate: true` |
