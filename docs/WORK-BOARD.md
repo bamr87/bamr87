@@ -91,7 +91,7 @@ notes:                       # why — shown, never read by a loop
   issue:bamr87/zer0-mistakes#565: blocks the zer0-cms cutover
 ```
 
-Keys are `issue:<owner>/<repo>#<n>`, `pr:<owner>/<repo>#<n>`, `roadmap:FF-NNNN`, `spec:<project>/<NNN-slug>` and `backlog:<project>/BL-YYYYMMDD-NN`. A hand edit is fine. A malformed entry costs that entry, never the run, and every reader reports what it dropped. Apply prunes keys whose items have closed, but only when the source was seen whole. The triage snapshot caps issues per repository, and a submodule that is not checked out has no specs; neither is evidence that an item closed.
+Keys are `issue:<owner>/<repo>#<n>`, `pr:<owner>/<repo>#<n>`, `roadmap:FF-NNNN`, `spec:<project>/<NNN-slug>` and `backlog:<project>/BL-YYYYMMDD-NN`. A roadmap entry still pending as a `_data/roadmap.d/<slug>.yml` fragment shows on the board as `FF-NEW:<slug>`; it can be pinned or moved only once `jev number` has given it an id on `main`. A hand edit is fine. A malformed entry costs that entry, never the run, and every reader reports what it dropped. Apply prunes keys whose items have closed, but only when the source was seen whole. The triage snapshot caps issues per repository, and a submodule that is not checked out has no specs; neither is evidence that an item closed.
 
 ## What it refuses to do
 

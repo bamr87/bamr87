@@ -85,7 +85,8 @@ DEFAULT_GENERATED_GLOBS = (
     "_data/features_index.yml", "_data/deep_dive.json", "projects/SCHEMA.md",
     "docs/README.md", "_site/*", "site/*",
 )
-DEFAULT_FRAGMENT_GLOBS = ("features/features.d/*", "changelog.d/*", "docs/amendments/proposed/*")
+DEFAULT_FRAGMENT_GLOBS = ("features/features.d/*", "changelog.d/*", "docs/amendments/proposed/*",
+                          "_data/roadmap.d/*")
 BINARY_SUFFIXES = (
     ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".zip", ".gz",
     ".woff", ".woff2", ".ttf", ".otf", ".so", ".dylib", ".wasm", ".sqlite", ".db",
