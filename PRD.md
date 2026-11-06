@@ -129,6 +129,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-082](features/features.yml) | Fleet activity replay: live and historical animated view of agents, harnesses and containers (proposed) | planned | [`docs/prd/FLEET-ACTIVITY-REPLAY.md`](docs/prd/FLEET-ACTIVITY-REPLAY.md) | FR5, FR7, FR10, FR15, FR16, FR17, FR18, FR19, FR20, FR26, FR60, NFR4, NFR5, NFR6, NFR7, NFR9, FR80, FR81, FR82, NFR16 |
 | [HUB-083](features/features.yml) | Fleet security posture from a weekly OpenSSF Scorecard sweep | partial | [`tools/scorecard_snapshot.py`](tools/scorecard_snapshot.py) · [`docs/SECURITY-POSTURE.md`](docs/SECURITY-POSTURE.md) | FR83 |
 | [HUB-084](features/features.yml) | JEV: roadmap FF ids assigned at merge | shipped | [`tools/jev/number.py`](tools/jev/number.py) · [`docs/JEV.md`](docs/JEV.md) | FR28 |
+| [HUB-085](features/features.yml) | Expedite sprints: one accelerated, monitored pilot at a time run by the fleet's agentic loops | planned | [`docs/EXPEDITE-SPRINTS.md`](docs/EXPEDITE-SPRINTS.md) | FR84 |
 
 **Requirement → feature trace**
 
@@ -232,6 +233,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR82 | HUB-082 |
 | NFR16 | HUB-082 |
 | FR83 | HUB-083 |
+| FR84 | HUB-085 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -309,6 +311,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR81: The Harness Console must serve captured activity through one read-only API that streams live events (SSE with Last-Event-ID resume) and replays any past window in order at a chosen speed from the same cursor format, filterable by source, project, container, agent and run, and exposed as MCP read tools.
 - FR82: The Harness Console must render captured activity as an animated timeline and node graph console plugin (live and replay modes, play/pause/scrub/speed, per-event drill-down to Grafana, Kibana and Phoenix), which shows recorded history in snapshot mode on Pages and renders an explicit empty or degraded state when the store or stream is unavailable.
 - FR83: The hub must record a read-only, weekly OpenSSF Scorecard result per public registry repo in the conformance snapshot, without filing issues or pinning dependencies.
+- FR84: The hub must support one expedite sprint at a time — declared by Amr in _data/work_queue.yml, spec-approved and merged through the review gate — run by the existing loops under a sprint ceiling with a circuit breaker, a sprint kill switch, a live record and DORA delivery metrics, without relaxing any quality gate.
 
 **Non-functional**
 

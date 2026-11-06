@@ -1878,3 +1878,24 @@ features:
     - tools/test_jev_number.py
     - tools/test_governance_lint.py
     - tools/test_pm_review.py
+  - id: HUB-085
+    title: 'Expedite sprints: one accelerated, monitored pilot at a time run by the fleet''s agentic loops'
+    description: A hub standard (constitution § 27) for a Kanban-style expedite lane (WIP 1) driven end
+      to end by the existing loops — issue pipeline, JEV tiers, CI, monitoring and the retro ratchet — with
+      three gates Amr passes (declaration in _data/work_queue.yml, spec approval, merge via needs-amr),
+      a sprint ceiling and circuit breaker, a sprint kill switch, a live record and DORA delivery metrics.
+    implemented: false
+    status: planned
+    surface: infra
+    link: docs/EXPEDITE-SPRINTS.md
+    docs: docs/EXPEDITE-SPRINTS.md
+    tags:
+    - harness
+    - loops
+    - governance
+    - devops
+    - dora
+    - standards
+    date: 2026-11-05
+    prd:
+    - FR84

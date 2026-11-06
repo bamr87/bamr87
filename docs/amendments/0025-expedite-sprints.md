@@ -1,11 +1,11 @@
-# NEW — Expedite sprints run by agentic loops
+# 0025 — Expedite sprints run by agentic loops
 
 - **Status:** proposed (ratification pending — Amr ratifies by merging this PR)
-- **Number:** NEW
+- **Number:** 0025
 - **Date:** 2026-11-05
 - **Proposed by:** Grok Bot (agent), on Amr's instruction as owner
 - **Ratified by:**
-- **Affects:** constitution § 27 (new; follows § 25 `mcp-lifecycle` #685 and § 26 `claude-code-executes` #686, both open — renumber to the next free section if either does not merge first); § 9, § 10, § 12, § 13, § 17 by reference; feature `HUB-NEW:expedite-sprints`; requirement `FR-NEW:expedite-sprints`; roadmap FF-0042
+- **Affects:** constitution § 27 (new; follows § 25 `mcp-lifecycle` #685 and § 26 `claude-code-executes` #686, both open — renumber to the next free section if either does not merge first); § 9, § 10, § 12, § 13, § 17 by reference; feature `HUB-085`; requirement `FR84`; roadmap FF-0042
 - **Supersedes:** none
 - **Related:** epic #687; backlog #688 (this amendment), #689 (sprint budget + circuit breaker), #690 (DORA metrics), #691 (live sprint record), #692 (bash-365.com pilot); research write-up https://cursor.com/canvas/store-ecae274f-8a58-44f1-9d6f-1810735ef947/c859cd74-6625-43b3-a8fe-c4588a912dcd; Design for Failure (DFF, `CONTRIBUTING.md`)
 
@@ -66,7 +66,7 @@ New constitution section:
 ## Consequences
 
 - Standard `docs/EXPEDITE-SPRINTS.md`; sub-PRD `docs/prd/EXPEDITE-SPRINTS.md` (US1–US6).
-- Feature fragment `features/features.d/expedite-sprints.yml` (`HUB-NEW`, `FR-NEW:expedite-sprints`); roadmap FF-0042.
+- Feature fragment `features/features.d/expedite-sprints.yml` (`HUB-NEW`, `FR84`); roadmap FF-0042.
 - Follow-ups: #689, #690, #691, then the pilot #692 (needs a privacy review; prerequisites bash-365/bash-365.com#26 and the bash-365.com AGENTS.md PR-only fix).
 - Predicted ids at merge (as of 2026-11-05): if #685 and #686 merge first — amendment **0026**, feature **HUB-086**, requirement **FR86**, § 27; if this merges first on today's main — **0024**, **HUB-084**, **FR84** (renumber the section to § 25).
 - Ratification: Amr ratifies this amendment by merging the PR; agents propose, never merge (§ 8).

@@ -29,6 +29,7 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - Shared voice model `voices/v1`: `_data/voices/voices.yml` (canonical; lifehacker.dev's SDLC persona cast) and `voices.schema.json`, validated by `tools/voices.py check` (with `--against` drift check and `assign`). § 23 also brings lifehacker.dev in as the hub-originated news agency.
 - Constitution § 24 (amendment `visual-evidence`): tutorials, guides and setup docs ship screenshots or other visual front-end evidence (naming, alt text, redaction, freshness), with a warn-then-fail guides lint and hub-first fleet fan-out.
 - Constitution § 22 (amendment `repo-cap-42`): the `bamr87` account holds at most 42 repositories (hard cap), and every new repo must come with merging or absorbing an existing one.
+- Proposed constitution § 27 / amendment `expedite-sprints`: one expedite sprint at a time run by the fleet's agentic loops, three Amr gates, sprint ceiling and circuit breaker, kill switch, live record and DORA metrics; standard `docs/EXPEDITE-SPRINTS.md` (epic #687).
 
 ### Changed
 
