@@ -19,7 +19,7 @@ on:
       - ".github/workflows/verify.yml"
       - "tools/features_index.py"
       - "templates/verify/**"
-      - "features/**"
+      - "features/features.yml"
       - "verify/**"
       - "pages/**"
       - "_data/features_index.yml"
