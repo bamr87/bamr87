@@ -128,6 +128,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-081](features/features.yml) | Visual evidence standard: screenshots and front-end evidence for tutorials, guides and setup docs | planned | [`tools/guides_visual_lint.py`](tools/guides_visual_lint.py) · [`docs/VISUAL-EVIDENCE.md`](docs/VISUAL-EVIDENCE.md) | FR79 |
 | [HUB-082](features/features.yml) | Fleet activity replay: live and historical animated view of agents, harnesses and containers (proposed) | planned | [`docs/prd/FLEET-ACTIVITY-REPLAY.md`](docs/prd/FLEET-ACTIVITY-REPLAY.md) | FR5, FR7, FR10, FR15, FR16, FR17, FR18, FR19, FR20, FR26, FR60, NFR4, NFR5, NFR6, NFR7, NFR9, FR80, FR81, FR82, NFR16 |
 | [HUB-083](features/features.yml) | Fleet security posture from a weekly OpenSSF Scorecard sweep | partial | [`tools/scorecard_snapshot.py`](tools/scorecard_snapshot.py) · [`docs/SECURITY-POSTURE.md`](docs/SECURITY-POSTURE.md) | FR83 |
+| [HUB-084](features/features.yml) | JEV: roadmap FF ids assigned at merge | shipped | [`tools/jev/number.py`](tools/jev/number.py) · [`docs/JEV.md`](docs/JEV.md) | FR28 |
 
 **Requirement → feature trace**
 
@@ -169,7 +170,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR27 | HUB-032 |
 | NFR10 | HUB-032 |
 | FR3 | HUB-033 |
-| FR28 | HUB-035 |
+| FR28 | HUB-035, HUB-084 |
 | NFR11 | HUB-035, HUB-073 |
 | FR29 | HUB-036, HUB-037 |
 | NFR12 | HUB-036, HUB-037, HUB-038 |
