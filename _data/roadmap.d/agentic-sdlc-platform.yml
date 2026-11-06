@@ -1,0 +1,48 @@
+id: FF-NEW
+title: GitHub Actions as the agentic SDLC platform — typed decisions gate risk, telemetry scores efficiency, trim and verify loops recover minutes
+project: bamr87
+repo_url: https://github.com/bamr87/bamr87
+status: proposed
+priority: P1
+effort: XL
+category: infra
+problem: >-
+  Every skip, retry and auto-fix in the fleet's pipelines is either a hand-written
+  shell test or a free-form agent judgment, so nothing can say with a measured
+  confidence which tests a diff can affect, whether a failure is flaky or real, or
+  whether an agent should touch it; minutes are spent running everything on every
+  PR, and a missed failure leaves no trace that could tighten the next decision.
+proposal: >-
+  Adopt the maintainer's four-layer design (ADR 0008, docs/prd/AGENTIC-SDLC.md):
+  the cost levers as atlas standards fleet-wide; a typed-decision node (TypeSafe
+  Jev behind one composite action, claude -p as fallback) reading a decision
+  lockfile with confidence thresholds that fail closed; decision traces and CI
+  quality signals in the lake with Studio panels and alerts; typed
+  pre-classification in front of the doctor and a patch screen behind every
+  agent PR; a per-PR trim loop (test selection, matrix pruning) that starts in
+  shadow and a nightly verify loop whose missed failures become regression cases,
+  with a fitness gate (minutes down, missed failures zero) on every promotion.
+acceptance:
+  - "ADR 0008 accepted or rejected on an offline evaluation of about 40 past PRs and failures (A0)."
+  - "Five cost-lever rules in the atlas at warn, the hub at zero warnings, levers ranked fleet-wide (A1)."
+  - "_data/decisions.yml and the typed-decision action: every consumer thresholded, every miss on the conservative branch, never a failed step (A2)."
+  - "Decision traces, queue time, cache hit rate, flake rate and time-to-green in the lake; replay; Studio panels; four alerts (A3)."
+  - "The doctor and tier 2 run only after a cleared classification; a 0.70-floor patch screen on agent and human PRs (A4)."
+  - "Test selection and matrix pruning in shadow for 14 nightly windows with a report of what would have been skipped (A5)."
+  - "decision-verify.yml with kill switch and declared cron; the hub and one fleet repo promoted with zero missed failures and minutes down on the billing meter (A6)."
+scope:
+  in:
+    - the hub's reusable workflows and composite actions, tools/jev, the lake, the Studio views, fleet-pulse and the issue pipeline, the fleet kit through fanout.yml
+  out:
+    - SHA-pinning actions (the fleet rides major tags by standing rule)
+    - a GitHub App identity (a maintainer decision put as a question in A4, not assumed)
+    - new repositories (no org; the hub is org/.github, org/ci-metrics and org/ci-agent at once)
+    - self-hosted runners on public repositories
+risks:
+  - "The ecosystem pieces the design names (jev-action, jev-workflow, jev-review-action, Leanest) were not verifiable on 2026-11-06; each phase adopts or builds and says which."
+  - "Name collision: JEV is the hub's engine, TypeSafe Jev is the external model; every doc qualifies the external one."
+  - "A trim that drops a test is the worst outcome; promotion is per repository, reversible, and a missed failure demotes first."
+  - "A new vendor key in the token contract and per-decision spend the ledger must count as API-equivalent (estimate)."
+source: manual
+created: 2026-11-06
+issue_url: null
