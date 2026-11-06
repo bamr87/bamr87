@@ -25,8 +25,8 @@ on:
       - "_data/features_index.yml"
       - "tools/console/**"
       - "tools/fleetcore/**"
-  # No `push:` — the run is advisory (gate: false) and cannot fail, so a
-  # post-merge re-run only repeated what the PR run had just shown.
+  # No `push:` — the scenarios are advisory (gate: false), so a post-merge
+  # re-run only repeated what the PR run had just shown.
   workflow_dispatch:
     inputs:
       agent:

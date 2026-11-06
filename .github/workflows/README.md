@@ -63,7 +63,7 @@ Member repos call these by reference at a major tag (`@v1`, `@v2`; scheme in [WO
 | `release-please.yml` | `workflow_call` | The fleet's one release workflow: release PR, `vX.Y.Z` tag, GitHub Release, lockfile re-lock. Shipped by the SDLC kit. |
 | `site-quality.yml` | `workflow_call` | Lighthouse CI, axe-core at two widths and pa11y contrast, on a built Jekyll site or live URLs. Runtime in `.github/site-quality/` (exact pins, the hub's one sanctioned lockfile). |
 | `spec-gate.yml` | `workflow_call` | Validates a caller's `specs/` and `BACKLOG.md` with the spec-driven kit; optional stale-backlog issue. [SPEC-DRIVEN.md](../../docs/SPEC-DRIVEN.md) |
-| `fleet-verify.yml` | `workflow_call` | Agent verification: feature index, Playwright scenarios, optional Claude pass through the Playwright MCP. Hub actions come from the `.fleet-hub` checkout at `hub-ref`. |
+| `fleet-verify.yml` | `workflow_call` | Agent verification: feature index, Playwright scenarios, optional Claude pass through the Playwright MCP. A repo with no app configured gets a "Not verified" warning in seconds, and an app that fails to build or start fails the job. Hub actions come from the `.fleet-hub` checkout at `hub-ref`. |
 | `ai-lane.yml` | `workflow_call` | The fleet's AI lane (kit `ai-runner`): kill switch, bot guard, credential check, concurrency, the `claude-run` step, result assertion. Inherits the caller's permissions. |
 
 ## Standards

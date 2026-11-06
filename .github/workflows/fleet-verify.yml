@@ -27,6 +27,13 @@ name: fleet-verify
 # are trustworthy, which is what turns "the agent clicked through it" into a
 # PR-blocking check where the code lives.
 #
+# A green job must mean something. A repo whose `app:` block gives nothing to
+# start or serve, on a local URL, gets a "Not verified" warning and stops in
+# seconds; with `gate: true` that fails. A configured app that does not build or
+# start fails the job whatever `gate` says, because no scenario ran. Until
+# 2026-11 both cases waited out the timeout and passed: 22 of the 25 repos on
+# this workflow ran no scenarios at all (docs/WORKFLOW-OPTIMIZATION.md).
+#
 # Auth (house convention): CLAUDE_CODE_OAUTH_TOKEN preferred, ANTHROPIC_API_KEY
 # fallback — callers pass `secrets: inherit`. A missing credential SKIPS the
 # agent step with a notice; it never fails the scenario half.
@@ -166,8 +173,12 @@ jobs:
           cfg = yaml.safe_load(open(sys.argv[1])) or {}
           app = cfg.get("app") or {}
           url = str(app.get("url") or "http://127.0.0.1:4000")
-          port = urllib.parse.urlparse(url).port or 80
+          parsed = urllib.parse.urlparse(url)
+          port = parsed.port or 80
+          local = parsed.hostname in ("127.0.0.1", "localhost", "0.0.0.0", "::1")
+          runnable = bool(app.get("start") or app.get("static_dir")) or not local
           print("present=true")
+          print(f"runnable={'true' if runnable else 'false'}")
           for k in ("start", "build", "static_dir", "ready", "install"):
               print(f"{k}={str(app.get(k) or '').replace(chr(10), ' ')}")
           print(f"url={url}")
@@ -177,14 +188,28 @@ jobs:
           print(f"evidence={cfg.get('evidence_dir') or 'test/evidence'}")
           PY
 
+      # The kit seeds an empty `app:` block. With nothing to start or serve, stop
+      # here: installing Chromium and waiting for a server nobody started proves
+      # nothing, and a green job would say it did.
+      - name: Report that nothing was verified
+        if: ${{ steps.cfg.outputs.present == 'true' && steps.cfg.outputs.runnable == 'false' }}
+        run: |
+          msg="$CONFIG sets no app.start or app.static_dir, so no scenario ran."
+          echo "::warning title=Not verified::$msg Fill in app:, or remove the verify kit from this repo."
+          {
+            echo "## Not verified"
+            echo
+            echo "$msg Fill in \`app:\` (docs/VERIFICATION.md), or remove the verify kit from this repo."
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - uses: ruby/setup-ruby@v1
-        if: ${{ steps.cfg.outputs.present == 'true' && hashFiles('Gemfile') != '' }}
+        if: ${{ steps.cfg.outputs.runnable == 'true' && hashFiles('Gemfile') != '' }}
         with:
           ruby-version: ${{ env.RUBY_V }}
           bundler-cache: false
 
       - name: Install the app's dependencies
-        if: ${{ steps.cfg.outputs.present == 'true' }}
+        if: ${{ steps.cfg.outputs.runnable == 'true' }}
         env:
           INSTALL: ${{ steps.cfg.outputs.install }}
         run: |
@@ -205,7 +230,7 @@ jobs:
           fi
 
       - name: Install the runner's dependencies + Chromium
-        if: ${{ steps.cfg.outputs.present == 'true' }}
+        if: ${{ steps.cfg.outputs.runnable == 'true' }}
         run: |
           set -euo pipefail
           # Installed into verify/node_modules, which verify/runner.mjs resolves
@@ -216,7 +241,7 @@ jobs:
           verify/node_modules/.bin/playwright install --with-deps chromium
 
       - name: Start the app the way a user would
-        if: ${{ steps.cfg.outputs.present == 'true' }}
+        if: ${{ steps.cfg.outputs.runnable == 'true' }}
         id: app
         env:
           BUILD: ${{ steps.cfg.outputs.build }}
@@ -228,9 +253,16 @@ jobs:
           TIMEOUT: ${{ steps.cfg.outputs.timeout }}
         run: |
           set -uo pipefail
+          # No scenario can run from here, so the job fails whatever `gate` says.
+          not_started() {
+            echo "::error title=Not verified::$1"
+            echo "started=false" >> "$GITHUB_OUTPUT"
+            { echo "## Not verified"; echo; echo "$1"; } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
           if [ -n "$BUILD" ]; then
             echo "build: $BUILD"
-            bash -c "$BUILD" 2>&1 | tail -50 || { echo "::error::build failed"; echo "started=false" >> "$GITHUB_OUTPUT"; exit 0; }
+            bash -c "$BUILD" 2>&1 | tail -50 || not_started "the app's build failed"
           fi
           if [ -n "$START" ]; then
             echo "start: $START"
@@ -247,13 +279,12 @@ jobs:
             if [ "$code" != "000" ] && [ "$code" -lt 500 ]; then echo "ready after ${i}s (HTTP $code)"; echo "started=true" >> "$GITHUB_OUTPUT"; exit 0; fi
             sleep 1
           done
-          echo "::error::app not ready at $ready after ${TIMEOUT}s"
           [ -f verify-app.log ] && tail -40 verify-app.log
-          echo "started=false" >> "$GITHUB_OUTPUT"
+          not_started "app not ready at $ready after ${TIMEOUT}s"
 
       # ------------------------------------------------------------------ 3. scenarios
       - name: Run the user scenarios
-        if: ${{ steps.cfg.outputs.present == 'true' && steps.app.outputs.started == 'true' }}
+        if: ${{ steps.cfg.outputs.runnable == 'true' && steps.app.outputs.started == 'true' }}
         id: run
         env:
           ONLY: ${{ inputs.only }}
@@ -419,11 +450,13 @@ jobs:
         if: ${{ inputs.gate }}
         env:
           VALID: ${{ steps.index.outputs.valid }}
+          RUNNABLE: ${{ steps.cfg.outputs.runnable }}
           STARTED: ${{ steps.app.outputs.started }}
           FAILED: ${{ steps.run.outputs.failed }}
         run: |
           rc=0
           [ "$VALID" = "false" ] && { echo "::error::features/features.yml is invalid"; rc=1; }
+          [ "$RUNNABLE" = "false" ] && { echo "::error::no app is configured, so nothing was verified"; rc=1; }
           [ "$STARTED" = "false" ] && { echo "::error::the app did not start"; rc=1; }
           [ "${FAILED:-0}" != "0" ] && { echo "::error::${FAILED} scenario(s) failed"; rc=1; }
           exit $rc

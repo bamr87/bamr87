@@ -93,6 +93,8 @@ Auth is OAuth-first per the house convention; a missing credential skips the age
 
 Labels (declared in `_data/fleet.yml` `verification.labels`): `verify` requests the agent pass; `skip-evidence` waives UPS-QA-52 with a reason in the PR body.
 
+A green `fleet-verify.yml` means scenarios ran. When `app:` gives nothing to start or serve on a local URL, the job stops in seconds with a **Not verified** warning and a summary, and fails if the repo has set `gate: true`. An app that is configured but fails to build or start fails the job whatever `gate` says, because no scenario ran.
+
 ## Fleet-wide: `dash features` and `/features/`
 
 ```bash
