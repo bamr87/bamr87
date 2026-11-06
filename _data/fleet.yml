@@ -2015,6 +2015,20 @@ switches:
       cron: 17 12 * * *
       note: scheduled, no switch
       flip: 'no switch yet (§ 17 gap): `gh workflow disable deep-dive.yml -R bamr87/bamr87` is the only lever; record it here'
+    hub/drift-check:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/drift-check.yml
+      group: hub-maintenance
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: none
+      default: 'on'
+      state: 'on'
+      verified: false
+      cron: 7 4 * * *
+      note: daily fleet-wide drift checks (g, k); the PR and push runs skip them (S0 fix 8023fb3)
+      flip: 'no switch yet (§ 17 gap): `gh workflow disable drift-check.yml -R bamr87/bamr87` is the only lever; record it here'
     hub/python-tests:
       repo: bamr87/bamr87
       workflow: .github/workflows/python-tests.yml
