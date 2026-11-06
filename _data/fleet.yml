@@ -150,6 +150,7 @@ hub:
 schedule:
   rotate_tokens: "7 2 * * 1"      # weekly credential rotation (see rotation:)
   update_submodules: "7 3 * * *"  # daily pointer bump (published directly, [skip ci])
+  drift_check: "7 4 * * *"        # daily fleet-wide drift checks (g, k); the PR and push runs skip them to spare the shared GITHUB_TOKEN quota
   reconcile_registry: "7 5 * * *" # registry ↔ GitHub reconciliation
   fleet_pulse: "37 5 * * *"       # gather → publish → remediate (THE daily loop; its data push is [skip ci])
   issue_pipeline: "37 7 * * *"    # intake → implement → complete (see issue_pipeline:; its data push is [skip ci])

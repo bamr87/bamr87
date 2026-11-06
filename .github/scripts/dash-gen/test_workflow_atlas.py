@@ -248,6 +248,21 @@ def test_workflow_run_pr_token_and_bare_push():
         assert "bare-push" in rules(GOOD.replace("run: echo ok", f"run: {bad}")), bad
 
 
+def test_node_alias_is_the_quota_defect():
+    node = "      - uses: actions/checkout@v7\n      - uses: actions/setup-node@v7\n        with:\n          node-version: {}\n"
+    setup = lambda version: GOOD.replace("      - uses: actions/checkout@v7\n", node.format(version))
+    for bad in ("lts/*", "lts/iron", "latest", "'lts/*'"):
+        assert "node-alias" in rules(setup(bad)), bad
+    for ok in ("'26'", "26", "22.x", "${{ env.NODE_V }}"):
+        assert "node-alias" not in rules(setup(ok)), ok
+    call = GOOD.replace("    runs-on: ubuntu-latest\n    timeout-minutes: 10\n    permissions:\n      contents: write\n    steps:\n"
+                        "      - uses: actions/checkout@v7\n      - if: github.event_name != 'workflow_dispatch' || inputs.apply\n"
+                        "        run: echo ok\n      - uses: ./.github/actions/utilities/publish-data\n        with:\n"
+                        "          paths: \"_data/x.yml _data/y.yml\"\n          message: \"chore(data): x [skip ci]\"\n",
+                        "    uses: ./.github/workflows/fleet-verify.yml\n    with:\n      node-version: lts/*\n")
+    assert "node-alias" in rules(call), "a reusable-workflow call passes it as an input"
+
+
 def test_actions_description_expression_and_unused():
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)

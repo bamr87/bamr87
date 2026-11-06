@@ -141,7 +141,7 @@ jobs:
       - uses: actions/setup-node@v7
         if: ${{ inputs.kit == 'feedback' }}
         with:
-          node-version: lts/*
+          node-version: '26'  # numeric, never lts/* (atlas rule node-alias)
       - name: Pre-flight the kit
         env:
           KIT: ${{ inputs.kit }}
