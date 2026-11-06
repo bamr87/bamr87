@@ -103,6 +103,8 @@
 
    Not in this change: console pages as windows (the console forbids being framed, also by itself, so a page in a window needs the reducer's `plain` experience and `frame-ancestors 'self'`), the palette opening windows, context menus and wallpapers.
 
+   Phase D1 (2026-11-05, its own pull request) builds the first two. A console page opens in a window as a frame of this same app and origin; found framed, the page drops its header and sidebar, which is the reducer's `plain` experience, and reports its route to the desktop so the window's title and the saved layout follow it. The console's policy changes from `frame-ancestors 'none'` to `'self'`: every ancestor must be the console's own origin, so no other site and no framed fleet app can embed it. A layout may name a console page only by a path of this app whose first segment is a page in the navigation; the desktop itself is never one.
+
 ### A frontend component for every repo
 
 - **Status**: accepted (added 2026-11-05 at the maintainer's request)
@@ -137,7 +139,7 @@ Each phase after P0 is its own pull request and becomes a sub-issue of the track
 | P7 | the console as a PWA; a responsive pass at the verify viewports; fleet-mobile reading the launcher |
 | P8 | governance: the new UPS-FE rows, the § 18.2 wording as a proposed amendment, a `frontend` kit fan-out |
 | D0 (its own PR) | the bashOS desktop: the vendored shell reducer, the dock, windows that host the App Shell, the Fleet window listing every repo, the paper palette, the phone home screen |
-| D1 | console pages as windows (the `plain` experience, `frame-ancestors 'self'`); the palette opens windows; Live beside Local as one action; context menus |
+| D1 (its own PR) | console pages as windows (the `plain` experience, `frame-ancestors 'self'`), the start menu, and the palette opening windows. Not built: Live beside Local as one action, context menus |
 | F1 (its own PR) | the generated repo app: every repo opens as an app, in a window and at `/apps/<id>`, with no change in any repo; its README only from a console's checkout, never on the public site. Panels by kind follow |
 | F2 | a public address for the six frontends that lack one (djangoerp, zer0-CMS, ocrmd, cv-pro, godotgo, ragio-ai), one repo per PR |
 | F3 | web previews for vs-sonic-pi, zpl-viewer and fleet-mobile; bashos and netprobe in a terminal window |

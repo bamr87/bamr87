@@ -11,7 +11,7 @@ coverage: listed
 
 - One entry per file, as a top-level mapping — not a list, and never two features in one file.
 - `id:` is always `HUB-NEW`. A number here is a bug the numbering lint reports.
-- A reference to something else that is also new is written by slug: `HUB-NEW:<slug>`, `FR-NEW:<key>`, `NFR-NEW:<key>`, `AMEND-NEW:<slug>`.
+- A reference to something else that is also new is written by slug: `HUB-NEW:<slug>`, `FR-NEW:<key>`, `NFR-NEW:<key>`, `AMEND-NEW:<slug>`, `FF-NEW:<slug>` (a roadmap entry in `_data/roadmap.d/`).
 
 ## Structure
 

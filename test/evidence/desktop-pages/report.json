@@ -1,0 +1,154 @@
+{
+  "id": "desktop-pages",
+  "title": "A console page opens in a desktop window without its own chrome, and the start menu opens any page",
+  "features": [
+    "HUB-079"
+  ],
+  "path": "verify/scenarios/desktop-pages.yml",
+  "started": "2026-11-05T22:32:44.549Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/desktop",
+          "ok": true,
+          "ms": 627
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "nav[aria-label='Apps']"
+          },
+          "ok": true,
+          "ms": 34
+        },
+        {
+          "step": "click",
+          "arg": "nav[aria-label='Apps'] button:has-text('Console')",
+          "ok": true,
+          "ms": 55
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "iframe[title^='Console page']"
+          },
+          "ok": true,
+          "ms": 16
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "framed_page",
+            "script": "(async () => { const f = document.querySelector(\"iframe[title^='Console page']\"); for (let i = 0; i < 80 && !f.contentDocument?.querySelector('h2'); i += 1) await new Promise((r) => setTimeout(r, 250)); const d = f.contentDocument; if (!d || !d.querySelector('h2')) throw new Error('the page did not render in the window'); if (d.querySelector('header') || d.querySelector('.mantine-AppShell-navbar')) throw new Error('the framed page kept its own header or sidebar'); return d.querySelector('h2').innerText; })()"
+          },
+          "ok": true,
+          "value": "Overview",
+          "ms": 257
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "footer button:has-text('Overview')"
+          },
+          "ok": true,
+          "ms": 4
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "url": "/desktop"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "click",
+          "arg": "footer button:has-text('bashOS')",
+          "ok": true,
+          "ms": 16
+        },
+        {
+          "step": "click",
+          "arg": "role=menuitem[name='Roadmap']",
+          "ok": true,
+          "ms": 75
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "footer button:has-text('Roadmap')"
+          },
+          "ok": true,
+          "ms": 9
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "iframe[title^='Console page']",
+              "min": 2
+            }
+          },
+          "ok": true,
+          "value": 2,
+          "ms": 5
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "second_page",
+            "script": "(async () => { const frames = [...document.querySelectorAll(\"iframe[title^='Console page']\")]; const f = frames[frames.length - 1]; for (let i = 0; i < 80 && !f.contentDocument?.querySelector('h2'); i += 1) await new Promise((r) => setTimeout(r, 250)); return f.contentWindow.location.pathname; })()"
+          },
+          "ok": true,
+          "value": "/roadmap/",
+          "ms": 12
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 6
+        },
+        {
+          "step": "screenshot",
+          "arg": "console-pages-in-windows",
+          "ok": true,
+          "file": "test/evidence/desktop-pages/desktop-console-pages-in-windows.png",
+          "ms": 80
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/desktop-pages/desktop-console-pages-in-windows.png"
+      ],
+      "evals": {
+        "framed_page": "Overview",
+        "second_page": "/roadmap/"
+      },
+      "final_url": "http://127.0.0.1:5113/desktop/"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-11-05T22:32:45.910Z",
+  "base": "http://127.0.0.1:5113"
+}

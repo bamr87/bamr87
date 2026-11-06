@@ -79,5 +79,15 @@ export function setGithubToken(token: string | null, remember = false): void {
   write(local, GH_KEY, ghToken && remember ? ghToken : null);
 }
 
+/**
+ * True when this page is framed: a console page opened as a window on the
+ * Desktop. It then drops its own header and sidebar (the window is the chrome)
+ * and tells the Desktop where it is.
+ */
+export const EMBEDDED = typeof window !== 'undefined' && window.self !== window.top;
+
+/** The Desktop asks to open a path in a window (the palette, when the Desktop is the page). */
+export const OPEN_EVENT = 'bashos:open';
+
 /** A URL to a file the app ships (public/ or the snapshot), under BASE. */
 export const asset = (path: string) => `${BASE}${path.replace(/^\/+/, '')}`;

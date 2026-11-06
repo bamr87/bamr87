@@ -348,11 +348,28 @@ def gather_roadmap_issues(gh: pb.Gh, roadmap: list[dict], repos: list[dict]) -> 
 
 
 def load_roadmap(path: Path = ROADMAP) -> list[dict]:
+    """The roadmap entries, plus any pending `_data/roadmap.d/<slug>.yml` fragment.
+
+    A fragment has no number until tools/jev/number.py compiles it on main
+    (amendment `roadmap-numbering-at-merge`), so it is read with the id
+    `FF-NEW:<slug>` — the same reference other fragments use for it.
+    """
     try:
         rows = yaml.safe_load(path.read_text()) or []
     except OSError:
-        return []
-    return [e for e in rows if isinstance(e, dict) and e.get("id")]
+        rows = []
+    out = [e for e in rows if isinstance(e, dict) and e.get("id")] if isinstance(rows, list) else []
+    frag_dir = path.parent / "roadmap.d"
+    if frag_dir.is_dir():
+        for frag in sorted(frag_dir.glob("*.yml")):
+            try:
+                e = yaml.safe_load(frag.read_text()) or {}
+            except (OSError, yaml.YAMLError):
+                continue
+            if isinstance(e, dict):
+                slug = str(e.pop("slug", None) or frag.stem)
+                out.append({**e, "id": f"FF-NEW:{slug}", "pending": True})
+    return out
 
 
 def gather(cfg: dict, fleet: dict, only: set[str] | None = None, skip_board: bool = False, jobs: int = 4,

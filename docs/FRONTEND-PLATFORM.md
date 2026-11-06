@@ -49,18 +49,19 @@ The console's **Desktop** page (`/desktop`) is the bashOS desktop in the browser
 | --- | --- | --- |
 | **OS shell** | the desktop, the dock of icons, floating windows, the taskbar, the shareable layout | bashOS: its layout reducer, vendored byte-identical in `tools/console/web/src/vendor/bashos/`, and its paper palette (`--os-*` in `/theme.css`) |
 | **App Shell** | what every window shares: where the app runs, a device size, a path, reload, open outside | the hub (`AppPane`, the app portal below) |
-| **App** | a fleet frontend at its live or local address | each repo |
+| **App** | a fleet frontend at its live or local address, the generated repo app, or one of the console's own pages | each repo; the hub |
 
 | You want to | Do this |
 | --- | --- |
 | Open an app in a window | click its icon; shift-click for a second window (Live beside Local) |
 | Fill half the desktop, or all of it | drag the window to the left or right edge, or to the top; double-click the title bar |
 | Get a window back | its button on the taskbar; `⌘\` cycles |
+| Open a page of the console in a window | the **bashOS** button on the taskbar lists every page; the **Console** icon opens Overview; the palette (`⌘K`) opens what you pick |
 | Arrange everything | the tile and cascade buttons on the taskbar |
 | Send someone this desktop | the link button: a `?windows=` address of ids and geometry, never of URLs |
 | See every repo, with or without a frontend | the **Fleet** icon; a repo without one opens as the generated repo app |
 
-On a phone the desktop is a home screen: the icons, then one app at a time. Console pages do not open as windows yet; the **Console** icon leaves the desktop for the classic console.
+A console page in a window is the same page without its header and sidebar: the window is its frame, links inside it stay inside it, and the window's title and the shared layout follow where it goes. On a phone the desktop is a home screen: the icons, then one app at a time; there the **Console** icon leaves for the classic console, which has its own way around.
 
 ## A frontend component for every repo
 

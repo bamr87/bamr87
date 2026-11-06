@@ -121,7 +121,8 @@ Where each spec row was lifted from — go here for a proven implementation, not
 | [`projects.yml`](_data/projects.yml) | THE project registry — cross-checked against .gitmodules by the drift gate | required |
 | [`projects_backfill.yml`](_data/projects_backfill.yml) | THE reviewed triage + Fleet-board backfill plan (`projects-backfill/v1`) — per open hub issue: close (completed / not planned), label edits, sub-issue links, each with i… | — |
 | [`references.yml`](_data/references.yml) | Hand-edited map of reference implementations in the fleet (repo + path) to the UPS requirement ids they exemplify; rendered into CATALOG.md | — |
-| [`roadmap.yml`](_data/roadmap.yml) | Feature roadmap entries surfaced on the dash; the Work board edits an entry's `status:` / `priority:` line in place | — |
+| [`roadmap.d`](_data/roadmap.d) | Pending roadmap entries, one `id: FF-NEW` fragment per file, numbered and compiled into `roadmap.yml` on `main` by `tools/jev/number.py` | — |
+| [`roadmap.yml`](_data/roadmap.yml) | Feature roadmap entries surfaced on the dash; the Work board edits an entry's `status:` / `priority:` line in place; new entries are compiled in from `roadmap.d/` at mer… | — |
 | [`scripts.yml`](_data/scripts.yml) | Catalog of fleet scripts | — |
 | [`skills.yml`](_data/skills.yml) | Catalog of Claude skills across the fleet | — |
 | [`smoke.yml`](_data/smoke.yml) | Recorded observation of every local fleet container — state, health, image, and per-service HTTP/TCP/postgres/redis/exec probes, plus the stable subset `dash dev smoke c… | generated |

@@ -22,7 +22,11 @@
 #
 # -----------------------------------------------------------------------------
 # Schema (per entry):
-#   id          required  stable id, `FF-NNNN` (monotonic; never reuse)
+#   id          required  stable id, `FF-NNNN` (monotonic; never reuse). ASSIGNED AT
+#                         MERGE: a new entry is a fragment `_data/roadmap.d/<slug>.yml`
+#                         with `id: FF-NEW`; tools/jev/number.py (jev-number.yml)
+#                         numbers it and appends it here. Never add `- id: FF-NNNN`
+#                         by hand; cite a pending entry as `FF-NEW:<slug>`.
 #   title       required  short imperative summary
 #   project     required  target project `name` from _data/projects.yml,
 #                         or `bamr87` for the root dash / this monorepo itself
