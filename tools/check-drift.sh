@@ -49,7 +49,8 @@
 #
 # Modes:
 #   (default)   run gating checks (a,b,d, + e when checked out); non-zero on failure
-#   --ci        gate + GitHub-reality (g). Fast: no Ruby/Jekyll/lychee. (needs gh)
+#   --ci        gate + the fleet-wide checks (g, k), which read every registry repo:
+#               the daily run and dispatch only, never a PR or push. (needs gh)
 #   --links     also run the link check (needs a locally built _site + lychee)
 #   --remote    also run the GitHub-reality check (g)
 #   --report    print a summary, never fail (used by `dash status`)
@@ -788,8 +789,12 @@ PY
       k_scanned="$(printf '%s\n' "$k_out" | sed -n 's/^__SCANNED__ //p')"
       k_unread="$(printf '%s\n' "$k_out" | sed -n 's/^__UNREAD__ //p')"
       k_probs="$(printf '%s\n' "$k_out" | grep -v '^__' | grep -v '^$' || true)"
-      if [[ -z "$k_probs" ]]; then
-        ok "no lockfiles or SHA pins in ${k_scanned:-0} readable fleet repo(s)"
+      if [[ "${k_scanned:-0}" == "0" ]]; then
+        # Its rate_limit canary answers even when the quota is spent, so a scan
+        # that read nothing lands here. Never report that as clean.
+        warn "skipped (0 fleet repos readable: the API quota is spent, or the token cannot read them)"
+      elif [[ -z "$k_probs" ]]; then
+        ok "no lockfiles or SHA pins in ${k_scanned} readable fleet repo(s)"
       else
         while IFS= read -r line; do warn "$line"; done <<< "$k_probs"
         warn "  convert a repo with: tools/unpin-deps.sh <checkout>  (fleet-wide: fanout.yml (kit: deps-latest))"

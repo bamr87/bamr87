@@ -19,14 +19,14 @@ on:
       - ".github/workflows/verify.yml"
       - "tools/features_index.py"
       - "templates/verify/**"
-      - "features/**"
+      - "features/features.yml"
       - "verify/**"
       - "pages/**"
       - "_data/features_index.yml"
       - "tools/console/**"
       - "tools/fleetcore/**"
-  # No `push:` — the run is advisory (gate: false) and cannot fail, so a
-  # post-merge re-run only repeated what the PR run had just shown.
+  # No `push:` — the scenarios are advisory (gate: false), so a post-merge
+  # re-run only repeated what the PR run had just shown.
   workflow_dispatch:
     inputs:
       agent:
@@ -60,8 +60,9 @@ jobs:
       gate: false
       # The site is the console's page, built with React Router 8 (Node >= 22);
       # the fleet's canonical NODE_VERSION (20) is below it — console-web.yml
-      # and build-dash.yml make the same choice.
-      node-version: lts/*
+      # and build-dash.yml make the same choice, as a number, never lts/*
+      # (atlas rule node-alias).
+      node-version: '26'
       hub-ref: ${{ github.event.pull_request.head.sha || github.sha }}
       agent: ${{ github.event_name == 'workflow_dispatch' && inputs.agent || contains(github.event.pull_request.labels.*.name, 'verify') }}
       only: ${{ github.event_name == 'workflow_dispatch' && inputs.only || '' }}
