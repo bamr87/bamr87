@@ -21,8 +21,13 @@
 # This changes the Mac, so run it yourself (§ 10.5). launchd runs a missed
 # job after wake. Output is appended to ~/Library/Logs/bamr87-harness-review.log.
 #
+# launchd starts the job without a login shell, so a PYTHONPATH that only a
+# shell profile sets (where `lake sync`'s PyGithub and requests live) never
+# reaches it. The installer bakes in the PYTHONPATH of the shell that runs
+# it; pass --pythonpath to set another one, or --pythonpath '' for none.
+#
 # Usage:
-#   tools/install-harness-review.sh [--root PATH] [--at HH:MM]   # install/update (default 06:23 local)
+#   tools/install-harness-review.sh [--root PATH] [--at HH:MM] [--pythonpath P]   # install/update (default 06:23 local)
 #   tools/install-harness-review.sh --uninstall                  # remove the agent
 #   tools/install-harness-review.sh [--root PATH] --print-job    # print the job script, install nothing
 #   tools/install-harness-review.sh [--root PATH] --print-plist  # print the plist, install nothing
@@ -36,6 +41,7 @@ PLIST="${HOME}/Library/LaunchAgents/${LABEL}.plist"
 LOG="${HOME}/Library/Logs/bamr87-harness-review.log"
 AT="06:23"
 MODE=install
+PYPATH="${PYTHONPATH:-}"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -44,7 +50,9 @@ while [[ $# -gt 0 ]]; do
         --print-plist) MODE=print-plist; shift ;;
         --root)        ROOT="${2:?--root needs a path}"; shift 2 ;;
         --at)          AT="${2:?--at needs HH:MM}"; shift 2 ;;
-        -h|--help)     sed -n '2,31p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --pythonpath)  [[ $# -ge 2 ]] || { echo "--pythonpath needs a value ('' for none)" >&2; exit 1; }
+                       PYPATH="$2"; shift 2 ;;
+        -h|--help)     sed -n '2,34p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *)             echo "unknown option: $1" >&2; exit 1 ;;
     esac
 done
@@ -60,19 +68,31 @@ if [[ "$MODE" != uninstall ]]; then
     [[ -x "$ROOT/tools/dash" && -x "$ROOT/tools/dash-gen" ]] \
         || { echo "--root $ROOT is not a hub checkout (no tools/dash, tools/dash-gen)" >&2; exit 1; }
     [[ "$ROOT" != *"'"* ]] || { echo "--root may not contain a single quote" >&2; exit 1; }
+    [[ "$PYPATH" != *"'"* ]] || { echo "--pythonpath may not contain a single quote" >&2; exit 1; }
+fi
+
+if [[ -n "$PYPATH" ]]; then
+    PYLINE="export PYTHONPATH='${PYPATH}'"
+else
+    PYLINE=": no PYTHONPATH baked in"
 fi
 
 # The job, as bash 3.2 runs it (macOS /bin/bash). It calls only entry points
-# that exist on main, plus the guarded reflect step.
+# that exist on main, plus the guarded reflect step. The interpreter is the
+# first that imports everything `lake sync` needs; failing that, the first
+# with PyYAML, which runs every step but the sync.
 job_script() {
     cat <<EOF
 cd '${ROOT}' || exit 1
 export PATH="/opt/homebrew/bin:/usr/local/bin:\${PATH}"
+${PYLINE}
 PY=""
-for cand in "\${PYTHON:-}" python3 /usr/bin/python3; do
-    [ -n "\$cand" ] || continue
-    command -v "\$cand" >/dev/null 2>&1 || continue
-    if "\$cand" -c 'import yaml' >/dev/null 2>&1; then PY="\$cand"; break; fi
+for need in 'import yaml, github, requests' 'import yaml'; do
+    for cand in "\${PYTHON:-}" python3 /usr/bin/python3; do
+        [ -n "\$cand" ] || continue
+        command -v "\$cand" >/dev/null 2>&1 || continue
+        if "\$cand" -c "\$need" >/dev/null 2>&1; then PY="\$cand"; break 2; fi
+    done
 done
 [ -n "\$PY" ] || { echo "harness-review: no python3 with PyYAML on PATH" >&2; exit 1; }
 export PYTHON="\$PY"

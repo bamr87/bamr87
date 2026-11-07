@@ -888,6 +888,28 @@ def test_the_schedule_job_calls_main_entry_points_and_guards_reflect():
     assert not (root / ".fleet" / "refine" / "review-latest.json.tmp").exists()
 
 
+def test_the_job_carries_the_installing_shells_pythonpath():
+    root = fake_root(tmp(), reflect=False, enabled=True)
+
+    def job(*args, env_pythonpath=None):
+        env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+        if env_pythonpath is not None:
+            env["PYTHONPATH"] = env_pythonpath
+        return subprocess.run(["bash", str(INSTALLER), "--root", str(root), *args, "--print-job"],
+                              capture_output=True, text=True, env=env)
+
+    baked = job(env_pythonpath="/opt/deps/site-packages").stdout
+    assert "export PYTHONPATH='/opt/deps/site-packages'" in baked, baked
+    assert "export PYTHONPATH='/x/y'" in job("--pythonpath", "/x/y", env_pythonpath="/opt/deps").stdout
+    none = job("--pythonpath", "", env_pythonpath="/opt/deps").stdout
+    assert "PYTHONPATH" not in none.replace(": no PYTHONPATH baked in", ""), none
+    assert ": no PYTHONPATH baked in" in job().stdout
+    bad = job("--pythonpath", "/it's")
+    assert bad.returncode != 0 and "single quote" in bad.stderr
+    assert "import yaml, github, requests" in baked and baked.index("import yaml, github, requests") < \
+        baked.index("'import yaml'"), "the full-deps interpreter is preferred"
+
+
 def test_the_installer_refuses_bad_input_and_prints_a_valid_plist():
     root = fake_root(tmp(), reflect=False, enabled=True)
     for args, want in ((["--at", "07:00"], "off the hour"), (["--at", "7:5"], "HH:MM"),
