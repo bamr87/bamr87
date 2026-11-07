@@ -1197,7 +1197,6 @@ content:
     - name: it-journey
       quality: { require: [title, description, date, author, categories, tags], description: [120, 160] }
     - name: bash-365.com
-      live_url: https://bash-365.com
       quality: { description: [120, 155] }
     # irony-works, wargames and 2005 live in the zer0-CMS monorepo now (sites/<name>/, imported with
     # their history); the original repos were deleted or archived on 2026-10-20. `registry:` points the

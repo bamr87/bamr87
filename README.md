@@ -149,7 +149,7 @@ Personal forks of other projects.
 
 - **[ai-world-view.github.io](https://github.com/ai-world-view/ai-world-view.github.io)**: AI World View — the root site of the self-growing country knowledge-base network; the per-country repos hang off it. · [live site](https://ai-world-view.github.io/)
 - **[bash-365-apex](https://github.com/bash-365/bash-365-apex)**: Client-side redirect from the bash-365.com apex domain to www, served by GitHub Pages for BASH Consulting. · [live site](https://bash-365.com) · `🛠️ maintenance mode`
-- **[bash-365.com](https://github.com/bash-365/bash-365.com)**: BASH Consulting's website at bash-365.com — a content site the content atlas already tracks, now checked out in the hub too. · [live site](https://bash-365.com/)
+- **[bash-365.com](https://github.com/bash-365/bash-365.com)**: BASH Consulting's website at bash-365.com — a content site the content atlas already tracks, now checked out in the hub too. · [live site](https://www.bash-365.com/)
 - **[year-of-ai.github.io](https://github.com/year-of-ai/year-of-ai.github.io)**: Year of AI — the organization's root site and content hub, rendering the shared zer0-mistakes theme via remote_theme; the lineage's year repos hang off it. · [live site](https://year-of-ai.github.io/)
 
 ### 🚀 Full-Stack & AI Applications
