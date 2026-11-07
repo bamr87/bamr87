@@ -624,9 +624,19 @@ class JevConfig:
     #: The tiers the engine may run on its own. tier0 is free and
     #: deterministic; tier1/tier2 spend money and stay off until listed here.
     auto_tiers: list[str] = field(default_factory=lambda: ["tier0", "tier1", "tier2"])
+    #: The tiers a CI runner may run. Model tiers belong to a local session
+    #: (constitution § 10.9), so CI does the free deterministic work and leaves
+    #: the rest for `tools/dash conflicts sweep`.
+    ci_tiers: list[str] = field(default_factory=lambda: ["tier0"])
 
     def tier(self, name: str) -> TierPolicy:
         return self.tiers.get(name, TierPolicy(name))
+
+    def tiers_here(self) -> list[str]:
+        """The tiers this host may run: all of auto_tiers locally, ci_tiers on a runner."""
+        if os.environ.get("GITHUB_ACTIONS") == "true":
+            return [t for t in self.auto_tiers if t in self.ci_tiers]
+        return list(self.auto_tiers)
 
     @property
     def monthly_stop_usd(self) -> float:
@@ -703,6 +713,7 @@ def load_config(fleet: dict | None = None) -> JevConfig:
         union_paths=[str(p) for p in (jev.get("union_paths") or [])],
         append_paths=[str(p) for p in (jev.get("append_paths") or [])],
         auto_tiers=[str(t) for t in (jev.get("auto_tiers") or ["tier0", "tier1", "tier2"])],
+        ci_tiers=[str(t) for t in (jev.get("ci_tiers") or ["tier0"])],
     )
 
 

@@ -758,6 +758,22 @@
       "presentation": { "group": "5-loops", "order": 1 }
     },
     {
+      "name": "🧩 Conflicts: sweep --dry-run (every conflicting PR; changes nothing)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash conflicts sweep --dry-run",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 9 }
+    },
+    {
+      "name": "🧩 Conflicts: sweep (script, then a capped model; pushes merge commits, never merges)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash conflicts sweep",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 10 }
+    },
+    {
       "name": "🔁 Loop: doctor ($0 host checks)",
       "type": "node-terminal",
       "request": "launch",
