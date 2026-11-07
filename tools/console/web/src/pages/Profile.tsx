@@ -3,7 +3,6 @@
 // snapshot (public). The Markdown is the repo's own, sanitized on render.
 import { Link, useParams } from 'react-router';
 import { Anchor, Badge, Card, Group, Stack, Text } from '@mantine/core';
-import { useEffect } from 'react';
 import { asset, hasConsole } from "../api/backend";
 import { useSite, useSitePage, useSitePost } from '../api/hooks';
 import { Markdown } from '../components/Markdown';
@@ -11,15 +10,8 @@ import { External, Load, PageHeader } from '../components/ui';
 import { gh, to } from '../lib/links';
 import u from '../styles/utils.module.css';
 
-function useTitle(title?: string) {
-  useEffect(() => {
-    if (title) document.title = `${title} · bamr87`;
-  }, [title]);
-}
-
 export function ProfilePage({ slug }: { slug: string }) {
   const page = useSitePage(slug);
-  useTitle(page.data?.title);
   return (
     <Load q={page} rows={8}>
       {(p) => (
@@ -61,7 +53,6 @@ export function Blog() {
 export function Post() {
   const { slug = '' } = useParams();
   const post = useSitePost(slug);
-  useTitle(post.data?.title);
   return (
     <Load q={post} rows={10}>
       {(p) => (

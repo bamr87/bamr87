@@ -53,7 +53,7 @@ The console's **Desktop** page (`/desktop`) is the bashOS desktop in the browser
 
 | You want to | Do this |
 | --- | --- |
-| Open an app in a window | click its icon; shift-click for a second window (Live beside Local) |
+| Open an app in a window | click its icon; shift-click for a second window; right-click for Open beside and Live beside Local (one action, a half each), or Shift+F10 from the keyboard |
 | Fill half the desktop, or all of it | drag the window to the left or right edge, or to the top; double-click the title bar |
 | Get a window back | its button on the taskbar; `⌘\` cycles |
 | Open a page of the console in a window | the **bashOS** button on the taskbar lists every page; the **Console** icon opens Overview; the palette (`⌘K`) opens what you pick |

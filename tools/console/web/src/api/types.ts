@@ -154,7 +154,8 @@ export interface StateDoc {
   };
   harnesses: HarnessRegistry;
   health: { generated_at?: string; scorecard?: Dict<ScoreMetric>; trip_wires?: TripWire[]; note?: string };
-  triage: { generated_at?: string; totals: Dict<number>; inbox: Dict<unknown>[] };
+  /** `inbox` is the top of the list; `inbox_total` counts all of it. */
+  triage: { generated_at?: string; totals: Dict<number>; inbox: Dict<unknown>[]; inbox_total?: number };
   pipeline: { generated_at?: string; totals: Dict<unknown> };
   rotation: {
     generated_at?: string;

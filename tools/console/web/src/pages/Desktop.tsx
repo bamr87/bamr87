@@ -14,20 +14,26 @@
 //              the console's own pages, framed without its header and sidebar
 //              (the reducer's "plain" experience) so the window is its chrome.
 //
+// Every icon and title bar has a context menu (right-click, or Shift+F10 and the
+// menu key on a focused icon; the title bar's ⋯ button for the keyboard): open,
+// open beside, Live beside Local, open in a new tab, copy link.
+//
 // A layout carries scene and app ids and geometry, never an address: a shared
 // link can only open what the registry declares. Below the reducer's narrow
 // width the desktop becomes a home screen: the icons, then one app at a time.
 import {
   Fragment, useEffect, useMemo, useReducer, useRef, useState,
-  type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode,
+  type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent, type ReactNode,
 } from 'react';
 import { Link } from 'react-router';
 import { Anchor, Badge, Code, Group, Menu, ScrollArea, Stack, Text, Title } from '@mantine/core';
 import { useViewportSize } from '@mantine/hooks';
+import { notifications } from '@mantine/notifications';
 import {
-  IconAppWindow, IconArrowsMinimize, IconChevronLeft, IconDeviceGamepad2, IconDeviceMobile, IconFileText, IconFolder,
-  IconLayoutGrid, IconLink, IconMaximize, IconMinus, IconPlayerPlayFilled, IconPuzzle, IconStack2, IconTerminal2,
-  IconWorld, IconX,
+  IconAppWindow, IconArrowsMinimize, IconChevronLeft, IconColumns2, IconDeviceGamepad2, IconDeviceMobile, IconDots, IconExternalLink,
+  IconFileText, IconFolder, IconLayoutGrid, IconLayoutSidebarRight, IconLink, IconMaximize, IconMinus, IconPlayerPlayFilled,
+  IconPuzzle, IconStack2, IconTerminal2, IconWorld, IconX,
 } from '@tabler/icons-react';
 import { BASENAME, EMBEDDED, OPEN_EVENT, hasConsole } from '../api/backend';
 import { useApps } from '../api/hooks';
@@ -153,7 +159,7 @@ function WelcomePanel({ doc, open }: { doc: AppsDoc; open: Open }) {
         Every icon is a fleet frontend from the registry. Open one and it runs in a window with the same controls as every other: where it runs (the live site or the stack on this machine), a device size, and a path inside the app.
       </Text>
       <Text size="sm" c="dimmed">
-        Drag a window by its title bar; drop it on the left or right edge to fill that half, or on the top edge to fill the desktop. Shift-click an icon for a second window of the same app, to put Live beside Local. The taskbar brings a minimized window back, and its bashOS button opens any page of the console in a window.
+        Drag a window by its title bar; drop it on the left or right edge to fill that half, or on the top edge to fill the desktop. Right-click an icon or a title bar for the rest: open beside, Live beside Local, a new tab, a link (Shift+F10 on a focused icon, and the ⋯ on a title bar, do the same from the keyboard). The taskbar brings a minimized window back, and its bashOS button opens any page of the console in a window.
       </Text>
       <Group gap="xs">
         <Status tone="good">{doc.summary.embeddable} apps open in a window</Status>
@@ -254,11 +260,33 @@ function Scene({ win, doc, view, onView, open }: {
   return <WelcomePanel doc={doc} open={open} />;
 }
 
+// ------------------------------------------------------------- context menu
+interface MenuEntry { label: string; icon: ReactNode; onClick: () => void; danger?: boolean }
+interface ContextMenu { x: number; y: number; label: string; entries: MenuEntry[]; trigger: HTMLElement | null }
+/** Open this element's context menu at a point on the screen. */
+type ShowMenu = (x: number, y: number, trigger: HTMLElement | null) => void;
+
+const menuAtPointer = (show: ShowMenu) => (e: ReactMouseEvent<HTMLElement>) => {
+  e.preventDefault();
+  show(e.clientX, e.clientY, e.currentTarget);
+};
+const menuBelow = (show: ShowMenu, el: HTMLElement) => {
+  const r = el.getBoundingClientRect();
+  show(r.left, r.bottom, el);
+};
+/** The menu key and Shift+F10, the keyboard's right-click. */
+const menuFromKey = (show: ShowMenu) => (e: ReactKeyboardEvent<HTMLElement>) => {
+  if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
+    e.preventDefault();
+    menuBelow(show, e.currentTarget);
+  }
+};
+
 interface Drag { px: number; py: number; x: number; y: number; w: number; h: number; mode: 'move' | 'resize' }
 
-function WindowFrame({ win, focused, only, described, dispatch, surface, onDragging, children }: {
+function WindowFrame({ win, focused, only, described, dispatch, surface, onDragging, onMenu, children }: {
   win: ShellWindow; focused: boolean; only: boolean; described: Described; dispatch: (a: ShellAction) => void;
-  surface: React.RefObject<HTMLDivElement | null>; onDragging: (on: boolean) => void; children: ReactNode;
+  surface: React.RefObject<HTMLDivElement | null>; onDragging: (on: boolean) => void; onMenu: ShowMenu; children: ReactNode;
 }) {
   const drag = useRef<Drag | null>(null);
   const begin = (mode: Drag['mode']) => (e: ReactPointerEvent<HTMLElement>) => {
@@ -299,9 +327,10 @@ function WindowFrame({ win, focused, only, described, dispatch, surface, onDragg
     <section className={c.window} style={vars} hidden={win.minimized} role="group" aria-label={`${described.title} window`}
       data-window-id={win.id} data-focus={focused || undefined} data-snapped={win.snapped ?? undefined}
       onPointerDownCapture={() => { if (!focused) dispatch({ type: 'focus', id: win.id }); }}>
-      <header className={c.winHead} onPointerDown={begin('move')} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onDoubleClick={toggleMax}>
+      <header className={c.winHead} onPointerDown={begin('move')} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onDoubleClick={toggleMax} onContextMenu={menuAtPointer(onMenu)}>
         <span className={c.winIcon}>{described.icon}</span>
         <span className={c.winTitle}>{described.title}{described.sub ? <span className={c.winSub}> · {described.sub}</span> : null}</span>
+        <button type="button" className={c.winBtn} aria-haspopup="menu" aria-label={`Window menu for ${described.title}`} onClick={(e) => menuBelow(onMenu, e.currentTarget)}><IconDots size={15} /></button>
         <button type="button" className={c.winBtn} onClick={() => dispatch({ type: 'minimize', id: win.id })} aria-label={`Minimize ${described.title}`}><IconMinus size={15} /></button>
         <button type="button" className={c.winBtn} onClick={toggleMax} aria-label={win.snapped === 'max' ? `Restore ${described.title}` : `Maximize ${described.title}`}>
           {win.snapped === 'max' ? <IconArrowsMinimize size={15} /> : <IconMaximize size={15} />}
@@ -319,11 +348,12 @@ function WindowFrame({ win, focused, only, described, dispatch, surface, onDragg
 }
 
 // ------------------------------------------------------------------ desktop
-function IconButton({ label, glyph, title, open: isOpen, onClick }: {
-  label: string; glyph: ReactNode; title?: string; open?: boolean; onClick: (e: React.MouseEvent) => void;
+function IconButton({ label, glyph, title, open: isOpen, onClick, onMenu }: {
+  label: string; glyph: ReactNode; title?: string; open?: boolean; onClick: (e: React.MouseEvent) => void; onMenu: ShowMenu;
 }) {
   return (
-    <button type="button" className={c.icon} title={title} data-open={isOpen || undefined} onClick={onClick}>
+    <button type="button" className={c.icon} title={title} data-open={isOpen || undefined} onClick={onClick}
+      onContextMenu={menuAtPointer(onMenu)} onKeyDown={menuFromKey(onMenu)}>
       <span className={c.glyph}>{glyph}</span>
       <span className={c.iconLabel}>{label}</span>
     </button>
@@ -339,6 +369,7 @@ function DesktopShell({ doc }: { doc: AppsDoc }) {
   const [now, setNow] = useState(() => new Date());
   // Where each console-page window has navigated to, as the page itself reports it.
   const [live, setLive] = useState<Record<string, string>>({});
+  const [menu, setMenu] = useState<ContextMenu | null>(null);
   const surface = useRef<HTMLDivElement | null>(null);
   const viewport = useViewportSize();
   const width = viewport.width || window.innerWidth;
@@ -414,6 +445,68 @@ function DesktopShell({ doc }: { doc: AppsDoc }) {
     const path = pagePath(raw);
     if (path) open('page', path);
   };
+  // A second window beside the one in front: the front one takes the left half.
+  const openBeside = (sceneId: string, resourceId: string | null) => {
+    const front = state.windows.find((w) => w.id === state.focusId && !w.minimized);
+    let next = front ? reduce(state, { type: 'snap', id: front.id, edge: 'left' }) : state;
+    next = reduce(next, { type: 'navigate', sceneId, resourceId, intent: 'new' });
+    dispatch({ type: 'hydrate', state: reduce(next, { type: 'snap', id: next.focusId, edge: 'right' }) });
+    setHome(false);
+  };
+  // One action, two windows: the app's live site and its local stack, each filling a half.
+  const liveBesideLocal = (app: FleetApp) => {
+    const pair = [app.targets.find((t) => t.kind === 'live'), app.targets.find((t) => t.kind === 'local')];
+    let next = state;
+    const shown: Record<string, AppView> = {};
+    (['left', 'right'] as const).forEach((edge, i) => {
+      next = reduce(next, { type: 'navigate', sceneId: 'app', resourceId: app.id, intent: 'new' });
+      next = reduce(next, { type: 'snap', id: next.focusId, edge });
+      const win = next.windows.find((w) => w.id === next.focusId);
+      if (win) shown[contentKey(win)] = { target: pair[i]?.id };
+    });
+    setViews((all) => ({ ...all, ...shown }));
+    dispatch({ type: 'hydrate', state: next });
+    setHome(false);
+  };
+  /** The console path that shows the same thing outside the desktop, when there is one. */
+  const pathOf = (sceneId: string, resourceId: string | null, view?: AppView): string | null => {
+    if (sceneId === 'page') return resourceId;
+    if (resourceId && sceneId === 'app') return to.app(resourceId, { target: view?.target ?? undefined, device: view?.device ?? undefined, path: view?.path ?? undefined });
+    if (resourceId && sceneId === 'repo') return to.app(resourceId);
+    return null;
+  };
+  const entriesFor = (sceneId: string, resourceId: string | null, win?: ShellWindow): MenuEntry[] => {
+    const app = sceneId === 'app' ? doc.apps.find((a) => a.id === resourceId) : undefined;
+    const path = pathOf(sceneId, resourceId, win ? views[contentKey(win)] : undefined);
+    const url = path ? `${window.location.origin}${BASENAME}${path}` : null;
+    const entries: MenuEntry[] = [];
+    if (!win) entries.push({ label: 'Open', icon: <IconAppWindow size={15} />, onClick: () => open(sceneId, resourceId) });
+    if (!narrow) entries.push({ label: 'Open beside', icon: <IconLayoutSidebarRight size={15} />, onClick: () => openBeside(sceneId, resourceId) });
+    if (!narrow && app?.targets.some((t) => t.kind === 'live') && app.targets.some((t) => t.kind === 'local')) {
+      entries.push({ label: 'Live beside Local', icon: <IconColumns2 size={15} />, onClick: () => liveBesideLocal(app) });
+    }
+    if (url) {
+      entries.push({ label: 'Open in a new tab', icon: <IconExternalLink size={15} />, onClick: () => { window.open(url, '_blank', 'noopener'); } });
+      entries.push({
+        label: 'Copy link', icon: <IconLink size={15} />,
+        onClick: () => { void navigator.clipboard?.writeText(url).then(() => notifications.show({ message: 'Link copied' })); },
+      });
+    }
+    return entries;
+  };
+  const showFor = (label: string, entries: () => MenuEntry[]): ShowMenu => (x, y, trigger) => setMenu({ x, y, label, entries: entries(), trigger });
+  const windowEntries = (w: ShellWindow): MenuEntry[] => {
+    const title = describedOf(w).title;
+    return [
+      ...entriesFor(w.sceneId, at(w), w),
+      { label: 'Minimize', icon: <IconMinus size={15} />, onClick: () => dispatch({ type: 'minimize', id: w.id }) },
+      {
+        label: w.snapped === 'max' ? 'Restore' : 'Maximize', icon: w.snapped === 'max' ? <IconArrowsMinimize size={15} /> : <IconMaximize size={15} />,
+        onClick: () => dispatch({ type: 'snap', id: w.id, edge: w.snapped === 'max' ? null : 'max' }),
+      },
+      ...(state.windows.length > 1 ? [{ label: `Close ${title}`, icon: <IconX size={15} />, danger: true, onClick: () => dispatch({ type: 'close', id: w.id }) }] : []),
+    ];
+  };
   const isOpen = (sceneId: string, resourceId: string | null) =>
     state.windows.some((w) => w.sceneId === sceneId && (w.resourceId ?? null) === resourceId);
   const current = state.windows.find((w) => w.id === state.focusId) ?? state.windows[0];
@@ -435,14 +528,14 @@ function DesktopShell({ doc }: { doc: AppsDoc }) {
     <>
       {framed.map((a: FleetApp) => (
         <IconButton key={a.id} label={a.name} glyph={typeIcon(a.type, 20)} title={`${a.description ?? a.name} — shift-click for a second window`}
-          open={isOpen('app', a.id)} onClick={(e) => open('app', a.id, e.shiftKey)} />
+          open={isOpen('app', a.id)} onClick={(e) => open('app', a.id, e.shiftKey)} onMenu={showFor(a.name, () => entriesFor('app', a.id))} />
       ))}
     </>
   );
   const system = (
     <>
       <IconButton label="Fleet" glyph={<IconFolder size={20} stroke={1.6} />} title="Every repo and the frontend component it has or is owed"
-        open={isOpen('fleet', null)} onClick={() => open('fleet', null)} />
+        open={isOpen('fleet', null)} onClick={() => open('fleet', null)} onMenu={showFor('Fleet', () => entriesFor('fleet', null))} />
       {narrow ? (
         // A phone has no taskbar to pick pages from: the classic console is its own way around.
         <Link className={c.icon} to={to.overview()} title="The classic console: overview, projects, loops, jobs, settings">
@@ -451,7 +544,7 @@ function DesktopShell({ doc }: { doc: AppsDoc }) {
         </Link>
       ) : (
         <IconButton label="Console" glyph={<IconTerminal2 size={20} stroke={1.6} />} title="The console's Overview in a window; the bashOS button lists every page"
-          open={state.windows.some((w) => w.sceneId === 'page')} onClick={() => open('page', '/overview')} />
+          open={state.windows.some((w) => w.sceneId === 'page')} onClick={() => open('page', '/overview')} onMenu={showFor('Console', () => entriesFor('page', '/overview'))} />
       )}
     </>
   );
@@ -494,13 +587,27 @@ function DesktopShell({ doc }: { doc: AppsDoc }) {
           <div className={c.stage} ref={surface} data-dragging={dragging || undefined}>
             {state.windows.map((w) => (
               <WindowFrame key={w.id} win={w} focused={w.id === state.focusId && !w.minimized} only={state.windows.length === 1}
-                described={describedOf(w)} dispatch={dispatch} surface={surface} onDragging={setDragging}>
+                described={describedOf(w)} dispatch={dispatch} surface={surface} onDragging={setDragging}
+                onMenu={showFor(describedOf(w).title, () => windowEntries(w))}>
                 {scene(w)}
               </WindowFrame>
             ))}
           </div>
         </div>
       )}
+
+      {/* One menu for the whole desktop, placed where it was asked for. Focus goes
+          back to what opened it: the anchor below is not a focusable element. */}
+      <Menu opened={menu !== null} position="bottom-start" shadow="md" width={230} offset={2}
+        onChange={(on) => { if (!on) { menu?.trigger?.focus(); setMenu(null); } }}>
+        <Menu.Target>
+          <span className={c.menuAnchor} style={{ '--mx': `${menu?.x ?? 0}px`, '--my': `${menu?.y ?? 0}px` } as CSSProperties} />
+        </Menu.Target>
+        <Menu.Dropdown aria-label={menu ? `${menu.label} actions` : undefined}>
+          <Menu.Label>{menu?.label}</Menu.Label>
+          {menu?.entries.map((m) => <Menu.Item key={m.label} leftSection={m.icon} color={m.danger ? 'red' : undefined} onClick={m.onClick}>{m.label}</Menu.Item>)}
+        </Menu.Dropdown>
+      </Menu>
 
       {narrow ? null : (
         <footer className={c.taskbar}>
