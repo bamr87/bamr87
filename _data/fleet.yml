@@ -826,13 +826,17 @@ harness:
 #
 # The $0 half (`tools/dash refine`: the surface check, the Propose–Probe–Compose
 # plan, the evidence tree, the experience library) reads its caps here. The
-# model-backed stages (P1) stay OFF until `enabled: true` AND the maintainer's
-# --apply, run only through the loop runner's executor, and are capped per
-# improvement session by `stage_usd` inside budget.loops. `k_max` bounds the
+# model-backed stages (P1) run only while `enabled: true`, only through the
+# loop runner's executor, capped per improvement session by `stage_usd` inside
+# budget.loops; a filing needs a person's --apply. `k_max` bounds the
 # task-level recursion budget (4k rollouts + 3k sessions per step).
+# `enabled` was turned on 2026-11-07 (the maintainer's yes) for the one
+# model-backed stage that exists: the incident reflector (`refine reflect`,
+# `reflect:` below), weekly from the local harness-review LaunchAgent
+# (tools/install-harness-review.sh). A scheduled run previews and never files.
 # --------------------------------------------------------------------------- #
 harness_refinement:
-  enabled: false
+  enabled: true
   k_max: 3
   mode: parallel                      # parallel: k candidates per dimension, k compositions; sequential: k rounds
   always_on_max_chars: 32000          # the context-file chain (CLAUDE.md + AGENTS.md): paid for on every turn
@@ -842,6 +846,12 @@ harness_refinement:
   max_turns: 40
   library_dir: _data/harness_library  # the experience library (committed, human-gated)
   obs_trunc_chars: 6000               # per tool observation in a rendered trajectory; the trajectory itself is whole
+  reflect:                            # the incident reflector (`refine reflect`; ADR 0004 P1, part one)
+    max_entries: 5                    # candidate lessons one session may propose; the engine drops the rest
+    days: 7                           # the review window: lake review, local runs, conflict resolutions
+    every_days: 7                     # a --scheduled run waits this long after the last one that spent:
+                                      # ceil(31/7) x stage_usd = $10 a month at most, inside budget.loops' $40 stop
+    timeout_minutes: 20               # the session's wall clock
 
 # --------------------------------------------------------------------------- #
 # Assistant — the Harness Console's in-page AI assistant (`assist` op;

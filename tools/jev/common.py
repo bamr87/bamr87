@@ -221,6 +221,9 @@ def assert_no_admin(args: list[str]) -> None:
         raise JevError(f"refusing: JEV never runs `gh {noun} {verb}` ({why})")
     if verb == "comment" and any(a.split("=", 1)[0] in ("--delete-last", "--edit-last") for a in args):
         raise JevError("refusing: JEV only adds comments (never --edit-last or --delete-last)")
+    if (noun, verb) == ("pr", "create") and "--draft" not in args[2:]:
+        # the reflector's filing (tools/jev/reflect.py): a draft a person reviews, never a ready PR
+        raise JevError("refusing: JEV opens a pull request only as a draft (`gh pr create --draft`)")
     if (noun, verb) == ("repo", "clone") and "--" in args:
         # gh hands everything after `--` to `git clone`, past assert_safe_git
         assert_safe_clone(args[args.index("--") + 1:], "gh repo clone … --")
@@ -234,13 +237,13 @@ def assert_no_admin(args: list[str]) -> None:
 #: tools/test_jev_conflicts.py. `api` is checked on its own (`_assert_api_read`).
 _GH_ALLOWED = frozenset({
     ("api", None), ("issue", "create"), ("issue", "list"), ("issue", "view"),
-    ("label", "create"), ("pr", "comment"), ("pr", "edit"), ("pr", "list"), ("pr", "view"),
+    ("label", "create"), ("pr", "comment"), ("pr", "create"), ("pr", "edit"), ("pr", "list"), ("pr", "view"),
     ("repo", "clone"), ("repo", "list"), ("repo", "view"), ("variable", "get"),
 })
 #: why a command outside _GH_ALLOWED is refused, by noun (for the message)
 _GH_REFUSED_WHY = {
     "issue": "an agent loop files and comments; it never closes, deletes, moves or locks an issue",
-    "pr": "JEV comments on and labels a pull request; it never merges, closes or reopens one",
+    "pr": "JEV comments on, labels and opens draft pull requests; it never merges, closes or reopens one",
     "repo": "repository settings and lifecycle belong to a person",
     "secret": "secrets and variables are written hub-first by the token loops, never by JEV",
     "variable": "secrets and variables are written hub-first by the token loops, never by JEV",
@@ -342,7 +345,7 @@ def _assert_api_read(args: list[str]) -> None:
 #: shadows one of these.
 _GIT_ALLOWED = frozenset({"add", "blame", "check-attr", "check-ignore", "checkout", "clone", "commit", "config", "diff",
                           "fetch", "grep", "init", "log", "ls-files", "ls-tree", "merge", "merge-file", "push",
-                          "remote", "rev-parse", "show", "status", "update-index"})
+                          "remote", "rev-parse", "show", "status", "update-index", "worktree"})
 #: git global options JEV passes, and whether each takes a value (`--opt=v` or
 #: `--opt v`; `-c k=v` or `-ck=v`). Every other one (`--config-env`,
 #: `--exec-path`, …) is refused.
@@ -372,6 +375,11 @@ _GIT_CLONE_OPTS = {"--branch": True, "-b": True, "-c": True, "--config": True, "
 _GIT_CLONE_CONFIG = frozenset({"core.symlinks=false", "core.hookspath=/dev/null", "core.fsmonitor=false"})
 #: `git fetch` and `git push` options JEV passes (no `--upload-pack`, `--repo`, `--all`, …)
 _GIT_FETCH_OPTS = {"--quiet": False, "-q": False, "--no-tags": False}
+#: `git worktree` as the reflector's filing uses it: `add --detach <path>
+#: <commit>` (no `-b`/`-B`, which create or RESET a local branch, no
+#: `--force`, `--lock` or `--orphan`) and `remove [--force] <path>`
+_GIT_WORKTREE_ADD_OPTS = {"--detach": False, "--quiet": False, "-q": False}
+_GIT_WORKTREE_REMOVE_OPTS = {"--force": False}
 _GIT_PUSH_OPTS = {"--quiet": False, "-q": False, "--set-upstream": False, "-u": False, "--dry-run": False,
                   "-n": False, "--porcelain": False, "--no-verify": False, "--atomic": False, "--verbose": False,
                   "-v": False}
@@ -526,7 +534,26 @@ def assert_safe_git(args: list[str], env: dict | None = None) -> int:
                                "push or run a command)")
     elif sub == "push":
         _assert_safe_push(tail)
+    elif sub == "worktree":
+        _assert_safe_worktree(tail)
     return i
+
+
+def _assert_safe_worktree(tail: list[str]) -> None:
+    """`worktree add --detach <path> <commit>` and `worktree remove [--force]
+    <path>` only: a detached worktree creates no local branch, so a later
+    push names its destination explicitly and nothing is reset or moved."""
+    verb = tail[0] if tail else ""
+    if verb == "add":
+        opts, positionals = _git_options("git worktree add", tail[1:], _GIT_WORKTREE_ADD_OPTS)
+        if ("--detach", "") not in opts or len(positionals) != 2:
+            raise JevError("refusing: JEV adds a worktree only as `worktree add --detach <path> <commit>`")
+    elif verb == "remove":
+        _opts, positionals = _git_options("git worktree remove", tail[1:], _GIT_WORKTREE_REMOVE_OPTS)
+        if len(positionals) != 1:
+            raise JevError("refusing: `git worktree remove` takes one path")
+    else:
+        raise JevError(f"refusing: JEV never runs `git worktree {verb}` (only add --detach and remove)")
 
 
 def _assert_safe_push(tail: list[str]) -> None:

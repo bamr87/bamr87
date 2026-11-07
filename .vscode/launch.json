@@ -845,7 +845,8 @@
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "5-loops", "order": 10 }
     },
-    // Harness refinement (docs/HARNESS-REFINEMENT.md): every subcommand is $0.
+    // Harness refinement (docs/HARNESS-REFINEMENT.md): every subcommand is $0 but
+    // `refine reflect` without --rehearse (ONE capped session; it previews, never files).
     {
       "name": "🧪 Refine: surface check (the hub's harness surface)",
       "type": "node-terminal",
@@ -861,6 +862,22 @@
       "command": "tools/dash refine plan ${input:refineLoop}",
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "5-loops", "order": 12 }
+    },
+    {
+      "name": "🧪 Refine: reflect rehearsal (the incident reflector's evidence and argv, $0)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash refine reflect --rehearse",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 13 }
+    },
+    {
+      "name": "🧪 Refine: reflect (ONE capped session ≤ stage_usd; previews, never files)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash refine reflect",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 14 }
     },
 
     // ---------------------------------------------------------------- VERIFY
