@@ -101,7 +101,7 @@ def test_the_launcher_is_published_as_addresses_with_a_page_per_app():
     doc = docs()["apps"]
     assert doc["schema"] == "fleet-launcher/v1" and doc["apps"], "no launcher in the snapshot"
     keys = {k for a in doc["apps"] for t in a["targets"] for k in t}
-    assert keys <= {"id", "kind", "label", "url", "service", "port", "band", "start"}, f"unexpected target fields: {sorted(keys)}"
+    assert keys <= {"id", "kind", "label", "url", "service", "port", "band", "start", "project"}, f"unexpected target fields: {sorted(keys)}"
     routes = snapshot.routes(docs())
     for a in doc["apps"]:
         assert f"apps/{a['id']}" in routes, f"/apps/{a['id']} would 404 on Pages"

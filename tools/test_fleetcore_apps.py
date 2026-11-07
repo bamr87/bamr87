@@ -51,6 +51,7 @@ class TargetTests(unittest.TestCase):
         self.assertEqual([x["port"] for x in t], [5120, 8005, 8120])
         self.assertEqual(t[0]["url"], "http://127.0.0.1:5120/")
         self.assertEqual(t[0]["start"], "tools/dash dev up shop")
+        self.assertEqual(t[0]["project"], "shop")
         self.assertNotIn(5440, [x["port"] for x in t], "a database is not something a browser opens")
         self.assertNotIn(5720, [x["port"] for x in t], "a debug attach point is not a page")
 

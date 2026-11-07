@@ -299,6 +299,8 @@ export interface AppTarget {
   band?: string;
   /** The command that starts a local target's stack. */
   start?: string | null;
+  /** The project a local target belongs to: what `dev-up` and `dev-down` take. */
+  project?: string;
 }
 
 /** A registry frontend as the launcher lists it (fleetcore.apps, fleet-launcher/v1). */
