@@ -1,0 +1,28 @@
+name: zz proof report
+on: pull_request
+permissions:
+  contents: read
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+      - run: python -m pip install --quiet pyyaml
+      - name: Run the real reporter once the planted run has finished
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          for i in $(seq 1 30); do
+            rid=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SHA&per_page=40" --jq '.workflow_runs[] | select(.name=="zz proof fail" and .status=="completed") | .id' | head -1)
+            [ -n "$rid" ] && break
+            sleep 5
+          done
+          echo "planted run: $rid"
+          python3 .github/scripts/dash-gen/pr_review.py ci --repo "$GITHUB_REPOSITORY" --run "$rid"
