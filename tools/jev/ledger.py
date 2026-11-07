@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import math
+import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -75,7 +76,9 @@ class Ledger:
     def load(cls, path: Path | None = None) -> Ledger:
         """A ledger that is not a mapping with a `resolutions` list refuses: read
         as no rows, the month would be $0, and the next save would drop them."""
-        p = path or LEDGER_PATH
+        # JEV_LEDGER: a local session keeps its rows out of the tracked file, which
+        # belongs to CI's publish step, so a sweep never dirties the working tree.
+        p = path or Path(os.environ.get("JEV_LEDGER") or LEDGER_PATH)
         if not p.is_file():
             return cls(path=p)
         data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
