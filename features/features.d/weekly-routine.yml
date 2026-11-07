@@ -1,0 +1,18 @@
+id: HUB-NEW
+slug: weekly-routine
+title: "The weekly routine: save everything, get back to main, recap the week and plan the next"
+description: "tools/weekly.py and `tools/dash weekly`. Every Friday night a LaunchAgent takes inventory of the hub and every submodule, proves what is merged, saves everything else to a local archive, refreshes to main and removes what is proven safe, ranks the open work and drafts the week's chronicles and retro. Every external write waits for one confirm, and one weekly pull request records the state and publishes the writing."
+implemented: true
+status: shipped
+surface: cli
+link: tools/weekly.py
+docs: docs/WEEKLY.md
+tags: [ routine, backup, planning, chronicle ]
+date: 2026-11-06
+tests:
+  - tools/test_weekly.py
+prd: ["FR-NEW:weekly-routine"]
+prd_new:
+  - key: weekly-routine
+    kind: FR
+    text: "The hub must, once a week and without help, save all work that exists only on the maintainer's machine, return the workspace to main without removing anything unmerged or in use, and prepare the week's recap and next week's plan, with every external write held for one confirmation."

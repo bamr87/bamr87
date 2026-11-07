@@ -763,6 +763,22 @@
     // The routine PM review (docs/PM.md): read-only on GitHub. `review` writes
     // only .fleet/pm/; applying its plan is `tools/dash projects apply`, typed.
     {
+      "name": "🗓️ Weekly routine: preview (changes no repo)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash weekly run",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 40 }
+    },
+    {
+      "name": "🗓️ Weekly routine: what confirm would do (dry run)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash weekly confirm",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 41 }
+    },
+    {
       "name": "🧭 PM review: project, roadmap and release alignment (read-only)",
       "type": "node-terminal",
       "request": "launch",

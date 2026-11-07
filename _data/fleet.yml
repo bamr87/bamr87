@@ -485,6 +485,25 @@ agent_fill:
 # with FLEET_TOKEN. A repo opts out with `scout: false` in projects.yml.
 # Kill switch: vars.REPO_SCOUT_ENABLED — a NEW loop, so it starts OFF and runs
 # on its cron only once that variable is 'true' (a dispatch always runs).
+# The weekly routine (docs/WEEKLY.md, tools/weekly.py): regroup, recap and save the state of the
+# whole workspace. A LaunchAgent, not a workflow: the work it saves exists only on this Mac, so
+# schedule is local time (weekday: 0 Sunday … 5 Friday) and is not in `schedule:` above.
+weekly:
+  enabled: true
+  schedule:
+    weekday: 5
+    hour: 22
+    minute: 37
+  report_only_runs: 2
+  wip_prefix: wip/mac
+  archive_dir: ~/bamr87-archive/weekly
+  plan:
+    capacity:
+      decide: 5
+      finish: 5
+      unblock: 3
+      do: 5
+
 scout:
   enabled: true
   sample: 2                 # repos visited per day; full cycle every ceil(eligible / sample) days
@@ -2387,6 +2406,21 @@ switches:
       cron: 7 2 * * 1
       note: gated by fleet config, not a repo variable
       flip: set `rotation.enabled` in _data/fleet.yml by PR
+    hub/weekly:
+      repo: bamr87/bamr87
+      workflow: tools/weekly.py
+      group: hub-maintenance
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: fleet_config
+        name: weekly.enabled
+      default: 'on'
+      state: 'on'
+      verified: false
+      cron: 37 22 * * 5
+      note: a local LaunchAgent (tools/install-weekly.sh), not a workflow; local time
+      flip: set `weekly.enabled` in _data/fleet.yml by PR
     hub/backlog-fanout:
       repo: bamr87/bamr87
       workflow: .github/workflows/backlog-fanout.yml
