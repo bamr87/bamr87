@@ -28,7 +28,7 @@ verify/verify.yml            HOW to run it like a user — build/start, URL, rea
 verify/scenarios/*.yml       WHAT a user does — goto/click/fill/expect/screenshot steps, one feature per file
 verify/runner.mjs            executes scenarios with Playwright → test/evidence/<id>/ (screenshots, report.json, README)
 verify/mcp.json              the Playwright MCP the AGENT drives the live app with
-.github/workflows/verify.yml calls fleet-verify.yml: index check + scenarios on every PR; agent pass on `verify` label
+.github/workflows/verify.yml calls fleet-verify.yml: index check + scenarios on every PR commit; agent pass on `verify` label
 .claude/skills/verify-feature the repo-local playbook a Claude session follows; .claude/agents/verifier.md its persona
 test/evidence/<slug>/        the proof: ≥2 viewports of screenshots, report.json, a README saying what each image shows
 ```
@@ -90,6 +90,8 @@ Reusable (`workflow_call`), adopted by the thin caller the kit seeds. One job:
 | gate | fail on invalid index / app not started / scenario failures | `gate: true` |
 
 Auth is OAuth-first per the house convention; a missing credential skips the agent step with a notice and never fails the scenario half. The agent runs on a checkout with no persisted credentials and cannot merge, push, or comment — the same posture as `repo-evolution.yml`. Callers need `permissions: {contents: read, pull-requests: write, id-token: write}` and `secrets: inherit`.
+
+The kit's caller (`templates/verify/verify.yml`, 0.2.0) runs on `pull_request` opened, synchronize and reopened, on a `verify` label and on dispatch. Any other label gets a concurrency group of its own and a skipped job, so it neither re-runs the pass nor cancels the run in flight, and there is no `push:` trigger: nearly every push to the default branch is the merge of a pull request whose commits were just verified, and a dispatch verifies the default branch on demand. The [kit README](../templates/verify/README.md#triggers) has the evidence; copies seeded before 0.2.0 move with `tools/fanout.sh --kit verify --target <name> --upgrade`.
 
 Labels (declared in `_data/fleet.yml` `verification.labels`): `verify` requests the agent pass; `skip-evidence` waives UPS-QA-52 with a reason in the PR body.
 
