@@ -1,0 +1,12 @@
+name: zz proof fail
+on: pull_request
+permissions:
+  contents: read
+jobs:
+  boom:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fail on purpose
+        run: |
+          python3 -c "raise ValueError('planted failure to test the PR comment')"
