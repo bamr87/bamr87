@@ -1,9 +1,9 @@
 // The frame every page renders in: a header that says where you are working
 // (branch, tree state, credentials, running jobs) and a sidebar grouped by
 // what you are doing. Each header chip is a link to the page that fixes it.
-import { Link, Outlet, useLocation, useNavigate } from 'react-router';
+import { Link, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router';
 import {
-  ActionIcon, Anchor, AppShell, Badge, Box, Burger, Button, Group, Indicator, Kbd, NavLink, ScrollArea, Text, Tooltip, UnstyledButton, useComputedColorScheme, useMantineColorScheme,
+  ActionIcon, Anchor, AppShell, Badge, Box, Burger, Button, Group, Indicator, Kbd, ScrollArea, Text, Tooltip, UnstyledButton, VisuallyHidden, useComputedColorScheme, useMantineColorScheme,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { spotlight } from '@mantine/spotlight';
@@ -11,15 +11,22 @@ import {
   IconApi, IconBox, IconBrandGithub, IconCamera, IconGitBranch, IconKey, IconMoonStars, IconPlugConnected, IconRefresh, IconSearch, IconSun,
 } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { EMBEDDED, asset, consoleOrigin, hasConsole, mode } from '../api/backend';
 import { useCaps, useGithubStatus, useJobs, useManifest, useSite, useStateDoc } from '../api/hooks';
 import { clearSnapshotCache } from '../api/static';
 import { when } from '../lib/format';
-import { NAV, activeIndex, FLAT } from '../nav';
+import { rememberPage } from '../lib/prefs';
+import { activeIndex, FLAT } from '../nav';
 import { to } from '../lib/links';
 import { LAYOUT } from '../theme';
+import { ErrorBoundary } from './ErrorBoundary';
+import { KEYS_EVENT } from './GlobalKeys';
+import { PageTitleContext, type PageTitle } from './pageTitle';
+import { ShellNav } from './ShellNav';
+import { Banner } from './ui';
 import u from '../styles/utils.module.css';
+import navClasses from './ShellNav.module.css';
 
 /** A header chip: a fact about where you are working, linking to the page that acts on it. */
 function Chip({ children, tone, href, title }: { children: ReactNode; tone?: 'good' | 'crit'; href?: string; title: string }) {
@@ -33,11 +40,11 @@ function Chip({ children, tone, href, title }: { children: ReactNode; tone?: 'go
 }
 
 /** The public build without a console: how old the snapshot is, and GitHub. */
-function SnapshotStatus() {
+function SnapshotStatus({ stacked }: { stacked?: boolean }) {
   const m = useManifest();
   const gh = useGithubStatus();
   return (
-    <Group gap={6} wrap="nowrap" visibleFrom="md" className={u.clip}>
+    <Group gap={6} wrap={stacked ? 'wrap' : 'nowrap'} className={stacked ? undefined : u.clip}>
       <Chip href={to.connect()} title={m.data ? `Published snapshot of commit ${m.data.commit.slice(0, 7)}, built ${m.data.generated_at}. Read-only — connect GitHub or a console to act.` : 'Published snapshot'}>
         <IconCamera size={13} /> snapshot {m.data ? when(m.data.generated_at) : ''}
       </Chip>
@@ -48,12 +55,29 @@ function SnapshotStatus() {
   );
 }
 
-function HeaderStatus() {
-  if (!hasConsole()) return <SnapshotStatus />;
-  return <ConsoleStatus />;
+/** Where you are working. In the header from md up; below that, at the foot of the sidebar. */
+function HeaderStatus({ stacked }: { stacked?: boolean }) {
+  if (!hasConsole()) return <SnapshotStatus stacked={stacked} />;
+  return <ConsoleStatus stacked={stacked} />;
 }
 
-function ConsoleStatus() {
+/** Said once, at the top of the page, rather than as a failure on every panel. */
+function ConnectionLost() {
+  const jobs = useJobs();
+  if (!hasConsole() || !jobs.isError || (jobs.error as { status?: number }).status === 401) return null;
+  return (
+    <Banner tone="warn" title="The console is not answering">
+      <Group gap="sm" justify="space-between">
+        <Text size="sm">
+          {jobs.dataUpdatedAt ? `Last heard from ${when(new Date(jobs.dataUpdatedAt).toISOString())}. ` : ''}Pages keep showing what they last read, and this clears by itself when it answers again.
+        </Text>
+        <Button size="compact-xs" variant="default" loading={jobs.isFetching} onClick={() => void jobs.refetch()}>Retry now</Button>
+      </Group>
+    </Banner>
+  );
+}
+
+function ConsoleStatus({ stacked }: { stacked?: boolean }) {
   const state = useStateDoc();
   const caps = useCaps();
   const g = state.data?.git ?? {};
@@ -63,7 +87,7 @@ function ConsoleStatus() {
   const loaded = state.data !== undefined;
   const capsLoaded = caps.data !== undefined;
   return (
-    <Group gap={6} wrap="nowrap" visibleFrom="md" className={u.clip}>
+    <Group gap={6} wrap={stacked ? 'wrap' : 'nowrap'} className={stacked ? undefined : u.clip}>
       {mode() === 'remote' ? (
         <Chip tone="good" href={to.connect()} title="This public page is connected to a running console; every page acts through it.">
           <IconPlugConnected size={13} /> {consoleOrigin().replace(/^https?:\/\//, '')}
@@ -143,10 +167,30 @@ export function Shell() {
   const brand = site.data?.profile.site?.title ?? 'Harness Console';
   const active = activeIndex(pathname);
   useEffect(close, [pathname, close]);
+  const [named, setNamed] = useState<PageTitle | null>(null);
+  // The page's own name once it has said it; the sidebar's until then.
+  const item = FLAT[active];
+  const pageTitle = named?.path === pathname ? named.title : item?.label;
+  const atHome = pathname === '/';
   useEffect(() => {
-    const item = FLAT[active];
-    document.title = item && item.to !== '/' ? `${item.label} · ${brand}` : `${brand}${site.data?.profile.name ? ` — ${site.data.profile.name}` : ''}`;
-  }, [active, brand, site.data]);
+    document.title = pageTitle && !atHome ? `${pageTitle} · ${brand}` : `${brand}${site.data?.profile.name ? ` — ${site.data.profile.name}` : ''}`;
+  }, [pageTitle, atHome, brand, site.data]);
+  useEffect(() => {
+    if (item && pageTitle && !atHome && !EMBEDDED) rememberPage({ path: pathname, label: pageTitle });
+  }, [item, pageTitle, atHome, pathname]);
+  // A route change moves the reader to the new page: back to its top (Back and
+  // Forward keep where they were), and focus off the link that was just left.
+  const main = useRef<HTMLElement>(null);
+  const navigationType = useNavigationType();
+  const arrived = useRef(false);
+  useEffect(() => {
+    if (!arrived.current) {
+      arrived.current = true;
+      return;
+    }
+    if (navigationType !== 'POP') window.scrollTo(0, 0);
+    if (!document.querySelector('[role="dialog"]')) main.current?.focus({ preventScroll: true });
+  }, [pathname, navigationType]);
   const refresh = () => {
     clearSnapshotCache();
     void qc.invalidateQueries();
@@ -158,28 +202,31 @@ export function Shell() {
   if (EMBEDDED) {
     return (
       <Box p="md" mih="100dvh" bg="var(--page)">
-        <Outlet />
+        <ErrorBoundary resetKey={pathname}><Outlet /></ErrorBoundary>
       </Box>
     );
   }
 
   return (
+    <PageTitleContext.Provider value={setNamed}>
+    <a href="#main" className={navClasses.skip} onClick={(e) => { e.preventDefault(); main.current?.focus(); }}>Skip to content</a>
+    <VisuallyHidden aria-live="polite" aria-atomic>{pageTitle}</VisuallyHidden>
     <AppShell header={{ height: LAYOUT.headerHeight }} navbar={{ width: LAYOUT.navbarWidth, breakpoint: 'sm', collapsed: { mobile: !opened } }} padding="lg">
       <AppShell.Header px="md">
         <Group h="100%" justify="space-between" wrap="nowrap" gap="sm">
           <Group gap="sm" wrap="nowrap">
-            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Menu" />
-            <UnstyledButton component={Link} to="/" aria-label="Home">
+            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Menu" aria-expanded={opened} aria-controls="console-nav" />
+            <UnstyledButton component={Link} to="/">
               <Group gap={8} wrap="nowrap">
                 <img src={asset('favicon.svg')} width={24} height={24} alt="" />
                 <Text fw={650} fz={16} className={u.nowrap}>{brand}</Text>
                 <Text size="xs" c="dimmed" visibleFrom="lg" className={u.nowrap}>Harness Console</Text>
               </Group>
             </UnstyledButton>
-            <HeaderStatus />
+            <Box visibleFrom="md" className={u.clip}><HeaderStatus /></Box>
           </Group>
           <Group gap={8} wrap="nowrap">
-            <Button variant="default" size="sm" fw={400} c="dimmed" visibleFrom="xs" aria-label="Search and commands"
+            <Button variant="default" size="sm" fw={400} c="dimmed" visibleFrom="xs"
               leftSection={<IconSearch size={15} />} rightSection={<Kbd size="xs">:</Kbd>} onClick={() => spotlight.open()}>
               Search or run…
             </Button>
@@ -197,40 +244,27 @@ export function Shell() {
           </Group>
         </Group>
       </AppShell.Header>
-      <AppShell.Navbar p="xs">
+      <AppShell.Navbar p="xs" id="console-nav" aria-label="Console">
         <AppShell.Section grow component={ScrollArea}>
-          {NAV.map((section, si) => (
-            <Box key={section.label} mb={8}>
-              {section.items.length > 1 || section.label !== section.items[0].label ? (
-                <Group justify="space-between" px={10} pt={6} pb={2}>
-                  <Text size="xs" fw={700} c="dimmed" tt="uppercase" lts={0.6}>{section.label}</Text>
-                  <Text size="xs" c="dimmed" ff="monospace">{si + 1}</Text>
-                </Group>
-              ) : null}
-              {section.items.map((item) => {
-                const idx = FLAT.indexOf(item);
-                const Ico = item.icon;
-                return (
-                  <NavLink key={item.to} component={Link} to={item.to} label={item.label} active={idx === active}
-                    leftSection={<Ico size={17} stroke={1.6} />} title={item.hint}
-                    rightSection={section.items.length === 1 ? <Text size="xs" c="dimmed" ff="monospace">{si + 1}</Text> : undefined} />
-                );
-              })}
-            </Box>
-          ))}
+          <ShellNav active={active} />
         </AppShell.Section>
         <AppShell.Section>
+          <Box hiddenFrom="md" px={8} pt={6}><HeaderStatus stacked /></Box>
           <Group gap={6} px={8} py={6} wrap="wrap">
-            <Badge variant="default" size="sm" leftSection={<Kbd size="xs">?</Kbd>}>keys</Badge>
+            <UnstyledButton onClick={() => window.dispatchEvent(new Event(KEYS_EVENT))} aria-label="Show the keyboard keys">
+              <Badge variant="default" size="sm" leftSection={<Kbd size="xs">?</Kbd>} className={u.pointer}>keys</Badge>
+            </UnstyledButton>
             <Text size="xs" c="dimmed">keys v1 · same as <Anchor component={Link} to={to.terminal()} size="xs">the TUI</Anchor></Text>
           </Group>
         </AppShell.Section>
       </AppShell.Navbar>
-      <AppShell.Main>
+      <AppShell.Main ref={main} id="main" tabIndex={-1}>
         <Box maw={LAYOUT.contentMaxWidth} mx="auto">
-          <Outlet />
+          <ConnectionLost />
+          <ErrorBoundary resetKey={pathname}><Outlet /></ErrorBoundary>
         </Box>
       </AppShell.Main>
     </AppShell>
+    </PageTitleContext.Provider>
   );
 }

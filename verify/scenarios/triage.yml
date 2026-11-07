@@ -7,7 +7,7 @@ ignore_console: ["Failed to load resource", "net::ERR_"]
 steps:
   - goto: /triage/
   - wait: { url: "/inbox" }
-  - wait: { selector: "main table.dt" }
+  - wait: { selector: "main table" }
   - expect: { text: "Inbox" }
   - expect: { no_horizontal_scroll: true }
   - screenshot: triage

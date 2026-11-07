@@ -1,0 +1,25 @@
+id: HUB-NEW
+slug: console-shell
+title: "The console's frame: a sidebar that folds, live counts, and pages that fail one at a time"
+description: "The shell every console page shares (tools/console/web/src/components/Shell.tsx, ShellNav.tsx). The sidebar's nine sections fold, the current page's section opens itself and stays in view, and the choice is remembered in this browser; beside a page, a live number says what needs attention there (Overview, Inbox, Health, Jobs), and a folded section sums its own. A page names itself once in its PageHeader, which becomes the h1, the tab title, the announcement to a screen reader and the palette's recent list; the palette opens on the pages this browser last visited. A route change returns to the top and moves focus to the page, except Back and Forward, which keep their place. A page that throws is contained by an error boundary with the header and sidebar still up, a failed load offers Try again, a failed refresh keeps the last answer on screen under a warning, and when the console stops answering one banner says so and clears by itself. Below the md breakpoint the header's status chips move to the foot of the sidebar. From the keyboard: a skip link, sortable headers that are buttons reporting aria-sort, a real link in every row that opens a page, and Enter that belongs to the focused control, opening the selected row only when nothing is focused. Motion stops under prefers-reduced-motion."
+implemented: true
+status: shipped
+surface: ui
+link: tools/console/web/src/components/Shell.tsx
+docs: tools/console/web/README.md
+tags: [ console, navigation, accessibility, resilience ]
+date: 2026-11-06
+tests:
+  - tools/console/test_pages.py
+  - tools/console/test_console.py
+scenarios:
+  - verify/scenarios/console-shell.yml
+  - verify/scenarios/console-nav.yml
+evidence:
+  - test/evidence/console-shell
+  - test/evidence/console-nav
+prd: ["FR-NEW:console-shell"]
+prd_new:
+  - key: console-shell
+    kind: FR
+    text: "The console's frame must keep the current page in view in its navigation, show what needs attention beside the page that holds it, work from the keyboard and to a screen reader on every page, and keep the console usable when one page fails or the backend stops answering."

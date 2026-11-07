@@ -1,0 +1,24 @@
+# The sidebar folds so the current page is always in view, Enter belongs to what has focus, and the palette leads with where you have been.
+id: console-nav
+feature: HUB-NEW:console-shell
+title: "The sidebar keeps the current page in view, and Enter does what the focused control says"
+description: "A deep page opens its own section and stays on screen, where the unfolded list once left it a thousand pixels down. A folded section stays folded across a reload. Enter on a button runs that button and never opens the table's selected row. The palette, opened empty, leads with the pages this browser visited."
+viewports: [desktop]
+ignore_console: ["Failed to load resource", "net::ERR_"]
+steps:
+  - goto: /config
+  - wait: { selector: "nav a[aria-current='page']" }
+  - eval: { name: active_in_view, script: "(async () => { await new Promise((r) => setTimeout(r, 400)); const r = document.querySelector(\"nav a[aria-current='page']\").getBoundingClientRect(); if (r.bottom > window.innerHeight || r.top < 0) throw new Error(`the current page is at y=${r.top}`); return Math.round(r.top); })()" }
+  - click: "nav button:has-text('Harnesses')"
+  - wait: { selector: "nav a:has-text('Inventory')" }
+  - goto: /config
+  - wait: { selector: "nav a:has-text('Inventory')" }
+  - screenshot: sidebar-folded
+  - goto: /projects
+  - wait: { selector: "a[data-row-link]" }
+  - eval: { name: enter_on_a_button, script: "(async () => { const b = [...document.querySelectorAll('main button')].find((x) => !x.closest('th') && x.offsetParent); b.focus(); document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await new Promise((r) => setTimeout(r, 300)); if (!/\\/projects\\/?$/.test(location.pathname)) throw new Error(`Enter on a button went to ${location.pathname}`); document.activeElement.blur(); return 'stayed'; })()" }
+  - press: "Control+k"
+  - wait: { selector: "button:has-text('Config')" }
+  - eval: { name: recents_lead, script: "(() => { const first = document.querySelector('[class*=Spotlight-actionsGroup]'); if (first.getAttribute('data-label') !== 'Recent' && !/config/i.test(first.innerText)) throw new Error('the palette does not lead with recent pages'); return first.innerText.split('\\n')[0]; })()" }
+  - press: Escape
+  - expect: { no_horizontal_scroll: true }

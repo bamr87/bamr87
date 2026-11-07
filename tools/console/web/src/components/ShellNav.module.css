@@ -1,0 +1,48 @@
+/* The sidebar's section headers and the skip link; the links themselves are
+   Mantine NavLinks, styled through theme.components. */
+.section {
+  display: flex;
+  align-items: center;
+  gap: rem(6px);
+  width: 100%;
+  padding: rem(6px) rem(10px);
+  border-radius: var(--mantine-radius-sm);
+  color: var(--mantine-color-dimmed);
+
+  @mixin hover {
+    background: var(--mantine-color-default-hover);
+    color: var(--mantine-color-text);
+  }
+
+  &:focus-visible {
+    outline: rem(2px) solid var(--accent);
+    outline-offset: rem(-2px);
+  }
+}
+
+.chevron {
+  flex: none;
+  transition: transform 120ms ease;
+
+  [aria-expanded='true'] > & {
+    transform: rotate(90deg);
+  }
+}
+
+.skip {
+  position: fixed;
+  top: rem(8px);
+  left: rem(8px);
+  z-index: 1000;
+  padding: rem(8px) rem(14px);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--accent);
+  color: var(--page);
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 600;
+  transform: translateY(-200%);
+
+  &:focus {
+    transform: none;
+  }
+}

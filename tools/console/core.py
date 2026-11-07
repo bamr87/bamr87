@@ -369,6 +369,7 @@ def load_state(now: dt.datetime | None = None) -> dict:
             "generated_at": triage.get("generated_at"),
             "totals": triage.get("totals") or {},
             "inbox": (triage.get("inbox") or [])[:20],
+            "inbox_total": len(triage.get("inbox") or []),
         },
         "pipeline": {"generated_at": pipeline.get("generated_at"), "totals": pipeline.get("totals") or {}},
         "rotation": {

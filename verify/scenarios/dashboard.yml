@@ -14,5 +14,5 @@ steps:
   - screenshot: dashboard
   - goto: /dashboard/
   - wait: { url: "/projects" }
-  - wait: { selector: "main table.dt" }
+  - wait: { selector: "main table" }
   - screenshot: dashboard-legacy

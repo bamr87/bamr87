@@ -1,0 +1,260 @@
+{
+  "id": "console-shell",
+  "title": "The console's frame works from the keyboard and reads correctly to a screen reader",
+  "features": [
+    "HUB-NEW:console-shell"
+  ],
+  "path": "verify/scenarios/console-shell.yml",
+  "started": "2026-11-06T23:10:38.183Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/projects",
+          "ok": true,
+          "ms": 3977
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "a[data-row-link]"
+          },
+          "ok": true,
+          "ms": 23
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "landmarks",
+            "script": "(() => { const h1 = document.querySelectorAll('main h1').length; if (h1 !== 1) throw new Error(`${h1} h1 in main`); if (!document.querySelector(\"nav[aria-label='Console']\")) throw new Error('the sidebar is not a named landmark'); return document.title; })()"
+          },
+          "ok": true,
+          "value": "Projects · bamr87",
+          "ms": 2
+        },
+        {
+          "step": "press",
+          "arg": "Tab",
+          "ok": true,
+          "ms": 8
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "first_tab",
+            "script": "(() => { const t = document.activeElement.innerText; if (t !== 'Skip to content') throw new Error(`the first Tab reached: ${t}`); return t; })()"
+          },
+          "ok": true,
+          "value": "Skip to content",
+          "ms": 3
+        },
+        {
+          "step": "press",
+          "arg": "Enter",
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "skipped_to",
+            "script": "(() => { if (document.activeElement.tagName !== 'MAIN') throw new Error(`focus is on ${document.activeElement.tagName}`); return 'main'; })()"
+          },
+          "ok": true,
+          "value": "main",
+          "ms": 1
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "sort_by_key",
+            "script": "(async () => { const th = [...document.querySelectorAll('th[aria-sort]')].find((h) => h.innerText.trim() === 'status'); if (!th) throw new Error('no sortable status header'); const before = th.getAttribute('aria-sort'); th.querySelector('button').click(); await new Promise((r) => setTimeout(r, 200)); const after = th.getAttribute('aria-sort'); if (before !== 'none' || after !== 'ascending') throw new Error(`${before} -> ${after}`); return after; })()"
+          },
+          "ok": true,
+          "value": "ascending",
+          "ms": 202
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "row_link",
+            "script": "(() => { const a = document.querySelector('a[data-row-link]'); if (!a.getAttribute('href').includes('/projects/')) throw new Error(a.getAttribute('href')); return a.innerText; })()"
+          },
+          "ok": true,
+          "value": "Open it-journey",
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "projects-keyboard",
+          "ok": true,
+          "file": "test/evidence/console-shell/desktop-projects-keyboard.png",
+          "ms": 37
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/console-shell/desktop-projects-keyboard.png"
+      ],
+      "evals": {
+        "landmarks": "Projects · bamr87",
+        "first_tab": "Skip to content",
+        "skipped_to": "main",
+        "sort_by_key": "ascending",
+        "row_link": "Open it-journey"
+      },
+      "final_url": "http://127.0.0.1:4011/projects"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/projects",
+          "ok": true,
+          "ms": 3635
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "a[data-row-link]"
+          },
+          "ok": true,
+          "ms": 14
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "landmarks",
+            "script": "(() => { const h1 = document.querySelectorAll('main h1').length; if (h1 !== 1) throw new Error(`${h1} h1 in main`); if (!document.querySelector(\"nav[aria-label='Console']\")) throw new Error('the sidebar is not a named landmark'); return document.title; })()"
+          },
+          "ok": true,
+          "value": "Projects · bamr87",
+          "ms": 1
+        },
+        {
+          "step": "press",
+          "arg": "Tab",
+          "ok": true,
+          "ms": 5
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "first_tab",
+            "script": "(() => { const t = document.activeElement.innerText; if (t !== 'Skip to content') throw new Error(`the first Tab reached: ${t}`); return t; })()"
+          },
+          "ok": true,
+          "value": "Skip to content",
+          "ms": 2
+        },
+        {
+          "step": "press",
+          "arg": "Enter",
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "skipped_to",
+            "script": "(() => { if (document.activeElement.tagName !== 'MAIN') throw new Error(`focus is on ${document.activeElement.tagName}`); return 'main'; })()"
+          },
+          "ok": true,
+          "value": "main",
+          "ms": 1
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "sort_by_key",
+            "script": "(async () => { const th = [...document.querySelectorAll('th[aria-sort]')].find((h) => h.innerText.trim() === 'status'); if (!th) throw new Error('no sortable status header'); const before = th.getAttribute('aria-sort'); th.querySelector('button').click(); await new Promise((r) => setTimeout(r, 200)); const after = th.getAttribute('aria-sort'); if (before !== 'none' || after !== 'ascending') throw new Error(`${before} -> ${after}`); return after; })()"
+          },
+          "ok": true,
+          "value": "ascending",
+          "ms": 202
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "row_link",
+            "script": "(() => { const a = document.querySelector('a[data-row-link]'); if (!a.getAttribute('href').includes('/projects/')) throw new Error(a.getAttribute('href')); return a.innerText; })()"
+          },
+          "ok": true,
+          "value": "Open it-journey",
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "projects-keyboard",
+          "ok": true,
+          "file": "test/evidence/console-shell/mobile-projects-keyboard.png",
+          "ms": 31
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/console-shell/mobile-projects-keyboard.png"
+      ],
+      "evals": {
+        "landmarks": "Projects · bamr87",
+        "first_tab": "Skip to content",
+        "skipped_to": "main",
+        "sort_by_key": "ascending",
+        "row_link": "Open it-journey"
+      },
+      "final_url": "http://127.0.0.1:4011/projects"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-11-06T23:10:46.449Z",
+  "base": "http://127.0.0.1:4011"
+}

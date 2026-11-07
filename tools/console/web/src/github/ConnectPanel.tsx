@@ -56,7 +56,7 @@ function AppSetup({ s }: { s: GithubStatus }) {
   };
   return (
     <Paper p="md">
-      <Title order={4} fz={15} mb="xs">Set up the console's OAuth App (once)</Title>
+      <Title order={3} fz={15} mb="xs">Set up the console's OAuth App (once)</Title>
       <List size="sm" spacing={4} type="ordered" mb="sm">
         <List.Item>Create an OAuth App: <External href={s.oauth.new_app_url} size="sm">github.com/settings/applications/new</External>. Name it anything (for example “bamr87 Harness Console”); the homepage can be <Code>http://127.0.0.1:4001</Code>.</List.Item>
         <List.Item>Set its callback URL to <Code>{s.oauth.callback_url}</Code>. GitHub accepts a loopback callback on any port.</List.Item>
@@ -217,7 +217,7 @@ export function ConnectPanel({ s }: { s: GithubStatus }) {
       )}
       {!configured ? <AppSetup s={s} /> : (
         <Paper p="md">
-          <Group justify="space-between" mb="sm"><Title order={4} fz={15}>{s.connected ? 'Connect again (another account or more scopes)' : 'Connect with the OAuth App'}</Title>
+          <Group justify="space-between" mb="sm"><Title order={3} fz={15}>{s.connected ? 'Connect again (another account or more scopes)' : 'Connect with the OAuth App'}</Title>
             <Text size="xs" c="dimmed">client ID set{s.oauth.client_secret_set ? ' · secret set' : ' · no secret (device flow only)'}</Text></Group>
           <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
             <Stack gap={4}>

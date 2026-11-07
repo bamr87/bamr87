@@ -1689,7 +1689,9 @@ features:
       as windows too (phase D1): framed without their header and sidebar, titled after the page they are
       on, opened from the bashOS start menu, the Console icon or the command palette, and remembered in the
       layout where they are now; the console lets only its own origin frame it (frame-ancestors ''self'').
-      Below 900 px the desktop is a home screen that opens one app at a time.'
+      Below 900 px the desktop is a home screen that opens one app at a time. An icon and a title bar have
+      a context menu (right-click; Shift+F10 on a focused icon; the title bar''s button): open, open beside,
+      Live beside Local (one action, an app''s two targets each filling a half), a new tab and a link.'
     implemented: true
     status: partial
     surface: ui
@@ -1712,9 +1714,11 @@ features:
     scenarios:
     - verify/scenarios/desktop.yml
     - verify/scenarios/desktop-pages.yml
+    - verify/scenarios/desktop-context-menu.yml
     evidence:
     - test/evidence/desktop
     - test/evidence/desktop-pages
+    - test/evidence/desktop-context-menu
     prd:
     - FR58
     - FR77

@@ -119,6 +119,21 @@ def test_the_launcher_is_published_as_addresses_with_a_page_per_app():
     assert not any("markdown" in d for k, d in docs().items() if k.startswith("project/") and isinstance(d, dict))
 
 
+def test_the_shell_keeps_its_keyboard_and_failure_contract():
+    """What a reader without a mouse, or a page that breaks, depends on. The
+    scenarios drive these in a browser; this holds them where no browser runs."""
+    shell = (WEB / "components" / "Shell.tsx").read_text()
+    assert "Skip to content" in shell and 'id="main"' in shell, "the skip link or its target is gone"
+    assert shell.count("<ErrorBoundary") == 2, "both shell layouts must contain a page that throws"
+    table = (WEB / "components" / "DataTable.tsx").read_text()
+    assert "aria-sort=" in table and "<UnstyledButton" in table, "a sortable header must be a button that reports its sort"
+    keys = (WEB / "components" / "GlobalKeys.tsx").read_text()
+    assert "t?.closest(INTERACTIVE)" in keys, "Enter must stay with the focused control"
+    assert "prefers-reduced-motion" in (WEB / "styles.css").read_text()
+    ui = (WEB / "components" / "ui.tsx").read_text()
+    assert "<Title order={1}" in ui, "PageHeader is each page's h1"
+
+
 def test_every_app_route_has_a_page_in_the_build():
     """main.tsx's <Route path> table ↔ STATIC_ROUTES: a route the build does
     not know about is a deep link that answers 404 on Pages."""

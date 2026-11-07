@@ -7,7 +7,7 @@ ignore_console: ["Failed to load resource", "net::ERR_"]
 steps:
   - goto: /roadmap
   - expect: { status: 200 }
-  - wait: { selector: "main table.dt" }
+  - wait: { selector: "main table" }
   - expect: { text: "FF-" }
   - expect: { no_horizontal_scroll: true }
   - screenshot: roadmap
