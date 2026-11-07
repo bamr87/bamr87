@@ -1,7 +1,7 @@
-# NEW — Every CI failure is summarized on its pull request
+# 0028 — Every CI failure is summarized on its pull request
 
 - **Status:** proposed
-- **Number:** NEW
+- **Number:** 0028
 - **Date:** 2026-11-06
 - **Proposed by:** agent, at the maintainer's request (2026-11-06: "there needs to be a global rule that any CI failure needs to be summarized and commented on the PR ... i need to know why the workflows failed.")
 - **Ratified by:**

@@ -132,6 +132,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-085](features/features.yml) | Expedite sprints: one accelerated, monitored pilot at a time run by the fleet's agentic loops | planned | [`docs/EXPEDITE-SPRINTS.md`](docs/EXPEDITE-SPRINTS.md) | FR84 |
 | [HUB-087](features/features.yml) | Expedite sprints: one accelerated, monitored pilot at a time run by the fleet's agentic loops | planned | [`docs/EXPEDITE-SPRINTS.md`](docs/EXPEDITE-SPRINTS.md) | FR85 |
 | [HUB-088](features/features.yml) | Typed decisions gate the pipeline: a decision lockfile, traces and replay, the trim and verify loops | planned | [`docs/prd/AGENTIC-SDLC.md`](docs/prd/AGENTIC-SDLC.md) | FR86, FR87, FR88, NFR17, FR7, FR10, FR15, FR26, FR60, NFR4, NFR9 |
+| [HUB-089](features/features.yml) | The console's frame: a sidebar that folds, live counts, and pages that fail one at a time | shipped | [`tools/console/web/src/components/Shell.tsx`](tools/console/web/src/components/Shell.tsx) · [`tools/console/web/README.md`](tools/console/web/README.md) | FR89 |
 
 **Requirement → feature trace**
 
@@ -241,6 +242,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR87 | HUB-088 |
 | FR88 | HUB-088 |
 | NFR17 | HUB-088 |
+| FR89 | HUB-089 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -323,6 +325,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR86: A workflow consumes a pipeline decision only through the typed-decision action against an entry in _data/decisions.yml, which declares the question, its options or rubric, its confidence threshold and its conservative branch; a decision below threshold or unanswerable takes the conservative branch and never fails the step.
 - FR87: Every decision writes one trace (policy fingerprint, model version, inputs digest, usage, typed answer, confidence, cleared, outcome) that the lake keeps beside run cost, and the traces of a window can be replayed against the current lockfile and fuzzed for stability.
 - FR88: Test selection and matrix pruning run in shadow per repository until a nightly verify loop has reported zero missed failures over the declared window; a missed failure becomes a regression case in the decision's eval set, raises the threshold and demotes the repository, and an optimization is promoted only when minutes drop on the billing meter while missed failures stay at zero.
+- FR89: The console's frame must keep the current page in view in its navigation, show what needs attention beside the page that holds it, work from the keyboard and to a screen reader on every page, and keep the console usable when one page fails or the backend stops answering.
 
 **Non-functional**
 
