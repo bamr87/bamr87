@@ -93,7 +93,7 @@ def local_targets(ports: dict | None, entry: dict) -> list[dict]:
             "id": "local" if i == 0 else f"local-{svc}", "kind": "local",
             "label": "Local" if i == 0 else f"Local · {svc}",
             "url": f"http://{LOCAL_HOST}:{port}/", "service": svc, "port": port, "band": band,
-            "start": f"tools/dash dev up {key}",
+            "start": f"tools/dash dev up {key}", "project": key,
         })
     return out
 

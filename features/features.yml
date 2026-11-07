@@ -1643,12 +1643,13 @@ features:
       `frontend:` block to its live address and to the ports its compose-hosted dev stack publishes in _data/ports.yml.
       The console''s Apps page (/apps, GET /api/apps, the public snapshot) lists every frontend and opens
       one in a sandboxed frame at /apps/ID: Live or Local, at the page width or one of the verify kit''s
-      device sizes, with a path box that stays inside the app. A stopped local stack shows the command that
-      starts it; the public page asks no address anything until a reader opens an app. `tools/dash apps`
+      device sizes, with a path box that stays inside the app. A stopped local stack can be started from
+      the App Shell on a native console (dev-up, dev-down, dev-logs: one project from _data/ports.yml, as
+      console jobs), and shows the command that starts it elsewhere; the public page asks no address anything until a reader opens an app. `tools/dash apps`
       prints the same list in a terminal, `apps open` opens one in the console, and `apps check` reports
       whether each address answers, whether it moves to another origin and whether the shell may frame it.
-      The console''s Content-Security-Policy names exactly the launcher''s origins. Starting a stack, running
-      a repo''s scenarios from the portal, the bridge, and the VS Code and mobile shells are later phases.'
+      The console''s Content-Security-Policy names exactly the launcher''s origins. Running a repo''s
+      scenarios from the portal, the bridge, and the VS Code and mobile shells are later phases.'
     implemented: true
     status: partial
     surface: ui
@@ -1671,6 +1672,7 @@ features:
     - verify/scenarios/apps.yml
     evidence:
     - test/evidence/apps
+    - test/evidence/local-stacks
     prd:
     - FR58
     - FR76

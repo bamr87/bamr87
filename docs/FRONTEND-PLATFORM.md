@@ -119,7 +119,8 @@ The console's **Apps** page (`/apps`) is the launcher rendered: every frontend i
 | --- | --- |
 | See every frontend and where it runs | **Fleet → Apps** in the console, or `tools/dash apps` (`json` for the `fleet-launcher/v1` document) |
 | Open one inside the console | click it, or `tools/dash apps open <app> [--target local]` |
-| Switch between the deployed site and your machine | the **Live / Local** switch; a stopped stack shows `tools/dash dev up <project>` |
+| Switch between the deployed site and your machine | the **Live / Local** switch |
+| Start or stop a local stack | **Start the stack**, then **Logs** and **Stop the stack**, from a native console (`tools/dash console`); the core console's container has no Docker access and shows `tools/dash dev up <project>` instead |
 | See it at a phone or tablet size | the device presets, which are `verify/verify.yml` `viewports:` |
 | Move inside the app | the path box (a path, never another address) |
 | Check that each address answers and can be framed | `tools/dash apps check [app …] [--target live|local|all] [--strict]` |
@@ -129,7 +130,7 @@ The console's **Apps** page (`/apps`) is the launcher rendered: every frontend i
 
 **What a frontend owes the portal.** Nothing to be listed. To be framed it must not refuse the shell: no `X-Frame-Options`, and a `frame-ancestors` policy only if it names the shell's origins (`https://bamr87.github.io`, `http://127.0.0.1:4001`). To work on the public page when it shares the page's origin it must tolerate a frame without storage access, so guard `localStorage` and `sessionStorage` reads.
 
-**Where it stops.** The portal frames; it does not start a stack, run a repo's verify scenarios or read a framed app's route. Those are the next phases of ADR 0005.
+**Where it stops.** The portal frames and starts stacks; it does not run a repo's verify scenarios or read a framed app's route. Those are the next phases of ADR 0005.
 
 ## Modes: public and private
 

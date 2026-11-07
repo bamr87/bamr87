@@ -1065,6 +1065,28 @@ def _name(params: dict, key: str = "target") -> str:
     return v
 
 
+def stack_projects() -> list[str]:
+    """Projects with a compose stack of their own: the ones `tools/dash dev up`
+    can start. Never the hub: `dash dev up hub` starts a second `fleet-hub`
+    project that collides with the running core on its own ports."""
+    ports = load_yaml(DATA / "ports.yml")
+    projects = (ports or {}).get("projects") if isinstance(ports, dict) else None
+    return sorted(k for k, v in (projects or {}).items() if isinstance(v, dict) and v.get("host") == "compose")
+
+
+def _stack(params: dict) -> str:
+    """The `target` of a dev-stack operation: one project from the port registry."""
+    name = _name(params)
+    if name not in stack_projects():
+        raise ValueError(f"'{name}' has no compose stack in _data/ports.yml (known: {', '.join(stack_projects())})")
+    return name
+
+
+def _stack_exclusive(params: dict) -> str:
+    """One start or stop per project at a time; different projects run side by side."""
+    return f"stack:{params.get('target')}"
+
+
 def _deploy(params: dict, target_mode: str) -> list[str]:
     argv = [DASH, "harnesses", "deploy"]
     argv += ["--gaps"] if target_mode == "gaps" else ["--target", _name(params)]
@@ -1718,6 +1740,28 @@ OPS: dict[str, dict] = {
                             "Logstash, Kibana, Filebeat, Grafana, Qdrant (the Kilo code index), and the "
                             "OTel collector + Prometheus that receive Claude Code's native telemetry. "
                             "Run 'bootstrap' after it to install ILM + dashboards."),
+    # One project's dev stack, for the Apps page and the Desktop. Local only and
+    # started by a person: nothing here runs on page load. `needs` keeps them
+    # off where they cannot work — the console's own container has no socket on
+    # purpose, so there the page shows the terminal command instead.
+    "dev-up": dict(title="Dev stack: start one project", group="observe", needs="docker",
+                   host_cmd="tools/dash dev up <project>", exclusive=_stack_exclusive,
+                   argv=lambda p: [DASH, "dev", "up", _stack(p)], needs_token=False,
+                   desc="tools/dash dev up <project> — starts that project's compose stack on the ports "
+                        "_data/ports.yml allocates. Containers use the Docker VM's memory, so stop a stack "
+                        "you are done with.",
+                   params=["target"]),
+    "dev-down": dict(title="Dev stack: stop one project (keeps its data)", group="observe", needs="docker",
+                     host_cmd="tools/dash dev down <project>", exclusive=_stack_exclusive,
+                     argv=lambda p: [DASH, "dev", "down", _stack(p)], needs_token=False,
+                     desc="tools/dash dev down <project> — stops that project's compose stack. Its volumes stay.",
+                     params=["target"]),
+    "dev-logs": dict(title="Dev stack: the last lines of one project's logs", group="observe", needs="docker",
+                     host_cmd="tools/dash dev logs <project>",
+                     argv=lambda p: [DASH, "dev", "logs", _stack(p), "--once"], needs_token=False,
+                     desc="The last 200 lines from each of the project's services, then the job ends. "
+                          "To follow them live: tools/dash dev logs <project> in a terminal.",
+                     params=["target"]),
     "observe-bootstrap": dict(title="Observe: install ILM policies + dashboards", group="observe",
                               argv=_observe_bootstrap, needs_token=False,
                               desc="Idempotent: PUTs the rendered ILM policies and index templates, "
@@ -1924,8 +1968,8 @@ def op_unavailable(op_id: str) -> str | None:
     if needs == "docker":
         why = docker_unavailable()
         if why:
-            return (f"{why}. Run it from a host terminal instead: "
-                    f"tools/dash observe {op_id.split('-', 1)[1]}")
+            host = (OPS.get(op_id) or {}).get("host_cmd") or f"tools/dash observe {op_id.split('-', 1)[1]}"
+            return f"{why}. Run it from a host terminal instead: {host}"
     if needs == "claude":
         why = claude_unavailable()
         if why:

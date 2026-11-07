@@ -14,11 +14,12 @@ import {
 import {
   IconArrowsMaximize, IconCopy, IconDeviceDesktop, IconDeviceMobile, IconDeviceTablet, IconExternalLink, IconReload, IconSearch,
 } from '@tabler/icons-react';
-import { useState, type CSSProperties, type ReactNode } from 'react';
-import { hasConsole } from '../api/backend';
-import { useApps, useReach } from '../api/hooks';
-import type { AppTarget, AppsDoc, FleetApp, FleetRepo } from '../api/types';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { OPEN_EVENT, hasConsole } from '../api/backend';
+import { useApps, useJobs, useOps, useReach } from '../api/hooks';
+import type { AppTarget, AppsDoc, FleetApp, FleetRepo, Job } from '../api/types';
 import { Banner, External, Load, Mono, PageHeader, Section, Spinner, StatTile, Status } from '../components/ui';
+import { RunButton } from '../jobs/RunButton';
 import { to } from '../lib/links';
 import u from '../styles/utils.module.css';
 import c from './Apps.module.css';
@@ -63,6 +64,23 @@ export function inside(base: string, path: string): string {
   } catch {
     return base;
   }
+}
+
+/** How long after a start finishes a stack is given to begin answering. */
+const STARTING_MS = 90_000;
+const STARTING_POLL_MS = 3000;
+
+/** The newest start or stop of this project's stack: a stop ends a start that came before it. */
+function lastStackJob(jobs: Job[] | undefined, project: string | undefined): Job | undefined {
+  const mine = (jobs ?? []).filter((j) => (j.op === 'dev-up' || j.op === 'dev-down') && j.params?.target === project);
+  return mine.sort((a, b) => String(b.created ?? '').localeCompare(String(a.created ?? '')))[0];
+}
+
+/** Started and not yet given up on: the start is running, or finished moments ago. */
+function isStarting(job: Job | undefined): boolean {
+  if (job?.op !== 'dev-up') return false;
+  if (job.status === 'queued' || job.status === 'running') return true;
+  return job.status === 'succeeded' && Date.now() - Date.parse(String(job.finished ?? '')) < STARTING_MS;
 }
 
 const hostOf = (url: string) => url.replace(/^https?:\/\//, '').replace(/\/$/, '');
@@ -242,7 +260,22 @@ export function AppPane({ app, doc, view, onView, fill = false }: {
   // A local stack answers only on the machine that runs it. The public page
   // asks the reader before their browser is sent to 127.0.0.1.
   const needsAsk = target?.kind === 'local' && !hasConsole() && asked !== target.id;
-  const reach = useReach(target?.url, Boolean(target) && !needsAsk);
+  // A console can start this target's stack: its last start says whether to
+  // keep asking the address, and whether the start failed.
+  const canRun = target?.kind === 'local' && hasConsole() && Boolean(target.project);
+  const stackJob = lastStackJob(useJobs(canRun).data, target?.project);
+  const starting = canRun && isStarting(stackJob);
+  const reach = useReach(target?.url, Boolean(target) && !needsAsk, starting ? STARTING_POLL_MS : 0);
+  // When a start or stop ends, ask the address again. The job's log drawer
+  // refreshes documents only while it is open, and it may already be closed.
+  const stackDone = stackJob && !['queued', 'running'].includes(stackJob.status) ? stackJob.id : null;
+  useEffect(() => {
+    if (stackDone) void reach.refetch();
+  }, [stackDone]); // eslint-disable-line react-hooks/exhaustive-deps -- reach.refetch is stable
+  // Offered once the operations are known: a run before that has nothing to run.
+  const stackOps = useOps();
+  const noDocker = stackOps.data?.find((o) => o.id === 'dev-up')?.unavailable ?? null;
+  const canStart = canRun && Boolean(stackOps.data) && !noDocker;
   if (!target) {
     return (
       <Paper className={u.dashed}>
@@ -305,6 +338,12 @@ export function AppPane({ app, doc, view, onView, fill = false }: {
               : <Status tone={target.kind === 'live' ? 'crit' : 'info'}>{target.kind === 'live' ? 'no answer' : 'stopped'}</Status>}
         <Mono dim>{src}</Mono>
         {device ? <Text size="xs" c="dimmed">{device.width} × {device.height}</Text> : null}
+        {canStart && reach.data ? (
+          <>
+            <RunButton op="dev-logs" params={{ target: target.project }} size="compact-xs">Logs</RunButton>
+            <RunButton op="dev-down" params={{ target: target.project }} size="compact-xs">Stop the stack</RunButton>
+          </>
+        ) : null}
       </Group>
 
       {own && showFrame ? (
@@ -330,13 +369,34 @@ export function AppPane({ app, doc, view, onView, fill = false }: {
         ) : reach.data === undefined ? (
           <Vacant title={`Checking ${hostOf(target.url)}…`}><Spinner /></Vacant>
         ) : target.kind === 'local' ? (
-          <Vacant title={`Nothing is listening on ${hostOf(target.url)}.`}>
-            <Text size="sm" c="dimmed">The {target.service} service of {app.name}'s dev stack is not running on this machine. Start it from a terminal:</Text>
-            {target.start ? <CopyCommand value={target.start} /> : null}
-            <Group gap="xs">
-              <Button size="xs" variant="default" onClick={() => void reach.refetch()} loading={reach.isFetching}>Check again</Button>
-              <Button size="xs" variant="subtle" onClick={() => setForced(target.id)}>Load it anyway</Button>
-            </Group>
+          <Vacant title={starting ? `Starting ${app.name}…` : `Nothing is listening on ${hostOf(target.url)}.`}>
+            {starting ? (
+              <>
+                <Spinner label={`waiting for ${hostOf(target.url)} to answer; the app opens here when it does`} />
+                <Text size="xs" c="dimmed">A first start can take minutes while its images build.</Text>
+              </>
+            ) : (
+              <>
+                <Text size="sm" c="dimmed">The {target.service} service of {app.name}'s dev stack is not running on this machine.</Text>
+                {stackJob?.op === 'dev-up' && stackJob.status === 'failed' ? (
+                  <Banner tone="crit" title="The last start failed">
+                    <Anchor component={Link} to={to.job(stackJob.id)} size="sm" onClick={(e) => {
+                      if (!fill) return;
+                      e.preventDefault();
+                      window.dispatchEvent(new CustomEvent(OPEN_EVENT, { detail: { path: to.job(stackJob.id) } }));
+                    }}>Read its log</Anchor>
+                  </Banner>
+                ) : null}
+                {canStart ? <RunButton op="dev-up" params={{ target: target.project }} variant="filled">Start the stack</RunButton> : null}
+                {canRun && noDocker ? <Text size="xs" c="dimmed">This console has no Docker access, so it cannot start a stack itself.</Text> : null}
+                <Text size="sm" c="dimmed">{canStart ? 'Or from a terminal:' : 'Start it from a terminal:'}</Text>
+                {target.start ? <CopyCommand value={target.start} /> : null}
+                <Group gap="xs">
+                  <Button size="xs" variant="default" onClick={() => void reach.refetch()} loading={reach.isFetching}>Check again</Button>
+                  <Button size="xs" variant="subtle" onClick={() => setForced(target.id)}>Load it anyway</Button>
+                </Group>
+              </>
+            )}
           </Vacant>
         ) : (
           <Vacant title={`${hostOf(target.url)} is not answering from here.`}>
