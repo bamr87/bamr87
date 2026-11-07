@@ -1,10 +1,10 @@
 # 0027 — AI runs in a local session first, and merge conflicts resolve themselves
 
-- **Status:** proposed
+- **Status:** ratified
 - **Number:** 0027
 - **Date:** 2026-11-06
 - **Proposed by:** agent, at the maintainer's request (2026-11-06: "merge conflicts should automatically resolve either by script, or with an AI workflow. as a general rule, all AI workflows and sessions should utilize a local session when possible.")
-- **Ratified by:**
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/753 (merged 2026-11-07 by @bamr87)
 - **Affects:** constitution § 10 (new item 9), § 12 (new item 7); `_data/fleet.yml` `jev.auto_tiers`, `jev.ci_tiers`; AGENTS.md standing rules
 - **Supersedes:** none
 - **Related:** ADR 0002 (the local loop runner), ADR 0008 (Actions as the SDLC substrate), bamr87/bamr87#484
