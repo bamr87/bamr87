@@ -1,0 +1,43 @@
+id: FF-NEW
+slug: azure-cost-dashboard
+title: "Azure cloud cost dashboard for bash-365.com: built on BASH's own subscription, shown on the site as a read-only visualization, with a guide and a campaign"
+project: bash-365.com
+repo_url: https://github.com/bash-365/bash-365.com
+status: proposed
+priority: P2
+effort: L
+category: feature
+problem: >-
+  bash-365.com offers cloud cost optimization and dashboards as services but
+  shows no working example of either. A small business that wants to see its
+  Azure spend has no live reference, guide or worked example from BASH
+  Consulting to start from.
+proposal: >-
+  An epic on bash-365/bash-365.com (#84) that builds an Azure cost dashboard
+  on BASH's own subscription and presents it on the site as a read-only
+  visualization. P0 (#85) defines the data source, the published fields and
+  what is withheld, the architecture and the Azure access plan. P1 builds a
+  deterministic pipeline that reads Azure Cost Management with a read-only
+  identity and writes an aggregated snapshot. P2 renders the snapshot as a
+  public page on both production stacks. P3 is a business-track toolkit guide
+  and cloud service copy. P4 (#86) is a campaign of posts and LinkedIn
+  pieces written from the build.
+acceptance:
+  - "P0 (bash-365/bash-365.com#85) delivers the data-source choice, the published-field and withheld lists, the architecture, the site home and the access plan, each Azure claim sourced and dated."
+  - "A scheduled script reads cost data with a least-privilege, read-only identity and writes a schema-checked snapshot with a self-test; each Azure change was approved by Amr."
+  - "The site shows the dashboard as a read-only page on GitHub Pages and Azure Static Web Apps, with no Azure credential or identifier in the repo or the browser, a features.yml entry and a PRD requirement id."
+  - "A toolkit guide, service copy and the campaign pieces are published from the build's evidence, with no invented metrics or client names."
+scope:
+  in:
+    - "the epic and its phases on bash-365/bash-365.com: definition, pipeline, public page, toolkit guide and service copy, campaign"
+  out:
+    - "any change to the Azure subscription (role, budget, export, resource, plan) without Amr's explicit yes"
+    - "subscription, tenant or resource identifiers in any repo; a multi-tenant or client-facing cost product; write access to Azure from the pipeline"
+risks:
+  - "Publishing spend data leaks identifiers: mitigated by an explicit published-field list and aggregates only."
+  - "BASH's Azure footprint is small, so the real chart may be nearly flat: P0 decides between real data, a labelled sample, or both."
+  - "A sample dataset could be read as real: every sample sits under a visible label."
+  - "Charts must render on GitHub Pages safe mode, where local plugins do not run."
+source: manual
+created: 2026-11-06
+issue_url: https://github.com/bash-365/bash-365.com/issues/84
