@@ -148,6 +148,56 @@ def test_the_live_fleet_contract_resolves_cleanly():
 
 
 # --------------------------------------------------------------------------- #
+# rotation ledger — post-write rows (`dash secrets rotate`)
+# --------------------------------------------------------------------------- #
+ROT_TOKEN = {"name": "RELEASE_PLEASE_TOKEN", "scope": "fleet",
+             "_rotation": {"max_age_days": 45, "lifetime_days": 365}}
+
+
+def survey_rows() -> list[dict]:
+    """What a survey sees BEFORE the writes (the 2026-11-02 run's shape)."""
+    return [
+        {"nwo": "bamr87/had", "state": fc.S_OK, "age_days": 3,
+         "updated_at": "2026-10-30T02:12:00Z", "behind_hub": False},
+        {"nwo": "bamr87/old", "state": fc.S_STALE, "age_days": 86,
+         "updated_at": "2026-08-07T04:28:46Z", "behind_hub": True},
+        {"nwo": "bamr87/new", "state": fc.S_MISSING, "age_days": None,
+         "updated_at": None, "behind_hub": False},
+        {"nwo": "bamr87/broke", "state": fc.S_MISSING, "age_days": None,
+         "updated_at": None, "behind_hub": False},
+    ]
+
+
+def test_an_applied_rotation_publishes_the_rows_it_left_behind():
+    e = fc.ledger_entry(ROT_TOKEN, survey_rows(), "seed", False,
+                        ["bamr87/old", "bamr87/new", "bamr87/broke"], ["bamr87/broke"], [],
+                        applied=True, written_at="2026-11-02T02:20:00Z")
+    rows = {r["nwo"]: r for r in e["repos"]}
+    assert rows["bamr87/new"]["state"] == "ok" and rows["bamr87/new"]["age_days"] == 0
+    assert rows["bamr87/new"]["updated_at"] == "2026-11-02T02:20:00Z"
+    assert rows["bamr87/new"]["observed_state"] == "missing"
+    assert rows["bamr87/old"]["state"] == "ok" and rows["bamr87/old"]["observed_age_days"] == 86
+    assert rows["bamr87/old"]["behind_hub"] is False
+    # A failed write keeps what was seen, and carries no observed_* fields.
+    assert rows["bamr87/broke"]["state"] == "missing" and rows["bamr87/broke"]["action"] == "failed"
+    assert "observed_state" not in rows["bamr87/broke"]
+    assert e["oldest_age_days"] == 3, e["oldest_age_days"]          # not the replaced 86
+    assert e["observed_oldest_age_days"] == 86
+    assert e["counts"] == {"repos": 4, "ok": 3, "stale": 0, "missing": 1, "unreachable": 0,
+                           "written": 3, "failed": 1}
+
+
+def test_a_dry_run_ledger_still_reports_what_it_observed():
+    e = fc.ledger_entry(ROT_TOKEN, survey_rows(), "seed", False,
+                        ["bamr87/old", "bamr87/new"], [], [])
+    rows = {r["nwo"]: r for r in e["repos"]}
+    assert rows["bamr87/new"]["state"] == "missing" and rows["bamr87/new"]["action"] == "written"
+    assert "observed_state" not in rows["bamr87/new"]
+    assert e["oldest_age_days"] == 86 and "observed_oldest_age_days" not in e
+    assert e["counts"]["missing"] == 2 and e["counts"]["stale"] == 1
+
+
+# --------------------------------------------------------------------------- #
 # api_keys: — Console keys per workspace (`dash keys`)
 # --------------------------------------------------------------------------- #
 from datetime import datetime, timedelta, timezone  # noqa: E402

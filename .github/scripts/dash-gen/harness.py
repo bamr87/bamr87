@@ -131,6 +131,36 @@ def source_age_days(data: dict, now: dt.datetime) -> float | None:
     return round((now - ts).total_seconds() / 86400, 1)
 
 
+def rotation_repo_state(row: dict, mode: object) -> tuple[object, object]:
+    """(state, age_days) of one repo in the token-rotation ledger, AFTER the run.
+
+    An `apply` run surveys first and writes second. Ledgers written before
+    tools/fleet-config.py published post-write rows carry the pre-write
+    `state`/`age_days` beside `action: written`, so a repo the run had just
+    fixed read as missing or overdue for a week. A successful applied write
+    means the repo now holds a fresh copy; a dry run's `written` only means
+    "would write" and is read as observed.
+    """
+    if mode == "apply" and row.get("action") == "written":
+        return "ok", 0
+    return row.get("state"), row.get("age_days")
+
+
+def rotation_oldest_age(token: dict, mode: object) -> object:
+    """The token's oldest copy in days, over the post-run repo states.
+
+    Recomputed from `repos` when the ledger lists them (so an old-shape apply
+    ledger stops reporting a replaced copy's age); otherwise the token's own
+    `oldest_age_days`.
+    """
+    repos = [r for r in token.get("repos") or [] if isinstance(r, dict)]
+    if not repos:
+        return token.get("oldest_age_days")
+    ages = [age for age in (rotation_repo_state(r, mode)[1] for r in repos)
+            if isinstance(age, (int, float))]
+    return max(ages) if ages else None
+
+
 def median(values: list[float]) -> float | None:
     if not values:
         return None
@@ -166,7 +196,7 @@ def build_scorecard(cfg: dict, usage: dict, triage: dict, pipeline: dict, rotati
 
     oldest_credential = None
     for token in rotation.get("tokens") or []:
-        age = token.get("oldest_age_days") if isinstance(token, dict) else None
+        age = rotation_oldest_age(token, rotation.get("mode")) if isinstance(token, dict) else None
         if isinstance(age, (int, float)):
             oldest_credential = max(oldest_credential or 0, age)
 
@@ -336,7 +366,7 @@ def evaluate_trip_wires(
     for token in rotation.get("tokens") or []:
         if not isinstance(token, dict):
             continue
-        age = token.get("oldest_age_days")
+        age = rotation_oldest_age(token, rotation.get("mode"))
         max_age = token.get("max_age_days")
         if isinstance(age, (int, float)) and isinstance(max_age, (int, float)):
             if age > max_age + tw["credential_grace_days"]:
