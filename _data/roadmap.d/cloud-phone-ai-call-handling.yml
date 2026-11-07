@@ -1,0 +1,42 @@
+id: FF-NEW
+slug: cloud-phone-ai-call-handling
+title: "Cloud phone system with AI call handling: a service offering and content for bash-365.com, piloted on BASH's own line"
+project: bash-365.com
+repo_url: https://github.com/bash-365/bash-365.com
+status: proposed
+priority: P2
+effort: L
+category: feature
+problem: >-
+  bash-365.com presents eight service areas and none of them covers the
+  phone system. A small business that wants its calls moved to a cloud phone
+  system, routed sensibly and processed with AI has no offering, guide or
+  worked example from BASH Consulting to start from.
+proposal: >-
+  An epic on bash-365/bash-365.com (#81) that adds cloud phone setup to what
+  BASH offers and explains: number setup, call-flow configuration, routing,
+  integration with the business's other systems, and AI processing
+  (transcription, call summaries, follow-up tasks, an after-hours AI
+  receptionist). P0 (#82) defines the offering, surveys platforms
+  vendor-neutrally, lists the compliance topics and decides where it lives
+  on the site. P1 pilots it on BASH's own published line. P2 to P4 are the
+  toolkit guide, the service copy and the posts written from the pilot.
+acceptance:
+  - "P0 (bash-365/bash-365.com#82) delivers the offering definition, a sourced vendor-neutral platform survey, the compliance checklist, the site-home decision and the pilot plan."
+  - "BASH's own line runs on the chosen platform with a documented call flow, AI processing and a written rollback, each live step approved by Amr."
+  - "The site carries the offering: a business-track toolkit guide, service copy, a features.yml entry and a PRD requirement id."
+  - "Posts and LinkedIn pieces are written from the pilot's evidence, with no invented metrics or client names."
+scope:
+  in:
+    - "the epic and its phases on bash-365/bash-365.com: definition, pilot on BASH's line, toolkit guide, service copy, posts"
+  out:
+    - "changing BASH's live number, porting, buying numbers or opening paid accounts without Amr's explicit yes"
+    - "real caller audio, transcripts or phone numbers in any repo; legal advice; building a telephony product"
+risks:
+  - "The pilot touches the practice's live phone line: mitigated by a written rollback and Amr's yes for each step."
+  - "Vendor features and prices change: every claim is sourced and dated, and the survey stays vendor-neutral."
+  - "Call-recording and AI-voice rules vary by jurisdiction: content says what the rules require and is not legal advice."
+  - "A ninth service area versus a named offering under existing services is undecided; P0 scopes the PRD change either way."
+source: manual
+created: 2026-11-06
+issue_url: https://github.com/bash-365/bash-365.com/issues/81
