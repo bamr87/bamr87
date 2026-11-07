@@ -1,0 +1,23 @@
+schema: jev-experience/v1
+id: 20261107-bamr87_scripts-8a80b681
+loop: repo-evolution
+step: evolve
+domain: dev-tools
+item: bamr87/scripts
+run_id: '41430716181'
+adopted: none
+date: '2026-11-07'
+source: human
+cue: The brief lists failing Universal Project Standard (conformance) rows for this repository
+lesson: 'Check generated_at in _data/conformance.yml and confirm each cited gap in the clone before proposing
+  work on it: the snapshot has had no scheduled writer and can be weeks behind the repository, so a listed
+  gap may already be fixed. (c4 tool guidance: how far to trust the brief''s conformance lane.)'
+evidence: 'On 2026-11-07 _data/conformance.yml was 17.4 days old (generated 2026-10-20) and had tripped
+  the harness stale-data wire; it was refreshed by hand in bamr87/bamr87#763, as it had been in #379 at
+  41 days. Its sibling _data/features_index.yml, written daily by fleet-pulse, had repos_scanned: 1 (the
+  hub only), because that job checks out no submodules.'
+confidence: medium
+edits: []
+components: {}
+notes: Recorded by hand from incidents found in the 2026-11-07 console review and CI deep dives, not from
+  a Propose-Probe-Compose step; no harness edit was adopted, the fix lives in the PR the evidence names.

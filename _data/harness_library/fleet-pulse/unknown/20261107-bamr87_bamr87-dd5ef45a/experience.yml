@@ -1,0 +1,26 @@
+schema: jev-experience/v1
+id: 20261107-bamr87_bamr87-dd5ef45a
+loop: fleet-pulse
+step: doctor
+domain: unknown
+item: bamr87/bamr87
+run_id: '42343685257'
+adopted: none
+date: '2026-11-07'
+source: human
+cue: A held, retired or switched-off loop still shows runs (cron ticks, workflow_run completions) that
+  do a few seconds of work each
+lesson: 'Count them as cost: every started job bills a whole minute even when its first step exits on
+  the kill switch. Propose the gate at JOB level (if: the vars switch is ''true'' or the event is workflow_dispatch)
+  so no runner starts while the switch is off; never re-enable the loop to fix it. (c4 tool guidance:
+  what an idle run costs.)'
+evidence: 'lifehacker.dev after its 2026-11-01 shutdown: nine retired or held workflows (content-scout,
+  wire-scout, triage, weekly-epic, theme-scout, agent-review, loop-tuner, auto-merge, auto-update) still
+  started a runner for 3-6 s idle jobs on every cron tick and every pipeline completion, about 184 metered
+  minutes per 14 days for about 15 real ones; job-level gates proposed in bamr87/lifehacker.dev#807. The
+  hub''s own jev-conflicts gate job (about 3 s) bills about 148 minutes a week the same way.'
+confidence: medium
+edits: []
+components: {}
+notes: Recorded by hand from incidents found in the 2026-11-07 console review and CI deep dives, not from
+  a Propose-Probe-Compose step; no harness edit was adopted, the fix lives in the PR the evidence names.
