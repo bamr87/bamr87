@@ -230,7 +230,19 @@ def test_retired_rows_are_not_checked_and_nothing_errors():
             del c.CHECKS["UPS-REPO-13"]
 
 
-ROLLOUT = {"UPS-WORK-01", "UPS-WORK-07", "UPS-WORK-12", "UPS-WORK-15", "UPS-WORK-16", "UPS-AGENT-07", "UPS-AGENT-08", "UPS-AGENT-09", "UPS-REPO-21"}
+ROLLOUT = {"UPS-WORK-01", "UPS-WORK-07", "UPS-WORK-12", "UPS-WORK-15", "UPS-WORK-16", "UPS-WORK-17", "UPS-AGENT-07", "UPS-AGENT-08", "UPS-AGENT-09", "UPS-REPO-21"}
+
+
+def test_work17_a_job_calls_the_hubs_pr_review():
+    stub = {".github/workflows/pr-review.yml": "jobs:\n  review:\n    uses: bamr87/bamr87/.github/workflows/pr-review.yml@v2\n"}
+    other = {".github/workflows/pr-review.yml": "jobs:\n  review:\n    uses: someone/else/.github/workflows/pr-review.yml@v2\n"}
+    with tempfile.TemporaryDirectory() as d:
+        t = Path(d)
+        h = hub(t)
+        check = c.CHECKS["UPS-WORK-17"]
+        assert check(c.Repo(repo(t, stub, "with-stub"), h), ["app"])[0]
+        assert not check(c.Repo(repo(t, other, "wrong-stub"), h), ["app"])[0]
+        assert not check(c.Repo(repo(t, {}, "no-stub"), h), ["app"])[0]
 
 
 def test_rollout_warn_comes_from_the_contract_and_flips_by_deleting_the_marker():

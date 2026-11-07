@@ -239,6 +239,7 @@ _(amendment `fleet-pr-review`, numbered at merge — see the [amendment log](ame
 7. **AI review triggers** — AI review runs on `opened`, `ready_for_review` and an explicit label, not on every push; it checks the central switch (§ 17) and is held to § 13.
 8. **Summaries, not comments** — cost, usage and test tables go to the job summary.
 9. **Rollout** — conformance is warn-only per repo until its fan-out PR lands, then a hard failure; a repo with no pull requests is not applicable.
+10. **CI failures** — every failed CI run on a pull request is summarized in the sticky comment, so nobody has to open a log to learn why it failed: the job and step, the reason taken from its log, whether the PR probably caused it, and what to do next. This covers a run that never started. When a step printed no clear error, the comment says so and does not guess. A failed push to the default branch is reported on the PR that merged it. _(amendment `ci-failure-summary`, numbered at merge)_
 
 ## 20. The editor is a front door
 
