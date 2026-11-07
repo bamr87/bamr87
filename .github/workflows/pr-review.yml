@@ -1,0 +1,81 @@
+name: PR review
+
+# The fleet's one PR comment (constitution § 19). Every CI failure on a pull
+# request is summarized in one sticky comment, so a reader learns why a check
+# failed without opening a log: which job, the reason from its log, whether the
+# PR probably caused it, and what to do. .github/scripts/dash-gen/pr_review.py
+# rebuilds the comment from the head commit's state each time a workflow finishes,
+# and deletes it when nothing is failing. Doc: templates/pr-review/README.md.
+#
+# This file is both the hub's own watcher and the reusable workflow a fleet repo
+# calls from its stub (templates/pr-review/pr-review.yml). A called workflow sees
+# the caller's `github.event`, so both paths read the same event.
+#
+# WHY workflow_run. It is the one event that can see every workflow: GitHub fires
+# no `check_run` or `check_suite` event for a check GitHub Actions created. The
+# `needs:` rule exists because a follower couples to one workflow's display name,
+# and this one names none. The `!` keeps it from watching itself. A workflow_run
+# job gets a write token even for a fork's PR, so it runs nothing from the PR: it
+# checks out the hub's tooling only, and the log text it reads is untrusted data.
+#
+# It runs only from the default branch, so a change here takes effect at merge.
+# Off switch: `vars.PR_REVIEW_ENABLED` set to 'false'. Default on.
+
+on:
+  workflow_run:
+    workflows: ["**", "!PR review"]
+    types: [completed]
+  workflow_call:
+    inputs:
+      hub-ref:
+        description: "bamr87/bamr87 ref to take the tooling from: pass the ref you call this workflow at"
+        type: string
+        default: "main"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-review-${{ github.event.workflow_run.head_sha || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  ci-failure:
+    # Every PR run, so a fixed failure clears its comment. For a push, only a
+    # failure: it is reported on the PR that merged it, and a green push has
+    # nothing to say. A schedule or dispatch has no PR.
+    if: >-
+      ${{ vars.PR_REVIEW_ENABLED != 'false' && (
+      (contains(fromJSON('["pull_request","pull_request_target"]'), github.event.workflow_run.event)
+      && !contains(fromJSON('["skipped","cancelled"]'), github.event.workflow_run.conclusion))
+      || (github.event.workflow_run.event == 'push'
+      && contains(fromJSON('["failure","timed_out","startup_failure"]'), github.event.workflow_run.conclusion))) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Check out the hub's tooling, never the pull request
+        uses: actions/checkout@v7
+        with:
+          repository: bamr87/bamr87
+          ref: ${{ inputs.hub-ref || 'main' }}
+          path: .fleet-hub
+          sparse-checkout: .github/scripts/dash-gen
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install the tooling's one dependency
+        run: python -m pip install --quiet pyyaml
+
+      - name: Summarize the failure on the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: python .fleet-hub/.github/scripts/dash-gen/pr_review.py ci --repo "$GITHUB_REPOSITORY" --run "$RUN_ID"

@@ -118,7 +118,8 @@ RULES: list[dict] = [
              "41 build-dash and verify runs. A number checks the runner's cache first and falls back to nodejs.org.",
          fix="Use the major version, such as `'26'`.", doc=STANDARDS_DOC, gate=None),
     dict(id="workflow-run", severity="warn", title="Prefer `needs:` over `workflow_run`",
-         why="A `workflow_run` follower couples by display name and is silently skipped when the upstream fails.",
+         why="A `workflow_run` follower couples by display name and is silently skipped when the upstream fails. "
+             "A watcher of every workflow (`workflows: [\"**\"]`) names none, and is exempt.",
          fix="Make it a job with `needs:` in the same workflow.", doc=STANDARDS_DOC, gate=None),
     dict(id="pr-token", severity="warn", title="CI-bearing PRs are opened with FLEET_TOKEN",
          why="GitHub fires no workflow events for a PR opened with GITHUB_TOKEN, so its checks never run.",
@@ -854,7 +855,8 @@ def lint_workflow(wf: dict, text: str, fleet: dict, hub_rules: bool = True) -> l
                                         f"`{m.group(0).strip()}` — `inputs.{name}` defaults to true, but on "
                                         f"{', '.join(sorted(others))} runs it is null, which reads as false.",
                                         _line_of(text, re.escape(m.group(0)))))
-    if "workflow_run" in triggers:
+    watched = next((e.get("workflows") or [] for e in wf["events"] if e["name"] == "workflow_run"), [])
+    if "workflow_run" in triggers and not any(w in ("*", "**") for w in watched):
         out.append(_finding("workflow-run", "workflow", wid, file, "Triggered by `workflow_run`.",
                             _line_of(text, r"^\s+workflow_run:")))
     wf_env = data.get("env") if isinstance(data.get("env"), dict) else {}

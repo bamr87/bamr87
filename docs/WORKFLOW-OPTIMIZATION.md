@@ -252,7 +252,7 @@ Most workflows work. The problem was that their status could not be trusted:
 | 21-minute `python-tests` on every PR | 98% was one serial step, and install took 12 seconds, so caching could not help | Four parallel shards, and PRs touching only `docs/`, `changelog.d/` or feature fragments skip them |
 | `verify` ran for fragments it cannot read | `features/**` matched `features/features.d/` | The trigger is `features/features.yml` |
 
-**Reading run data.** 541 runs never started. 514 were PRs from `github-actions[bot]`, held for approval [since June 2026](https://github.blog/changelog/2026-06-11-bot-created-pull-requests-can-run-workflows-if-approved/); 272 of the 541 show as failures with zero jobs. Their `updated_at` moves days after the event, so a total from run timestamps reads 4,392 hours where the executed runs took 315. Exclude them before computing any rate or duration. Of 595 failed runs, 323 ran a job, and 167 of those were code or test defects.
+**Reading run data.** 541 runs never started. 514 were PRs from `github-actions[bot]`, held for approval [since June 2026](https://github.blog/changelog/2026-06-11-bot-created-pull-requests-can-run-workflows-if-approved/); 272 of the 541 show as failures with zero jobs. Their `updated_at` moves days after the event, so a total from run timestamps reads 4,392 hours where the executed runs took 315. Exclude them before computing any rate or duration. Of 595 failed runs, 323 ran a job, and 143 of those were code or test defects.
 
 Not changed here, and each a decision of its own:
 

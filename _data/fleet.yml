@@ -2047,6 +2047,21 @@ switches:
       cron: 17 9 * * *
       note: nightly test run; also runs on push/PR
       flip: 'no switch yet (§ 17 gap): `gh workflow disable python-tests.yml -R bamr87/bamr87` is the only lever; record it here'
+    hub/pr-review:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/pr-review.yml
+      group: hub-maintenance
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: PR_REVIEW_ENABLED
+        semantics: opt_out
+      default: 'on'
+      state: unverified
+      verified: false
+      note: the fleet's one PR comment (constitution § 19); summarizes CI failures, no AI and no cron
+      flip: 'gh variable set PR_REVIEW_ENABLED -R bamr87/bamr87 --body false  # disable; record the flip here in the same PR'
     hub/reconcile-registry:
       repo: bamr87/bamr87
       workflow: .github/workflows/reconcile-registry.yml
