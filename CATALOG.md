@@ -168,6 +168,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`gen-specs-data.py`](tools/gen-specs-data.py) | Regenerates `_data/specs.yml` (the machine-readable Universal Project Standard) from the requirement tables in `specs/*.md` (`--check` gates staleness) |
 | [`governance_lint.py`](tools/governance_lint.py) | The fleet GOVERNANCE check: validate, and keep in sync, the chain |
 | [`guides_visual_lint.py`](tools/guides_visual_lint.py) | Warn-then-fail lint for guide-like Markdown that lacks visual |
+| [`install-conflict-sweep.sh`](tools/install-conflict-sweep.sh) | Installs the `com.bamr87.conflict-sweep` LaunchAgent (macOS), which runs `tools/dash conflicts sweep --scheduled` every few hours, so merge conflicts resolve in a local… |
 | [`install-prose-hook.sh`](tools/install-prose-hook.sh) | Installs a **global** git `pre-commit` hook (`~/.git-hooks`, `core.hooksPath`) that runs `unwrap-prose.py` over the staged markdown and restages it, so a commit is born… |
 | [`install-workspace-sync.sh`](tools/install-workspace-sync.sh) | Installs the `com.bamr87.workspace-sync` LaunchAgent (macOS) that runs `update-submodules.sh --no-commit --no-push` daily and at login, keeping the local clone on `main`… |
 | [`issue-evidence.sh`](tools/issue-evidence.sh) | Builds one issue's **evidence bundle** in an isolated virtual environment — fresh clone, own toolchain (`venv`/`node_modules`/`vendor/bundle`), the project's own lint/te… |
@@ -212,7 +213,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_jev_classify.py`](tools/test_jev_classify.py) | Fixture tests for tools/jev/classify.py — JEV's deterministic conflict classifier. |
 | [`test_jev_conflicts.py`](tools/test_jev_conflicts.py) | Fixture tests for tools/jev/conflicts.py — the conflict engine's safety rules, its reading of a real conflicted working tree, and its validation gate. |
 | [`test_jev_context.py`](tools/test_jev_context.py) | Tests for tools/jev/context.py — the loop runner's context pack, engine half (#486): the history section from earlier runs' attempts.jsonl, gather over `tools/dash-gen c… |
-| [`test_jev_generated.py`](tools/test_jev_generated.py) | Fixture tests for tools/jev/generated.py — the main-only generated-file guard — and the `jev.auto_tiers` switch that keeps the conflict engine at tier 0. |
+| [`test_jev_generated.py`](tools/test_jev_generated.py) | Fixture tests for tools/jev/generated.py — the main-only generated-file guard — and the `jev.ci_tiers` switch that keeps CI at tier 0. |
 | [`test_jev_headless.py`](tools/test_jev_headless.py) | Fixture tests for tools/jev/headless.py — the headless Claude Code layer a local loop attempt runs through. |
 | [`test_jev_ledger.py`](tools/test_jev_ledger.py) | Fixture tests for tools/jev/ledger.py — the conflict-resolution ledger and the monthly cap. |
 | [`test_jev_library.py`](tools/test_jev_library.py) | Fixture tests for tools/jev/library.py — the harness experience library (JEV capability three, docs/HARNESS-REFINEMENT.md) — and the context pack's `library` provider th… |

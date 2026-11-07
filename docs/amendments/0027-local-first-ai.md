@@ -1,7 +1,7 @@
-# NEW — AI runs in a local session first, and merge conflicts resolve themselves
+# 0027 — AI runs in a local session first, and merge conflicts resolve themselves
 
 - **Status:** proposed
-- **Number:** NEW
+- **Number:** 0027
 - **Date:** 2026-11-06
 - **Proposed by:** agent, at the maintainer's request (2026-11-06: "merge conflicts should automatically resolve either by script, or with an AI workflow. as a general rule, all AI workflows and sessions should utilize a local session when possible.")
 - **Ratified by:**
