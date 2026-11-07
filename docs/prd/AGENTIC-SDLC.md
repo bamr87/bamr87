@@ -28,6 +28,7 @@ The note describes an organization with three repositories and a vendor ecosyste
 | Nightly full suite, `trace-to-case`, `fuzz`, thresholds rise on instability, fitness function | Nothing | The verify loop as a scheduled hub workflow with a kill switch, and the fitness gate on every A5 promotion (A6) |
 | Dashboard panels, alerts, weekly replay review, quarterly re-pin | The Studio (ADR 0007 S2) and the fleet-pulse digest | Panels and alerts in A3; the review cadence in A6 |
 | `org/ci-metrics`, `org/ci-agent` | `_data/` plus the lake; `tools/jev/` | No new repository (ADR 0008 decision 8) |
+| (not in the note; added by the maintainer 2026-11-06) the flow of work in process is governed and visible | Circuit breakers only: per-call caps, `max_open_per_repo`, `harnesses.throughput`; the Work board's human order; the PM review's daily read; the expedite class (§ 27) | One flow policy in `fleet.yml`, one module every loop reads, continuous flow and progress measurement on the console (A7) |
 
 **The name.** Everywhere in the hub, **JEV** is the hub's engine and **TypeSafe Jev** (or **the decision model**) is the external model. A workflow, doc or issue that says "Jev" without the qualifier means the hub's engine.
 
@@ -90,6 +91,30 @@ Verify is `.github/workflows/decision-verify.yml`, scheduled (declared in `fleet
 
 A proposed optimization (a trim promotion, a cache key, a job consolidation, a matrix prune) carries three numbers from the lake over its window: minutes before and after by OS, flake rate, missed failures. It survives only if minutes dropped and missed failures are zero; the Studio shows the three numbers on the PR's row, and the verify loop writes them into the PR body.
 
+### 4.7 Flow control: how much is in process, and who takes the next slot
+
+The loops are many producers against one reviewer. Each has a circuit breaker, but nothing governs the whole: on a busy day the doctor, the issue pipeline, the scout and evolution can each open their cap of pull requests, and the review lane fills while the roadmap's own phases wait. Flow control is the configuration and the tool that shape what is in process at any moment, balance the loops against each other, and show progress continuously.
+
+**The policy** is `_data/fleet.yml` `flow:` (`schema: flow/v1`), validated by `tools/test_flow.py`:
+
+| Key | Meaning | First value |
+| --- | --- | --- |
+| `wip.fleet` | open items per lane across the fleet: `ready`, `in_flight`, `review` | taken from the observed counts on the day A7 lands, then tightened |
+| `wip.loops.<loop>` | the same per loop (doctor, issue pipeline, scout, evolution, topic loop, fan-outs) | the loop's current cap (`max_open_per_repo`, remediation caps) expressed as WIP |
+| `wip.repos.default`, `wip.repos.<repo>` | in-flight items per repository | 1 for `in_flight` (today's "one open PR per repo" backpressure), 3 for `review` |
+| `shares` | each loop's share of the day's agent runs under `harnesses.throughput`, as a weight | equal weights; the Work board can skew them by PR |
+| `classes` | `expedite` (WIP 1, preempts, § 27), `standard`, `maintenance` | as § 27 |
+| `age.lift_after_days` | an item older than this in Ready moves to the front of its lane once | 14 (`pm.thresholds.stale_in_progress_days`) |
+| `starve.alert_after_days` | a loop that took no slot for this long is an attention item | 7 |
+
+**The tool** is `tools/fleetcore/flow.py` and `tools/dash flow [status | plan | check]`, one read model shared by the console, the TUI, the MCP (`fleet_flow`) and every loop. `status` reads the Fleet project, the issue labels, the open PRs and the roadmap and reports WIP per lane against its limit, per loop and per repository. `plan` says, for the next run of each loop, how many slots it has and which items (by the Work board's order) it would take; a loop whose lane is full gets zero and the reason. `check` is the gate `test_flow.py` and the drift check run: the policy parses, every loop in `switches.loops` has a share, and no repository limit exceeds the fleet limit. Each loop's queue builder (`issue_pipeline.py`, `remediation.py`, the scout's `file` job, evolution's targets) calls `flow.slots(loop, repo)` before it takes anything and writes the answer to its run summary, so a skipped item is explained, never silent. A human exception is a `work_queue.yml` override (the existing mechanism), which the board shows as an override against the policy.
+
+**The measurement** is continuous and $0: `fleet-pm.yml`'s daily snapshot (`_data/pm_review.yml`) gains a `flow:` block with WIP per lane against limit, throughput (items that left In flight and Review per day, 7-day and 28-day), lead time (Ready to Done, P50 and P85), blocked age, loop starvation, and progress per epic (sub-issues closed over total, from GitHub's sub-issue summary) and per roadmap entry (status, phases, the sub-issue summary of its `issue_url`). The lake keeps the daily rows so the console draws trends.
+
+**The console.** The Work board (`/work`) draws a meter on each lane (count against limit, red over it), a slot column per loop for its next run, and the override marks. The Roadmap page (`/roadmap`) draws progress per entry and per epic (phases done, the next phase, days since the last change) and a burn-up of entries shipped against proposed. The Home page carries a flow panel (WIP, throughput, lead time, starved loops) with its read time. All three read the snapshot and the lake and nothing reads GitHub on a PR; the public site shows the committed snapshot read-only.
+
+**Alerts** are fleet-pulse digest rows: a lane over its limit, a starved loop, an in-flight item past `age.lift_after_days`, and an epic with no closed sub-issue in 28 days.
+
 ## 5. Guardrails (every phase)
 
 - **Fail closed.** No decision below threshold, and no decision the model could not answer, ever skips work or lowers a gate.
@@ -102,10 +127,11 @@ A proposed optimization (a trim promotion, a cache key, a job consolidation, a m
 - **Hands off the Mac.** Nothing here changes the maintainer's machine; local runs use ADR 0002's isolated workspace.
 - **Tests and evidence.** Each phase lists its tests and links the green run; a user-facing surface (Studio panels) follows [VERIFICATION.md](../VERIFICATION.md); everything else is `skip-evidence` with a reason.
 - **Prior art.** A phase that adopts or builds one of the ecosystem pieces records which, with one line of fit, in its PR body (§ 10.8).
+- **Flow.** From A7 on, no loop takes a slot its lane does not have; a limit changes only by a PR to `fleet.yml`, an exception only by the human's `work_queue.yml` override.
 
 ## 6. Roadmap and phases
 
-Phases are the epic's sub-issues, done in order. A0 can end the plan. A1 needs no model and can run beside A0. A5 and A6 are one loop in two halves and ship in that order. Dates are targets, not promises; the fleet's loops are scheduled around a person, not the other way round.
+Phases are the epic's sub-issues, done in order. A0 can end the plan. A1 and A7 need no model and can run beside A0; A7 depends on nothing in A2 to A6 and is worth doing even if A0 says no. A5 and A6 are one loop in two halves and ship in that order. Dates are targets, not promises; the fleet's loops are scheduled around a person, not the other way round.
 
 | Phase | Delivers | Acceptance | Target |
 | --- | --- | --- | --- |
@@ -116,14 +142,16 @@ Phases are the epic's sub-issues, done in order. A0 can end the plan. A1 needs n
 | **A4** Harness pre-classification and the patch screen | `failure-class` and `safe-to-auto-fix` in front of the doctor and the issue pipeline's tier 2 (below the bar: an issue, no agent turn); a patch screen (adopted if one exists, else `decisions screen` over `claude -p` with a schema) at the 0.70 floor as a check on agent PRs and on human PRs, annotations and a JSON report, never prose; trace routing (auto-close, human review, bug, escalate) recorded on the run; the GitHub App question put to the maintainer as a decision, not assumed | A month of doctor runs where every agent turn was preceded by a cleared classification; the screen's findings on the eval set match the recorded outcomes | 2027-01 |
 | **A5** The trim loop in shadow | `affected-suites` and `platform-relevant` wired into `standard-ci.yml` and the matrix callers; a selector per suite runner (pytest and `unittest` first, then Vitest and Jest) in shadow; `decisions.promoted:` in `fleet.yml`, empty; the trimmed selection recorded on every run beside what actually ran | On the hub, 14 nightly windows of shadow data; a report of what would have been skipped and whether any of it failed | 2027-01 |
 | **A6** The verify loop and the first promotion | `decision-verify.yml` with its switch, cron and `publish-data`; `trace-to-case`; `fuzz`; the fitness numbers on every optimization PR; the weekly replay review as a digest row; the quarterly re-pin as a `token-rotation.yml` sibling task; the thin caller kit fanned out to fleet repositories by `fanout.yml` (dry run, PR-only); the hub promoted first, by a gated PR citing its window | The hub runs trimmed on PRs with the nightly backstop green for 14 days and zero missed failures; one fleet repository promoted the same way; minutes by OS down against the A1 baseline | 2027-02 |
+| **A7** Flow control | `fleet.yml` `flow:` (`flow/v1`) with its first limits taken from observed counts; `tools/fleetcore/flow.py` and `tools/dash flow status|plan|check`; every loop's queue builder calls `flow.slots()` and writes the answer to its summary; `test_flow.py` in the drift gate; `pm_review.yml` `flow:` block with WIP, throughput, lead time, blocked age, starvation, epic and roadmap progress; Work board meters and slot column, Roadmap progress and burn-up, Home flow panel; MCP `fleet_flow`; four digest alerts | On a day when every loop fires, no lane ends over its limit and each loop's summary names the slots it had; the Roadmap page shows this epic's phases done over total from the sub-issue summary; the public site shows the same numbers read-only; `fleet-pm.yml` stays $0 | 2026-12 |
 
 ## 7. The epic
 
-Filed 2026-11-06 on the Fleet project with Status and Priority set (§ 10): epic [#737](https://github.com/bamr87/bamr87/issues/737); sub-issues, in order, [#738](https://github.com/bamr87/bamr87/issues/738) (A0), [#739](https://github.com/bamr87/bamr87/issues/739) (A1), [#740](https://github.com/bamr87/bamr87/issues/740) (A2), [#741](https://github.com/bamr87/bamr87/issues/741) (A3), [#742](https://github.com/bamr87/bamr87/issues/742) (A4), [#743](https://github.com/bamr87/bamr87/issues/743) (A5), [#744](https://github.com/bamr87/bamr87/issues/744) (A6). Every one carries `agent:hold`; the phases whose PRs are gated (A0, A2, A4, A6) carry `needs-amr`. The issue bodies are the scope, acceptance and guardrails of § 6, restated per phase; the issues are the record from here, and a change to a phase's scope is made there and mirrored into § 6.
+Filed 2026-11-06 on the Fleet project with Status and Priority set (§ 10): epic [#737](https://github.com/bamr87/bamr87/issues/737); sub-issues, in order, [#738](https://github.com/bamr87/bamr87/issues/738) (A0), [#739](https://github.com/bamr87/bamr87/issues/739) (A1), [#740](https://github.com/bamr87/bamr87/issues/740) (A2), [#741](https://github.com/bamr87/bamr87/issues/741) (A3), [#742](https://github.com/bamr87/bamr87/issues/742) (A4), [#743](https://github.com/bamr87/bamr87/issues/743) (A5), [#744](https://github.com/bamr87/bamr87/issues/744) (A6), [#748](https://github.com/bamr87/bamr87/issues/748) (A7, flow control, runs beside A1). Every one carries `agent:hold`; the phases whose PRs are gated (A0, A2, A4, A6) carry `needs-amr`. The issue bodies are the scope, acceptance and guardrails of § 6, restated per phase; the issues are the record from here, and a change to a phase's scope is made there and mirrored into § 6.
 
 ## 8. Open questions (from the note, with the hub's starting answers)
 
 - **Where does the decision model run?** A0 answers it with latency and cost. The starting answer is the hosted API from a hosted runner, with `claude -p` as the fallback executor; a self-hosted runner on a public repository is already ruled out (#484).
 - **What confidence floors?** 0.85 for skipping, 0.95 for gating, as the note proposes; A6 moves them from missed-failure data only.
 - **How much of the harness should be typed questions rather than free-form reasoning?** The classification in front of the agent and the screen behind it are typed from A4; the proposal in between stays free-form under its allowlist and cap. Whether the proposal itself can be decomposed into typed steps is ADR 0004 P1's question and is not answered here.
+- **Which WIP limits?** The observed in-flight counts on the day A7 lands, then tightened from the lead-time and throughput numbers; the Work board shows the effect of a proposed limit before the PR that sets it.
 - **Jest.** The note assumes one Jest suite. The hub's suites are Python; A5 starts there and reaches Jest through the fleet kit.

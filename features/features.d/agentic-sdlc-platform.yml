@@ -1,6 +1,6 @@
 id: HUB-NEW
 title: "Typed decisions gate the pipeline: a decision lockfile, traces and replay, the trim and verify loops"
-description: "Every skip, retry and auto-fix in a fleet pipeline is a typed, thresholded, replayable decision that fails closed: _data/decisions.yml holds each question, its options, its confidence threshold and its conservative branch; the typed-decision composite action asks TypeSafe Jev (or claude -p) and returns answer, confidence and cleared; every decision writes a trace the lake keeps beside run cost, queue time, cache hit rate, flake rate and time-to-green; the doctor and the issue pipeline classify a failure before any agent turn and a 0.70-floor patch screen checks every PR; a per-PR trim loop selects tests and prunes matrix legs in shadow until the nightly decision-verify loop has reported zero missed failures, and a missed failure becomes a regression case and a demotion. Plan and phases: docs/prd/AGENTIC-SDLC.md; decision: ADR 0008."
+description: "Every skip, retry and auto-fix in a fleet pipeline is a typed, thresholded, replayable decision that fails closed: _data/decisions.yml holds each question, its options, its confidence threshold and its conservative branch; the typed-decision composite action asks TypeSafe Jev (or claude -p) and returns answer, confidence and cleared; every decision writes a trace the lake keeps beside run cost, queue time, cache hit rate, flake rate and time-to-green; the doctor and the issue pipeline classify a failure before any agent turn and a 0.70-floor patch screen checks every PR; a per-PR trim loop selects tests and prunes matrix legs in shadow until the nightly decision-verify loop has reported zero missed failures, and a missed failure becomes a regression case and a demotion; and one flow policy (fleet.yml flow:) bounds work in process per lane, loop and repository, balances the loops' shares of capacity, is read by every loop before it takes a slot, and is measured daily and drawn on the Work board, Roadmap and Home pages. Plan and phases: docs/prd/AGENTIC-SDLC.md; decision: ADR 0008."
 implemented: false
 status: planned
 surface: infra
@@ -9,7 +9,7 @@ docs: docs/prd/AGENTIC-SDLC.md
 tags: [ ci, jev, decisions, optimization, governance ]
 date: 2026-11-06
 tests: []
-prd: ["FR-NEW:typed-decision-gate", "FR-NEW:decision-trace-replay", "FR-NEW:trim-verify-loops", "NFR-NEW:fail-closed-decisions", "FR7", "FR10", "FR15", "FR26", "FR60", "NFR4", "NFR9"]
+prd: ["FR-NEW:typed-decision-gate", "FR-NEW:decision-trace-replay", "FR-NEW:trim-verify-loops", "FR-NEW:flow-control", "NFR-NEW:fail-closed-decisions", "FR7", "FR10", "FR15", "FR26", "FR60", "NFR4", "NFR9"]
 prd_new:
   - key: typed-decision-gate
     kind: FR
@@ -20,6 +20,9 @@ prd_new:
   - key: trim-verify-loops
     kind: FR
     text: "Test selection and matrix pruning run in shadow per repository until a nightly verify loop has reported zero missed failures over the declared window; a missed failure becomes a regression case in the decision's eval set, raises the threshold and demotes the repository, and an optimization is promoted only when minutes drop on the billing meter while missed failures stay at zero."
+  - key: flow-control
+    kind: FR
+    text: "One flow policy in _data/fleet.yml declares work-in-process limits per lane, loop and repository and each loop's share of capacity; every loop asks it for slots before taking work and records the answer; WIP against limit, throughput, lead time, blocked age, starvation and epic and roadmap progress are measured daily at no model cost and shown on the Work board, the Roadmap page, the Home page and the public site."
   - key: fail-closed-decisions
     kind: NFR
     text: "No typed decision ever skips work, lowers a gate or lets an agent act unless its confidence cleared the lockfile threshold; a model error, timeout or usage limit is the conservative branch."

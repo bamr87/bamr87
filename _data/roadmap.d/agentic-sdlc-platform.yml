@@ -21,7 +21,11 @@ proposal: >-
   pre-classification in front of the doctor and a patch screen behind every
   agent PR; a per-PR trim loop (test selection, matrix pruning) that starts in
   shadow and a nightly verify loop whose missed failures become regression cases,
-  with a fitness gate (minutes down, missed failures zero) on every promotion.
+  with a fitness gate (minutes down, missed failures zero) on every promotion;
+  and flow control: one policy in fleet.yml for work-in-process limits per lane,
+  loop and repository and each loop's share of capacity, read by every loop
+  before it takes a slot, measured daily and shown on the console (Work board
+  meters, Roadmap progress, Home flow panel).
 acceptance:
   - "ADR 0008 accepted or rejected on an offline evaluation of about 40 past PRs and failures (A0)."
   - "Five cost-lever rules in the atlas at warn, the hub at zero warnings, levers ranked fleet-wide (A1)."
@@ -30,9 +34,11 @@ acceptance:
   - "The doctor and tier 2 run only after a cleared classification; a 0.70-floor patch screen on agent and human PRs (A4)."
   - "Test selection and matrix pruning in shadow for 14 nightly windows with a report of what would have been skipped (A5)."
   - "decision-verify.yml with kill switch and declared cron; the hub and one fleet repo promoted with zero missed failures and minutes down on the billing meter (A6)."
+  - "fleet.yml flow: with WIP limits and shares; every loop takes only the slots its lane has and says so; WIP, throughput, lead time and epic/roadmap progress on the Work board, Roadmap and Home pages and the public site (A7)."
 scope:
   in:
     - the hub's reusable workflows and composite actions, tools/jev, the lake, the Studio views, fleet-pulse and the issue pipeline, the fleet kit through fanout.yml
+    - flow control over every loop's queue builder, the PM review snapshot, the Work board, Roadmap and Home pages
   out:
     - SHA-pinning actions (the fleet rides major tags by standing rule)
     - a GitHub App identity (a maintainer decision put as a question in A4, not assumed)

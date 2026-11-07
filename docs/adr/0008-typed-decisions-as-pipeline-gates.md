@@ -61,6 +61,8 @@ The decision model it names is TypeSafe AI's **Jev**, a decision-only model rele
 
 8. **No new repository.** The note's `org/.github`, `org/ci-metrics` and `org/ci-agent` are the hub's `.github/`, `_data/` plus the lake, and `tools/jev/` respectively; `bamr87` is a personal account with no organization, and the fleet's standing rule is one hub.
 
+9. **Flow is governed, not only capped.** The loops already carry circuit breakers (per-call caps, `max_open_per_repo`, `harnesses.throughput`), but nothing decides how much work may be *in process* across the harness at once, or which loop takes the next slot when several could. One flow policy, `_data/fleet.yml` `flow:` (`schema: flow/v1`), declares work-in-process limits per lane (Ready, In flight, Review) at fleet, loop and repository level, the share of daily capacity each loop may take, the expedite class (WIP 1, § 27) and the ageing rule that lifts a starved item. Every loop reads it through one module (`tools/fleetcore/flow.py`) when it builds its queue, and a loop at its limit takes nothing and says so in its run summary. Flow is measured continuously from the Fleet project, the roadmap, the issue labels and the lake (WIP against limit, throughput, lead time, blocked age, epic and roadmap progress) in the daily PM snapshot, and shown on the console: the Work board carries the meters, the Roadmap page carries progress, the Home page carries the flow panel, and the public site shows the committed snapshot. A limit changes only by a PR to `fleet.yml`; an exception for one item is the human's `work_queue.yml` override, which the board records as such.
+
 ## Delivery
 
 The phases are the epic's sub-issues, in [docs/prd/AGENTIC-SDLC.md § 6](../prd/AGENTIC-SDLC.md#6-roadmap-and-phases). A0 is the evaluation spike that can still reject the model; A1 needs no model at all.
@@ -72,11 +74,13 @@ The phases are the epic's sub-issues, in [docs/prd/AGENTIC-SDLC.md § 6](../prd/
 - Every skip, retry and auto-fix in the pipeline is a recorded, thresholded answer that can be replayed, so an incident has a trace instead of a guess.
 - Minutes are recovered where they are spent (per-PR test and matrix legs) without giving up the nightly full suite as the backstop.
 - The fleet gains one more primitive that the console, the CLI and the MCP server share, in the place (`tools/jev/`) the fleet already looks for agent logic.
+- Work in process is bounded and balanced by a declared policy instead of by whichever loop fires first, and progress on the roadmap and the Fleet project is visible every day without reading GitHub.
 
 **Negative**
 
 - A new vendor and credential in the token contract, with per-decision cost that the ledger must count.
 - Shadow mode means the first weeks save nothing; the saving only comes once trims are promoted.
+- A WIP limit that is set too low idles the loops; the first limits are taken from the observed in-flight counts and tightened from the flow numbers, never guessed.
 - Two things called Jev in the same documentation until every reader knows the convention.
 
 **Risks**
