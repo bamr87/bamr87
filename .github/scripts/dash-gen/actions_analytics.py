@@ -42,6 +42,12 @@ SAVES ~16. Flagging that told the fleet-doctor to go "fix" three workflows whose
 guards were correct. So the flag now also requires the cancelled minutes to be
 material, both absolutely and against what a real run of that workflow costs.
 
+A red rate is not a flaky workflow when the PR's contents decide each verdict:
+a policy gate rejecting PRs that lack what it requires is deterministic. When
+every failure is on a non-default-branch head and no commit both passed and
+failed, the workflow gets `pr-red` instead of `flaky`/`failing` — not a
+correctness signal (bamr87/bamr87#614). Verdicts without head fields fail open.
+
 For the same reason a workflow with NO verdicts in the window — every run
 skipped by an `if:` gate — reports `success_rate_pct` / `effectiveness_pct` as
 `None`, not `0.0`: "no data" and "failed every run" are different states and
@@ -337,6 +343,9 @@ def collect_repo(gh, nwo: str, window_start: dt.datetime, max_runs: int) -> tupl
     except GithubException:
         pass
 
+    # Read once per repo: the `pr-red` carve-out needs to know whether a red
+    # verdict landed on the default branch or only on a PR head.
+    default_branch = getattr(repo, "default_branch", None)
     records: list[dict] = []
     seen = 0
     try:
@@ -365,6 +374,9 @@ def collect_repo(gh, nwo: str, window_start: dt.datetime, max_runs: int) -> tupl
                 "minutes": cost_min(run, dur),
                 "day": created.date().isoformat() if created else None,
                 "created_at": created.isoformat() if created else None,
+                "head_branch": getattr(run, "head_branch", None),
+                "head_sha": getattr(run, "head_sha", None),
+                "default_branch": default_branch,
             })
     except GithubException:
         pass
@@ -381,7 +393,28 @@ def new_bucket() -> dict:
             "cancel_min": 0.0,
             "success": 0, "failure": 0, "cancelled": 0, "other": 0,
             "durations": [], "events": {},
-            "last_conclusion": None, "last_at": None}
+            "last_conclusion": None, "last_at": None,
+            # The `pr-red` carve-out (bamr87/bamr87#614): which commits passed,
+            # which failed, how many failures hit the default branch, and how
+            # many verdicts arrived without the head fields (fail open on those).
+            "pass_shas": set(), "fail_shas": set(),
+            "fail_default": 0, "untracked": 0}
+
+
+def _track_head(bucket: dict, rec: dict, c: str) -> None:
+    """Record where a success/failure verdict landed, for `pr_red`."""
+    sha = rec.get("head_sha")
+    branch = rec.get("head_branch")
+    default = rec.get("default_branch")
+    if not (sha and branch and default):
+        bucket["untracked"] += 1
+        return
+    if c == "success":
+        bucket["pass_shas"].add(sha)
+    else:
+        bucket["fail_shas"].add(sha)
+        if branch == default:
+            bucket["fail_default"] += 1
 
 
 def fold(bucket: dict, rec: dict) -> None:
@@ -403,6 +436,7 @@ def fold(bucket: dict, rec: dict) -> None:
     if c == "success":
         bucket["success_min"] += m
         bucket["success"] += 1
+        _track_head(bucket, rec, c)
     elif c in WASTE_CONCLUSIONS:
         bucket["waste_min"] += m
         if c == "cancelled":
@@ -410,6 +444,7 @@ def fold(bucket: dict, rec: dict) -> None:
             bucket["cancel_min"] += m
         else:
             bucket["failure"] += 1
+            _track_head(bucket, rec, c)
     else:
         bucket["other"] += 1
 
@@ -481,7 +516,25 @@ def workflow_record(b: dict, *, repo: str, repo_url: str | None,
         "last_conclusion": b["last_conclusion"],
         "last_run_at": b["last_at"],
         "events": b["events"],
+        "pr_red": pr_red(b),
     }
+
+
+def pr_red(b: dict) -> bool:
+    """True when every red verdict is explained by a PR's CONTENTS, not by chance.
+
+    A policy gate (evidence, conformance) rejecting a PR that lacks what it
+    requires is deterministic, yet a 70% success rate read as `flaky` and sent
+    it to the fleet-doctor's correctness queue (bamr87/bamr87#614). The test is
+    the definition of flakiness: the same commit produced different verdicts.
+    So it holds only when there were failures, none of them on the default
+    branch, and no `head_sha` both passed and failed. It fails open: any
+    verdict missing its head fields keeps today's `flaky`/`failing` rule.
+    """
+    return bool(b.get("failure")
+                and b.get("untracked", 1) == 0
+                and b.get("fail_default", 1) == 0
+                and not (b.get("pass_shas", set()) & b.get("fail_shas", set())))
 
 
 def build_report(registry: list[dict], gh, days: int, max_runs: int) -> dict:
@@ -579,10 +632,15 @@ def finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now,
         if (eff is not None and w["total_min"] >= median_min
                 and eff < LOW_EFFECTIVENESS and w["waste_min"] >= MIN_WASTE_MIN):
             flags.append("high-cost-low-value")
+        red = None
         if decided >= 3 and w["success_rate_pct"] < 50:
-            flags.append("failing")
+            red = "failing"
         elif decided >= 4 and 50 <= w["success_rate_pct"] < 85:
-            flags.append("flaky")
+            red = "flaky"
+        if red:
+            # Every failure on a PR head, no commit that both passed and failed:
+            # the PR is red, the workflow is not — see pr_red().
+            flags.append("pr-red" if w.get("pr_red") else red)
         if w["avg_min"] > SLOW_AVG_MIN:
             flags.append("slow")
         # Cancelled SHARE says a guard is firing; cancelled COST says whether

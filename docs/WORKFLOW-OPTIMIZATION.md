@@ -261,3 +261,9 @@ Not changed here, and each a decision of its own:
 - **`RELEASE_PLEASE_TOKEN` in four repos:** `ai-world-view.github.io`, `bash-365-apex`, `bash-365.com` and `year-of-ai.github.io`. Bots on `it-journey`, `zer0-mistakes` and the hub's `amend/` branches still open PRs that wait for approval.
 - **118 references call the hub at `@main`**, and 191 jobs across the fleet have no timeout. The atlas reads only the hub, so neither shows up there.
 
+## 2026-11-07 — a red PR is not a flaky workflow
+
+The `zer0-mistakes` Evidence gate was flagged `flaky` at 70.3% success, and the fleet-doctor advised de-flaking it. The gate is deterministic: every failure was the gate rejecting a PR that lacked its regression spec or before/after evidence. Five came from one open PR, and one from a PR that passed once its evidence was committed. The `flaky` rule only had counts, so it could not tell "the PR decided the verdict" from "the verdict is random" (#614).
+
+The analytics now record `head_branch` and `head_sha` for each run, plus the repo's default branch, and use the definition of flakiness: **the same commit produced different verdicts**. A workflow that would read `flaky` or `failing` gets **`pr-red`** instead when every failure is on a non-default-branch head and no commit both passed and failed. `pr-red` is not a correctness signal, and `remediate` does not queue a workflow that carries only `pr-red`. A re-run that flips the verdict on one commit is still `flaky`. A failure on the default branch still counts. A run with no head fields falls back to the old rule. The flag catches any check whose verdict depends on the PR's contents, not only the gates someone remembered to list.
+

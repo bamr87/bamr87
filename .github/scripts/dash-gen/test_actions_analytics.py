@@ -298,6 +298,74 @@ def case_cancelled_minutes_are_published() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# defect 4 — a policy gate read as flaky (bamr87/bamr87#614)
+# --------------------------------------------------------------------------- #
+def head(conclusion: str, branch: str, sha: str, default: str = "main") -> dict:
+    r = rec(0.26, conclusion, event="pull_request")
+    r.update(head_branch=branch, head_sha=sha, default_branch=default)
+    return r
+
+
+def case_pr_contents_are_not_flakiness() -> None:
+    """The zer0-mistakes Evidence gate: every failure is the gate rejecting a PR
+    that lacks its evidence. FAILS on the pre-fix code, which flagged it `flaky`
+    from the success rate alone."""
+    runs = ([head("failure", "grokbot/fix-sidebar", f"g{i}") for i in range(5)]
+            + [head("failure", "agent/issue-573", "a1")]
+            + [head("success", "agent/issue-573", f"a{i}") for i in range(2, 5)]
+            + [head("success", f"deps/{i}", f"d{i}") for i in range(7)])
+    flags = flags_of(*runs)
+    check("PR-decided failures (two branches, distinct SHAs) are pr-red", "pr-red" in flags)
+    check("…and not flaky", "flaky" not in flags)
+
+    # All red, still decided by PR contents: not `failing` either.
+    red = [head("failure", "feat/x", f"x{i}") for i in range(3)] + [head("success", "feat/y", "y1")]
+    flags = flags_of(*red)
+    check("a sub-50% PR-only failure rate is pr-red, not failing",
+          "pr-red" in flags and "failing" not in flags)
+
+    # Healthy workflows get no flag at all.
+    green = [head("success", "feat/z", f"z{i}") for i in range(10)] + [head("failure", "feat/w", "w1")]
+    check("a mostly-green workflow gets no pr-red", "pr-red" not in flags_of(*green))
+
+
+def case_same_commit_flip_is_still_flaky() -> None:
+    """A re-run that passed where the same commit had failed IS non-determinism."""
+    runs = ([head("failure", "feat/a", "s1"), head("success", "feat/a", "s1")]
+            + [head("success", "feat/b", f"b{i}") for i in range(3)]
+            + [head("failure", "feat/c", "c1")])
+    flags = flags_of(*runs)
+    check("one head_sha with a success and a failure stays flaky",
+          "flaky" in flags and "pr-red" not in flags)
+
+
+def case_default_branch_failures_are_unchanged() -> None:
+    """A red verdict on the default branch is the workflow's, not a PR's."""
+    flaky = ([head("failure", "main", "m1"), head("failure", "feat/a", "f1")]
+             + [head("success", "feat/b", f"b{i}") for i in range(4)])
+    check("a failure on the default branch keeps flaky", "flaky" in flags_of(*flaky))
+    failing = [head("failure", "main", f"m{i}") for i in range(3)] + [head("success", "feat/b", "b1")]
+    check("default-branch failures keep failing", "failing" in flags_of(*failing))
+
+
+def case_missing_head_fields_fail_open() -> None:
+    """Older fixtures and API gaps carry no head fields: today's rule applies."""
+    plain = [rec(0.26, "failure")] * 2 + [rec(0.26, "success")] * 3
+    check("records without head fields keep flaky", "flaky" in flags_of(*plain))
+    # One untracked verdict is enough to fall back: absence of evidence is not
+    # evidence that the PR decided it.
+    mixed = [head("failure", "feat/a", "f1"), rec(0.26, "failure")] + \
+            [head("success", "feat/b", f"b{i}") for i in range(3)]
+    check("one verdict without head fields falls back to flaky",
+          "flaky" in flags_of(*mixed))
+    blank = [head("failure", "feat/a", "f1", default="")] * 2 + \
+            [head("success", "feat/b", f"b{i}") for i in range(3)]
+    check("an unknown default branch falls back to flaky", "flaky" in flags_of(*blank))
+    wf = workflow("bamr87/x", False, *plain)
+    check("pr_red is published as a plain bool", wf.get("pr_red") is False)
+
+
+# --------------------------------------------------------------------------- #
 # published contract
 # --------------------------------------------------------------------------- #
 def case_note_documents_the_bounds() -> None:
@@ -326,6 +394,10 @@ def main() -> int:
                case_supersession_is_not_cancel_heavy,
                case_real_cancellation_churn_still_flags,
                case_cancelled_minutes_are_published,
+               case_pr_contents_are_not_flakiness,
+               case_same_commit_flip_is_still_flaky,
+               case_default_branch_failures_are_unchanged,
+               case_missing_head_fields_fail_open,
                case_note_documents_the_bounds):
         fn()
 
