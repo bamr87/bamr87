@@ -9,4 +9,4 @@ jobs:
     steps:
       - name: Fail on purpose
         run: |
-          python3 -c "raise ValueError('planted failure to test the PR comment')"
+          echo fixed
