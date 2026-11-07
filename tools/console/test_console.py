@@ -807,6 +807,8 @@ def test_state_document_degrades_without_signals(monkeypatch_dir=None):
     for key in ("sources", "contract", "registry", "harnesses", "loops", "git", "usage", "tokens"):
         assert key in state, key
     assert state["registry"]["count"] > 0
+    # `inbox` is the Overview's preview; the sidebar's count reads the whole list.
+    assert len(state["triage"]["inbox"]) <= 20 and state["triage"]["inbox_total"] >= len(state["triage"]["inbox"])
     assert all("cron_human" in loop for loop in state["loops"])
     # a token list never carries values — only names/scope/placement
     assert all(set(t) <= {"name", "scope", "required", "deprecated", "used_by"} for t in state["tokens"])

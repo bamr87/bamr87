@@ -49,7 +49,7 @@ Each rule names the incident behind it. Where another gate already enforces a ru
 | `usage-limit` | error | a scheduled site pairs `continue-on-error: true` with `usage-limit: skip` (a `continue-on-error` decided by an expression is not checked) | `test_ai_budget.py` |
 | `null-input` | error | for a dispatch input that defaults to `true`, no `inputs.x == false`, `!= false` or `!inputs.x` in a workflow with other triggers, unless the expression guards on `github.event_name` against `workflow_dispatch` or `schedule`: on a cron run the input is null, which reads as false, so the cron and a default dispatch disagree | atlas |
 | `node-alias` | error | `node-version` is a number, never `lts/*` or `latest`, on `setup-node` and on a call to a reusable workflow: an alias has no fallback when the API quota is spent | atlas |
-| `workflow-run` | warn | no `workflow_run` trigger (prefer `needs:`) | atlas |
+| `workflow-run` | warn | no `workflow_run` trigger (prefer `needs:`), unless it watches every workflow (`workflows: ["**"]`), which couples to no display name | atlas |
 | `pr-token` | warn | `gh pr create` (through `GH_TOKEN` or `GITHUB_TOKEN`) or `peter-evans/create-pull-request` does not run with the job token alone (its CI would never fire; a probed token with the job token as fallback passes) | atlas |
 | `bare-push` | warn | no `git push` whose refspec names `main` or `master`, and none that names no branch or only `HEAD` (on a run that checked out the default branch, both land on it); called workflows are exempt | atlas |
 | `undocumented` | warn | every workflow and action has a README row, and every README row has a file | atlas |

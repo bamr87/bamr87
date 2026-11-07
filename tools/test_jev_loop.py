@@ -1654,14 +1654,20 @@ def test_a_usage_limit_stops_the_queue_and_never_falls_back_to_the_api_key():
 def test_a_usage_limit_stops_model_calls_but_not_a_zero_cost_tier0_reuse():
     box = Box()
     with world(box):
+        # The day's pair comes from the registry's rotation, so a registry that
+        # grew or shrank moves it: read it from the plan rather than naming repos.
+        code, out, _ = jev("plan", "repo-scout", "--target", "all", "--day", "2026-10-31", "--json", "--offline")
+        assert code == 0, out
+        first_key, second_key = [i["key"] for i in json.loads(out)["items"]]
+        second = second_key.split("/")[1]
         box.seed_live({"kind": "ok", "proposals": GOOD})
-        assert jev("run", "repo-scout", "--target", "djangoerp")[0] == 0   # a validated, reusable djangoerp
+        assert jev("run", "repo-scout", "--target", second)[0] == 0   # a validated, reusable second item
         box.seed_live([{"kind": "usage_limit"}])
         code, _, err = jev("run", "repo-scout", "--target", "all", "--day", "2026-10-31")
     rec = box.last()
     items = {i["key"]: i for i in rec["items"]}
-    assert code == 0 and items["bamr87/cv-pro"]["status"] == "usage-limited", (code, rec["items"])
-    reuse = items["bamr87/djangoerp"]
+    assert code == 0 and items[first_key]["status"] == "usage-limited", (code, rec["items"])
+    reuse = items[second_key]
     assert reuse["decision"] == "tier0-reuse" and reuse["status"] == "previewed", (reuse, err[-400:])
     assert len(box.live_calls()) == 2, "one call per run: the reuse after the 429 made none"
 

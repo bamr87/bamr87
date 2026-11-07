@@ -30,6 +30,7 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - Constitution § 24 (amendment `visual-evidence`): tutorials, guides and setup docs ship screenshots or other visual front-end evidence (naming, alt text, redaction, freshness), with a warn-then-fail guides lint and hub-first fleet fan-out.
 - Constitution § 22 (amendment `repo-cap-42`): the `bamr87` account holds at most 42 repositories (hard cap), and every new repo must come with merging or absorbing an existing one.
 - Proposed constitution § 27 / amendment `expedite-sprints`: one expedite sprint at a time run by the fleet's agentic loops, three Amr gates, sprint ceiling and circuit breaker, kill switch, live record and DORA metrics; standard `docs/EXPEDITE-SPRINTS.md` (epic #687).
+- `pr-review.yml`: a reusable workflow that summarizes every CI failure on a pull request in one sticky comment: the job, the reason from its log, whether the PR probably caused it, and what to do. The comment is deleted when nothing is failing. A fleet repo adopts it with the stub in `templates/pr-review/`.
 
 ### Changed
 

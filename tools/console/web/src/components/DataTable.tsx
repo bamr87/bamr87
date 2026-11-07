@@ -1,9 +1,12 @@
 // One table for every list in the console: sortable headers, a row that is a
 // link to its drill-down, a severity edge, and — with `keys` — the TUI's own
-// j/k/g/G/enter/o/l/y navigation (keys v1).
-import { useEffect, useId, useMemo, useState, type ReactNode } from 'react';
-import { useNavigate } from 'react-router';
-import { ScrollArea, Table, Text } from '@mantine/core';
+// j/k/g/G/enter/o/l/y navigation (keys v1). Everything the mouse can do has a
+// keyboard and screen-reader path too: a header is a button that reports its
+// sort, a row with an href carries a real link, and a row that only acts takes
+// focus and answers Enter and Space.
+import { useEffect, useId, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { Link, useNavigate } from 'react-router';
+import { ScrollArea, Table, Text, UnstyledButton, VisuallyHidden } from '@mantine/core';
 import { IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 import { useKeyScope } from './keyscope';
 import classes from './DataTable.module.css';
@@ -22,6 +25,8 @@ export interface DataTableProps<T> {
   rows: T[];
   columns: Column<T>[];
   rowKey: (row: T, i: number) => string;
+  /** What a row is called to a screen reader; rowKey when absent. */
+  rowLabel?: (row: T) => string;
   href?: (row: T) => string | null | undefined;
   onActivate?: (row: T) => void;
   tone?: (row: T) => 'crit' | 'warn' | 'muted' | undefined | null | false;
@@ -102,10 +107,13 @@ export function DataTable<T>(p: DataTableProps<T>) {
   const header = (c: Column<T>) => {
     const active = sort?.key === c.key;
     const onClick = c.sort ? () => setSort(active ? { key: c.key, desc: !sort?.desc } : { key: c.key, desc: Boolean(c.num) }) : undefined;
+    const chevron = active ? (sort?.desc ? <IconChevronDown size={12} /> : <IconChevronUp size={12} />) : null;
     return (
-      <Table.Th key={c.key} data-num={c.num || undefined} data-sortable={c.sort ? true : undefined} onClick={onClick} w={c.width} title={c.title}>
-        {c.header}
-        {active ? (sort?.desc ? <IconChevronDown size={12} /> : <IconChevronUp size={12} />) : null}
+      <Table.Th key={c.key} data-num={c.num || undefined} data-sortable={c.sort ? true : undefined} w={c.width} title={c.title}
+        aria-sort={c.sort ? (active ? (sort?.desc ? 'descending' : 'ascending') : 'none') : undefined}>
+        {c.sort ? (
+          <UnstyledButton className={classes.sort} onClick={onClick} aria-label={c.header ? undefined : c.title ?? c.key}>{c.header}{chevron}</UnstyledButton>
+        ) : c.header || <VisuallyHidden>{c.title ?? c.key}</VisuallyHidden>}
       </Table.Th>
     );
   };
@@ -119,6 +127,15 @@ export function DataTable<T>(p: DataTableProps<T>) {
         {sorted.length ? (
           sorted.map((row, i) => {
             const t = p.tone?.(row);
+            const link = p.onActivate ? null : p.href?.(row);
+            // A row that only acts has no link to carry, so the row takes focus itself.
+            const focusable = Boolean(p.onActivate);
+            const onKeyDown = (e: KeyboardEvent<HTMLTableRowElement>) => {
+              if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+              e.preventDefault();
+              setSel(i);
+              activate(row);
+            };
             return (
               <Table.Tr
                 key={p.rowKey(row, i)}
@@ -127,6 +144,9 @@ export function DataTable<T>(p: DataTableProps<T>) {
                 data-clickable={clickable || undefined}
                 data-selected={(p.keys && i === sel) || undefined}
                 data-tone={t || undefined}
+                tabIndex={focusable ? 0 : undefined}
+                onKeyDown={focusable ? onKeyDown : undefined}
+                onFocus={() => setSel(i)}
                 onClick={(e) => {
                   if (!clickable) return;
                   // Let real links, buttons and inputs inside the row do their own thing.
@@ -135,8 +155,11 @@ export function DataTable<T>(p: DataTableProps<T>) {
                   activate(row);
                 }}
               >
-                {p.columns.map((c) => (
-                  <Table.Td key={c.key} data-num={c.num || undefined}>{c.render(row)}</Table.Td>
+                {p.columns.map((c, ci) => (
+                  <Table.Td key={c.key} data-num={c.num || undefined}>
+                    {ci === 0 && link ? <Link to={link} className={classes.rowLink} data-row-link>Open {p.rowLabel?.(row) ?? p.rowKey(row, i)}</Link> : null}
+                    {c.render(row)}
+                  </Table.Td>
                 ))}
               </Table.Tr>
             );

@@ -21,7 +21,7 @@
 
 ## 1. Specs — the Universal Project Standard
 
-[`specs/README.md`](specs/README.md) is the spec index (UPS 1.0, draft); [`_data/specs.yml`](_data/specs.yml) is its generated twin. 238 requirements: 160 MUST, 69 SHOULD, 4 MAY; 69 still lack a seed kit.
+[`specs/README.md`](specs/README.md) is the spec index (UPS 1.0, draft); [`_data/specs.yml`](_data/specs.yml) is its generated twin. 239 requirements: 161 MUST, 69 SHOULD, 4 MAY; 69 still lack a seed kit.
 
 | Area | Spec | Ids | MUST / SHOULD / MAY | Gaps | Governs |
 | --- | --- | --- | --- | --- | --- |
@@ -32,7 +32,7 @@
 | FB | [`FEEDBACK.md`](specs/FEEDBACK.md) | UPS-FB-01…42 | 18 / 4 / 1 | 3 | The universal feedback component |
 | BE | [`BACKEND.md`](specs/BACKEND.md) | UPS-BE-01…51 | 15 / 7 / 0 | 13 | HTTP API conventions and the client contract |
 | OPS | [`OPERATIONS.md`](specs/OPERATIONS.md) | UPS-OPS-01…42 | 18 / 8 / 1 | 16 | Configuration, observability, security, data |
-| WORK | [`WORK.md`](specs/WORK.md) | UPS-WORK-01…16 | 8 / 8 / 0 | 2 | Planning & delivery: SDLC profile, backlog, Definition of Done, ADRs, changelog, pinning |
+| WORK | [`WORK.md`](specs/WORK.md) | UPS-WORK-01…17 | 9 / 8 / 0 | 2 | Planning & delivery: SDLC profile, backlog, Definition of Done, ADRs, changelog, pinning |
 | DOC | [`DOCS.md`](specs/DOCS.md) | UPS-DOC-01…20 | 8 / 3 / 0 | 4 | Documentation: one home per fact, document shape, generated reference, fleet review |
 | — | [`STACKS.md`](specs/STACKS.md) | — | — | — | Stack-family profiles and the applicability matrix |
 | — | [`CONFORMANCE.md`](specs/CONFORMANCE.md) | — | — | — | Declaring, auditing, adoption order, the fleet gap list |
@@ -53,6 +53,7 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 | [`fleet-engines/`](templates/fleet-engines/) | 0.1.0 | 2026-09-08 | consumed BY DEPENDENCY — npm install @bamr87/fleet-engines (publish-kits.yml publishes on… | `.gitignore`, `README.md`, `package.json`, `src/fleet/audit.test.ts`, `src/fleet/audit.ts`, `src/fleet/facts.test.ts`, `src/fleet/facts.ts`, `src/fleet/fixtures/README.md`, `src/fleet/fixtures/cv--ma… |
 | [`governance/`](templates/governance/) | 0.1.1 | 2026-10-26 | tools/fanout.sh --kit governance (branch docs/feature-catalog); validated by tools/govern… | `README.md`, `constitution.template.md`, `docs/amendments/0000-template.md`, `docs/amendments/0001-ratify-constitution.template.md`, `docs/amendments/README.template.md` |
 | [`issue-autopilot/`](templates/issue-autopilot/) | 0.1.0 | 2026-09-10 | .github/workflows/fanout.yml (kit standardize, artifact `issue-autopilot`, OPT-IN) via to… | `README.md`, `SKILL.template.md`, `dispatch.py`, `issue-resolver.template.md`, `issue-triager.template.md`, `issue-verifier.template.md`, `test_triage_engine.py`, `test_verify_close.py`, `triage.py`,… |
+| [`pr-review/`](templates/pr-review/) | 0.1.0 | 2026-11-06 | tools/fanout.sh --kit pr-review (fanout.yml, kit pr-review) | `README.md`, `pr-review.yml` |
 | [`projects/`](templates/projects/) | unversioned | — | — | `auto-add.yml`, `framework.yml` |
 | [`prose/`](templates/prose/) | 0.4.0 | 2026-10-22 | tools/fanout.sh --kit prose | `markdown-oneline.yml` |
 | [`release-pipeline/`](templates/release-pipeline/) | unversioned | — | tools/adopt-release.sh | `RELEASING.md`, `ci.yml`, `release.yml` |
@@ -90,7 +91,7 @@ Where each spec row was lifted from — go here for a proven implementation, not
 
 ## 4. Registries and data
 
-[`_data/projects.yml`](_data/projects.yml) is THE project registry (44 projects: 21 active, 2 archived, 15 experiment, 6 maintenance); [`_data/fleet.yml`](_data/fleet.yml) is the control plane's own config. Contract: [`_data/SCHEMA.md`](_data/SCHEMA.md).
+[`_data/projects.yml`](_data/projects.yml) is THE project registry (45 projects: 21 active, 2 archived, 16 experiment, 6 maintenance); [`_data/fleet.yml`](_data/fleet.yml) is the control plane's own config. Contract: [`_data/SCHEMA.md`](_data/SCHEMA.md).
 
 | File | Purpose | Rules |
 | --- | --- | --- |
@@ -168,6 +169,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`gen-specs-data.py`](tools/gen-specs-data.py) | Regenerates `_data/specs.yml` (the machine-readable Universal Project Standard) from the requirement tables in `specs/*.md` (`--check` gates staleness) |
 | [`governance_lint.py`](tools/governance_lint.py) | The fleet GOVERNANCE check: validate, and keep in sync, the chain |
 | [`guides_visual_lint.py`](tools/guides_visual_lint.py) | Warn-then-fail lint for guide-like Markdown that lacks visual |
+| [`install-conflict-sweep.sh`](tools/install-conflict-sweep.sh) | Installs the `com.bamr87.conflict-sweep` LaunchAgent (macOS), which runs `tools/dash conflicts sweep --scheduled` every few hours, so merge conflicts resolve in a local… |
 | [`install-prose-hook.sh`](tools/install-prose-hook.sh) | Installs a **global** git `pre-commit` hook (`~/.git-hooks`, `core.hooksPath`) that runs `unwrap-prose.py` over the staged markdown and restages it, so a commit is born… |
 | [`install-workspace-sync.sh`](tools/install-workspace-sync.sh) | Installs the `com.bamr87.workspace-sync` LaunchAgent (macOS) that runs `update-submodules.sh --no-commit --no-push` daily and at login, keeping the local clone on `main`… |
 | [`issue-evidence.sh`](tools/issue-evidence.sh) | Builds one issue's **evidence bundle** in an isolated virtual environment — fresh clone, own toolchain (`venv`/`node_modules`/`vendor/bundle`), the project's own lint/te… |
@@ -212,7 +214,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_jev_classify.py`](tools/test_jev_classify.py) | Fixture tests for tools/jev/classify.py — JEV's deterministic conflict classifier. |
 | [`test_jev_conflicts.py`](tools/test_jev_conflicts.py) | Fixture tests for tools/jev/conflicts.py — the conflict engine's safety rules, its reading of a real conflicted working tree, and its validation gate. |
 | [`test_jev_context.py`](tools/test_jev_context.py) | Tests for tools/jev/context.py — the loop runner's context pack, engine half (#486): the history section from earlier runs' attempts.jsonl, gather over `tools/dash-gen c… |
-| [`test_jev_generated.py`](tools/test_jev_generated.py) | Fixture tests for tools/jev/generated.py — the main-only generated-file guard — and the `jev.auto_tiers` switch that keeps the conflict engine at tier 0. |
+| [`test_jev_generated.py`](tools/test_jev_generated.py) | Fixture tests for tools/jev/generated.py — the main-only generated-file guard — and the `jev.ci_tiers` switch that keeps CI at tier 0. |
 | [`test_jev_headless.py`](tools/test_jev_headless.py) | Fixture tests for tools/jev/headless.py — the headless Claude Code layer a local loop attempt runs through. |
 | [`test_jev_ledger.py`](tools/test_jev_ledger.py) | Fixture tests for tools/jev/ledger.py — the conflict-resolution ledger and the monthly cap. |
 | [`test_jev_library.py`](tools/test_jev_library.py) | Fixture tests for tools/jev/library.py — the harness experience library (JEV capability three, docs/HARNESS-REFINEMENT.md) — and the context pack's `library` provider th… |
@@ -267,6 +269,7 @@ The control-plane automation; standards and the full table in [`.github/workflow
 | [`jev-conflicts.yml`](.github/workflows/jev-conflicts.yml) | 🧩 JEV — conflict triage | every 6 h at :23, push `main`, `repository_dispatch` `jev-c… | **JEV conflict triage** (HUB-035): lists open fleet PRs GitHub reports as CONFLICTING, reproduces each with a trial merge, classifies it into tiers 0–3 and resolves at t… |
 | [`jev-number.yml`](.github/workflows/jev-number.yml) | 🔢 JEV — assign numbers at merge | push `main`, `issues` closed (ratify only), dispatch (dry r… | **JEV numbering at merge** (HUB-035, amendment 0002): `python3 -m tools.jev number apply` under `concurrency: jev-number` assigns HUB/FR/NFR/amendment numbers to fragmen… |
 | [`markdown-oneline.yml`](.github/workflows/markdown-oneline.yml) | markdown-oneline | PR, push `main` (Markdown) | One paragraph per line (`tools/unwrap-prose.py`): on a same-repo PR it pushes the unwrap to the branch itself; on a fork PR or `main` it fails with the command to run. |
+| [`pr-review.yml`](.github/workflows/pr-review.yml) | PR review (reusable) | `workflow_run` of every workflow, `workflow_call` | The fleet's one PR comment (constitution § 19): every CI failure on a PR summarized in a sticky comment, deleted when nothing is failing. |
 | [`publish-kits.yml`](.github/workflows/publish-kits.yml) | publish-kits | push `main` (kit `package.json` / `VERSION`), dispatch | Packs and verifies every `templates/*/package.json`; publishes new versions to npm `@bamr87/*` with `NPM_TOKEN`, skipping versions already on the registry. |
 | [`python-tests.yml`](.github/workflows/python-tests.yml) | 🐍 Python Tests | PR (a PR touching only `docs/`, `changelog.d/` or feature f… | Four parallel shards and a final `python-tests` job, over every Python fixture suite the hub carries (`.github/scripts/dash-gen/`, `tools/`, `tools/console/`, `tools/tui… |
 | [`reconcile-registry.yml`](.github/workflows/reconcile-registry.yml) | 🧭 Reconcile Registry | daily 05:07, dispatch | Reconciles `_data/projects.yml` with GitHub (renames, deletions, branches). |

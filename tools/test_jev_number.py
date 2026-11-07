@@ -141,6 +141,23 @@ def test_a_feature_fragment_is_numbered_compiled_and_consumed():
     assert (d / "features/features.yml").read_text().startswith("# the catalog")
 
 
+def test_a_scenario_takes_its_features_number():
+    """A scenario lands with its feature and cites it by slug. Nothing else
+    rewrites that line, so `HUB-NEW:<slug>` used to stay in verify/scenarios/
+    for good and the feature index reported an unknown feature."""
+    frag = yaml.safe_dump({"id": "HUB-NEW", "slug": "thing", "title": "A thing", "description": "does a thing",
+                           "status": "shipped", "scenarios": ["verify/scenarios/thing.yml"]})
+    other = "id: other\nfeature: HUB-001\n"
+    d = mk({"features/features.d/thing.yml": frag,
+            "verify/scenarios/thing.yml": "id: thing\nfeature: HUB-NEW:thing\n",
+            "verify/scenarios/other.yml": other})
+    plan = n.apply(d)
+    assert not plan.errors, plan.errors
+    assert (d / "verify/scenarios/thing.yml").read_text() == "id: thing\nfeature: HUB-002\n"
+    assert (d / "verify/scenarios/other.yml").read_text() == other, "a scenario with no slug is left alone"
+    assert features_of(d)[1]["scenarios"] == ["verify/scenarios/thing.yml"]
+
+
 def test_two_fragments_get_two_different_numbers_in_filename_order():
     one = yaml.safe_dump({"id": "HUB-NEW", "title": "A", "description": "a"})
     two = yaml.safe_dump({"id": "HUB-NEW", "title": "B", "description": "b"})

@@ -231,6 +231,8 @@ def test_budget_from_an_input_with_no_default_is_not_missing():
 
 def test_workflow_run_pr_token_and_bare_push():
     assert "workflow-run" in rules(GOOD.replace("  workflow_dispatch:\n", "  workflow_run:\n    workflows: [x]\n  workflow_dispatch:\n", 1))
+    watcher = GOOD.replace("  workflow_dispatch:\n", '  workflow_run:\n    workflows: ["**", "!Me"]\n  workflow_dispatch:\n')
+    assert "workflow-run" not in rules(watcher), "a watcher of every workflow couples to no display name"
     pr = GOOD.replace("        run: echo ok", "        env:\n          GH_TOKEN: ${{ github.token }}\n        run: gh pr create --fill")
     assert "pr-token" in rules(pr)
     assert "pr-token" not in rules(pr.replace("${{ github.token }}", "${{ secrets.FLEET_TOKEN }}"))

@@ -265,6 +265,18 @@ rules:
       spec_driven_kit/<basename> (a by-reference consumer tracks none).
     fail: "any clause above"
 
+  UPS-WORK-17:
+    level: MUST
+    applies: [all]
+    applies_notes: ["all except fork"]
+    mode: offline
+    rollout: warn
+    reads: [".github/workflows/*.y*ml"]
+    pass: >-
+      a job `uses:` bamr87/bamr87/.github/workflows/pr-review.yml (any ref; UPS-WORK-10
+      governs the ref), or the repo is the hub, which defines it.
+    fail: "no workflow calls pr-review.yml (seed with tools/fanout.sh --kit pr-review)"
+
   UPS-WORK-08:
     level: SHOULD
     applies: [all]

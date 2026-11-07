@@ -43,6 +43,7 @@ coverage: listed
 | `ocrmd/` | dir | Scan books and pages into cross-checked Markdown: local OCR diffed against a Claude vision read, wi… | terminal |
 | `outbox/` | dir | Async competitive outbox harness for three agents: mailbox protocol, injected lag, confidence race… | terminal |
 | `ragio-ai/` | dir | Fully local RAG engine over Radiolab episodes: Whisper transcription, Qdrant hybrid retrieval, Llam… | terminal |
+| `recon-engine/` | dir | Recon Engine: operational events reconciled against the general ledger — one monthly residual, six… | terminal |
 | `rewind-arcade/` | dir | Retro gaming workspace: browser arcade recreations, console emulation via ES-DE, and a physical gam… | terminal |
 | `schema-lang/` | dir | A Rust DSL and compiler for gitorio/SCHEMA blueprints: parse, type-check and emit SCHEMA.md contrac… | terminal |
 | `scripts/` | dir | Standalone Bash utilities for project scaffolding, GitHub repository management and multi-repo main… | terminal |

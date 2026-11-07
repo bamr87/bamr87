@@ -112,12 +112,12 @@ export function OperationPage() {
             />
             <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg">
               <Paper p="md">
-                <Title order={4} fz={14} mb="sm">Run</Title>
+                <Title order={3} fz={14} mb="sm">Run</Title>
                 <OpForm op={o} preset={preset} onStarted={(jid) => navigate(to.job(jid))} />
               </Paper>
               <Stack gap="md">
                 <Paper p="md">
-                  <Title order={4} fz={14} mb={6}>Part of</Title>
+                  <Title order={3} fz={14} mb={6}>Part of</Title>
                   {loops.length ? loops.map((l) => <div key={l.id}><Anchor component={Link} to={to.loop(l.id)} size="sm">{l.title}</Anchor></div>) : <Text size="sm" c="dimmed">No loop lists this as its local half.</Text>}
                   <Text size="xs" c="dimmed" mt="sm">id <Mono>{o.id}</Mono></Text>
                 </Paper>

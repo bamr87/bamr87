@@ -1,6 +1,6 @@
 # Fleet frontend platform — layers, tiers and fan-out
 
-> How the fleet's frontends share one platform without sharing one framework: six standard layers (tokens, Web Components, one app shell with micro-frontends, one OIDC identity, contracts, a registry with conformance), four tiers, the surfaces, bashOS as the OS shell that hosts them, the frontend component every repo gets, the app portal that opens every frontend inside the Harness Console, the public and private modes, who owns what, and the fan-out plan. Rule: constitution § 18 ([amendment 0016](amendments/0016-fleet-design-consistency.md)); composition and surfaces: [ADR 0005](adr/0005-console-as-fleet-portal.md) (proposed); phases: [DESIGN-HARMONIZATION.md](DESIGN-HARMONIZATION.md); shell item: roadmap FF-0032.
+> How the fleet's frontends share one platform without sharing one framework: six standard layers (tokens, Web Components, one app shell with micro-frontends, one OIDC identity, contracts, a registry with conformance), four tiers, the surfaces, bashOS as the OS shell that hosts them, the frontend component every repo gets, the app portal that opens every frontend inside the Harness Console, the public and private modes, who owns what, and the fan-out plan. Rule: constitution § 18 ([amendment 0016](amendments/0016-fleet-design-consistency.md)); composition and surfaces: [ADR 0005](adr/0005-console-as-fleet-portal.md); phases: [DESIGN-HARMONIZATION.md](DESIGN-HARMONIZATION.md); shell item: roadmap FF-0032.
 
 ## Principle
 
@@ -43,7 +43,7 @@ A **fork** is a tracked copy of a token or shell build (`fleet-tokens.*`, `fleet
 
 ## The OS shell: bashOS
 
-The console's **Desktop** page (`/desktop`) is the bashOS desktop in the browser ([ADR 0005](adr/0005-console-as-fleet-portal.md) decision 9, proposed): an icon for every fleet app, each opened in a window. Three layers, each owned once:
+The console's **Desktop** page (`/desktop`) is the bashOS desktop in the browser ([ADR 0005](adr/0005-console-as-fleet-portal.md) decision 9): an icon for every fleet app, each opened in a window. Three layers, each owned once:
 
 | Layer | What it is | Owner |
 | --- | --- | --- |
@@ -53,7 +53,7 @@ The console's **Desktop** page (`/desktop`) is the bashOS desktop in the browser
 
 | You want to | Do this |
 | --- | --- |
-| Open an app in a window | click its icon; shift-click for a second window (Live beside Local) |
+| Open an app in a window | click its icon; shift-click for a second window; right-click for Open beside and Live beside Local (one action, a half each), or Shift+F10 from the keyboard |
 | Fill half the desktop, or all of it | drag the window to the left or right edge, or to the top; double-click the title bar |
 | Get a window back | its button on the taskbar; `⌘\` cycles |
 | Open a page of the console in a window | the **bashOS** button on the taskbar lists every page; the **Console** icon opens Overview; the palette (`⌘K`) opens what you pick |
@@ -65,9 +65,9 @@ A console page in a window is the same page without its header and sidebar: the 
 
 ## A frontend component for every repo
 
-Every repo gets one, so every repo is an app on the desktop ([ADR 0005](adr/0005-console-as-fleet-portal.md) decision 10, proposed). The kind follows from the registry: **own** (it has a web frontend), **preview** (an editor extension, a mobile or desktop app: a web preview of it), **terminal** (its terminal UI in a shell window), **generated** (no UI: the repo app the shell builds from the repo's README, feature index, docs and commands). Regenerate this table with `tools/dash apps plan`; the phases (F1 to F4) are in the ADR.
+Every repo gets one, so every repo is an app on the desktop ([ADR 0005](adr/0005-console-as-fleet-portal.md) decision 10). The kind follows from the registry: **own** (it has a web frontend), **preview** (an editor extension, a mobile or desktop app: a web preview of it), **terminal** (its terminal UI in a shell window), **generated** (no UI: the repo app the shell builds from the repo's README, feature index, docs and commands). Regenerate this table with `tools/dash apps plan`; the phases (F1 to F4) are in the ADR.
 
-Until a repo's own component is in the shell it opens as the **generated repo app** (`tools/console/web/src/pages/RepoApp.tsx`), so all 38 repos are apps today: an overview from the registry and the hub's signals (health, CI, open work, the standards audit, automation, how to get it), the repo's README, its open work and its automation. A console reads the README from the repo's checkout on the operator's machine; the public site carries none.
+Until a repo's own component is in the shell it opens as the **generated repo app** (`tools/console/web/src/pages/RepoApp.tsx`), so all 39 repos are apps today: an overview from the registry and the hub's signals (health, CI, open work, the standards audit, automation, how to get it), the repo's README, its open work and its automation. A console reads the README from the repo's checkout on the operator's machine; the public site carries none.
 
 | repo | frontend component | state | next step |
 | --- | --- | --- | --- |
@@ -104,6 +104,7 @@ Until a repo's own component is in the shell it opens as the **generated repo ap
 | zer0-id | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
 | sec-lab | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
 | edgar-pipeline | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
+| recon-engine | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
 | zer0-kernel | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
 | sensor-mesh | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
 | fleet-mobile | preview | generated app for now | a web preview published beside the repo (F3) |
@@ -132,7 +133,7 @@ The console's **Apps** page (`/apps`) is the launcher rendered: every frontend i
 
 ## Modes: public and private
 
-Every frontend has two modes ([ADR 0005](adr/0005-console-as-fleet-portal.md) decision 6, [ADR 0006](adr/0006-django-management-backend.md); both proposed).
+Every frontend has two modes ([ADR 0005](adr/0005-console-as-fleet-portal.md) decision 6, [ADR 0006](adr/0006-django-management-backend.md)).
 
 | Mode | What a person gets | Depends on |
 | --- | --- | --- |
@@ -193,6 +194,7 @@ Every submodule carries a `frontend:` block; `TBD` marks what inspection could n
 | zer0-id | none | none | TBD | — | none |
 | sec-lab | none | none | none | — | none |
 | edgar-pipeline | none | none | none | — | none |
+| recon-engine | none | none | none | — | none |
 | zer0-kernel | none | none | none | — | none |
 | sensor-mesh | none | none | none | — | none |
 | fleet-mobile | app | shell | compose-multiplatform | mobile | TBD |
@@ -210,10 +212,10 @@ Every submodule carries a `frontend:` block; `TBD` marks what inspection could n
 
 ## Open questions for Amr
 
+Settled by [ADR 0005](adr/0005-console-as-fleet-portal.md): the composition runtime (frames with a bridge, Module Federation 2.0 for first-party React plugins, no single-spa) and install (the shell as a PWA first). Each question below is tracked on an issue: tokens and the origin on #705, identity on #713.
+
 - Token source: zer0's tokens as the fleet base with bashOS as a variant (Sites' request), or bashOS as the base?
 - Package distribution: npm on GitHub Packages, or a vendored stamped build?
-- Identity: [ADR 0006](adr/0006-django-management-backend.md) proposes that a frontend's private mode signs in to its Django backend. Still open: one account across the fleet (the hub's Django or zer0-id as the single OIDC provider, the other backends relying on it) or an account per app.
-- Micro-frontend runtime: proposed in [ADR 0005](adr/0005-console-as-fleet-portal.md) — frames with a bridge by default, Module Federation 2.0 for first-party React plugins, no single-spa.
-- Desktop and mobile install: proposed in ADR 0005 — the shell as a PWA first; Tauri or Capacitor only where a store or a native API is needed.
+- Identity: a frontend's private mode signs in to a Django backend ([ADR 0006](adr/0006-django-management-backend.md)). Still open: one account across the fleet (the hub's Django or zer0-id as the single OIDC provider, the other backends relying on it) or an account per app.
 - Should the public shell be served from an origin of its own? Seven apps share `bamr87.github.io` with it, so they run isolated in its frames and gitorio does not render there.
 - Owners for fredgar-ai, djangoerp, cv-pro, ocrmd, ragio-ai and fleet-mobile.

@@ -124,6 +124,7 @@ Every human, bot and AI agent in the hub and every submodule under `projects/` f
 6. **Read-only tools** — new tools are read-only by default, with allowlists, result caps, time limits and redaction.
 7. **Honest cost** — every AI cost figure is labelled "API-equivalent (estimate)"; real metered API spend is tracked separately.
 8. **Prior art first** — every new harness or loop design (a new loop, harness, agent pipeline, or console surface that drives or visualizes them) includes, before implementation begins: (a) a **needs assessment**, (b) a **prior-art / existing-tools survey** with one line each on fit, and (c) a recorded **build-vs-adopt decision** with reasons, kept in the design issue or spec as an acceptance criterion (amendment `harness-prior-art-research`, numbered at merge).
+9. **Local first** — AI work runs in a local Claude Code session when one can do the job: an interactive session, or `claude -p` through `tools/dash loop` and `tools/dash conflicts`, with JEV's tiers, caps and ledger. A CI agent step is the fallback for work that must react inside GitHub or when no local host is available, not the default, and new AI work ships with a local entry point first. _(amendment `local-first-ai`, numbered at merge)_
 
 ## 11. Harness write-back to GitHub
 
@@ -165,6 +166,7 @@ _(amendment `agent-merge-review-gate`, numbered at merge — see the [amendment 
 4. **Gate mechanism** — a gated PR carries the `needs-amr` label and its Fleet project item is set to status *Needs Amr* (§ 9). The gate passes only when the maintainer approves or merges it and the label is removed by the maintainer. A repo may also require a review in branch protection; only the maintainer turns that on.
 5. **Never** — an agent never merges a gated PR, and amendments are ratified only by the maintainer merging them (§ 8).
 6. **Fleet conformance** — every repo constitution under `projects/` conforms to this section or files its own amendment saying how it does.
+7. **Conflicts resolve themselves** — a merge conflict on an open PR from a trusted author is resolved automatically by JEV, by script where the files allow and otherwise by a capped model in a local session (§ 10.9). It merges the base with a merge commit, validates with the repo's own checks, and never force-pushes or merges the PR. A model's resolution is a non-trivial conflict resolution, so it carries the gate of item 3. A human takes over only when JEV cannot resolve it. _(amendment `local-first-ai`, numbered at merge)_
 ## 14. Public documentation site
 
 _(amendment `public-docs-site`, numbered at merge — see the [amendment log](amendments/README.md); section number contingent on § 12 from `agent-merge-review-gate` (#481) and § 13 from `eval-baseline-risk-tiers` (#482) landing first; extends UPS-DOC)_
@@ -239,6 +241,7 @@ _(amendment `fleet-pr-review`, numbered at merge — see the [amendment log](ame
 7. **AI review triggers** — AI review runs on `opened`, `ready_for_review` and an explicit label, not on every push; it checks the central switch (§ 17) and is held to § 13.
 8. **Summaries, not comments** — cost, usage and test tables go to the job summary.
 9. **Rollout** — conformance is warn-only per repo until its fan-out PR lands, then a hard failure; a repo with no pull requests is not applicable.
+10. **CI failures** — every failed CI run on a pull request is summarized in the sticky comment, so nobody has to open a log to learn why it failed: the job and step, the reason taken from its log, whether the PR probably caused it, and what to do next. This covers a run that never started. When a step printed no clear error, the comment says so and does not guess. A failed push to the default branch is reported on the PR that merged it. _(amendment `ci-failure-summary`, numbered at merge)_
 
 ## 20. The editor is a front door
 

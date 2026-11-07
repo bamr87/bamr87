@@ -707,10 +707,14 @@ jev:
   # The tiers the engine runs ON ITS OWN. tier0 is free and deterministic
   # (regenerate / union / renumber, then merge main in and push a merge
   # commit — never a force-push, never a merge of the PR). tier1 and tier2 buy
-  # a model; they stay off until listed here, and when on they are held to
-  # `budget.jev` ($10/month). Anything above the highest listed tier is
-  # labelled `jev:needs-human` instead.
-  auto_tiers: [tier0]
+  # a model and are held to `budget.jev` ($10/month). Anything above the
+  # highest listed tier is labelled `jev:needs-human` instead.
+  auto_tiers: [tier0, tier1, tier2]
+
+  # Where they run (constitution § 10.9). A CI runner runs only these. A
+  # conflict that needs a model waits, unlabelled, for a local session:
+  # `tools/dash conflicts sweep`. List a model tier here to let CI spend on it.
+  ci_tiers: [tier0]
 
   # The fleet is wider than the submodule registry: these owners' repos are
   # scanned too. (`hub.owners` is the fan-out's write list — a narrower thing.)
@@ -1193,7 +1197,6 @@ content:
     - name: it-journey
       quality: { require: [title, description, date, author, categories, tags], description: [120, 160] }
     - name: bash-365.com
-      live_url: https://bash-365.com
       quality: { description: [120, 155] }
     # irony-works, wargames and 2005 live in the zer0-CMS monorepo now (sites/<name>/, imported with
     # their history); the original repos were deleted or archived on 2026-10-20. `registry:` points the
@@ -2015,6 +2018,20 @@ switches:
       cron: 17 12 * * *
       note: scheduled, no switch
       flip: 'no switch yet (§ 17 gap): `gh workflow disable deep-dive.yml -R bamr87/bamr87` is the only lever; record it here'
+    hub/drift-check:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/drift-check.yml
+      group: hub-maintenance
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: none
+      default: 'on'
+      state: 'on'
+      verified: false
+      cron: 7 4 * * *
+      note: scheduled since the November review (#726, S0) — the daily fleet-wide checks (g, k); PR and push runs are not a loop and skip them
+      flip: 'no switch yet (§ 17 gap): `gh workflow disable drift-check.yml -R bamr87/bamr87` is the only lever; record it here'
     hub/python-tests:
       repo: bamr87/bamr87
       workflow: .github/workflows/python-tests.yml
@@ -2029,6 +2046,21 @@ switches:
       cron: 17 9 * * *
       note: nightly test run; also runs on push/PR
       flip: 'no switch yet (§ 17 gap): `gh workflow disable python-tests.yml -R bamr87/bamr87` is the only lever; record it here'
+    hub/pr-review:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/pr-review.yml
+      group: hub-maintenance
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: PR_REVIEW_ENABLED
+        semantics: opt_out
+      default: 'on'
+      state: unverified
+      verified: false
+      note: the fleet's one PR comment (constitution § 19); summarizes CI failures, no AI and no cron
+      flip: 'gh variable set PR_REVIEW_ENABLED -R bamr87/bamr87 --body false  # disable; record the flip here in the same PR'
     hub/reconcile-registry:
       repo: bamr87/bamr87
       workflow: .github/workflows/reconcile-registry.yml

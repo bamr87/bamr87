@@ -91,6 +91,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 
 | Document | What it covers |
 | --- | --- |
+| [`docs/prd/AGENTIC-SDLC.md`](prd/AGENTIC-SDLC.md) | **Status: Draft / proposed.** Plan only; nothing here is implemented. Accepted when the maintainer merges this PR; each phase lands in its own PR. Decision record: [ADR 0008](adr/0008-typed-decisions-as-pipeline-gates.md)… |
 | [`docs/prd/EXPEDITE-SPRINTS.md`](prd/EXPEDITE-SPRINTS.md) | Status: Draft / proposed. Requirement id assigned at merge as `FR-NEW:expedite-sprints` → predicted **FR86** (FR84 if this merges before #685 and #686). Feature: `HUB-NEW:expedite-sprints`. Epic… |
 | [`docs/prd/FLEET-ACTIVITY-LOG.md`](prd/FLEET-ACTIVITY-LOG.md) | **Status: Draft / proposed.** Design only; nothing here is implemented yet. Feature: `HUB-024` in [`features/features.yml`](../features/features.yml) (`status: planned`). Requirements: FR7–FR15, NFR4–NFR6 in the root… |
 | [`docs/prd/FLEET-ACTIVITY-REPLAY-PLAN.md`](prd/FLEET-ACTIVITY-REPLAY-PLAN.md) | **Status: Draft / proposed.** Plan only; nothing here is implemented. Accepted when the maintainer merges this PR; each phase lands in its own PR. Feature: `HUB-NEW` (slug `fleet-activity-replay`) — the same feature the design PR… |
