@@ -2031,7 +2031,7 @@ switches:
       state: 'on'
       verified: false
       cron: 7 4 * * *
-      note: daily fleet-wide drift checks (g, k); the PR and push runs skip them (S0 fix 8023fb3)
+      note: scheduled since the November review (#726, S0) — the daily fleet-wide checks (g, k); PR and push runs are not a loop and skip them
       flip: 'no switch yet (§ 17 gap): `gh workflow disable drift-check.yml -R bamr87/bamr87` is the only lever; record it here'
     hub/python-tests:
       repo: bamr87/bamr87
@@ -2104,20 +2104,6 @@ switches:
       cron: 7 3 * * *
       note: scheduled, no switch
       flip: 'no switch yet (§ 17 gap): `gh workflow disable update-submodules.yml -R bamr87/bamr87` is the only lever; record it here'
-    hub/drift-check:
-      repo: bamr87/bamr87
-      workflow: .github/workflows/drift-check.yml
-      group: hub-maintenance
-      owner: bamr87
-      scope: loop
-      gate:
-        kind: none
-      default: 'on'
-      state: 'on'
-      verified: false
-      cron: 7 4 * * *
-      note: scheduled since the November review (#726, S0) — the daily fleet-wide checks (g, k); PR and push runs are not a loop and skip them
-      flip: 'no switch yet (§ 17 gap): `gh workflow disable drift-check.yml -R bamr87/bamr87` is the only lever; record it here'
     hub/claude:
       repo: bamr87/bamr87
       workflow: .github/workflows/claude.yml
