@@ -261,3 +261,34 @@ Not changed here, and each a decision of its own:
 - **`RELEASE_PLEASE_TOKEN` in four repos:** `ai-world-view.github.io`, `bash-365-apex`, `bash-365.com` and `year-of-ai.github.io`. Bots on `it-journey`, `zer0-mistakes` and the hub's `amend/` branches still open PRs that wait for approval.
 - **118 references call the hub at `@main`**, and 191 jobs across the fleet have no timeout. The atlas reads only the hub, so neither shows up there.
 
+
+## 2026-11-07 — the hub's own minutes
+
+The billing meter put 11,920 of November's first 11,925 minutes on `bamr87`, the hub, and the analytics showed no hub rows at all, because `actions_analytics.py` reads only the submodule registry. So the hub's minutes were measured directly: all 1,955 hub runs from Nov 1 to Nov 7, jobs fetched for a stratified sample of 709, and per-job minutes rounded up the way billing rounds them.
+
+| Workflow | Event | Runs | Job-minutes | Billed (rounded per job) |
+| --- | --- | --- | --- | --- |
+| `python-tests` | pull_request | 213 | 3,533 | 3,731 |
+| `python-tests` | push | 102 | 756 | 855 |
+| `drift-check` | pull_request + push | 315 | 579 | 741 |
+| `verify` | pull_request | 149 | 441 | 503 |
+| `build-dash` | all | 193 | 444 | 581 |
+| `jev-number` | push + issues | 114 | 308 | 410 |
+| `issue-pipeline` | schedule + dispatch | 11 | 386 | 402 |
+| `markdown-oneline` | pull_request + push | 277 | 44 | 274 |
+| everything else | | 581 | 445 | 697 |
+| **Hub total** | | **1,955** | **6,936** | **8,194** |
+
+**The meter's per-repo split is not a per-repo split.** Up to the meter's fetch (Nov 7 05:40 UTC) the hub measured about 7,900 billed minutes; a sampled measurement of the other 38 active repos (1,785 runs) came to about 4,130; together about 12,050, against the meter's 11,925 account total. The meter puts that whole total under one repository name: all of October went to `lifehacker.dev` while the hub, with 2,090 runs that month, never appeared, and November's only other row, `zer0-mistakes`' 5 minutes, matches the 5 macOS minutes that repo ran. The hub is about two thirds of the fleet's November minutes, not 99%.
+
+**Where the hub's minutes go.** `python-tests` is 58% of them. The Nov 6 shard split cut wall-clock but raised a full run from about 18.7 to 27.1 billed minutes: four setups, a `changes` job and the final `python-tests` job, each rounded up to a whole minute. The larger cost was inside the tests: every file runs under `coverage run`, and coverage's default tracer more than doubled the console, pages and spec files. The test shards now run with `COVERAGE_CORE=sysmon` (Python 3.12's `sys.monitoring`). On `python:3.12` with coverage 7.17, the same files took 930 seconds under the old tracer and 570 under `sysmon` (`test_console` 116 → 50, `test_jev_spec` 62 → 28, `test_jev_loop` 310 → 249, the `rest` shard 214 → 149), and the coverage table was identical (5,758 statements, the same misses). That is about 7 billed minutes off each full run, roughly 2,300 to 2,800 minutes per 14 days at November's volume (estimated). No test, file or gate changed.
+
+Next, by minutes per 14 days, each a change of its own:
+
+- **About 1,300 (new load, not a saving):** `pr-review.yml` started on Nov 7 and runs one ~10-second job, billed as a minute, for each PR workflow that finishes. It already merges pending runs per head SHA; anything more would cost the § 19 contract.
+- **About 900:** cancelled `python-tests` push runs. Merges in quick succession cancel the run before them after all four shards have started.
+- **About 900, once `sysmon` has landed:** two shards instead of four. The serial suite was split because it took 21 minutes, and most of that was the tracer.
+- **About 265:** `jev-conflicts.yml` starts a runner on every push and every six hours only to read `vars.JEV_CONFLICTS_ENABLED`. As a job-level `if:` on `triage`, the check costs nothing, which is the form the atlas rule recommends.
+- **About 230:** the `changes` job also runs on push and on the schedule, where its answer is always "run".
+
+Not costs: the 191 skipped `claude.yml` runs and the 93 skipped `pr-review.yml` runs started no job and billed nothing. Bot data commits carry `[skip ci]` or are pushed with `GITHUB_TOKEN`, so only 6 of the 32 `jev-number` commits started a push suite.
