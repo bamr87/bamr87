@@ -68,7 +68,8 @@ TRACE_RX = re.compile(r"^Traceback \(most recent call last\):")
 EXC_RX = re.compile(r"^(?:[A-Za-z_][\w.]*\.)?[A-Z]\w*(?:Error|Exception|Failure|Exit|Interrupt|Warning)\b.*")
 DETAIL_RX = re.compile(r"(?i)\b(?:found|expected|but|got|duplicate|missing|invalid|unknown|cannot|can't|not found|no such)\b")
 SIGNAL_RX = re.compile(r"(?i)(?:^\s*(?:✗|✖|×|FAIL\b|FAILED\b|FAILURE\b|ERROR\b|E\s{2,}\S|npm (?:ERR!|error)\b|fatal:)"
-                       r"|\b(?:error|failure|failed|denied|refused|exceeded|timed out)\b\s*[:!-])")
+                       r"|\b(?:error|failure|failed|denied|refused|exceeded|timed out)\b\s*[:!-]"
+                       r"|:\d+(?::\d+)?:?\s+(?:error|fatal)\b|\bcommand not found\b|\bis too (?:long|short|large)\b)")
 NOISE_RX = re.compile(r"^(?:Post job cleanup|Cleaning up orphan processes|Temporarily overriding HOME|Adding repository "
                       r"directory|Removing (?:SSH|HTTP|includeIf|credentials)|\[command\]|##\[(?:start|end)-action|Evaluate and set)")
 SECRET_RX = re.compile(r"(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-ant-[A-Za-z0-9_-]{20,}"

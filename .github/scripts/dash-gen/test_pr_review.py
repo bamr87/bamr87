@@ -115,6 +115,12 @@ def test_the_first_error_beats_the_pointer_to_a_log_file():
     assert "ERESOLVE" in P.explain(text, STEP, [])[0]
 
 
+def test_common_error_shapes_are_recognized():
+    for line in ("docs/a.md:100:416 error MD049/emphasis-style Emphasis style", "bash: line 1: bundle: command not found",
+                 "description is too long (maximum is 100 characters)", "src/x.c:12: error: expected ';'"):
+        assert P.explain(log("working", line), STEP, [])[0] == line, line
+
+
 def test_a_specific_annotation_is_used_and_a_generic_one_is_not():
     assert "port 4000" in P.explain(log("error: bind"), STEP, ["port 4000 is taken"])[0]
     assert "Process completed" not in P.explain(log("error: bind"), STEP, ["Process completed with exit code 1."])[0]
