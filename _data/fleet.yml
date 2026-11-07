@@ -707,10 +707,14 @@ jev:
   # The tiers the engine runs ON ITS OWN. tier0 is free and deterministic
   # (regenerate / union / renumber, then merge main in and push a merge
   # commit — never a force-push, never a merge of the PR). tier1 and tier2 buy
-  # a model; they stay off until listed here, and when on they are held to
-  # `budget.jev` ($10/month). Anything above the highest listed tier is
-  # labelled `jev:needs-human` instead.
-  auto_tiers: [tier0]
+  # a model and are held to `budget.jev` ($10/month). Anything above the
+  # highest listed tier is labelled `jev:needs-human` instead.
+  auto_tiers: [tier0, tier1, tier2]
+
+  # Where they run (constitution § 10.9). A CI runner runs only these. A
+  # conflict that needs a model waits, unlabelled, for a local session:
+  # `tools/dash conflicts sweep`. List a model tier here to let CI spend on it.
+  ci_tiers: [tier0]
 
   # The fleet is wider than the submodule registry: these owners' repos are
   # scanned too. (`hub.owners` is the fan-out's write list — a narrower thing.)

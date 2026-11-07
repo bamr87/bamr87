@@ -17,12 +17,14 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools.jev import classify as cls  # noqa: E402
 from tools.jev import conflicts as cf  # noqa: E402
-from tools.jev.common import JevConfig, JevError, git  # noqa: E402
+from tools.jev.common import JevConfig, JevError, TierPolicy, git  # noqa: E402
+from tools.jev.ledger import Ledger, Resolution  # noqa: E402
 
 CFG = JevConfig(allowed_authors=["bamr87", "bamr87-bot"], needs_human_label="jev:needs-human")
 
@@ -431,6 +433,134 @@ def test_the_git_guard_holds_init_and_the_environment_and_pins_the_pack_programs
         plain = ["git", "-c", "core.hooksPath=/dev/null", "push", "-q", "origin", "HEAD:refs/heads/y"]
         assert subprocess.run(plain, cwd=work, stdin=subprocess.DEVNULL, capture_output=True).returncode == 0
         assert marker.exists() and not alive(), "the probe's receive-pack never ran under plain git"
+
+
+class Stage:
+    """Stands in for the parts of resolve() that need GitHub or a model."""
+
+    def __init__(self, tier: str, ci: bool, tier0_works: bool = False):
+        self.tier, self.ci, self.tier0_works = tier, ci, tier0_works
+        self.calls: list[str] = []
+
+    def __enter__(self):
+        stage = self
+        ws = SimpleNamespace(merge_failed=False, conflicted=[], path=Path("."), cleanup=lambda: None)
+        ws.merge_failed = True
+        triage = SimpleNamespace(tier=self.tier, reason="fixture", file_count=1, line_count=3, report=lambda: "report")
+        self.saved = {n: getattr(cf, n) for n in ("trial_merge", "resolve_tier0", "resolve_with_model", "validate",
+                                                  "commit_and_push", "escalate", "gate_for_review", "git")}
+        self.classify = cf.cls.classify
+        self.env = os.environ.get("GITHUB_ACTIONS")
+        cf.trial_merge = lambda *a, **k: ws
+        cf.cls.classify = lambda *a, **k: triage
+        cf.resolve_tier0 = lambda *a, **k: (stage.tier0_works, "tier0 detail")
+        cf.resolve_with_model = lambda c, w, t, tier: (stage.calls.append(f"model:{tier}") or (True, 0.1, "m", "done"))
+        cf.validate = lambda p: (True, [])
+        cf.commit_and_push = lambda w, m: (stage.calls.append("push") or (True, "pushed"))
+        cf.escalate = lambda *a, **k: stage.calls.append("escalate")
+        cf.gate_for_review = lambda p, t: stage.calls.append(f"gate:{t}")
+        cf.git = lambda *a, **k: ""
+        os.environ.pop("GITHUB_ACTIONS", None)
+        if self.ci:
+            os.environ["GITHUB_ACTIONS"] = "true"
+        return self
+
+    def __exit__(self, *exc):
+        for n, v in self.saved.items():
+            setattr(cf, n, v)
+        cf.cls.classify = self.classify
+        os.environ.pop("GITHUB_ACTIONS", None)
+        if self.env is not None:
+            os.environ["GITHUB_ACTIONS"] = self.env
+
+
+STAGED = JevConfig(enabled=True, allowed_authors=["bamr87"], auto_tiers=["tier0", "tier1", "tier2"], ci_tiers=["tier0"],
+                   tiers={"tier1": TierPolicy("tier1", max_usd=0.25, model="m"), "tier2": TierPolicy("tier2", max_usd=1.5, model="m")},
+                   monthly_usd=10.0)
+
+
+def staged(stage: Stage, **kw):
+    with stage:
+        return cf.resolve(STAGED, pr(author="bamr87", head_repo="bamr87/demo", repo="bamr87/demo"), ledger=Ledger(path=Path("/nonexistent")), **kw)
+
+
+def test_ci_never_spends_on_a_model_and_leaves_the_conflict_unlabelled():
+    stage = Stage(cls.TIER1, ci=True)
+    res = staged(stage)
+    assert res.outcome == "deferred" and "local session" in res.reason, res
+    assert stage.calls == [], "no model, no push, no label: it isn't a human's yet"
+
+
+def test_a_local_session_runs_the_model_and_gates_the_result_for_review():
+    stage = Stage(cls.TIER1, ci=False)
+    res = staged(stage)
+    assert res.outcome == "resolved" and stage.calls == ["model:tier1", "push", "gate:tier1"], stage.calls
+
+
+def test_a_dry_run_says_which_model_it_would_run():
+    stage = Stage(cls.TIER1, ci=False)
+    res = staged(stage, dry_run=True)
+    assert res.outcome == "dry-run" and "would run" in res.reason, res
+    assert stage.calls == [], "a dry run calls no model and pushes nothing"
+
+
+def test_a_script_resolution_needs_no_review_gate():
+    stage = Stage(cls.TIER0, ci=True, tier0_works=True)
+    res = staged(stage)
+    assert res.outcome == "resolved" and stage.calls == ["push"], stage.calls
+
+
+def test_ci_defers_when_the_script_tier_could_not_finish():
+    stage = Stage(cls.TIER0, ci=True, tier0_works=False)
+    res = staged(stage)
+    assert res.outcome == "deferred" and "escalate" not in stage.calls, stage.calls
+
+
+def test_a_conflict_past_every_tier_still_goes_to_a_person_on_any_host():
+    for ci in (True, False):
+        stage = Stage(cls.TIER3, ci=ci)
+        assert staged(stage).outcome == "escalated" and stage.calls == ["escalate"], stage.calls
+
+
+def test_the_tiers_a_host_may_run():
+    cfg = JevConfig(auto_tiers=["tier0", "tier1"], ci_tiers=["tier0"])
+    saved = os.environ.pop("GITHUB_ACTIONS", None)
+    try:
+        assert cfg.tiers_here() == ["tier0", "tier1"]
+        os.environ["GITHUB_ACTIONS"] = "true"
+        assert cfg.tiers_here() == ["tier0"]
+    finally:
+        os.environ.pop("GITHUB_ACTIONS", None)
+        if saved is not None:
+            os.environ["GITHUB_ACTIONS"] = saved
+
+
+def test_a_sweep_survives_one_pull_request_failing():
+    prs = [pr(number=1), pr(number=2)]
+    saved_scan, saved_resolve = cf.scan, cf.resolve
+    seen = []
+
+    def resolve(cfg, one, **kw):
+        if one.number == 1:
+            raise JevError("unreachable")
+        seen.append(one.number)
+        return Resolution(repo=one.repo, pr=one.number, tier="tier0", outcome="resolved", cost_source="no-spend")
+
+    cf.scan, cf.resolve = (lambda c, r: prs), resolve
+    try:
+        tally = cf.sweep(STAGED, None, ledger=Ledger(path=Path("/nonexistent")), say=lambda _l: None)
+    finally:
+        cf.scan, cf.resolve = saved_scan, saved_resolve
+    assert seen == [2] and tally == {"error": 1, "resolved": 1}, tally
+
+
+def test_a_local_ledger_stays_out_of_the_tracked_file():
+    with tempfile.TemporaryDirectory() as d:
+        os.environ["JEV_LEDGER"] = f"{d}/local.yml"
+        try:
+            assert Ledger.load().path == Path(f"{d}/local.yml")
+        finally:
+            del os.environ["JEV_LEDGER"]
 
 
 def test_a_fork_branch_is_never_eligible_however_trusted_the_author():
