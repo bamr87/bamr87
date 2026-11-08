@@ -1868,3 +1868,72 @@
   source: manual
   created: 2026-11-06
   issue_url: https://github.com/bash-365/bash-365.com/issues/81
+
+- id: FF-0046
+  title: 'Agentic harness efficacy: truthful measurement, health checks, governance and a learning loop
+    for every AI agent and workflow'
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P1
+  effort: XL
+  category: infra
+  problem: 'The harness health checks cannot tell whether the fleet''s AI agents and agentic workflows
+    work, what they cost or whether they improve. A console review and five CI deep dives on 2026-11-07
+    found several problems. Measurement is wrong and nothing notices: the Actions analytics omit the hub
+    (about two thirds of November''s minutes), stop at 600-1,000 runs per repo and time whole runs, undercounting
+    2-4x. The billing meter files the account total under one repo name. The hub''s CI agent loops read
+    $0 in the lake (#771). conformance.yml had no writer, and features_index.yml covers only the hub.
+    Agents failed silently: the JEV conflict model tier could never edit (0 of 5, $2.27; #764), and 13
+    of 20 harness attention items were false (#765). Local sessions are about 99% of AI spend ($2,731
+    API-equivalent in 7 days) and invisible to the health checks; 596 tool calls failed in a week (#770).
+    The learning loop never turned: the experience library was empty (#769), no reflector existed, and
+    the session import had no schedule. No contract says what an agent must report, what efficacy it must
+    meet, or who keeps its data fresh.'
+  proposal: 'Six phases, tracked in epic bamr87/bamr87#773. E0 (#774): governance. An agentic efficacy
+    contract (amendment plus ADR): every agent is in one inventory and writes one run record per call.
+    Each agent declares its efficacy KPIs and thresholds in fleet.yml, names its data sources with a writer
+    and a freshness SLO, feeds the reflector, and has a local entry point. E1 (#775): truthful measurement.
+    Analytics include the hub, are uncapped and count per-job minutes. Collector double counts and lake
+    blind spots are fixed, conformance and the features index get a scheduled writer, and a parity report
+    checks totals against their sources. E2 (#776): an agentic layer in harness_health with trip wires
+    for source freshness, measurement coverage, unknown cost, effectiveness floors, silent agents, tool-error
+    and denial ceilings, learning-loop and local-job liveness, and false-signal rate, each in shadow for
+    14 days first. E3 (#777): efficacy scoring, outcomes per agent, tier, dollar and minute. E4 (#778):
+    the learning loop: the reflector on a schedule, lessons that reach CI agents, and measured lesson
+    verdicts. E5 (#779): one console Agents view with § 11-gated controls, and the contract fanned out
+    to the fleet.'
+  acceptance:
+  - E0's amendment and ADR merged; every agent known on 2026-11-07 is in the inventory, and the drift
+    gate fails on an unregistered one.
+  - Actions minutes from the analytics within 5% of the billing meter's account total; CI agent cost within
+    5% of the claude-cost result lines; no committed fleet signal without a scheduled writer.
+  - harness_health carries an agentic layer, and replaying 2026-11-07's data trips the wires that day's
+    incidents should have tripped (conformance 17 days stale, conflict tier 0 of 5, hub missing from analytics,
+    hub CI cost $0, Edit failing 13%, the false credential wire).
+  - 30-day efficacy per loop step, issue-pipeline tier and conflict tier, reconciled with E1.
+  - A reflector-filed lesson reaches the next CI doctor run's prompt; at least 3 lessons have a measured
+    verdict after 30 days.
+  - Every inventoried agent is visible in one console view; pause, resume and cap changes go through the
+    § 11 confirm.
+  scope:
+    in:
+    - the hub's measurement collectors, lake and harness health generator
+    - the agent inventory, the efficacy contract and its ADR
+    - the reflector schedule and the experience library
+    - a console Agents view and MCP tools
+    - a kit and conformance rule fanning the contract out to the fleet
+    out:
+    - CI typed decisions and the trim/verify loops (#737)
+    - the Workflow Studio's catalog and change sets (#719)
+    - automatic tuning of any threshold, cap or routing without a gated PR
+  risks:
+  - 'Governance is gated: E0 waits on the maintainer''s ratification, and E2-E5 read its contract.'
+  - 'Overlap with #737 A1/A3 and #719: consume their traces and views, don''t rebuild them.'
+  - Local sessions dominate spend but run on one Mac; liveness and freshness checks must tolerate a sleeping
+    host.
+  - The reflector and scoring spend model budget; every call is capped inside budget.loops and labelled
+    API-equivalent (estimate).
+  source: session
+  created: 2026-11-07
+  issue_url: https://github.com/bamr87/bamr87/issues/773
