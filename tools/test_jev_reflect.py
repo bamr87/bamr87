@@ -42,6 +42,7 @@ HUB = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HUB))
 
 from tools.jev import common  # noqa: E402
+from tools.jev import headless as H  # noqa: E402
 from tools.jev import library as L  # noqa: E402
 from tools.jev import loop as E  # noqa: E402
 from tools.jev import refine as R  # noqa: E402
@@ -472,14 +473,24 @@ class Box:
 
 
 @contextlib.contextmanager
-def world(box: Box, **extra):
+def world(box: Box, *, sandbox: bool = True, **extra):
+    """Point the engine at the box: env, and — as test_jev_loop's world does —
+    the host's sandbox check (P1's posture is Seatbelt, so on a Linux runner
+    `loop.sandbox_available()` is False and every host check would refuse) and
+    the private read denies (kept in the box, never this account's temp roots).
+    Everything is restored after."""
     saved = {k: os.environ.get(k) for k in [*box.env, *extra, "ANTHROPIC_API_KEY"]}
+    saved_fns = (E.sandbox_available, H.private_read_paths)
     os.environ.update(box.env)
     os.environ.update({k: str(v) for k, v in extra.items()})
     os.environ.pop("ANTHROPIC_API_KEY", None)
+    E.sandbox_available = lambda: sandbox
+    (box.root / "private").mkdir(exist_ok=True)
+    H.private_read_paths = lambda work=None: (str(box.root / "private"),)
     try:
         yield box
     finally:
+        E.sandbox_available, H.private_read_paths = saved_fns
         for k, v in saved.items():
             if v is None:
                 os.environ.pop(k, None)
@@ -602,6 +613,19 @@ def test_a_live_reflection_needs_the_probe_and_canary_then_runs_one_capped_sessi
         code, out = cli(*_lake_args(box))
         _rec, record = latest(box)
         assert code == 0 and record["status"] == "usage-limited", record
+
+
+def test_a_host_with_no_sandbox_refuses_before_the_probe_and_the_model():
+    box = Box()
+    with world(box, sandbox=False):
+        code, rep = doctor(box)
+        assert code == E.EXIT["host_unsafe"] and rep["probe"].startswith("not run"), rep
+        assert any("no sandbox here" in p for p in rep["problems"]), rep
+        box.scenario({"kind": "reflect", "final": proposals_final(cand())})
+        code, _out = cli(*_lake_args(box))
+        _rec, record = latest(box)
+        assert code == E.EXIT["host_unsafe"] and record["status"] == "host-refused" and record["spent"] is False
+        assert box.lines("live.jsonl") == [] and box.lines("probed.jsonl") == [] and box.ledger_rows() == []
 
 
 def test_the_read_fence_canary_fails_on_a_leak_and_never_caches_a_pass():
