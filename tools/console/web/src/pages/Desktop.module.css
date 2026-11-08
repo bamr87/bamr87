@@ -307,3 +307,12 @@ a.pill:hover { color: var(--os-ink); border-color: var(--os-muted); }
   background: var(--os-surface);
 }
 .sheet .winHead { cursor: default; }
+
+/* Where the context menu hangs from: the point it was asked for. */
+.menuAnchor {
+  position: fixed;
+  left: var(--mx);
+  top: var(--my);
+  width: 0;
+  height: 0;
+}

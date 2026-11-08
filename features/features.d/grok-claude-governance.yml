@@ -1,7 +1,7 @@
 id: HUB-NEW
 slug: grok-claude-governance
 title: "Grok ↔ Claude Code governance: handoff, audit trail, roles, escalation"
-description: "Constitution § 28 (depends on § 26 claude-code-executes): Grok bots hand off software/console work via a Fleet issue or console job that states the requirement and links the ratified governing amendment; Claude Code executes; Grok reviews the result for alignment with direction before merge. Every PR carries a Governed by: line traced to an amendment or PRD requirement (warn-then-fail lint). If Claude Code is unavailable, work stops until Amr approves an alternative. Roadmap FF-0043."
+description: "Constitution § 28 (depends on § 26 claude-code-executes): Grok bots hand off software/console work via a Fleet issue or console job that states the requirement and links the ratified governing amendment; Claude Code executes; Grok reviews the result for alignment with direction before merge. Every PR carries a Governed by: line traced to an amendment or PRD requirement (warn-then-fail lint). If Claude Code is unavailable, work stops until Amr approves an alternative. Roadmap FF-NEW:grok-claude-governance."
 implemented: false
 status: planned
 surface: infra

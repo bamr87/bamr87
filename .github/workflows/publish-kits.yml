@@ -53,8 +53,8 @@ jobs:
           # ^22.12), and npm 10.8.2 on Node 20 crashes resolving it ("Cannot
           # read properties of null (reading 'edgesOut')") instead of reporting
           # the engine mismatch. The current LTS, as in console-web.yml and
-          # fleet-engines-contract.yml (#356).
-          node-version: lts/*
+          # fleet-engines-contract.yml (#356), as a number (atlas rule node-alias).
+          node-version: '26'
           registry-url: https://registry.npmjs.org
 
       - name: Pack and publish every templates/*/package.json

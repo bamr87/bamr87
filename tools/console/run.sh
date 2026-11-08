@@ -27,6 +27,8 @@ ROOT="$(cd "$HERE/../.." && pwd)"
 VENV="${CONSOLE_VENV:-$ROOT/.venv-console}"
 HOST="${CONSOLE_HOST:-127.0.0.1}"
 PORT="${CONSOLE_PORT:-4001}"
+# A PYTHONPATH from the shell (e.g. the dash's site-packages) would shadow the venv's packages.
+unset PYTHONPATH
 
 if [[ ! -x "$VENV/bin/python" ]]; then
   echo "console: creating virtualenv at $VENV"

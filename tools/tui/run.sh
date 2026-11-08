@@ -13,6 +13,8 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 VENV="${TUI_VENV:-$ROOT/.venv-tui}"
+# A PYTHONPATH from the shell (e.g. the dash's site-packages) would shadow the venv's packages.
+unset PYTHONPATH
 
 if [[ ! -x "$VENV/bin/python" ]]; then
   echo "tui: creating virtualenv at $VENV"

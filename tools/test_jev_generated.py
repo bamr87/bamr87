@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Fixture tests for tools/jev/generated.py — the main-only generated-file guard —
-and the `jev.auto_tiers` switch that keeps the conflict engine at tier 0.
+and the `jev.ci_tiers` switch that keeps CI at tier 0.
 
 Run: python3 tools/test_jev_generated.py
 """
@@ -76,7 +76,8 @@ def test_auto_tiers() -> None:
     fleet = yaml.safe_load((ROOT / "_data/fleet.yml").read_text())
     jev = fleet["jev"]
     assert jev["enabled"] is True
-    assert jev["auto_tiers"] == ["tier0"], "AI tiers stay off"
+    assert jev["auto_tiers"] == ["tier0", "tier1", "tier2"]
+    assert jev["ci_tiers"] == ["tier0"], "CI never spends on a model: those tiers run in a local session (§ 10.9)"
 
 
 def main() -> int:

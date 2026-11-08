@@ -5,7 +5,7 @@
 - **Date:** 2026-11-05
 - **Proposed by:** Grok Bot (agent), on Amr's instruction as owner
 - **Ratified by:**
-- **Affects:** constitution § 28 (new; follows proposed § 25 `mcp-lifecycle` #685, § 26 `claude-code-executes` #686, § 27 `expedite-sprints` #693 — **may be renumbered depending on merge order**); § 4 and § 26 by reference; feature `HUB-NEW:grok-claude-governance`; requirements `FR-NEW:grok-claude-handoff`, `FR-NEW:change-traceability`; roadmap FF-0043; `AGENTS.md` agent roles; `.github/pull_request_template.md`
+- **Affects:** constitution § 28 (new; follows proposed § 25 `mcp-lifecycle` #685, § 26 `claude-code-executes` #686, § 27 `expedite-sprints` #693 — **may be renumbered depending on merge order**); § 4 and § 26 by reference; feature `HUB-NEW:grok-claude-governance`; requirements `FR-NEW:grok-claude-handoff`, `FR-NEW:change-traceability`; roadmap FF-NEW:grok-claude-governance; `AGENTS.md` agent roles; `.github/pull_request_template.md`
 - **Supersedes:** none (builds on `claude-code-executes`)
 - **Depends on:** open PR [#686](https://github.com/bamr87/bamr87/pull/686) `claude-code-executes` (§ 26) — **not merged as of 2026-11-05**. This amendment assumes § 26's actor split; if #686 is changed or rejected, this text must be revised before ratification.
 - **Related:** #685, #693 (pending sections); § 8 (agents propose, Amr ratifies); § 10 (Fleet project tracking); § 11 (plan → confirm → apply)
@@ -62,5 +62,5 @@
 - Handoffs carry a requirement, acceptance criteria and a ratified governing link.
 - PRs carry a `Governed by:` line; a warn-only lint checks it.
 - `AGENTS.md` agent roles gain the handoff/review/escalation flow.
-- Predicted ids at merge (main tip 2026-11-05, assuming #685/#686/#693 merge first): amendment **0027**, HUB-**087**, FR**87**/FR**88**, § **28**, roadmap **FF-0043** (FF-0040/41/42 claimed by #685/#686/#693; no FF-NEW auto-numbering on main yet — collision risk if another open PR takes FF-0043).
+- Predicted ids at merge (main tip 2026-11-05, assuming #685/#686/#693 merge first): amendment **0027**, HUB-**087**, FR**87**/FR**88**, § **28**, roadmap `FF-NEW:grok-claude-governance` (FF-NEW:grok-claude-governance went to another entry on main; the fragment is numbered at merge).
 - Ratification: Amr ratifies by merging this PR; agents propose, never merge (§ 8).

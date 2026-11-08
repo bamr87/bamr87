@@ -1,0 +1,28 @@
+# ADR 0005 D1: context menus on the bashOS desktop, and an app's live site and local stack opened side by side in one action.
+id: desktop-context-menu
+feature: HUB-079
+title: "An icon and a title bar have a context menu, and one action puts Live beside Local"
+description: "Right-click an app's icon, or press Shift+F10 on it, for open, open beside, Live beside Local, a new tab and a link. Live beside Local opens two windows, each filling a half, one on each target. A window's title bar offers the same, by right-click or its button, and Escape closes a menu without leaving the desktop. Desktop width only: a phone has one app at a time."
+viewports: [desktop]
+ignore_console: ["Failed to load resource", "net::ERR_"]
+steps:
+  - goto: /desktop
+  - expect: { status: 200 }
+  - wait: { selector: "nav[aria-label='Apps'] button:has-text('it-journey')" }
+  - eval: { name: focus_icon, script: "[...document.querySelectorAll(\"nav[aria-label='Apps'] button\")].find((b) => b.innerText.includes('it-journey')).focus()" }
+  - press: "Shift+F10"
+  - wait: { selector: "role=menuitem[name='Live beside Local']" }
+  - expect: { count: { selector: "role=menuitem", min: 5 } }
+  - press: Escape
+  - expect: { url: "/desktop" }
+  - eval: { name: focus_returned, script: "(async () => { await new Promise((r) => setTimeout(r, 300)); const t = document.activeElement.innerText; if (!t.includes('it-journey')) throw new Error(`focus went to: ${t}`); return t; })()" }
+  - press: "Shift+F10"
+  - click: "role=menuitem[name='Live beside Local']"
+  - wait: { selector: "[data-window-id][data-snapped='right']" }
+  - eval: { name: both_targets, script: "(() => { const head = (edge) => document.querySelector(`[data-window-id][data-snapped='${edge}'] header`).innerText; const left = head('left'); const right = head('right'); if (!left.includes('Live') || !right.includes('Local')) throw new Error(`${left} / ${right}`); return `${left} / ${right}`.replace(/\\n/g, ' '); })()" }
+  - click: "[data-window-id][data-snapped='right'] button[aria-label^='Window menu for']"
+  - wait: { selector: "role=menuitem[name='Copy link']" }
+  - expect: { count: { selector: "role=menuitem", min: 6 } }
+  - screenshot: live-beside-local-menu
+  - press: Escape
+  - expect: { no_horizontal_scroll: true }

@@ -85,7 +85,7 @@ export function DeepDive() {
             <>
               <SimpleGrid cols={{ base: 2, md: 4 }} spacing="sm" mb="md">
                 <StatTile label={`Cycle ${s.cycle} progress`} value={`${done}/${repos.length}`} sub={`${s.cycle_start} → ${s.cycle_end} · ${s.cycle_days} days`}
-                  meter={<Progress value={repos.length ? (100 * done) / repos.length : 0} size="sm" />} />
+                  meter={<Progress value={repos.length ? (100 * done) / repos.length : 0} size="sm" aria-label={`${done} of ${repos.length} repos done this cycle`} />} />
                 <StatTile label={`Today · day ${t.day}/${s.cycle_days}`} value={t.repo ?? '—'} sub={t.kind} />
                 <StatTile label="Last processed" value={s.last ?? '—'} sub={s.last_date ? `on ${s.last_date}` : 'nothing recorded yet'} />
                 <StatTile label="Next" value={n.repo ?? '—'} sub={`${n.kind} · avg score ${s.avg_score ?? '—'} · ${s.open_issues ?? 0} issues / ${s.open_prs ?? 0} PRs open`} />

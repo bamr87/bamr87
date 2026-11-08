@@ -144,7 +144,7 @@
       ],
       "github": "https://github.com/bash-365/bash-365.com",
       "startDate": "",
-      "url": "https://bash-365.com/",
+      "url": "https://www.bash-365.com/",
       "featured": false,
       "fleet_status": "active"
     },
@@ -332,6 +332,7 @@
     {
       "category": "Open-Source & Fleet Stacks",
       "skills": [
+        "accounting",
         "agents",
         "ai",
         "android",
@@ -380,6 +381,7 @@
         "langgraph",
         "latex",
         "lsm-tree",
+        "manufacturing",
         "markdown",
         "mcp",
         "mkdocs",
@@ -410,6 +412,7 @@
         "sast",
         "security",
         "shell",
+        "statistics",
         "terraform",
         "tui",
         "typescript",

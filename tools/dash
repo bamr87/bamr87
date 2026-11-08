@@ -59,6 +59,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash estimate${c_off}          draft client-engagement estimates from open issues → _data/engagements.yml
   ${c_bold}dash projects [inventory|plan|apply]${c_off} the issue-triage + Fleet-board backfill pass (constitution § 10/§ 11): \`inventory\` counts open work per repo; \`plan [--board]\` compiles _data/projects_backfill.yml into § 11 ops and previews before → after with plan ids (GraphQL for the board, skipped where unreachable); \`apply FILE --confirm\` writes through the service, only with HARNESS_PROJECTS_WRITES=1 (docs/PROJECTS-FRAMEWORK.md § 3b)
   ${c_bold}dash pm [review|plan|roadmap|releases|status]${c_off} the routine PM review (docs/PM.md), read-only: \`review\` reads every open issue and PR of the registry repos, their pull-request state, recent comments, releases and the Fleet project, and reports what is out of line with the project, the roadmap and each release train; \`plan\` prints the Fleet project ops as before → after (applied by \`dash projects apply\`, § 11); \`roadmap [--write]\` the status edits for _data/roadmap.yml (working tree only); \`releases\` the release train; \`status\` the committed snapshot's headline
+  ${c_bold}dash conflicts [scan|triage|resolve|sweep|budget]${c_off} resolve merge conflicts in a local session: \`sweep\` runs every conflicting PR up the tiers, script first, then a capped model; never merges (docs/JEV.md)
   ${c_bold}dash ledger${c_off}            accrue engagement actuals + variance from usage evidence (/engagements/ portal)
   ${c_bold}dash lake [sync|sessions|review|status|export]${c_off} the local data lake — \`sync\` extracts GitHub runs/jobs/steps/logs/issues/workflows/.factory into .dash-lake/fleet.sqlite; \`sessions\` extracts this machine's Claude Code transcripts; \`review\` analyzes BOTH planes offline; \`status\` reports it; \`export [--local] [--dry-run]\` ships OpenInference traces to Phoenix (:6006; docs/HARNESS-OPS.md)
   ${c_bold}dash content [sync|report|plan|brief|file|trace]${c_off} the CONTENT ATLAS — \`sync\` extracts the fleet.yml \`content.sites\` (lifehacker.dev, it-journey, …) into the lake; \`report\` shows topics/activity/aging/hygiene/pillar coverage + suggestions; \`plan\` approves/rejects directives in _data/editorial.yml; \`brief\` renders a site's brief; \`file [--apply]\` opens approved directives as issues in the site's repo; \`trace [--apply]\` reads back the pull request that answers each filed directive (docs/CONTENT-ATLAS.md)
@@ -350,6 +351,17 @@ cmd_loop() {
   # JEV_CALLER_CWD lets a relative --plan-file mean the caller's directory.
   local caller="${PWD}"
   (cd "${ROOT}" && JEV_CALLER_CWD="${caller}" "${PY}" -m tools.jev loop "$@")
+}
+
+cmd_conflicts() {
+  # JEV's conflict engine in a local session (docs/JEV.md, constitution § 10.9).
+  # It writes its ledger beside the other local run records, because the tracked
+  # _data/jev_resolutions.yml belongs to CI's publish step. The engine validates
+  # with the repo's own gates, which run python3, so that must import PyYAML.
+  local bin=""
+  [[ "${PY}" == */* ]] && bin="$(dirname "${PY}"):"
+  (cd "${ROOT}" && PATH="${bin}${PATH}" PYTHON="${PY}" \
+    JEV_LEDGER="${JEV_LEDGER:-${ROOT}/.fleet/runs/jev_resolutions.yml}" "${PY}" -m tools.jev conflicts "$@")
 }
 
 cmd_refine() {
@@ -974,6 +986,7 @@ main() {
     evolve)  cmd_evolve "$@" ;;
     scout)   cmd_scout "$@" ;;
     loop)    cmd_loop "$@" ;;
+    conflicts) cmd_conflicts "$@" ;;
     refine)  cmd_refine "$@" ;;
     ai)      cmd_ai "$@" ;;
     doctor)  cmd_doctor "$@" ;;

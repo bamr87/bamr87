@@ -91,7 +91,8 @@ def test_argv_shapes_are_exact_and_never_shell():
     for op_id in core.OPS:
         if op_id in ("tests", "refine-evidence", "assist"):   # need an item / a question (their own test below)
             continue
-        argv, _ = core.build_argv(op_id, {"target": "alpha", "workflow": "fleet-pulse", "fields": {},
+        # a dev-stack op takes a project from the port registry, not any name
+        argv, _ = core.build_argv(op_id, {"target": "gitorio" if op_id.startswith("dev-") else "alpha", "workflow": "fleet-pulse", "fields": {},
                                           "kind": "gate", "id": "doc-check", "loop": first["loop"],
                                           "step": first["step"]})
         assert all(isinstance(a, str) for a in argv) and "bash" not in argv[0], (op_id, argv)
@@ -170,6 +171,35 @@ def test_workflow_routes_atlas_lint_and_scaffold():
     assert r.status_code == 400 and "kind" in r.json()["detail"]
     h = client.get("/api/workflows/health", params={"days": 7}).json()
     assert "present" in h and isinstance(h["workflows"], list)
+
+
+def test_a_dev_stack_op_names_one_project_from_the_port_registry():
+    """The Apps page starts a project's stack. Only a compose-hosted project in
+    _data/ports.yml: never the hub (`dash dev up hub` starts a second core that
+    collides with the running one), never --all, nothing a request invents."""
+    known = core.stack_projects()
+    assert "gitorio" in known and "bamr87" not in known and "cv-pro" not in known, known
+    assert core.build_argv("dev-up", {"target": "gitorio"}) == ([core.DASH, "dev", "up", "gitorio"], False)
+    assert core.build_argv("dev-down", {"target": "gitorio"}) == ([core.DASH, "dev", "down", "gitorio"], False)
+    assert core.build_argv("dev-logs", {"target": "gitorio"}) == ([core.DASH, "dev", "logs", "gitorio", "--once"], False)
+    for op in ("dev-up", "dev-down", "dev-logs"):
+        for bad in ("bamr87", "hub", "--all", "cv-pro", "no-such", "", "gitorio; rm -rf /", "../gitorio"):
+            try:
+                core.build_argv(op, {"target": bad})
+            except ValueError:
+                continue
+            raise AssertionError(f"{op} accepted {bad!r}")
+    listed = {o["id"]: o for o in core.list_ops()}
+    assert not listed["dev-up"]["remote_write"] and listed["dev-up"]["exclusive"] == "stack", listed["dev-up"]
+    assert core._exclusive_key("dev-up", {"target": "gitorio"}) == core._exclusive_key("dev-down", {"target": "gitorio"})
+    assert core._exclusive_key("dev-up", {"target": "gitorio"}) != core._exclusive_key("dev-up", {"target": "law-ai"})
+    assert core.OPS["dev-logs"].get("exclusive") is None, "reading logs must not wait on a start"
+    # every local target the launcher offers can be started by these operations
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from fleetcore import apps as fapps
+    doc = fapps.apps_view(core.REPO_ROOT)
+    local = [t for r in doc["apps"] for t in r["targets"] if t["kind"] == "local"]
+    assert local and all(t["project"] in known for t in local), "a Local target names a project dev-up refuses"
 
 
 def test_lake_ops_argv_shapes_and_status_document():
@@ -630,13 +660,14 @@ def test_docker_ops_say_why_they_cannot_run_instead_of_failing():
     Now the op is reported unavailable with the host command to use, and a
     submit is refused with the same reason — never started to fail."""
     needs = {k for k, v in core.OPS.items() if v.get("needs") == "docker"}
-    assert needs == {"observe-up", "observe-down", "observe-reset"}, needs
+    assert needs == {"observe-up", "observe-down", "observe-reset", "dev-up", "dev-down", "dev-logs"}, needs
     saved = dict(core._DOCKER_CHECK)
     tmp = Path(tempfile.mkdtemp())
     try:
         core._DOCKER_CHECK.update(at=time.time(), reason="no Docker daemon is reachable")
         ops = {o["id"]: o for o in core.list_ops()}
         assert "tools/dash observe up" in ops["observe-up"]["unavailable"], ops["observe-up"]
+        assert "tools/dash dev up <project>" in ops["dev-up"]["unavailable"], ops["dev-up"]
         assert ops["status"]["unavailable"] is None, "an op that needs no docker was blocked"
         try:
             core.JobManager(tmp).submit("observe-up", {})
@@ -807,6 +838,8 @@ def test_state_document_degrades_without_signals(monkeypatch_dir=None):
     for key in ("sources", "contract", "registry", "harnesses", "loops", "git", "usage", "tokens"):
         assert key in state, key
     assert state["registry"]["count"] > 0
+    # `inbox` is the Overview's preview; the sidebar's count reads the whole list.
+    assert len(state["triage"]["inbox"]) <= 20 and state["triage"]["inbox_total"] >= len(state["triage"]["inbox"])
     assert all("cron_human" in loop for loop in state["loops"])
     # a token list never carries values — only names/scope/placement
     assert all(set(t) <= {"name", "scope", "required", "deprecated", "used_by"} for t in state["tokens"])

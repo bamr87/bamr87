@@ -4,7 +4,7 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import {
-  Alert, Anchor, Badge, Box, Breadcrumbs, ColorSwatch, Group, Loader, Paper, Progress, Skeleton, Stack, Text, Title, Tooltip,
+  Alert, Anchor, Badge, Box, Breadcrumbs, Button, ColorSwatch, Group, Loader, Paper, Progress, Skeleton, Stack, Text, Title, Tooltip,
   VisuallyHidden,
 } from '@mantine/core';
 import { IconAlertTriangle, IconExternalLink, IconInfoCircle } from '@tabler/icons-react';
@@ -13,6 +13,7 @@ import type { Level } from '../api/types';
 import { to } from '../lib/links';
 import { repoName } from '../lib/format';
 import { toneColor, type Tone } from '../theme';
+import { usePageTitle } from './pageTitle';
 import u from '../styles/utils.module.css';
 
 export type { Tone } from '../theme';
@@ -96,6 +97,7 @@ export interface Crumb {
 export function PageHeader({
   title, description, crumbs, actions, badges,
 }: { title: ReactNode; description?: ReactNode; crumbs?: Crumb[]; actions?: ReactNode; badges?: ReactNode }) {
+  usePageTitle(typeof title === 'string' ? title : undefined);
   return (
     <Stack gap={6} mb="lg">
       {crumbs?.length ? (
@@ -107,7 +109,7 @@ export function PageHeader({
       ) : null}
       <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm">
         <Group gap="sm" align="center" wrap="wrap">
-          <Title order={2} fz={22}>{title}</Title>
+          <Title order={1} fz={22}>{title}</Title>
           {badges}
         </Group>
         {actions ? <Group gap="xs" wrap="wrap">{actions}</Group> : null}
@@ -123,7 +125,7 @@ export function Section({
   return (
     <Box mt={mt}>
       <Group justify="space-between" align="flex-end" mb={description ? 4 : 8} wrap="wrap" gap="xs">
-        <Title order={3} fz={15}>{title}</Title>
+        <Title order={2} fz={15}>{title}</Title>
         {actions ? <Group gap="xs" wrap="wrap">{actions}</Group> : null}
       </Group>
       {description ? <Text size="sm" c="dimmed" mb="sm" maw={900}>{description}</Text> : null}
@@ -167,17 +169,38 @@ export function Mono({ children, dim }: { children: ReactNode; dim?: boolean }) 
   return <Text span ff="monospace" fz={12.5} c={dim ? 'dimmed' : undefined} className={u.anywhere}>{children}</Text>;
 }
 
-/** Loading / error states for one query; renders children only with data. */
+function Retry({ q }: { q: UseQueryResult<unknown> }) {
+  return <Button size="compact-xs" variant="default" loading={q.isFetching} onClick={() => void q.refetch()}>Try again</Button>;
+}
+
+/** Loading / error states for one query; renders children whenever there is data. */
 export function Load<T>({ q, children, rows = 4 }: { q: UseQueryResult<T>; children: (data: T) => ReactNode; rows?: number }) {
-  if (q.isError) return <Banner tone="crit" title="Could not load">{(q.error as Error).message}</Banner>;
   if (q.data === undefined) {
+    if (q.isError) {
+      const missing = (q.error as { status?: number }).status === 404;
+      return (
+        <Banner tone={missing ? 'warn' : 'crit'} title={missing ? 'Not found' : 'Could not load'}>
+          <Group gap="sm" justify="space-between"><Text size="sm">{(q.error as Error).message}</Text>{missing ? null : <Retry q={q} />}</Group>
+        </Banner>
+      );
+    }
     return (
-      <Stack gap="xs">
+      <Stack gap="xs" aria-busy role="status" aria-label="Loading">
         {Array.from({ length: rows }, (_, i) => <Skeleton key={i} h={28} />)}
       </Stack>
     );
   }
-  return <>{children(q.data)}</>;
+  // A failed refresh does not take away what was already on the page.
+  return (
+    <>
+      {q.isError ? (
+        <Banner tone="warn" title="Showing the last answer">
+          <Group gap="sm" justify="space-between"><Text size="sm">Refreshing this failed: {(q.error as Error).message}</Text><Retry q={q} /></Group>
+        </Banner>
+      ) : null}
+      {children(q.data)}
+    </>
+  );
 }
 
 export function Spinner({ label }: { label?: string }) {

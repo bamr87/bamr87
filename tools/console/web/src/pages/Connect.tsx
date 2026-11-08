@@ -48,7 +48,7 @@ function GithubCard() {
   };
   return (
     <Paper p="lg">
-      <Group gap="sm" mb="xs"><IconBrandGithub size={20} /><Title order={3} fz={16}>GitHub, from this browser</Title></Group>
+      <Group gap="sm" mb="xs"><IconBrandGithub size={20} /><Title order={2} fz={16}>GitHub, from this browser</Title></Group>
       {s?.connected ? (
         <Stack gap="sm">
           <Group gap="sm">
@@ -120,7 +120,7 @@ function ConsoleCard() {
   };
   return (
     <Paper p="lg">
-      <Group gap="sm" mb="xs"><IconServer size={20} /><Title order={3} fz={16}>A running console</Title></Group>
+      <Group gap="sm" mb="xs"><IconServer size={20} /><Title order={2} fz={16}>A running console</Title></Group>
       <form onSubmit={(e) => { e.preventDefault(); void connect(); }}>
         <Stack gap="sm">
           <Text size="sm">Point this page at a Harness Console and it becomes that console: run any operation with a live log, edit <Mono>_data/fleet.yml</Mono>, manage credentials, read the data lake and open the terminal dash. Start the console with a token — it refuses a page from another origin without one:</Text>

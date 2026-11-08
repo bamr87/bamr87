@@ -1,7 +1,8 @@
 // keys v1 in the page — the table the terminal dash binds (/api/keys ←
 // tools/fleetcore/keys.py). Typing in a field, or any key with ctrl/⌘/alt
 // held, is left to the browser; the one exception is ⌘K / ctrl+K, the
-// browser-native way to open the same palette ':' opens.
+// browser-native way to open the same palette ':' opens. Enter belongs to
+// whatever has focus: only with nothing focused does it open the selected row.
 import { clearSnapshotCache } from '../api/static';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router';
@@ -13,6 +14,12 @@ import { useKeys } from '../api/hooks';
 import { useRunner } from '../jobs/JobRunner';
 import { FLAT, NAV, activeIndex, appPath } from '../nav';
 import { handlerFor } from './keyscope';
+
+/** Anything else that wants the key sheet (the sidebar's keys button). */
+export const KEYS_EVENT = 'console:keys';
+
+const INTERACTIVE = 'a[href],button,summary,[role="button"],[role="tab"],[role="menuitem"],[role="option"],[tabindex]:not([tabindex="-1"])';
+const smooth = (): ScrollBehavior => (window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
 
 function showKeys(keys: { dom: string; label: string; action: string; group: string }[]) {
   const label = (dom: string) => (dom === 'Escape' ? 'esc' : dom);
@@ -54,6 +61,8 @@ export function GlobalKeys() {
       const typing = Boolean(t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)));
       // A dialog, drawer or the palette owns the keyboard while it is open.
       if (document.querySelector('[role="dialog"]')) return;
+      // An open menu or list owns its own arrows and Escape.
+      if (t?.closest('[role="menu"],[role="listbox"]')) return;
       // The terminal page hands every key to the TUI.
       if (t?.closest('.xterm')) return;
       if (typing) {
@@ -61,6 +70,7 @@ export function GlobalKeys() {
         return;
       }
       if (e.key === 'Enter') {
+        if (t?.closest(INTERACTIVE)) return;
         const act = handlerFor('activate');
         if (act) {
           act();
@@ -71,7 +81,7 @@ export function GlobalKeys() {
       const k = table.find((x) => x.dom === e.key);
       if (!k) return;
       const nav = (i: number) => navigate(FLAT[(i + FLAT.length) % FLAT.length].to);
-      const scroll = (y: number) => window.scrollBy({ top: y, behavior: 'smooth' });
+      const scroll = (y: number) => window.scrollBy({ top: y, behavior: smooth() });
       const map: Record<string, () => void> = {
         help: () => showKeys(table),
         palette: () => spotlight.open(),
@@ -115,8 +125,13 @@ export function GlobalKeys() {
         e.preventDefault();
       }
     };
+    const onHelp = () => showKeys(table);
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    window.addEventListener(KEYS_EVENT, onHelp);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener(KEYS_EVENT, onHelp);
+    };
   }, [keys.data, navigate, qc, runOp]);
 
   return null;

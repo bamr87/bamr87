@@ -3,7 +3,7 @@
 > **Status: Draft / proposed.** Governance first; trace lint warn-only on the hub.
 > Feature: `HUB-NEW` (slug `grok-claude-governance`) in [`features/features.d/grok-claude-governance.yml`](../../features/features.d/grok-claude-governance.yml). Number assigned at merge.
 > Requirements: `FR-NEW:grok-claude-handoff`, `FR-NEW:change-traceability`.
-> Roadmap: `FF-0043` in [`_data/roadmap.yml`](../../_data/roadmap.yml).
+> Roadmap: `FF-NEW:grok-claude-governance` in [`_data/roadmap.d/grok-claude-governance.yml`](../../_data/roadmap.d/grok-claude-governance.yml).
 > Amendment: `docs/amendments/proposed/grok-claude-governance.md` (§ 28). Depends on [#686](https://github.com/bamr87/bamr87/pull/686) (§ 26 `claude-code-executes`).
 
 ## 1. Overview / problem

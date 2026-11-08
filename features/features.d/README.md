@@ -19,6 +19,10 @@ tags: [ example ]
 date: 2026-10-29
 tests:
   - tools/test_my_capability.py
+scenarios:
+  - verify/scenarios/my-capability.yml   # a path; the scenario's own `feature:` line says HUB-NEW:my-capability
+evidence:
+  - test/evidence/my-capability
 prd: ["FR-NEW:my-capability"]   # reference a NEW requirement by slug, not by number
 prd_new:                        # …and declare it here; the compiler numbers it
   - key: my-capability

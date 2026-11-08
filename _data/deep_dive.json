@@ -2,15 +2,15 @@
   "schema": "deep-dive/v1",
   "owner": "bamr87",
   "label": "deep-dive",
-  "refreshed_at": "2026-11-05T12:26:54Z",
+  "refreshed_at": "2026-11-07T12:23:10Z",
   "summary": {
-    "as_of": "2026-11-05",
+    "as_of": "2026-11-07",
     "cycle": 1,
     "cycle_start": "2026-10-30",
     "cycle_end": "2026-12-10",
     "cycle_days": 42,
     "total": 38,
-    "day": 7,
+    "day": 9,
     "processed": 5,
     "counts": {
       "pending": 33,
@@ -20,26 +20,26 @@
     },
     "progress": 0.1316,
     "today": {
-      "date": "2026-11-05",
+      "date": "2026-11-07",
       "cycle": 1,
-      "day": 7,
+      "day": 9,
       "cycle_days": 42,
       "kind": "scheduled",
-      "repo": "scripts"
+      "repo": "bashcrawl"
     },
     "next": {
-      "date": "2026-11-06",
+      "date": "2026-11-08",
       "cycle": 1,
-      "day": 8,
+      "day": 10,
       "cycle_days": 42,
       "kind": "scheduled",
-      "repo": "githubai"
+      "repo": "zer0-CMS"
     },
     "last": "scripts",
     "last_date": "2026-11-05",
     "avg_score": 34.0,
-    "open_issues": 37,
-    "open_prs": 4
+    "open_issues": 35,
+    "open_prs": 3
   },
   "repos": [
     {
@@ -102,7 +102,7 @@
         "https://github.com/bamr87/bamr87/pull/508",
         "https://github.com/bamr87/bamr87/pull/579"
       ],
-      "open_issues": 16,
+      "open_issues": 14,
       "open_prs": 0,
       "findings": "Cycle 1 day 2, final. Outcomes: Amr merged #508 (docs_index --lint fix) and #509 (governance-records-lint feature); issues #500-#505 filed (dead amendment links + FR45/HUB-049 #500, amendment status/\u00a7 13 ordering #501, NFR11 budget mismatch #502, ungated docs_index lint #503, console a11y #504, governance-records-lint #505). Previously known python-tests and v1/v2 tag items were already fixed. HUB-039 has no PRD requirement (warning).",
       "score": 78.0,
@@ -124,7 +124,7 @@
         "https://github.com/bamr87/bamr87.github.io/pull/54"
       ],
       "open_issues": 3,
-      "open_prs": 1,
+      "open_prs": 0,
       "findings": "",
       "score": null,
       "next_focus": ""

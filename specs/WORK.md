@@ -59,6 +59,12 @@ All six were settled on 2026-10-03. None is a switch.
 | --- | --- | --- | --- | --- | --- |
 | UPS-WORK-10 | MUST | all | Reusable workflows and composite actions from `bamr87/bamr87` or `bamr87/.github` are referenced at `@vMAJOR`, `@vMAJOR.MINOR.PATCH` or a full 40-character SHA (a trailing `# vX.Y.Z` comment is allowed). Branch refs such as `@main` are rejected. The only exemption is a local `./` path, which is how the hub calls its own workflows; the hub's remote self-references count like anyone else's. Only `uses:` keys parsed from the YAML are inspected (job-level and step-level, plus composite-action steps), the same way as UPS-QA-40; text inside `run:` scripts is never matched. Tag scheme: [`docs/WORKFLOW-VERSIONING.md`](../docs/WORKFLOW-VERSIONING.md). | parsed `uses:` refs | fan-out of `@v1` callers |
 
+## Pull request feedback
+
+| id | level | applies | requirement | satisfied by | seed |
+| --- | --- | --- | --- | --- | --- |
+| UPS-WORK-17 | MUST | all except fork | Every CI failure on a pull request is summarized on the PR in one sticky comment (constitution § 19). A job calls the hub's reusable `pr-review.yml`. | `.github/workflows/pr-review.yml` stub | `templates/pr-review/` |
+
 ## Freshness
 
 | id | level | applies | requirement | satisfied by | seed |
