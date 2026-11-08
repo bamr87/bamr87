@@ -230,6 +230,11 @@ def _gh_json(cmd: list[str]) -> list[dict] | None:
         return None
 
 
+# Upper bound on open hub issues/PRs read for dedupe markers. `gh` pages
+# through the API, so this costs one request per 100 items actually open.
+OPEN_LIST_LIMIT = 5000
+
+
 def open_markers(repo_slug: str) -> set[str]:
     """Keys already covered by an OPEN issue or PR in the hub.
 
@@ -237,13 +242,18 @@ def open_markers(repo_slug: str) -> set[str]:
     problems, and an open fix PR means the work is done and awaiting review —
     re-filing it every morning would be the single loudest failure mode of a
     daily loop.
+
+    The list must cover EVERY open item: `gh` returns newest first, so a cap
+    below the open count silently drops the oldest tickets — exactly the
+    long-standing ones (2026-11-08: 233 open issues, a 200 cap hid #210 and
+    the doctor re-queued a workflow it had already diagnosed).
     """
     markers: set[str] = set()
     sources = [
         ["gh", "issue", "list", "-R", repo_slug, "--state", "open",
-         "--json", "body", "--limit", "200"],
+         "--json", "body", "--limit", str(OPEN_LIST_LIMIT)],
         ["gh", "pr", "list", "-R", repo_slug, "--state", "open",
-         "--json", "body", "--limit", "200"],
+         "--json", "body", "--limit", str(OPEN_LIST_LIMIT)],
     ]
     for cmd in sources:
         for item in _gh_json(cmd) or []:
