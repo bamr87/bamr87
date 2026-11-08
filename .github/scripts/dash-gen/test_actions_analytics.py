@@ -423,6 +423,13 @@ def case_the_ceiling_degrades_to_a_marked_sample() -> None:
     rep = report_of([HUB], api, api_reserve=1000)
     check("the quota left after the reserve caps the budget too", api.calls["jobs"] == 3)
 
+    ticks = iter(range(100))                       # each clock() call is one "second"
+    api = FakeApi(runs, jobs)
+    rep = report_of([HUB], api, max_job_seconds=4, clock=lambda: next(ticks))
+    check("job requests also stop at --max-job-seconds, and say why",
+          0 < api.calls["jobs"] < 20 and rep["totals"]["sampled"]
+          and rep["coverage"]["api"]["job_fetch_stopped_by"] == "time")
+
     full = report_of([HUB], FakeApi(runs, jobs))
     check("a full budget is not sampled", full["totals"]["sampled"] is False
           and full["totals"]["total_min"] == 80.0)

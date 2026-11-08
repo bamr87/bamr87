@@ -50,8 +50,9 @@ share. So the job fetch is incremental and capped:
   sweep cost a request;
 * runs that cannot have billed (`skipped`, `startup_failure`,
   `action_required`) cost none;
-* the remaining fetches stop at `--max-job-calls`, and at the token's
-  remaining quota minus `--api-reserve` for the steps that run after this one.
+* the remaining fetches stop at `--max-job-calls`, at the token's remaining
+  quota minus `--api-reserve` for the steps that run after this one, and
+  after `--max-job-seconds` so a cold cache cannot time out fleet-pulse.
   Beyond that the run is ESTIMATED from its bounded wall clock times the
   measured job/wall ratio of its workflow (else repo, else fleet), and every
   row that holds an estimate says `sampled: true`.
@@ -105,6 +106,7 @@ import os
 import statistics
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 try:
@@ -182,6 +184,9 @@ MIN_SPLIT_SECONDS = 600     # a 10-minute range at the cap is reported truncated
 # (--api-reserve). The quota is shared with every workflow the token runs.
 JOB_CALL_CEILING = 1500
 API_RESERVE = 1000
+# …and on time: a jobs request takes ~0.3-0.6 s, and fleet-pulse's `pulse` job
+# (23 min of its 45 on 2026-11-07) must not be the thing a cold cache times out.
+JOB_SECONDS_CEILING = 600
 
 # Conclusions that say nothing about whether the workflow works. A run whose
 # `if:` gate declined is the system behaving correctly at ~zero cost, so it must
@@ -674,11 +679,13 @@ def fetch_order(need: list[dict]) -> list[dict]:
     return ordered
 
 
-def assign_job_minutes(api, contexts: list[dict], cache: JobCache, budget: int) -> dict:
+def assign_job_minutes(api, contexts: list[dict], cache: JobCache, budget: int,
+                       max_seconds: float | None = None, clock=time.monotonic) -> dict:
     """Give every completed run its job-minutes, spending at most `budget`
-    job requests. Each context gains `job_min`, `billed_jobs` and `job_basis`:
-    `no-jobs` (a conclusion that cannot bill, no request), `cache`, `jobs`
-    (fetched now), or `estimated` (left over; see estimate_job_minutes)."""
+    job requests and `max_seconds` of wall time. Each context gains `job_min`,
+    `billed_jobs` and `job_basis`: `no-jobs` (a conclusion that cannot bill,
+    no request), `cache`, `jobs` (fetched now), or `estimated` (left over;
+    see estimate_job_minutes). `stopped_by` says which ceiling ended it."""
     need = []
     for c in contexts:
         if c["conclusion"] in NO_JOB_CONCLUSIONS:
@@ -689,10 +696,15 @@ def assign_job_minutes(api, contexts: list[dict], cache: JobCache, budget: int) 
             c.update(job_min=hit["job_min"], billed_jobs=hit.get("billed_jobs"), job_basis="cache")
             continue
         need.append(c)
-    stats = {"needed": len(need), "fetched": 0, "errors": 0, "budget": budget}
+    stats = {"needed": len(need), "fetched": 0, "errors": 0, "budget": budget, "stopped_by": None}
     start = api.calls["jobs"]
+    t0 = clock()
     for c in fetch_order(need):
         if api.calls["jobs"] - start >= budget:
+            stats["stopped_by"] = "calls"
+            break
+        if max_seconds is not None and clock() - t0 >= max_seconds:
+            stats["stopped_by"] = "time"
             break
         try:
             jobs = fetch_jobs(api, c["nwo"], c["run_id"])
@@ -704,6 +716,7 @@ def assign_job_minutes(api, contexts: list[dict], cache: JobCache, budget: int) 
         cache.put(c["key"], {**jm, "created_at": c["created_at"]})
         stats["fetched"] += 1
     stats["job_calls"] = api.calls["jobs"] - start
+    stats["seconds"] = round(clock() - t0, 1)
     return stats
 
 
@@ -876,8 +889,9 @@ def workflow_record(b: dict, *, repo: str, repo_url: str | None,
 
 def build_report(targets: list[dict], api, *, days: int = 14, max_runs: int = 0,
                  cache: JobCache | None = None, max_job_calls: int = JOB_CALL_CEILING,
-                 api_reserve: int = API_RESERVE, now: dt.datetime | None = None,
-                 billing: dict | None = None) -> dict:
+                 api_reserve: int = API_RESERVE, max_job_seconds: float | None = JOB_SECONDS_CEILING,
+                 now: dt.datetime | None = None, billing: dict | None = None,
+                 clock=time.monotonic) -> dict:
     """List every target's window, price each completed run in job-minutes
     (known / cached / fetched under the budget / estimated), and aggregate.
 
@@ -933,7 +947,7 @@ def build_report(targets: list[dict], api, *, days: int = 14, max_runs: int = 0,
     budget = max(0, int(max_job_calls))
     if remaining is not None:
         budget = min(budget, max(0, remaining - int(api_reserve)))
-    stats = assign_job_minutes(api, contexts, cache, budget)
+    stats = assign_job_minutes(api, contexts, cache, budget, max_job_seconds, clock)
     for c in contexts:
         # the wall proxy, now that the job list may have proven a run jobless
         known = c.get("billed_jobs") if c["job_basis"] else None
@@ -1014,12 +1028,15 @@ def build_report(targets: list[dict], api, *, days: int = 14, max_runs: int = 0,
         "calls_total": sum(api.calls.values()),
         "job_call_budget": budget,
         "max_job_calls": int(max_job_calls),
+        "max_job_seconds": max_job_seconds,
         "reserve": int(api_reserve),
         "rate_remaining_before": remaining_before,
         "rate_remaining_after": api.core_remaining(),
         "jobs_needed": stats["needed"],
         "jobs_fetched": stats["fetched"],
         "job_errors": stats["errors"],
+        "job_fetch_stopped_by": stats["stopped_by"],
+        "job_fetch_seconds": stats.get("seconds"),
         "cache_entries_loaded": cache.loaded,
         "cache_error": cache.error,
     }
@@ -1347,7 +1364,7 @@ def run(args: argparse.Namespace) -> int:
     billing = collect_billing(gh)
     report = build_report(targets, api, days=args.days, max_runs=args.max_runs, cache=cache,
                           max_job_calls=args.max_job_calls, api_reserve=args.api_reserve,
-                          now=now, billing=billing)
+                          max_job_seconds=args.max_job_seconds or None, now=now, billing=billing)
     kept = cache.save(prune_before=now - dt.timedelta(days=args.days + 1))
     if args.cache:
         sys.stderr.write(f"Cache: {kept} runs -> {args.cache}\n")
@@ -1374,6 +1391,9 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--max-job-calls", type=int, default=JOB_CALL_CEILING, metavar="N",
                         help=f"ceiling on jobs requests per sweep (default {JOB_CALL_CEILING}); "
                              "runs past it are estimated and marked sampled: true")
+    parser.add_argument("--max-job-seconds", type=float, default=JOB_SECONDS_CEILING, metavar="S",
+                        help=f"stop fetching jobs after S seconds (default {JOB_SECONDS_CEILING}; "
+                             "0 = no time ceiling); later runs are estimated, sampled: true")
     parser.add_argument("--api-reserve", type=int, default=API_RESERVE, metavar="N",
                         help=f"core-quota requests left for later steps (default {API_RESERVE})")
     parser.add_argument("--cache", default=str(CACHE_DEFAULT), metavar="PATH",
