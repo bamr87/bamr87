@@ -49,6 +49,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash workflows [list|show|lint|health|new]${c_off} the WORKFLOW ATLAS — the hub's workflows + composite actions as one model; \`lint [--strict]\` holds them to the README standards; \`health [--days N]\` classifies why runs failed (from the lake); \`new --kind loop|agent-loop|gate|reusable|dispatch --id ID [--write]\` scaffolds one inside the standards (docs/WORKFLOW-ATLAS.md)
   ${c_bold}dash harness${c_off}           six-layer harness scorecard + trip wires → _data/harness_health.yml (docs/HARNESS.md)
   ${c_bold}dash harnesses [gaps|deploy]${c_off} fleet AI-harness + schedule inventory → _data/harness_registry.yml (/harnesses/ portal); \`gaps\` prints fan-out-deployable gap repos; \`deploy [--gaps|--target N] [--artifacts csv] [--upgrade] [--apply]\` opens kit PRs via fanout.sh (dry-run default; docs/HARNESS-OPS.md)
+  ${c_bold}dash agents [--check] [--verbose]${c_off} the agent inventory under the efficacy contract (constitution § 29) → _data/agents.yml: every CI agent step, JEV loop step, conflict tier and LaunchAgent with its owner, trigger, switch, cap, model, KPIs, sources and contract gaps; \`--check\` is drift check (p) (offline; docs/AGENT-EFFICACY.md)
   ${c_bold}dash features [check|coverage] [path]${c_off}  validate / grade one repo's feature index (features/features.yml); \`fleet [--write|--check]\` aggregates every submodule → _data/features_index.yml (/features/ portal; docs/VERIFICATION.md)
   ${c_bold}dash verify [runner flags]${c_off}  run the hub's own user scenarios through Playwright (verify/runner.mjs → test/evidence/); \`deploy [--gaps|--target N] [--upgrade] [--apply]\` fans the verify kit out via fanout.sh (dry-run default)
   ${c_bold}dash issues${c_off}            three-tier issue pipeline queues → _data/issue_pipeline.yml + per-tier work orders (feeds issue-pipeline)
@@ -99,7 +100,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash ps${c_off}               what is running fleet-wide, and who is on the shared network
   ${c_bold}dash doctor${c_off}            environment checks (setup.sh --dry-run)
   ${c_bold}dash test${c_off}              run the aggregate test suite
-  ${c_bold}dash gen <health|readme|ai|ai-check|ai-run|ai-usage|actions|daily|triage|harness|harnesses|lake|content|observe|remediate|issues|reconcile|vendor|estimate|ledger|targets|workflows|all>${c_off}  run the registry generator
+  ${c_bold}dash gen <health|readme|ai|ai-check|ai-run|ai-usage|actions|daily|triage|harness|harnesses|agents|lake|content|observe|remediate|issues|reconcile|vendor|estimate|ledger|targets|workflows|all>${c_off}  run the registry generator
   ${c_bold}dash help${c_off}             this help
 EOF
 }
@@ -501,6 +502,8 @@ cmd_reconcile() { "${TOOLS}/dash-gen" reconcile "$@"; }
 cmd_vendor()    { "${TOOLS}/dash-gen" vendor "$@"; }
 cmd_remediate() { "${TOOLS}/dash-gen" remediate "$@"; }
 cmd_harness() { "${TOOLS}/dash-gen" harness "$@"; }
+# The agent inventory under the efficacy contract (docs/AGENT-EFFICACY.md).
+cmd_agents() { "${TOOLS}/dash-gen" agents "$@"; }
 # The fleet-wide AI-harness inventory (plural — `dash harness` above is the
 # hub's own scorecard). `deploy` reuses the standardize fan-out engine with the
 # agent-context kit artifacts, so it inherits every fanout.sh guarantee:
@@ -948,6 +951,7 @@ main() {
     harness) cmd_harness "$@" ;;
     workflows) cmd_workflows "$@" ;;
     harnesses) cmd_harnesses "$@" ;;
+    agents)  cmd_agents "$@" ;;
     features) cmd_features "$@" ;;
     verify)  cmd_verify "$@" ;;
     spec)    cmd_spec "$@" ;;

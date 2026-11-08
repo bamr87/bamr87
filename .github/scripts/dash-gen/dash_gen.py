@@ -75,6 +75,13 @@ Subcommands:
            capped, redacted, freshness-stamped fleet-context/v1 JSON document.
            LOCAL-ONLY; never writes the lake. Implemented in fleet_context.py.
 
+  agents   The AGENT INVENTORY under the agentic efficacy contract (constitution
+           § 29, ADR 0009): every CI agent step, local loop step, JEV tier and
+           scheduled local job, with its owner, trigger, switch, cap, model,
+           KPIs, sources and contract gaps -> the committed _data/agents.yml.
+           Offline and deterministic; `--check` is drift check (p).
+           Implemented in agent_inventory.py; doc docs/AGENT-EFFICACY.md.
+
   workflows The WORKFLOW ATLAS: the hub's own workflows and composite actions as
            one model — `list`, `show <id>`, `lint` (the README standards as
            checks), `health` (run health + failure causes from the lake), `new`
@@ -104,6 +111,7 @@ import ai_activity
 import ai_reconcile
 import ai_usage_collector
 import actions_analytics
+import agent_inventory
 import cv_fragment
 import daily_report
 import engagements
@@ -616,6 +624,13 @@ def main(argv: list[str] | None = None) -> int:
              "(committed, daily-refreshed; --gaps prints fan-out targets)",
     )
     harness_registry.add_arguments(p_harnesses)
+
+    p_agents = sub.add_parser(
+        "agents",
+        help="the agent inventory under the efficacy contract -> agents.yml (committed; offline; "
+             "--check is drift check (p))",
+    )
+    agent_inventory.add_arguments(p_agents)
 
     p_lake = sub.add_parser(
         "lake",

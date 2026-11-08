@@ -155,6 +155,16 @@ jobs:
         continue-on-error: true
         run: tools/dash-gen harnesses --days "$DAYS"
 
+      # The agent inventory under the efficacy contract (constitution § 29,
+      # docs/AGENT-EFFICACY.md): rebuilt offline from the harness inventory just
+      # written, the JEV step specs, the conflict tiers and the local
+      # installers, and published in the SAME commit, so drift check (p) never
+      # sees _data/agents.yml disagree with _data/harness_registry.yml.
+      - name: Agent inventory
+        id: g_agents
+        continue-on-error: true
+        run: tools/dash-gen agents
+
       # The fleet features index: every checked-out submodule's
       # features/features.yml + verification coverage (tests / user scenarios
       # / evidence / verified stamps, graded from files on disk) → the
@@ -191,6 +201,7 @@ jobs:
             echo "| Triage snapshot | ${{ steps.g_triage.outcome }} |"
             echo "| Harness inventory | ${{ steps.g_harnesses.outcome }} (${{ steps.g_harnesses.outputs.ai_workflows || '?' }} AI workflows, ${{ steps.g_harnesses.outputs.attention_count || '?' }} attention) |"
             echo "| Harness scorecard | ${{ steps.g_harness.outcome }} (${{ steps.g_harness.outputs.tripped_count || '?' }} trip wires tripped) |"
+            echo "| Agent inventory | ${{ steps.g_agents.outcome }} |"
             echo "| Fleet features index | ${{ steps.g_features.outcome }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -214,6 +225,7 @@ jobs:
             - `_data/ai_usage.yml`, `_data/engagements.yml` — Claude usage + engagement actuals
             - `_data/fleet_triage.yml` — fleet open-state snapshot (the `/triage/` portal)
             - `_data/harness_registry.yml` — fleet AI-harness + schedule inventory (the `/harnesses/` portal, docs/HARNESS-OPS.md)
+            - `_data/agents.yml` — the agent inventory under the efficacy contract (docs/AGENT-EFFICACY.md)
             - `_data/features_index.yml` — fleet features index + verification coverage (the `/features/` portal, docs/VERIFICATION.md)
             - `_data/harness_health.yml` — harness scorecard + trip wires (docs/HARNESS.md)
             - `_reports/daily/` — the prior-day activity digest
