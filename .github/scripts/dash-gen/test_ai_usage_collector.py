@@ -28,6 +28,20 @@ number, and each has a test here:
     It now carries an explicit `est_cost_usd` with a named basis, and the
     budget check reads the accounted figure (measured + estimated).
 
+2026-11-07 (epic #773 / E1 #775) added two more:
+
+  * every hub loop call was charged TWICE. claude-code-action prints a
+    pretty-printed result block and claude-cost then echoes the same call's
+    record on one line; read line by line, the block's `"total_cost_usd"`
+    line became a second, session-less record. Issue-pipeline run
+    42352285943 ledgered $25.64 against result lines summing to $12.82. The
+    block is now decoded whole, given its `Set session_id:`, and folded by the
+    lake parser's same-call rules (#771); `parity.ai_ci_cost` holds the
+    ledger to the result lines from now on;
+  * a 300-run listing budget per repo let the hub's ~200 runs a day crowd
+    out its Claude loops: the 2026-11-07 ledger held 5 hub runs for 14 days.
+    The window is listed by date range (actions_analytics.list_window_runs).
+
 Deliberately dependency-light — no network, no gh, no pytest. Needs only PyYAML:
 
     python3 .github/scripts/dash-gen/test_ai_usage_collector.py
@@ -35,8 +49,13 @@ Deliberately dependency-light — no network, no gh, no pytest. Needs only PyYAM
 
 from __future__ import annotations
 
+import collections
+import datetime as dt
+import io
+import json
 import sys
 import tempfile
+import zipfile
 from pathlib import Path
 
 import yaml
@@ -300,6 +319,8 @@ def test_build_totals_report_measured_estimated_and_accounted(tmp: Path | None =
     assert report["pricing"]["estimate_bases"] == {"workflow-median": 1}
     day = {r["day"]: r for r in report["by_day"]}
     assert day["2026-10-21"]["accounted_usd"] == 0.5, day
+    assert report["parity"]["ai_ci_cost"]["runs_compared"] == 0
+    assert report["coverage"]["truncated"] is False
 
 
 def test_the_hub_is_collected_even_though_it_is_not_in_the_registry() -> None:
@@ -329,6 +350,165 @@ def test_claude_is_detected_by_every_route_the_fleet_uses() -> None:
     # a credential check alone is not a Claude step: the gate job prints it
     gate = 'if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] || [ -n "$ANTHROPIC_API_KEY" ]; then'
     assert not any(m in gate for m in col.CLAUDE_LOG_MARKERS), gate
+
+
+# --------------------------------------------------------------------------- #
+# one call printed twice: claude-code-action's block + claude-cost's echo
+# --------------------------------------------------------------------------- #
+def _echo(session: str, turns: int, cost: float, duration: int) -> str:
+    """claude-cost's `claude-run-result` payload, in the CLI's key order."""
+    return json.dumps({
+        "duration_api_ms": duration - 1000, "session_id": session, "total_cost_usd": cost,
+        "usage": {"input_tokens": 192, "cache_creation_input_tokens": 2000,
+                  "cache_read_input_tokens": 90000, "output_tokens": 900},
+        "modelUsage": {"claude-opus-5-5": {"inputTokens": 192, "outputTokens": 900,
+                                           "cacheReadInputTokens": 90000,
+                                           "cacheCreationInputTokens": 2000, "costUSD": cost}},
+        "is_error": False, "num_turns": turns, "subtype": "success",
+        "type": "result", "duration_ms": duration}, separators=(",", ":"))
+
+
+def _tier_log(hour: int, session: str, turns: int, cost: float, duration: int,
+              session_line: bool = True) -> str:
+    """One issue-pipeline tier job as run 42352285943's log zip holds it: the
+    action's pretty result block, `Set session_id:`, then the cost step's echo."""
+    t = f"2026-11-07T{hour:02d}"
+    block = (
+        f"{t}:44:07.6664407Z {{\n{t}:44:07.6694066Z   \"type\": \"system\",\n"
+        f'{t}:44:07.6703993Z   "subtype": "init",\n{t}:44:07.6763883Z   "model": "claude-opus-5-5"\n'
+        f"{t}:44:07.6793835Z }}\n"
+        f"{t}:58:39.2091451Z {{\n"
+        f'{t}:58:39.2091798Z   "type": "result",\n{t}:58:39.2092116Z   "subtype": "success",\n'
+        f'{t}:58:39.2092412Z   "is_error": false,\n{t}:58:39.2092678Z   "duration_ms": {duration},\n'
+        f'{t}:58:39.2092954Z   "num_turns": {turns},\n{t}:58:39.2093249Z   "total_cost_usd": {cost},\n'
+        f'{t}:58:39.2094119Z   "permission_denials_count": 2,\n{t}:58:39.2094452Z   "modelUsage": {{\n'
+        f'{t}:58:39.2095979Z     "claude-opus-5-5": {{\n'
+        f'{t}:58:39.2096262Z       "contextWindow": 1000000\n{t}:58:39.2096830Z     }}\n'
+        f"{t}:58:39.2097041Z   }}\n{t}:58:39.2097505Z }}\n"
+        f"{t}:58:39.6102048Z Log saved to /home/runner/work/_temp/claude-execution-output.json\n")
+    if session_line:
+        block += f"{t}:58:39.6102493Z Set session_id: {session}\n"
+    return block + (
+        f"{t}:58:39.6586551Z \x1b[36;1mprintf 'claude-run-result %s\\n' \"$result\"\x1b[0m\n"
+        f"{t}:58:39.6587000Z \x1b[36;1mcost=$(printf '%s' \"$result\" | jq -r '.total_cost_usd // 0')\x1b[0m\n"
+        f"{t}:58:39.6987956Z claude-run-result {_echo(session, turns, cost, duration)}\n")
+
+
+TIERS = [(7, "1295a0ad-3a48-4f42-89ba-c92c57ef6562", 184, 6.4238041, 871647),
+         (8, "51b38cf8-415e-41a4-85ce-8d93a94fe1ff", 165, 4.8263003, 1183822),
+         (9, "2ead88a7-cb8d-4cbd-aced-640d11ac24b3", 54, 1.5717504, 260380)]
+
+
+def test_a_hub_loop_call_is_charged_once_not_twice() -> None:
+    """Run 42352285943: three tiers, each printed as the action's block AND the
+    echo. FAILS on the pre-fix parser, which priced the run at $25.64."""
+    records = []
+    for tier in TIERS:
+        records += list(col.iter_usage_records(_tier_log(*tier)))
+    priced = col.price_records(records)
+    want = round(sum(t[3] for t in TIERS), 6)
+    assert abs(priced["cost_usd"] - want) < 1e-6, (priced["cost_usd"], want)
+    assert priced["result_line_usd"] == priced["cost_usd"], priced
+    assert priced["turns"] == 184 + 165 + 54, priced["turns"]
+    # the block got its session from the `Set session_id:` line
+    block = next(col.iter_usage_records(_tier_log(*TIERS[0])))
+    assert block["session"] == TIERS[0][1] and block["echo"] is False, block
+
+
+def test_a_block_without_its_session_line_still_folds_by_duration_and_turns() -> None:
+    records = list(col.iter_usage_records(_tier_log(*TIERS[1], session_line=False)))
+    assert len(records) == 2 and records[0]["session"] is None, records
+    priced = col.price_records(records)
+    assert abs(priced["cost_usd"] - TIERS[1][3]) < 1e-6, priced
+
+
+def test_two_different_calls_with_equal_cost_are_both_charged() -> None:
+    """Folding is by call identity, never by an equal figure."""
+    a = list(col.iter_usage_records(_tier_log(7, "s-a", 10, 1.0, 1000)))
+    b = list(col.iter_usage_records(_tier_log(8, "s-b", 10, 1.0, 1000)))
+    assert col.price_records(a + b)["cost_usd"] == 2.0
+
+
+def test_parity_holds_the_ledger_to_the_result_lines() -> None:
+    rows = [entry(cost_usd=12.821855, result_line_usd=12.821855, url="u1"),
+            entry(cost_usd=25.64371, result_line_usd=12.821855, url="u2"),   # the old double count
+            entry(cost_usd=0.4, result_line_usd=None, url="u3")]             # no claude-cost: not compared
+    p = col.ai_parity(rows)
+    assert p["runs_compared"] == 2 and p["runs_off"] == 1 and p["runs_off_sample"] == ["u2"], p
+    assert p["result_lines_usd"] == 25.6437 and p["ledger_usd"] == 38.4656, p
+    assert p["gap_pct"] == 50.0, p
+    clean = col.ai_parity(rows[:1])
+    assert clean["gap_pct"] == 0.0 and clean["runs_off"] == 0, clean
+    assert col.ai_parity([])["gap_pct"] is None
+
+
+# --------------------------------------------------------------------------- #
+# the window is listed, not capped
+# --------------------------------------------------------------------------- #
+NOW = dt.datetime(2026, 11, 7, 12, tzinfo=dt.timezone.utc)
+
+
+class _Api:
+    """Runs, workflow files and counted calls, as plain JSON."""
+
+    def __init__(self, runs, files):
+        self.runs, self.files = runs, files
+        self.calls: collections.Counter = collections.Counter()
+
+    def get(self, path, params=None, kind="other"):
+        self.calls[kind] += 1
+        if "/contents/" in path:
+            import base64
+            text = self.files[path.split("/contents/", 1)[1]]
+            return {"content": base64.b64encode(text.encode()).decode()}
+        a, b = (col.actions_analytics.parse_ts(x) for x in params["created"].split(".."))
+        hit = sorted((r for r in self.runs if a <= col.actions_analytics.parse_ts(r["created_at"]) <= b),
+                     key=lambda r: r["created_at"], reverse=True)
+        per, page = params["per_page"], params["page"]
+        return {"total_count": len(hit), "workflow_runs": hit[:1000][(page - 1) * per: page * per]}
+
+
+class _Session:
+    def __init__(self, logs):
+        self.logs, self.urls = logs, []
+
+    def get(self, url, timeout=60):
+        self.urls.append(url)
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("0_tier.txt", self.logs[url])
+        return type("R", (), {"status_code": 200, "content": buf.getvalue()})()
+
+
+def _run(rid, path, minutes_ago, conclusion="success"):
+    t = (NOW - dt.timedelta(minutes=minutes_ago)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return {"id": rid, "name": path.split("/")[-1], "path": path, "event": "schedule",
+            "status": "completed", "conclusion": conclusion, "created_at": t, "updated_at": t,
+            "html_url": f"https://github.com/bamr87/bamr87/actions/runs/{rid}",
+            "logs_url": f"logs/{rid}"}
+
+
+def test_the_hubs_claude_runs_are_not_crowded_out_by_its_other_runs() -> None:
+    """400 newer CI runs, then the issue pipeline's run. FAILS on the old
+    listing, which stopped after 300 runs of any workflow."""
+    runs = [_run(i, ".github/workflows/ci.yml", i) for i in range(1, 401)]
+    runs.append(_run(999, ".github/workflows/issue-pipeline.yml", 600))
+    api = _Api(runs, {".github/workflows/ci.yml": "run: pytest",
+                      ".github/workflows/issue-pipeline.yml": "uses: anthropics/claude-code-action@v1"})
+    session = _Session({"logs/999": _tier_log(*TIERS[0])})
+    cov: list = []
+    hub = {"name": "bamr87", "repo_url": "https://github.com/bamr87/bamr87"}
+    rows = col.collect_ci(api, session, [hub], NOW - dt.timedelta(days=14), 0, now=NOW, coverage=cov)
+    assert [r["url"].rsplit("/", 1)[1] for r in rows] == ["999"], rows
+    assert abs(rows[0]["cost_usd"] - TIERS[0][3]) < 1e-6 and rows[0]["result_line_usd"] == rows[0]["cost_usd"]
+    assert session.urls == ["logs/999"], "only the Claude run's log is downloaded"
+    assert api.calls["contents"] == 2, "one contents read per distinct path"
+    assert cov == [{"repo": "bamr87", "nwo": "bamr87/bamr87", "runs_in_window": 401,
+                    "runs_listed": 401, "claude_runs": 1, "truncated": False,
+                    "runs_missed": 0, "error": None}], cov
+    capped: list = []
+    col.collect_ci(api, session, [hub], NOW - dt.timedelta(days=14), 300, now=NOW, coverage=capped)
+    assert capped[0]["truncated"] and capped[0]["runs_missed"] == 101, capped
 
 
 # --------------------------------------------------------------------------- #

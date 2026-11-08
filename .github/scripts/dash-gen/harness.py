@@ -31,7 +31,9 @@ Inputs (all optional — a missing or degraded signal nulls that metric, never
 crashes; the wire that watches for staleness is exactly how a missing input
 becomes visible):
 
-  _data/actions_usage.yml   cost / effectiveness / waste  (Layer 6)
+  _data/actions_usage.yml   cost / effectiveness / waste  (Layer 6) — job-minutes
+                            since actions-usage/v2: the cost wires read cost,
+                            the `slow` flag (analytics) reads the wall clock
   _data/fleet_triage.yml    standing open-state           (Layers 3+6)
   _data/issue_pipeline.yml  escalations + agent PRs       (Layer 3)
   _data/token_rotation.yml  credential ages               (Layer 5)

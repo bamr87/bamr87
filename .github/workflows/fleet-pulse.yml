@@ -119,10 +119,30 @@ jobs:
       # --- gather ---------------------------------------------------------
       # Each signal is independent; `continue-on-error` keeps one degraded API
       # call from costing the other three. The summary step reports what landed.
+      # Job-minutes cost one jobs request per run, so a completed run's are
+      # cached (.dash-lake/actions_jobs_cache.json) and only runs new since the
+      # last sweep are fetched, under the analytics' own call ceiling; a cache
+      # miss costs one sampled day, never a wrong number. Keys are immutable,
+      # so each run saves under its own id and restores the newest by prefix.
+      # The window is listed whole: no --max-runs (docs/WORKFLOW-OPTIMIZATION.md).
+      - name: Restore the Actions job-minute cache
+        uses: actions/cache/restore@v6
+        with:
+          path: .dash-lake/actions_jobs_cache.json
+          key: actions-jobs-${{ github.run_id }}
+          restore-keys: actions-jobs-
+
       - name: Actions usage analytics
         id: g_actions
         continue-on-error: true
-        run: tools/dash-gen actions --days "$DAYS" --max-runs 600 --quiet
+        run: tools/dash-gen actions --days "$DAYS" --quiet
+
+      - name: Save the Actions job-minute cache
+        if: ${{ !cancelled() && hashFiles('.dash-lake/actions_jobs_cache.json') != '' }}
+        uses: actions/cache/save@v6
+        with:
+          path: .dash-lake/actions_jobs_cache.json
+          key: actions-jobs-${{ github.run_id }}
 
       - name: Claude usage ledger
         id: g_ai
