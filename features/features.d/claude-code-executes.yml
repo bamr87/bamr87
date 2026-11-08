@@ -1,7 +1,7 @@
 id: HUB-NEW
 slug: claude-code-executes
 title: "Claude Code executes; Grok bots set direction only"
-description: "Constitution § 26: software and Harness Console execution changes are done by Claude Code (local CLI or console-dispatched); Grok bots may open only direction-setting amendment PRs (constitution, amendments, changelog.d, plus supporting feature/PRD/roadmap fragments in that same PR), file issues/comments, and hand off work via Fleet issues/console jobs. Warn-then-fail author lint; Amr OK required if Claude Code is unavailable. Roadmap FF-0041."
+description: "Constitution § 26: software and Harness Console execution changes are done by Claude Code (local CLI or console-dispatched); Grok bots may open only direction-setting amendment PRs (constitution, amendments, changelog.d, plus supporting feature/PRD/roadmap fragments in that same PR), file issues/comments, and hand off work via Fleet issues/console jobs. Warn-then-fail author lint; Amr OK required if Claude Code is unavailable. Roadmap FF-NEW:claude-code-executes."
 implemented: false
 status: planned
 surface: infra

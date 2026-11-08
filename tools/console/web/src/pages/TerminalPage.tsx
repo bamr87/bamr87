@@ -185,7 +185,9 @@ export function TerminalPage() {
           <Group gap="sm"><Text size="sm">{message || 'The session ended.'}</Text><Button size="compact-xs" onClick={restart}>Start a new session</Button></Group>
         </Banner>
       ) : null}
-      <div className={classes.host} style={{ '--term-bg': bg } as CSSProperties} onClick={() => termRef.current?.focus()}>
+      <div className={classes.host} style={{ '--term-bg': bg } as CSSProperties} role="group" aria-label="Terminal" tabIndex={0}
+        onClick={() => termRef.current?.focus()}
+        onKeyDown={(e) => { if (e.target === e.currentTarget && e.key === 'Enter') { e.preventDefault(); termRef.current?.focus(); } }}>
         <div ref={host} className={u.fill} />
       </div>
       <Text size="xs" c="dimmed" mt="xs">

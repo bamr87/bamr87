@@ -1,0 +1,193 @@
+{
+  "id": "desktop-context-menu",
+  "title": "An icon and a title bar have a context menu, and one action puts Live beside Local",
+  "features": [
+    "HUB-079"
+  ],
+  "path": "verify/scenarios/desktop-context-menu.yml",
+  "started": "2026-11-06T23:10:46.450Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/desktop",
+          "ok": true,
+          "ms": 2929
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "nav[aria-label='Apps'] button:has-text('it-journey')"
+          },
+          "ok": true,
+          "ms": 21
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "focus_icon",
+            "script": "[...document.querySelectorAll(\"nav[aria-label='Apps'] button\")].find((b) => b.innerText.includes('it-journey')).focus()"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "press",
+          "arg": "Shift+F10",
+          "ok": true,
+          "ms": 6
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "role=menuitem[name='Live beside Local']"
+          },
+          "ok": true,
+          "ms": 29
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "role=menuitem",
+              "min": 5
+            }
+          },
+          "ok": true,
+          "value": 5,
+          "ms": 2
+        },
+        {
+          "step": "press",
+          "arg": "Escape",
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "url": "/desktop"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "focus_returned",
+            "script": "(async () => { await new Promise((r) => setTimeout(r, 300)); const t = document.activeElement.innerText; if (!t.includes('it-journey')) throw new Error(`focus went to: ${t}`); return t; })()"
+          },
+          "ok": true,
+          "value": "it-journey",
+          "ms": 312
+        },
+        {
+          "step": "press",
+          "arg": "Shift+F10",
+          "ok": true,
+          "ms": 15
+        },
+        {
+          "step": "click",
+          "arg": "role=menuitem[name='Live beside Local']",
+          "ok": true,
+          "ms": 166
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "[data-window-id][data-snapped='right']"
+          },
+          "ok": true,
+          "ms": 16
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "both_targets",
+            "script": "(() => { const head = (edge) => document.querySelector(`[data-window-id][data-snapped='${edge}'] header`).innerText; const left = head('left'); const right = head('right'); if (!left.includes('Live') || !right.includes('Local')) throw new Error(`${left} / ${right}`); return `${left} / ${right}`.replace(/\\n/g, ' '); })()"
+          },
+          "ok": true,
+          "value": "it-journey · Live / it-journey · Local",
+          "ms": 8
+        },
+        {
+          "step": "click",
+          "arg": "[data-window-id][data-snapped='right'] button[aria-label^='Window menu for']",
+          "ok": true,
+          "ms": 152
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "role=menuitem[name='Copy link']"
+          },
+          "ok": true,
+          "ms": 15
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "role=menuitem",
+              "min": 6
+            }
+          },
+          "ok": true,
+          "value": 7,
+          "ms": 78
+        },
+        {
+          "step": "screenshot",
+          "arg": "live-beside-local-menu",
+          "ok": true,
+          "file": "test/evidence/desktop-context-menu/desktop-live-beside-local-menu.png",
+          "ms": 54
+        },
+        {
+          "step": "press",
+          "arg": "Escape",
+          "ok": true,
+          "ms": 33
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 2
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/desktop-context-menu/desktop-live-beside-local-menu.png"
+      ],
+      "evals": {
+        "focus_returned": "it-journey",
+        "both_targets": "it-journey · Live / it-journey · Local"
+      },
+      "final_url": "http://127.0.0.1:4011/desktop"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-11-06T23:10:50.362Z",
+  "base": "http://127.0.0.1:4011"
+}

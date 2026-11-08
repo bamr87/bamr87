@@ -3,3 +3,23 @@
   border-radius: var(--mantine-radius-md);
   background: var(--surface);
 }
+
+/* A sortable header is a real button, drawn as the header text it replaces. */
+.sort {
+  display: inline-flex;
+  align-items: center;
+  gap: rem(2px);
+  font: inherit;
+  color: inherit;
+}
+
+/* The row's own link: out of sight for a pointer, which clicks the row, and a
+   tab stop for the keyboard. Focus draws on the whole row (Table.module.css). */
+.rowLink {
+  position: absolute;
+  width: rem(1px);
+  height: rem(1px);
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

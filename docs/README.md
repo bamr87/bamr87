@@ -42,6 +42,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/ESTIMATION.md`](ESTIMATION.md) | Every project as a client: deterministic estimates from open issues, actuals from usage evidence, and the leverage between them. |
 | [`docs/EVALS.md`](EVALS.md) | The agent eval sets, the runner and the eval-regression check (constitution § 13.1–13.2): what each role is held to, how to run it, and how to grow a set. |
 | [`docs/EVOLUTION.md`](EVOLUTION.md) | The weekly repo-evolution loop — a signal-led, draft-only AI improvement pass in each opted-in submodule's own repository. |
+| [`docs/EXPEDITE-SPRINTS.md`](EXPEDITE-SPRINTS.md) | The fleet's standard for one top-priority, time-boxed sprint at a time (constitution § 27, amendment `expedite-sprints`), driven end to end by the existing loops with three gates only Amr passes. |
 | [`docs/FLEET-COMPOSE.md`](FLEET-COMPOSE.md) | Launching and debugging any submodule from the hub with its real services, on a port nobody else claims, without a commit in the submodule. |
 | [`docs/FORGE-HOST.md`](FORGE-HOST.md) | Running the fleet's containers on the `forge` LAN host while the Mac runs the terminal dash. |
 | [`docs/FRONTEND-PLATFORM.md`](FRONTEND-PLATFORM.md) | How the fleet's frontends share one platform without sharing one framework: six standard layers (tokens, Web Components, one app shell with micro-frontends, one OIDC identity, contracts, a registry with conformance), four tiers, the… |
@@ -90,6 +91,8 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 
 | Document | What it covers |
 | --- | --- |
+| [`docs/prd/AGENTIC-SDLC.md`](prd/AGENTIC-SDLC.md) | **Status: Draft / proposed.** Plan only; nothing here is implemented. Accepted when the maintainer merges this PR; each phase lands in its own PR. Decision record: [ADR 0008](adr/0008-typed-decisions-as-pipeline-gates.md)… |
+| [`docs/prd/EXPEDITE-SPRINTS.md`](prd/EXPEDITE-SPRINTS.md) | Status: Draft / proposed. Requirement id assigned at merge as `FR-NEW:expedite-sprints` → predicted **FR86** (FR84 if this merges before #685 and #686). Feature: `HUB-NEW:expedite-sprints`. Epic… |
 | [`docs/prd/FLEET-ACTIVITY-LOG.md`](prd/FLEET-ACTIVITY-LOG.md) | **Status: Draft / proposed.** Design only; nothing here is implemented yet. Feature: `HUB-024` in [`features/features.yml`](../features/features.yml) (`status: planned`). Requirements: FR7–FR15, NFR4–NFR6 in the root… |
 | [`docs/prd/FLEET-ACTIVITY-REPLAY-PLAN.md`](prd/FLEET-ACTIVITY-REPLAY-PLAN.md) | **Status: Draft / proposed.** Plan only; nothing here is implemented. Accepted when the maintainer merges this PR; each phase lands in its own PR. Feature: `HUB-NEW` (slug `fleet-activity-replay`) — the same feature the design PR… |
 | [`docs/prd/FLEET-ACTIVITY-REPLAY.md`](prd/FLEET-ACTIVITY-REPLAY.md) | **Status: Draft / proposed.** Design only; nothing is implemented by this PR. Feature: `HUB-NEW`… |

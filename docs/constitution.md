@@ -47,11 +47,8 @@ When two documents disagree, the higher one wins and the lower one is fixed in t
 
 | Actor | May | May not |
 | --- | --- | --- |
-| Maintainer (human) | Ratify amendments, PRD changes and releases by merging PRs; change settings, secrets, branch protection; explicitly OK a fallback when Claude Code cannot run (§ 26.5) | — |
-| Claude Code (executor) | Execute software and Harness Console–bound changes via PRs and sanctioned console jobs; follow § 10–§ 12; merge only when mergeable under § 12 and not gated | Merge gated PRs; push to default; force-push; change settings; print or commit secrets; invent features or requirements (unknown = **TBD**) |
-| Grok bots (director) | Propose direction-setting amendment PRs (§ 26.2); file/comment issues; hand off execution to Claude Code (§ 26.4); read and review | Open or push software/console implementation PRs; apply console execution write-back; merge any PR; change settings; print or commit secrets |
-
-_(Actor split detailed in § 26 `claude-code-executes`; until that amendment is ratified, treat both AI rows as advisory alongside the previous single "AI agent" practice.)_
+| Maintainer (human) | Ratify amendments, PRD changes and releases by merging PRs; change settings, secrets, branch protection | — |
+| AI agent | Read this file first; open PRs on a branch with Conventional Commit titles; update the feature catalog, PRD block and docs in the same PR as the change; propose amendments; follow § 10 (track every task on the Fleet project; epics for multi-phase work; no change to the live Mac before an approved deploy step); plan GitHub write-back under § 11 and apply it only after the user confirms; merge a PR that is mergeable under § 12 | Merge a PR that is not mergeable under § 12, or any PR the review gate holds; push to the default branch; force-push; change repo settings or branch protection; print or commit secrets; invent features or requirements (unknown = **TBD**) |
 
 ## 5. How the artifacts relate
 
@@ -127,6 +124,7 @@ Every human, bot and AI agent in the hub and every submodule under `projects/` f
 6. **Read-only tools** — new tools are read-only by default, with allowlists, result caps, time limits and redaction.
 7. **Honest cost** — every AI cost figure is labelled "API-equivalent (estimate)"; real metered API spend is tracked separately.
 8. **Prior art first** — every new harness or loop design (a new loop, harness, agent pipeline, or console surface that drives or visualizes them) includes, before implementation begins: (a) a **needs assessment**, (b) a **prior-art / existing-tools survey** with one line each on fit, and (c) a recorded **build-vs-adopt decision** with reasons, kept in the design issue or spec as an acceptance criterion (amendment `harness-prior-art-research`, numbered at merge).
+9. **Local first** — AI work runs in a local Claude Code session when one can do the job: an interactive session, or `claude -p` through `tools/dash loop` and `tools/dash conflicts`, with JEV's tiers, caps and ledger. A CI agent step is the fallback for work that must react inside GitHub or when no local host is available, not the default, and new AI work ships with a local entry point first. _(amendment `local-first-ai`, numbered at merge)_
 
 ## 11. Harness write-back to GitHub
 
@@ -168,6 +166,7 @@ _(amendment `agent-merge-review-gate`, numbered at merge — see the [amendment 
 4. **Gate mechanism** — a gated PR carries the `needs-amr` label and its Fleet project item is set to status *Needs Amr* (§ 9). The gate passes only when the maintainer approves or merges it and the label is removed by the maintainer. A repo may also require a review in branch protection; only the maintainer turns that on.
 5. **Never** — an agent never merges a gated PR, and amendments are ratified only by the maintainer merging them (§ 8).
 6. **Fleet conformance** — every repo constitution under `projects/` conforms to this section or files its own amendment saying how it does.
+7. **Conflicts resolve themselves** — a merge conflict on an open PR from a trusted author is resolved automatically by JEV, by script where the files allow and otherwise by a capped model in a local session (§ 10.9). It merges the base with a merge commit, validates with the repo's own checks, and never force-pushes or merges the PR. A model's resolution is a non-trivial conflict resolution, so it carries the gate of item 3. A human takes over only when JEV cannot resolve it. _(amendment `local-first-ai`, numbered at merge)_
 ## 14. Public documentation site
 
 _(amendment `public-docs-site`, numbered at merge — see the [amendment log](amendments/README.md); section number contingent on § 12 from `agent-merge-review-gate` (#481) and § 13 from `eval-baseline-risk-tiers` (#482) landing first; extends UPS-DOC)_
@@ -242,6 +241,7 @@ _(amendment `fleet-pr-review`, numbered at merge — see the [amendment log](ame
 7. **AI review triggers** — AI review runs on `opened`, `ready_for_review` and an explicit label, not on every push; it checks the central switch (§ 17) and is held to § 13.
 8. **Summaries, not comments** — cost, usage and test tables go to the job summary.
 9. **Rollout** — conformance is warn-only per repo until its fan-out PR lands, then a hard failure; a repo with no pull requests is not applicable.
+10. **CI failures** — every failed CI run on a pull request is summarized in the sticky comment, so nobody has to open a log to learn why it failed: the job and step, the reason taken from its log, whether the PR probably caused it, and what to do next. This covers a run that never started. When a step printed no clear error, the comment says so and does not guess. A failed push to the default branch is reported on the PR that merged it. _(amendment `ci-failure-summary`, numbered at merge)_
 
 ## 20. The editor is a front door
 
@@ -304,6 +304,7 @@ _(amendment `visual-evidence`, numbered at merge — see the [amendment log](ame
 8. **Enforcement** — a guides visual lint (`tools/guides_visual_lint.py`) flags guide-like Markdown lacking an image, an evidence-bundle reference, or a `skip-visuals` reason; warn-only per repo until its adoption/fan-out PR lands, then a hard failure. Fleet fan-out follows the 0007 pattern (one spoke PR per repo).
 9. **Fit with § 15** — frontend *PR* evidence stays under § 15; this section covers *published guides*. A change may need both.
 
+
 ## 26. Claude Code executes; Grok bots set direction
 
 _(amendment `claude-code-executes`, numbered at merge — see the [amendment log](amendments/README.md); follows § 24 on main and proposed § 25 `mcp-lifecycle` (PR #685) — this is § 26 if that lands first, else renumber to § 25; amends § 4; extends § 8 and § 12)_
@@ -317,3 +318,16 @@ _(amendment `claude-code-executes`, numbered at merge — see the [amendment log
 7. **Enforcement** — a warn-then-fail check (`tools/claude_code_executes_lint.py` and/or a workflow) flags PRs authored by known Grok-bot identities whose diff is not direction-setting; warn-only until adoption, then hard fail. Labels such as `direction-setting` / `executor:claude-code` may assist humans and CI.
 8. **Fleet** — spoke repos conform or file their own amendment saying how they do.
 
+## 27. Expedite sprints run by agentic loops
+
+_(amendment `expedite-sprints`, numbered at merge — see the [amendment log](amendments/README.md); follows § 25 `mcp-lifecycle` (PR #685) and § 26 `claude-code-executes` (PR #686), both open; renumber to the next free section if either does not merge first; extends § 9, § 10, § 12, § 13 and § 17)_
+
+1. **Expedite class of service** — an *expedite sprint* is an accelerated, top-priority, time-boxed pilot on one item. At most **one** expedite sprint is active fleet-wide (WIP 1); it may preempt other lanes' implement slots, and every lane it preempts is recorded.
+2. **Three gates, all Amr's** — (a) **declaration**: Amr commits the item to `_data/work_queue.yml` `order:` with its appetite (hours plus an API-equivalent USD estimate); (b) **spec approval**: scope, user stories, Design-for-Failure table and acceptance criteria are approved before build; (c) **merge**: through the § 12 review gate (`needs-amr`). An agent never declares, approves or merges its own sprint.
+3. **Fixed time, variable scope** — the appetite is a ceiling, not an estimate. At the cap or the end of the time box the sprint stops (circuit breaker): it files what it has as a draft and records the stop; it is never extended automatically.
+4. **Budgets** — a sprint ceiling sits inside the existing caps (`budget.call_sites`, `budget.loops`, `budget.jev`, the fleet monthly ceiling) and never raises them; JEV starts at tier 0; every figure is labelled API-equivalent (estimate) (§ 10.7).
+5. **Same gates, no shortcuts** — an expedite sprint skips no required check, eval, review gate, risk tier or kill switch; speed comes from priority and swarming, not from relaxed quality.
+6. **Kill switch** — every loop a sprint drives honours its switch (§ 17); one sprint-scope switch stops all of them.
+7. **Live record and metrics** — each sprint keeps a live state record (gates, phase, items, spend vs cap, trip wires) and reports DORA's delivery metrics for the target repo as a guide, never as a target.
+8. **Retro** — every sprint ends with a retro that routes each failure to the strongest ratchet rung (`docs/HARNESS.md`) and files remaining quality debt as issues before it closes.
+9. **Scope** — the standard is [`docs/EXPEDITE-SPRINTS.md`](EXPEDITE-SPRINTS.md); the budget, record and metrics tooling are follow-ups (epic #687).

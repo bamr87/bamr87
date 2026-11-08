@@ -37,6 +37,12 @@
 }
 
 .tr {
+  &:focus-visible,
+  &:has([data-row-link]:focus-visible) {
+    outline: rem(2px) solid var(--accent);
+    outline-offset: rem(-2px);
+  }
+
   &[data-clickable] {
     cursor: pointer;
 

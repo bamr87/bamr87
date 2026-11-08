@@ -238,3 +238,26 @@ Not changed, and each worth a decision of its own:
 ## 2026-10-28 — the pass as a tool
 
 The 2026-10-27 pass was done by hand: reading 29 files, cross-checking five hand-kept copies of their facts, and grepping run logs for why each red run failed. The [workflow atlas](WORKFLOW-ATLAS.md) does that reading every time. Its 17 rules are the standards above (run against `main` before #422, they report the `null-input`, `usage-limit`, `pr-token` and README findings this pass found by hand); its classifier sorts each failed run into capacity, config, transient, dependency or defect; its Retire tab lists ghosts and dead schedules; and its scaffold writes a new workflow inside the rules. Two of the hand-kept copies are gone: the console's dispatch inputs (it refused every input of four workflows) and `test_schedule.py`'s key table, which are now read from the files and from a naming convention.
+
+## 2026-11-05 — a status you can trust
+
+A review of all 412 workflows in 42 repos, and their 9,989 runs from Oct 23 to Nov 5, using custom scripts over the atlas's parser, rules and failure classifier. It ranked by trust, time to a result and API quota, because Actions cost nothing net: October used 44,563 minutes, $292.21 gross, $0.00 net on the billing meter.
+
+Most workflows work. The problem was that their status could not be trusted:
+
+| Finding | Evidence | What changed |
+| --- | --- | --- |
+| `verify` passed with nothing run | 22 of 25 repos run no scenarios: the kit's empty `app:` block meant a 180-second wait, skipped scenarios and a green job | `fleet-verify.yml` reports **Not verified** in seconds, and a failed build or start fails the job |
+| One check spent the hub's API quota | `drift` check (k) made at least 475 calls a run on the shared `GITHUB_TOKEN`. Quota ran out after 4 to 9 full scans in an hour, failing 41 `build-dash` and `verify` runs at `setup-node` and leaving 29 drift runs green with nothing read | The fleet-wide checks run daily; `node-version` is a number, held by the atlas rule `node-alias`; check (k) reports skipped when it read nothing |
+| 21-minute `python-tests` on every PR | 98% was one serial step, and install took 12 seconds, so caching could not help | Four parallel shards, and PRs touching only `docs/`, `changelog.d/` or feature fragments skip them |
+| `verify` ran for fragments it cannot read | `features/**` matched `features/features.d/` | The trigger is `features/features.yml` |
+
+**Reading run data.** 541 runs never started. 514 were PRs from `github-actions[bot]`, held for approval [since June 2026](https://github.blog/changelog/2026-06-11-bot-created-pull-requests-can-run-workflows-if-approved/); 272 of the 541 show as failures with zero jobs. Their `updated_at` moves days after the event, so a total from run timestamps reads 4,392 hours where the executed runs took 315. Exclude them before computing any rate or duration. Of 595 failed runs, 323 ran a job, and 143 of those were code or test defects.
+
+Not changed here, and each a decision of its own:
+
+- **22 repos still need an `app:` block**, or the verify kit removed. Each is its own PR in its own repo.
+- **A new `v2` minor.** The tag from 2026-10-14 lacks `spec-gate.yml`, so `law-ai`'s CI is rejected with zero jobs, and the `release-please.yml` change that turns a denied PR into a warning.
+- **`RELEASE_PLEASE_TOKEN` in four repos:** `ai-world-view.github.io`, `bash-365-apex`, `bash-365.com` and `year-of-ai.github.io`. Bots on `it-journey`, `zer0-mistakes` and the hub's `amend/` branches still open PRs that wait for approval.
+- **118 references call the hub at `@main`**, and 191 jobs across the fleet have no timeout. The atlas reads only the hub, so neither shows up there.
+

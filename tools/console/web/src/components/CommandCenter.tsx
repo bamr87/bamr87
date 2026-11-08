@@ -2,11 +2,12 @@
 // Pages, every registry project, fleet apps, loops, workflows, config blocks, content sites and the
 // allowlisted operations. Picking an operation that takes parameters opens its
 // page with the form; one that takes none runs (through the same confirm gate).
-import { useMemo } from 'react';
+// Opened empty, it leads with the pages this browser visited last.
+import { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { Spotlight, type SpotlightActionGroupData } from '@mantine/spotlight';
 import { Badge } from '@mantine/core';
-import { IconAppWindow, IconApps, IconFileText, IconGitBranch, IconPlayerPlay, IconRepeat, IconSearch, IconSettings } from '@tabler/icons-react';
+import { IconAppWindow, IconApps, IconClock, IconFileText, IconGitBranch, IconPlayerPlay, IconRepeat, IconSearch, IconSettings } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { OPEN_EVENT } from '../api/backend';
 import { useOps, useStateDoc } from '../api/hooks';
@@ -14,6 +15,7 @@ import type { AppsDoc, Dict, WorkflowAtlas } from '../api/types';
 import { useRunner } from '../jobs/JobRunner';
 import { FLAT } from '../nav';
 import { to } from '../lib/links';
+import { recentPages, type RecentPage } from '../lib/prefs';
 
 export function CommandCenter() {
   const routerNavigate = useNavigate();
@@ -22,6 +24,8 @@ export function CommandCenter() {
   const ops = useOps();
   const qc = useQueryClient();
   const { runOp } = useRunner();
+  const [query, setQuery] = useState('');
+  const [recent, setRecent] = useState<RecentPage[]>([]);
 
   const actions = useMemo<SpotlightActionGroupData[]>(() => {
     // On the Desktop a pick opens a window there instead of leaving it.
@@ -68,7 +72,12 @@ export function CommandCenter() {
       rightSection: o.remote_write ? <Badge size="xs" color="yellow" variant="light">can write</Badge> : undefined,
       onClick: () => (o.params.length ? navigate(to.op(o.id)) : void runOp(o.id, {})),
     }));
+    // Only with nothing typed: a query finds these pages under their own groups.
+    const recents = query.trim() ? [] : recent.map((r) => ({
+      id: `recent:${r.path}`, label: r.label, description: r.path, leftSection: <IconClock size={18} stroke={1.6} />, onClick: go(r.path),
+    }));
     return [
+      { group: 'Recent', actions: recents },
       { group: 'Go to', actions: pages },
       { group: 'Run an operation', actions: operations },
       { group: 'Projects', actions: projects },
@@ -78,11 +87,14 @@ export function CommandCenter() {
       { group: 'Content sites', actions: sites },
       { group: 'Config', actions: config },
     ];
-  }, [state.data, ops.data, routerNavigate, onDesktop, runOp, qc]);
+  }, [state.data, ops.data, routerNavigate, onDesktop, runOp, qc, query, recent]);
 
   return (
     <Spotlight
       actions={actions}
+      query={query}
+      onQueryChange={setQuery}
+      onSpotlightOpen={() => setRecent(recentPages())}
       nothingFound="Nothing matches"
       highlightQuery
       limit={40}

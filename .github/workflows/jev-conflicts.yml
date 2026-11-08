@@ -7,6 +7,12 @@ name: 🧩 JEV — conflict triage
 # small conflicts, a strong model for large ones, a human for everything else.
 # Design, tiers and cost model: docs/JEV.md · tools/jev/README.md.
 #
+# WHERE IT RUNS
+# -------------
+# This workflow does the free, deterministic tier (`jev.ci_tiers`). A conflict
+# that needs a model waits, with no label, for a local session: `tools/dash
+# conflicts sweep`, on the maintainer's machine (constitution § 10.9).
+#
 # WHAT IT NEVER DOES
 # ------------------
 # It never merges a pull request, never force-pushes, never rebases, never uses
@@ -18,7 +24,8 @@ name: 🧩 JEV — conflict triage
 # TRIGGERS
 # --------
 #   schedule          every six hours (fleet.yml schedule.jev_conflicts)
-#   push to main      a push to main is exactly when open PRs become conflicted
+#   push to main      a push to main is exactly when open PRs become conflicted;
+#                     it scans this repo only, the schedule scans the fleet
 #   repository_dispatch  so another workflow can ask for a pass
 #   workflow_dispatch    a human run, which BYPASSES the kill switch
 #
@@ -124,11 +131,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
           ONE_PR: ${{ inputs.pr }}
+          EVENT: ${{ github.event_name }}
         run: |
           if [ -n "$ONE_PR" ]; then
             printf '%s\n' "$ONE_PR" > conflicting.txt
           else
-            python3 -m tools.jev conflicts scan --json > scan.json
+            # A push check never reads the whole fleet (AGENTS.md): the six-hourly
+            # schedule does that.
+            scope=()
+            if [ "$EVENT" = push ]; then scope=(--repo "$GITHUB_REPOSITORY"); fi
+            python3 -m tools.jev conflicts scan --json "${scope[@]}" > scan.json
             python3 -c "import json;print('\n'.join(p['ref'] for p in json.load(open('scan.json')) if p['eligible']))" > conflicting.txt
           fi
           {

@@ -46,6 +46,7 @@ AMENDMENTS_PROPOSED = "docs/amendments/proposed"
 AMEND_INDEX = "docs/amendments/README.md"
 ROADMAP = "_data/roadmap.yml"
 ROADMAP_D = "_data/roadmap.d"
+SCENARIOS = "verify/scenarios"
 PRD = "PRD.md"
 
 #: The placeholder a pull request writes instead of a number, and the shape of
@@ -516,6 +517,14 @@ def apply(repo: Path, *, write: bool = True) -> Plan:
         _merge_changelog(repo, [repo / rel for rel in p.changelog])
         for rel in p.changelog:
             (repo / rel).unlink()
+
+    # A scenario lands with its feature and names it by slug, so its `feature:`
+    # line takes the number here too: nothing else would ever rewrite it.
+    for scenario in sorted((repo / SCENARIOS).glob("*.yml")):
+        text = scenario.read_text(encoding="utf-8")
+        body = rewrite_refs(text, p.assignments)
+        if body != text:
+            scenario.write_text(body, encoding="utf-8")
     return p
 
 

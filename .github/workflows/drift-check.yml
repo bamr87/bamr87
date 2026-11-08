@@ -2,9 +2,15 @@ name: 🚧 Drift Check
 
 # Hard gate (fast, deterministic): fails CI on registry ↔ .gitmodules drift,
 # stray/unregistered project dirs, a stale README AUTO:projects span, or missing
-# top-level READMEs. Also runs an advisory (non-gating) check that the registry's
-# repo_urls still match GitHub reality — renamed / moved / deleted repos the
-# set-vs-set parity check can't see (uses GITHUB_TOKEN; self-skips if unreachable).
+# top-level READMEs.
+#
+# The fleet-wide advisory checks run daily and on dispatch, never on a PR or a
+# push: (g) that the registry's repo_urls still match GitHub, and (k) the fleet's
+# dependency policy. They read every registry repo on this repo's shared
+# GITHUB_TOKEN quota, at least 475 calls a run, and no PR can change what they
+# read. Run on every PR and push, they spent the quota in busy hours: setup-node
+# failed in build-dash and verify, and the gate itself passed with nothing read
+# (docs/WORKFLOW-OPTIMIZATION.md, the November 2026 review).
 #
 # The control plane's own Python fixture tests (.github/scripts/dash-gen/
 # test_*.py) run in python-tests.yml with every other hub suite — one place for
@@ -18,13 +24,16 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: '7 4 * * *'  # daily 04:07 UTC: the fleet-wide checks (_data/fleet.yml schedule.drift_check)
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# The daily scan gets a group of its own, so a push to main cannot cancel it.
 concurrency:
-  group: drift-check-${{ github.ref }}
+  group: drift-check-${{ github.event_name == 'schedule' && 'schedule' || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -58,8 +67,14 @@ jobs:
       # docs/DASH.md CLI reference) warns instead of failing — main's post-merge
       # job regenerates it, so a PR is never asked to (and never conflicts on it).
       - name: Run drift gate
-        run: tools/check-drift.sh --ci
+        run: |
+          if [ "$EVENT" = schedule ] || [ "$EVENT" = workflow_dispatch ]; then
+            tools/check-drift.sh --ci
+          else
+            tools/check-drift.sh
+          fi
         env:
+          EVENT: ${{ github.event_name }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           JEV_SPANS_ADVISORY: '1'
 

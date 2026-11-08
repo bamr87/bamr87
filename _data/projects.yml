@@ -900,7 +900,7 @@
   status: active
   featured: false
   maintained: true
-  live_url: https://bash-365.com/
+  live_url: https://www.bash-365.com/
   docs_url: null
   schema:
     status: none
@@ -1089,6 +1089,33 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: none
+    tier: none
+    framework: none
+    surfaces: []
+    token_version: none
+    entry_url: null
+    shell: none
+
+- name: recon-engine
+  slug: recon-engine
+  submodule_path: projects/recon-engine
+  branch: main
+  repo_url: https://github.com/bamr87/recon-engine
+  description: "Recon Engine: operational events reconciled against the general ledger — one monthly residual, six gross-not-net buckets, a statistical layer scoring where interpretation drifts from fact. Spec stage; Django ERP adapter first."
+  stack: [python, accounting, manufacturing, statistics, django]
+  category: full-stack-ai
+  status: experiment
+  featured: false
+  maintained: true
+  auto_evolve: false
+  live_url: null
+  docs_url: null
+  schema:
+    status: adopted
+  license: MIT
+  kinds: [lib]
   frontend:
     type: none
     tier: none

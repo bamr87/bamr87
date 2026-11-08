@@ -1681,39 +1681,190 @@
   created: 2026-11-05
   issue_url: https://github.com/bamr87/bamr87/issues/678
 
-- id: FF-0041
-  title: "Claude Code executes; Grok bots set direction only"
+- id: FF-0042
+  title: "Expedite sprints — accelerated, monitored pilots run by agentic loops"
   project: bamr87
   repo_url: https://github.com/bamr87/bamr87
   status: proposed
-  priority: P0
-  effort: M
-  category: governance
+  priority: P1
+  effort: L
+  category: infra
   problem: >-
-    Grok bots and Claude Code both open implementation PRs today. Amr wants
-    software and Harness Console execution done only by Claude Code, with Grok
-    bots limited to constitutional / amendment (direction-setting) PRs.
+    Urgent work waits in the same lanes and caps as everything else; the fleet
+    has no expedite lane, no sprint budget or circuit breaker, no DORA delivery
+    metrics and no live sprint record.
   proposal: >-
-    Ratify constitution § 26 (amendment claude-code-executes): define Claude
-    Code vs Grok bots, direction-setting PRs, handoff via Fleet issues/console
-    jobs, Amr OK fallback when Claude Code is unavailable, warn-then-fail
-    author lint. Update AGENTS.md agent-roles. FF-0041 (FF-0040 reserved by
-    open PR #685 mcp-lifecycle).
+    Ratify constitution § 27 (amendment expedite-sprints) and the standard
+    docs/EXPEDITE-SPRINTS.md, then build the sprint ceiling + circuit breaker
+    (#689), live record (#691) and DORA projection (#690), and pilot on
+    bash-365.com with a consultation inquiry form (#692). Spec
+    docs/prd/EXPEDITE-SPRINTS.md; epic #687, P0 backlog #688.
   acceptance:
-    - "Amendment claude-code-executes and constitution § 26 (or § 25 if #685 has not landed) are merged by Amr."
-    - "AGENTS.md documents the actor split and handoff."
-    - "Feature HUB-NEW:claude-code-executes and FR-NEW:claude-code-executes compile at merge."
-    - "Warn-only claude_code_executes_lint exists; hard-fail and in-flight PR policy are follow-ups Amr decides."
+    - "Amendment expedite-sprints and constitution § 27 are merged."
+    - "Feature HUB-NEW:expedite-sprints and FR-NEW:expedite-sprints compile at merge."
+    - "A sprint at its ceiling stops and files a draft (fixture test, #689)."
+    - "The bash-365.com pilot passes a privacy review before build and ends with a recorded retro."
   scope:
     in:
-      - "amendment, constitution § 26, AGENTS.md roles, feature/FR, roadmap, changelog, warn-only lint stub"
+      - "the standard, amendment, sub-PRD, roadmap and feature/FR fragments"
     out:
-      - "force-closing in-flight PRs; changing GitHub org app identities; running on Amr's Mac without yes"
+      - "raising any budget; unattended merges or deploys; building the pilot in the ratification PR"
   risks:
-    - "Section number vs open #685 (§ 25) — documented renumber rule."
-    - "In-flight Grok PRs — open question; default grandfather + label."
-    - "Author detection false positives — warn-only and allowlist in _data/agent_roles.yml."
+    - "Expedite becomes the norm — WIP 1 and a per-period count."
+    - "Speed erodes quality — no gate relaxed; debt filed at retro."
+    - "Section numbering — § 27 assumes #685 (§ 25) and #686 (§ 26) merge first."
   source: manual
   created: 2026-11-05
-  issue_url: ""
+  issue_url: https://github.com/bamr87/bamr87/issues/687
 
+- id: FF-0043
+  title: GitHub Actions as the agentic SDLC platform — typed decisions gate risk, telemetry scores efficiency,
+    trim and verify loops recover minutes
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P1
+  effort: XL
+  category: infra
+  problem: Every skip, retry and auto-fix in the fleet's pipelines is either a hand-written shell test
+    or a free-form agent judgment, so nothing can say with a measured confidence which tests a diff can
+    affect, whether a failure is flaky or real, or whether an agent should touch it; minutes are spent
+    running everything on every PR, and a missed failure leaves no trace that could tighten the next decision.
+  proposal: 'Adopt the maintainer''s four-layer design (ADR 0008, docs/prd/AGENTIC-SDLC.md): the cost
+    levers as atlas standards fleet-wide; a typed-decision node (TypeSafe Jev behind one composite action,
+    claude -p as fallback) reading a decision lockfile with confidence thresholds that fail closed; decision
+    traces and CI quality signals in the lake with Studio panels and alerts; typed pre-classification
+    in front of the doctor and a patch screen behind every agent PR; a per-PR trim loop (test selection,
+    matrix pruning) that starts in shadow and a nightly verify loop whose missed failures become regression
+    cases, with a fitness gate (minutes down, missed failures zero) on every promotion.'
+  acceptance:
+  - ADR 0008 accepted or rejected on an offline evaluation of about 40 past PRs and failures (A0).
+  - Five cost-lever rules in the atlas at warn, the hub at zero warnings, levers ranked fleet-wide (A1).
+  - '_data/decisions.yml and the typed-decision action: every consumer thresholded, every miss on the
+    conservative branch, never a failed step (A2).'
+  - Decision traces, queue time, cache hit rate, flake rate and time-to-green in the lake; replay; Studio
+    panels; four alerts (A3).
+  - The doctor and tier 2 run only after a cleared classification; a 0.70-floor patch screen on agent
+    and human PRs (A4).
+  - Test selection and matrix pruning in shadow for 14 nightly windows with a report of what would have
+    been skipped (A5).
+  - decision-verify.yml with kill switch and declared cron; the hub and one fleet repo promoted with zero
+    missed failures and minutes down on the billing meter (A6).
+  scope:
+    in:
+    - the hub's reusable workflows and composite actions, tools/jev, the lake, the Studio views, fleet-pulse
+      and the issue pipeline, the fleet kit through fanout.yml
+    out:
+    - SHA-pinning actions (the fleet rides major tags by standing rule)
+    - a GitHub App identity (a maintainer decision put as a question in A4, not assumed)
+    - new repositories (no org; the hub is org/.github, org/ci-metrics and org/ci-agent at once)
+    - self-hosted runners on public repositories
+  risks:
+  - The ecosystem pieces the design names (jev-action, jev-workflow, jev-review-action, Leanest) were
+    not verifiable on 2026-11-06; each phase adopts or builds and says which.
+  - 'Name collision: JEV is the hub''s engine, TypeSafe Jev is the external model; every doc qualifies
+    the external one.'
+  - A trim that drops a test is the worst outcome; promotion is per repository, reversible, and a missed
+    failure demotes first.
+  - A new vendor key in the token contract and per-decision spend the ledger must count as API-equivalent
+    (estimate).
+  source: manual
+  created: 2026-11-06
+  issue_url: null
+
+- id: FF-0044
+  title: 'Azure cloud cost dashboard for bash-365.com: built on BASH''s own subscription, shown on the
+    site as a read-only visualization, with a guide and a campaign'
+  project: bash-365.com
+  repo_url: https://github.com/bash-365/bash-365.com
+  status: proposed
+  priority: P2
+  effort: L
+  category: feature
+  problem: bash-365.com offers cloud cost optimization and dashboards as services but shows no working
+    example of either. A small business that wants to see its Azure spend has no live reference, guide
+    or worked example from BASH Consulting to start from.
+  proposal: An epic on bash-365/bash-365.com (#84) that builds an Azure cost dashboard on BASH's own subscription
+    and presents it on the site as a read-only visualization. P0 (#85) defines the data source, the published
+    fields and what is withheld, the architecture and the Azure access plan. P1 builds a deterministic
+    pipeline that reads Azure Cost Management with a read-only identity and writes an aggregated snapshot.
+    P2 renders the snapshot as a public page on both production stacks. P3 is a business-track toolkit
+    guide and cloud service copy. P4 (#86) is a campaign of posts and LinkedIn pieces written from the
+    build.
+  acceptance:
+  - P0 (bash-365/bash-365.com#85) delivers the data-source choice, the published-field and withheld lists,
+    the architecture, the site home and the access plan, each Azure claim sourced and dated.
+  - A scheduled script reads cost data with a least-privilege, read-only identity and writes a schema-checked
+    snapshot with a self-test; each Azure change was approved by Amr.
+  - The site shows the dashboard as a read-only page on GitHub Pages and Azure Static Web Apps, with no
+    Azure credential or identifier in the repo or the browser, a features.yml entry and a PRD requirement
+    id.
+  - A toolkit guide, service copy and the campaign pieces are published from the build's evidence, with
+    no invented metrics or client names.
+  scope:
+    in:
+    - 'the epic and its phases on bash-365/bash-365.com: definition, pipeline, public page, toolkit guide
+      and service copy, campaign'
+    out:
+    - any change to the Azure subscription (role, budget, export, resource, plan) without Amr's explicit
+      yes
+    - subscription, tenant or resource identifiers in any repo; a multi-tenant or client-facing cost product;
+      write access to Azure from the pipeline
+  risks:
+  - 'Publishing spend data leaks identifiers: mitigated by an explicit published-field list and aggregates
+    only.'
+  - 'BASH''s Azure footprint is small, so the real chart may be nearly flat: P0 decides between real data,
+    a labelled sample, or both.'
+  - 'A sample dataset could be read as real: every sample sits under a visible label.'
+  - Charts must render on GitHub Pages safe mode, where local plugins do not run.
+  source: manual
+  created: 2026-11-06
+  issue_url: https://github.com/bash-365/bash-365.com/issues/84
+
+- id: FF-0045
+  title: 'Cloud phone system with AI call handling: a service offering and content for bash-365.com, piloted
+    on BASH''s own line'
+  project: bash-365.com
+  repo_url: https://github.com/bash-365/bash-365.com
+  status: proposed
+  priority: P2
+  effort: L
+  category: feature
+  problem: bash-365.com presents eight service areas and none of them covers the phone system. A small
+    business that wants its calls moved to a cloud phone system, routed sensibly and processed with AI
+    has no offering, guide or worked example from BASH Consulting to start from.
+  proposal: 'An epic on bash-365/bash-365.com (#81) that adds cloud phone setup to what BASH offers and
+    explains: number setup, call-flow configuration, routing, integration with the business''s other systems,
+    and AI processing (transcription, call summaries, follow-up tasks, an after-hours AI receptionist).
+    P0 (#82) defines the offering, surveys platforms vendor-neutrally, lists the compliance topics and
+    decides where it lives on the site. P1 pilots it on BASH''s own published line. P2 to P4 are the toolkit
+    guide, the service copy and the posts written from the pilot.'
+  acceptance:
+  - P0 (bash-365/bash-365.com#82) delivers the offering definition, a sourced vendor-neutral platform
+    survey, the compliance checklist, the site-home decision and the pilot plan.
+  - BASH's own line runs on the chosen platform with a documented call flow, AI processing and a written
+    rollback, each live step approved by Amr.
+  - 'The site carries the offering: a business-track toolkit guide, service copy, a features.yml entry
+    and a PRD requirement id.'
+  - Posts and LinkedIn pieces are written from the pilot's evidence, with no invented metrics or client
+    names.
+  scope:
+    in:
+    - 'the epic and its phases on bash-365/bash-365.com: definition, pilot on BASH''s line, toolkit guide,
+      service copy, posts'
+    out:
+    - changing BASH's live number, porting, buying numbers or opening paid accounts without Amr's explicit
+      yes
+    - real caller audio, transcripts or phone numbers in any repo; legal advice; building a telephony
+      product
+  risks:
+  - 'The pilot touches the practice''s live phone line: mitigated by a written rollback and Amr''s yes
+    for each step.'
+  - 'Vendor features and prices change: every claim is sourced and dated, and the survey stays vendor-neutral.'
+  - 'Call-recording and AI-voice rules vary by jurisdiction: content says what the rules require and is
+    not legal advice.'
+  - A ninth service area versus a named offering under existing services is undecided; P0 scopes the PRD
+    change either way.
+  source: manual
+  created: 2026-11-06
+  issue_url: https://github.com/bash-365/bash-365.com/issues/81

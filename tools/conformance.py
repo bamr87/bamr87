@@ -1402,6 +1402,22 @@ def _governance(r):
 _GOV_15 = re.compile(r"feature|prd|catalog|TODO-", re.I)
 
 
+@check("UPS-WORK-17")
+@_need_contract
+def _pr_review(r, k):
+    """Contract UPS-WORK-17 (constitution § 19): a job calls the hub's reusable
+    pr-review.yml, which summarizes every CI failure on the PR. The hub defines
+    it; every other repo calls it."""
+    wf = "bamr87/bamr87/.github/workflows/pr-review.yml"
+    if r.path.resolve() == r.hub:
+        return _ok("the hub defines pr-review.yml") if r.has(".github/workflows/pr-review.yml") else _no("pr-review.yml is missing")
+    for name, text in _workflow_texts(r):
+        for jid, job in _jobs(text).items():
+            if str((job or {}).get("uses") or "").split("@")[0] == wf:
+                return _ok(f"{name} job `{jid}` calls pr-review.yml")
+    return _no("no workflow calls bamr87/bamr87 pr-review.yml (seed with tools/fanout.sh --kit pr-review)")
+
+
 @check("UPS-WORK-15")
 @_need_contract
 def _prd_features_link(r, k):

@@ -1,0 +1,157 @@
+{
+  "id": "console-nav",
+  "title": "The sidebar keeps the current page in view, and Enter does what the focused control says",
+  "features": [
+    "HUB-NEW:console-shell"
+  ],
+  "path": "verify/scenarios/console-nav.yml",
+  "started": "2026-11-06T23:10:27.374Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/config",
+          "ok": true,
+          "ms": 3362
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "nav a[aria-current='page']"
+          },
+          "ok": true,
+          "ms": 28
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "active_in_view",
+            "script": "(async () => { await new Promise((r) => setTimeout(r, 400)); const r = document.querySelector(\"nav a[aria-current='page']\").getBoundingClientRect(); if (r.bottom > window.innerHeight || r.top < 0) throw new Error(`the current page is at y=${r.top}`); return Math.round(r.top); })()"
+          },
+          "ok": true,
+          "value": 363,
+          "ms": 404
+        },
+        {
+          "step": "click",
+          "arg": "nav button:has-text('Harnesses')",
+          "ok": true,
+          "ms": 74
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "nav a:has-text('Inventory')"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "goto",
+          "arg": "/config",
+          "ok": true,
+          "ms": 3000
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "nav a:has-text('Inventory')"
+          },
+          "ok": true,
+          "ms": 18
+        },
+        {
+          "step": "screenshot",
+          "arg": "sidebar-folded",
+          "ok": true,
+          "file": "test/evidence/console-nav/desktop-sidebar-folded.png",
+          "ms": 44
+        },
+        {
+          "step": "goto",
+          "arg": "/projects",
+          "ok": true,
+          "ms": 3435
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "a[data-row-link]"
+          },
+          "ok": true,
+          "ms": 17
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "enter_on_a_button",
+            "script": "(async () => { const b = [...document.querySelectorAll('main button')].find((x) => !x.closest('th') && x.offsetParent); b.focus(); document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await new Promise((r) => setTimeout(r, 300)); if (!/\\/projects\\/?$/.test(location.pathname)) throw new Error(`Enter on a button went to ${location.pathname}`); document.activeElement.blur(); return 'stayed'; })()"
+          },
+          "ok": true,
+          "value": "stayed",
+          "ms": 308
+        },
+        {
+          "step": "press",
+          "arg": "Control+k",
+          "ok": true,
+          "ms": 7
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "button:has-text('Config')"
+          },
+          "ok": true,
+          "ms": 37
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "recents_lead",
+            "script": "(() => { const first = document.querySelector('[class*=Spotlight-actionsGroup]'); if (first.getAttribute('data-label') !== 'Recent' && !/config/i.test(first.innerText)) throw new Error('the palette does not lead with recent pages'); return first.innerText.split('\\n')[0]; })()"
+          },
+          "ok": true,
+          "value": "Projects",
+          "ms": 3
+        },
+        {
+          "step": "press",
+          "arg": "Escape",
+          "ok": true,
+          "ms": 6
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 2
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/console-nav/desktop-sidebar-folded.png"
+      ],
+      "evals": {
+        "active_in_view": 363,
+        "enter_on_a_button": "stayed",
+        "recents_lead": "Projects"
+      },
+      "final_url": "http://127.0.0.1:4011/projects"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-11-06T23:10:38.181Z",
+  "base": "http://127.0.0.1:4011"
+}

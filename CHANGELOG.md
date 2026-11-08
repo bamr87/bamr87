@@ -29,6 +29,8 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - Shared voice model `voices/v1`: `_data/voices/voices.yml` (canonical; lifehacker.dev's SDLC persona cast) and `voices.schema.json`, validated by `tools/voices.py check` (with `--against` drift check and `assign`). § 23 also brings lifehacker.dev in as the hub-originated news agency.
 - Constitution § 24 (amendment `visual-evidence`): tutorials, guides and setup docs ship screenshots or other visual front-end evidence (naming, alt text, redaction, freshness), with a warn-then-fail guides lint and hub-first fleet fan-out.
 - Constitution § 22 (amendment `repo-cap-42`): the `bamr87` account holds at most 42 repositories (hard cap), and every new repo must come with merging or absorbing an existing one.
+- Proposed constitution § 27 / amendment `expedite-sprints`: one expedite sprint at a time run by the fleet's agentic loops, three Amr gates, sprint ceiling and circuit breaker, kill switch, live record and DORA metrics; standard `docs/EXPEDITE-SPRINTS.md` (epic #687).
+- `pr-review.yml`: a reusable workflow that summarizes every CI failure on a pull request in one sticky comment: the job, the reason from its log, whether the PR probably caused it, and what to do. The comment is deleted when nothing is failing. A fleet repo adopts it with the stub in `templates/pr-review/`.
 
 ### Changed
 
@@ -36,6 +38,7 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - `_data/fleet.yml` `budget.loops.monthly_usd`: $25 → $50, so the month can afford one $40 doctor attempt (`test_ai_budget.py` pairs the two).
 - `_data/fleet.yml` gains `evolution.model: claude-opus-5-5`, the exact id the workflow's `--model opus` resolved to; `test_evolution.py` reads the hard rules from the spec's render and holds the workflow's literals to `fleet.yml`.
 - `_data/roadmap.yml`: roadmap ids (`FF-NNNN`) are now assigned at merge. A new entry is a fragment `_data/roadmap.d/<slug>.yml` with `id: FF-NEW`, cited elsewhere as `FF-NEW:<slug>`; `python3 -m tools.jev number apply` numbers it on `main` and appends it, and `number lint` rejects a hand-picked `- id: FF-NNNN`.
+- `fleet-verify.yml`: a repo whose `app:` block gives nothing to start or serve on a local URL now stops in seconds with a **Not verified** warning and job summary, and fails under `gate: true`. An app that is configured but fails to build or start now fails the job whatever `gate` says, because no scenario ran. Until now both cases waited out the readiness timeout and passed.
 
 ### Fixed
 
