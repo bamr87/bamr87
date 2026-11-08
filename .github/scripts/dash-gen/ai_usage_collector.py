@@ -68,6 +68,7 @@ aggregate claims.
 from __future__ import annotations
 
 import argparse
+import base64
 import collections
 import datetime as dt
 import io
@@ -198,25 +199,87 @@ def _record_from(obj: dict) -> dict | None:
         "session": str(session) if isinstance(session, str) else None,
         "cost_usd": cost,
         "turns": _int(obj.get("num_turns")),
+        "duration_ms": _int(obj.get("duration_ms")) or None,
         "tokens": tokens,
         "cache_1h": cache_1h,
         "models": models,
+        "echo": False,
     }
+
+
+# The Actions log prefix: the zip's `<timestamp> `, or `gh run view --log`'s
+# `<job>\t<step>\t<timestamp> `. Stripped to see a pretty-printed block's
+# braces at column 0.
+LOG_PREFIX_RX = re.compile(r"^(?:[^\t\n]*\t[^\t\n]*\t)?\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z ?")
+# claude-code-action prints the session id on its own line after the block.
+SESSION_LINE_RX = re.compile(r"Set session_id:\s*([0-9a-fA-F-]{36})")
+# claude-cost's echo of the agent step's result record (the reference parity
+# compares the ledger against).
+ECHO_MARKER = "claude-run-result"
+BLOCK_MAX_LINES = 4000
+SESSION_LOOKAHEAD = 6
+
+
+def _strip_prefix(line: str) -> str:
+    return LOG_PREFIX_RX.sub("", line, count=1)
+
+
+def _block_at(lines: list[str], i: int) -> tuple[dict | None, int]:
+    """A pretty-printed JSON object opening at line i — a bare `{`, indented
+    keys, a bare `}` at column 0, as claude-code-action prints its `result`
+    record. Returns (object, index of the closing line), or (None, i)."""
+    for j in range(i + 1, min(len(lines), i + BLOCK_MAX_LINES)):
+        if _strip_prefix(lines[j]).rstrip() == "}":
+            try:
+                obj = json.loads("\n".join(_strip_prefix(x) for x in lines[i:j + 1]))
+            except ValueError:
+                return None, i
+            return (obj if isinstance(obj, dict) else None), j
+    return None, i
 
 
 def iter_usage_records(text: str):
     """Every Claude usage payload in one log file.
 
-    Line-oriented and JSON-first: the CLI writes its result payload as a single
-    line, Actions prefixes it with a timestamp, and the hub's workflows echo it
-    verbatim behind a `claude-run-result ` marker. A line the decoder refuses
-    still yields its cost through `COST_RX`, so a truncated log degrades to a
-    reported cost rather than to an estimate.
+    Two shapes reach a log, and one Claude call usually prints BOTH:
+
+    * a single line — the CLI's result payload, which the hub's
+      `claude-cost` step echoes behind `claude-run-result` (records from it
+      carry `echo: True`), or a full-output stream line;
+    * claude-code-action's PRETTY block: a bare `{`, one key per line, a bare
+      `}`, then `Set session_id: <uuid>` on its own line. It is decoded as a
+      whole and given that session id, so it folds into the echo of the same
+      call (see dedupe_records). Read line by line instead, its
+      `"total_cost_usd": 6.42,` line used to yield a second, session-less
+      record and the run was charged twice (issue-pipeline run 42352285943:
+      $25.64 for three tiers whose result lines sum to $12.82).
+
+    A line the decoder refuses still yields its cost through `COST_RX`, so a
+    truncated log degrades to a reported cost rather than to an estimate.
     """
     decoder = json.JSONDecoder()
-    for line in text.splitlines():
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if _strip_prefix(line).rstrip() == "{":
+            obj, end = _block_at(lines, i)
+            if obj is not None:
+                rec = _record_from(obj)
+                if rec:
+                    if not rec["session"]:
+                        for nxt in lines[end + 1:end + 1 + SESSION_LOOKAHEAD]:
+                            sid = SESSION_LINE_RX.search(nxt)
+                            if sid:
+                                rec["session"] = sid.group(1)
+                                break
+                    yield rec
+                i = end + 1
+                continue
+        i += 1
         if not any(m in line for m in USAGE_MARKERS):
             continue
+        echo = ECHO_MARKER in line
         found = False
         idx = line.find("{")
         while idx != -1:
@@ -229,6 +292,7 @@ def iter_usage_records(text: str):
                 rec = _record_from(obj)
                 if rec:
                     found = True
+                    rec["echo"] = echo
                     yield rec
             idx = line.find("{", max(end, idx + 1))
         if not found:
@@ -240,33 +304,64 @@ def iter_usage_records(text: str):
                     "session": session.group(1) if session else None,
                     "cost_usd": float(cost.group(1)),
                     "turns": int(turns.group(1)) if turns else 0,
+                    "duration_ms": None,
                     "tokens": dict.fromkeys(TOKEN_KEYS, 0),
                     "cache_1h": 0,
                     "models": {},
+                    "echo": echo,
                 }
 
 
-def dedupe_records(records: list[dict]) -> list[dict]:
-    """One record per Claude session.
+def _same_call(a: dict, b: dict) -> bool:
+    """Are two records prints of the same Claude call?
 
-    Two things make raw matches unsummable. GitHub's log zip holds each job's
-    text twice (`<job>.txt` and `<job>/<step>.txt`), and the CLI's
-    `total_cost_usd` is CUMULATIVE within a session, so a resumed session emits
-    a growing figure. Keyed by session id, the richest record wins; records
-    with no session id fall back to their own content as the key, which still
-    collapses the duplicated log text.
+    The rules of the lake's parser (bamr87/bamr87#771, `fleet_lake._same_call`):
+    the same session decides; two different sessions rule it out; otherwise the
+    same duration and turn count (claude-code-action's reduced block and
+    claude-cost's echo of it); otherwise the identical payload (GitHub's zip
+    holds each job's text twice, as step files and as the per-job roll-up).
     """
-    best: dict[tuple, dict] = {}
+    if a["session"] and b["session"]:
+        return a["session"] == b["session"]
+    if a.get("duration_ms") and (a.get("duration_ms"), a["turns"]) == (b.get("duration_ms"), b["turns"]):
+        return True
+    if a["session"] or b["session"]:
+        return False
+    return (a["cost_usd"], a["turns"], tuple(sorted(a["tokens"].items()))) == \
+        (b["cost_usd"], b["turns"], tuple(sorted(b["tokens"].items())))
+
+
+def _merge(a: dict, b: dict) -> dict:
+    """One record from two prints of the same call: the richest wins (the
+    CLI's `total_cost_usd` is cumulative within a session), and keeps the
+    other's session id and echo mark if it lacks them."""
+    win, other = (b, a) if _rank(b) > _rank(a) else (a, b)
+    out = dict(win)
+    out["session"] = win["session"] or other["session"]
+    out["duration_ms"] = win.get("duration_ms") or other.get("duration_ms")
+    out["echo"] = bool(win.get("echo") or other.get("echo"))
+    return out
+
+
+def dedupe_records(records: list[dict]) -> list[dict]:
+    """One record per Claude call.
+
+    Raw matches are unsummable: GitHub's log zip holds each job's text twice
+    (`<job>.txt` and `<job>/<step>.txt`), the CLI's `total_cost_usd` is
+    CUMULATIVE within a session (a resumed session emits a growing figure),
+    and on the hub's loops every call is printed twice more — the action's
+    reduced block and claude-cost's echo. Records that `_same_call` pairs are
+    folded with `_merge`; the rest are distinct calls and are summed.
+    """
+    merged: list[dict] = []
     for rec in records:
-        key = ("session", rec["session"]) if rec["session"] else (
-            "payload", rec["cost_usd"], rec["turns"], tuple(sorted(rec["tokens"].items())))
-        prior = best.get(key)
-        if prior is None:
-            best[key] = rec
-            continue
-        if _rank(rec) > _rank(prior):
-            best[key] = rec
-    return list(best.values())
+        for i, prior in enumerate(merged):
+            if _same_call(prior, rec):
+                merged[i] = _merge(prior, rec)
+                break
+        else:
+            merged.append(rec)
+    return merged
 
 
 def _rank(rec: dict) -> tuple:
@@ -295,6 +390,13 @@ def price_records(records: list[dict]) -> dict:
     turns = 0
     reported = token_priced = False
     unpriced_models: set[str] = set()
+    # The parity reference: claude-cost's own result lines, one per session
+    # (the largest — cumulative — figure), summed independently of the merge.
+    echoes: dict[str, float] = {}
+    for rec in records:
+        if rec.get("echo") and rec["cost_usd"] is not None:
+            key = rec["session"] or f"payload:{rec['cost_usd']}:{rec['turns']}"
+            echoes[key] = max(echoes.get(key, 0.0), rec["cost_usd"])
     for rec in dedupe_records(records):
         turns += rec["turns"]
         for key in TOKEN_KEYS:
@@ -321,6 +423,7 @@ def price_records(records: list[dict]) -> dict:
         "cost_source": source,
         "cost_basis": "result-json" if reported else ("token-rates" if token_priced else None),
         "turns": turns or None,
+        "result_line_usd": round(sum(echoes.values()), 6) if echoes else None,
         "unpriced_models": sorted(unpriced_models),
         **totals,
     }
@@ -329,16 +432,19 @@ def price_records(records: list[dict]) -> dict:
 # --------------------------------------------------------------------------- #
 # CI runs
 # --------------------------------------------------------------------------- #
-def _workflow_uses_claude(repo, path: str, cache: dict) -> bool:
+def _workflow_uses_claude(api, nwo: str, path: str, cache: dict) -> bool:
+    """Does the workflow file at `path` call Claude? One contents read per
+    distinct path, cached for the sweep."""
     if path in cache:
         return cache[path]
     uses = False
-    try:
-        blob = repo.get_contents(path)
-        text = blob.decoded_content.decode("utf-8", "replace")
-        uses = any(m in text for m in CLAUDE_WORKFLOW_MARKERS)
-    except Exception:
-        pass
+    if path and not path.startswith("dynamic/"):
+        try:
+            blob = api.get(f"/repos/{nwo}/contents/{path}", kind="contents")
+            text = base64.b64decode(blob.get("content") or "").decode("utf-8", "replace")
+            uses = any(m in text for m in CLAUDE_WORKFLOW_MARKERS)
+        except Exception:
+            pass
     cache[path] = uses
     return uses
 
@@ -370,7 +476,8 @@ def classify_run(conclusion: str | None, scan: dict | None) -> dict:
     """The usage fields for one run: priced, free, or left for the estimator."""
     if conclusion == "skipped":
         return {"cost_usd": 0.0, "cost_source": "no-spend", "cost_basis": "run-skipped",
-                "turns": None, "unpriced_models": [], **dict.fromkeys(TOKEN_KEYS, 0)}
+                "turns": None, "result_line_usd": None, "unpriced_models": [],
+                **dict.fromkeys(TOKEN_KEYS, 0)}
     scan = scan or {"log": "unavailable", "claude_step": False, "records": []}
     priced = price_records(scan["records"])
     if priced["cost_source"]:
@@ -384,49 +491,94 @@ def classify_run(conclusion: str | None, scan: dict | None) -> dict:
     return priced
 
 
-def collect_ci(gh, gh_session, registry: list[dict], window_start: dt.datetime,
-               max_runs: int) -> list[dict]:
+def collect_ci(api, gh_session, registry: list[dict], window_start: dt.datetime,
+               max_runs: int, now: dt.datetime | None = None,
+               coverage: list | None = None) -> list[dict]:
+    """Every Claude-calling run created in the window, priced.
+
+    The window is listed the way actions_analytics lists it — by `created`
+    date range, split below GitHub's 1,000-result cap — so the hub's ~200
+    runs a day no longer exhaust a 300-run budget before its Claude loops
+    are reached (the 2026-11-07 ledger held 5 hub runs for 14 days). A repo
+    whose listing still fell short is appended to `coverage` with
+    `truncated: true` and `runs_missed`.
+    """
+    now = now or dt.datetime.now(dt.timezone.utc)
     entries: list[dict] = []
     for project in registry:
         nwo = actions_analytics.owner_repo(project.get("repo_url", ""))
         if not nwo:
             continue
         sys.stderr.write(f"  ci · {nwo}\n")
-        try:
-            repo = gh.get_repo(nwo)
-            runs = repo.get_workflow_runs()
-        except Exception:
-            continue
+        listing = actions_analytics.list_window_runs(api, nwo, window_start, now, max_runs)
         claude_paths: dict[str, bool] = {}
-        seen = 0
-        for run in runs:
-            if seen >= max_runs:
-                break
-            seen += 1
-            created = run.created_at.replace(tzinfo=None)
-            if created < window_start:
-                break  # newest-first
-            if not _workflow_uses_claude(repo, run.path, claude_paths):
+        found = 0
+        for run in listing["runs"]:
+            if run.get("status") != "completed":
                 continue
+            if not _workflow_uses_claude(api, nwo, run.get("path") or "", claude_paths):
+                continue
+            found += 1
+            created = actions_analytics.parse_ts(run.get("created_at"))
+            updated = actions_analytics.parse_ts(run.get("updated_at"))
             # A skipped run cannot have spent anything, so its log is never
             # downloaded — that is 146 fewer zip downloads per refresh.
-            scan = None if run.conclusion == "skipped" else _scan_log_for_usage(
-                gh_session, run.logs_url)
-            usage = classify_run(run.conclusion, scan)
+            scan = None if run.get("conclusion") == "skipped" else _scan_log_for_usage(
+                gh_session, run.get("logs_url") or "")
+            usage = classify_run(run.get("conclusion"), scan)
             entries.append({
                 "repo": project["name"],
-                "workflow": run.name,
-                "path": run.path,
-                "event": run.event,
-                "conclusion": run.conclusion,
-                "day": created.strftime("%Y-%m-%d"),
-                "url": run.html_url,
-                "duration_min": round(
-                    max(0, (run.updated_at - run.created_at).total_seconds()) / 60, 1),
+                "workflow": run.get("name"),
+                "path": run.get("path"),
+                "event": run.get("event"),
+                "conclusion": run.get("conclusion"),
+                "day": created.strftime("%Y-%m-%d") if created else None,
+                "url": run.get("html_url"),
+                "duration_min": round(max(0.0, (updated - created).total_seconds()) / 60, 1)
+                if created and updated else 0.0,
                 **{k: v for k, v in usage.items() if k != "unpriced_models"},
                 "unpriced_models": usage["unpriced_models"] or None,
             })
+        if coverage is not None:
+            coverage.append({"repo": project["name"], "nwo": nwo,
+                             "runs_in_window": listing["in_window"],
+                             "runs_listed": len(listing["runs"]),
+                             "claude_runs": found,
+                             "truncated": bool(listing["truncated"]),
+                             "runs_missed": listing["runs_missed"],
+                             "error": listing["error"]})
     return entries
+
+
+def ai_parity(entries: list[dict]) -> dict:
+    """The ledger against claude-cost's own result lines, where a run has them.
+
+    Every hub loop runs .github/actions/claude-cost after its agent, which
+    echoes the CLI's result record behind `claude-run-result`; that line is the
+    run's own statement of what it cost. Over the runs that carry one, the
+    ledger's measured `cost_usd` should equal the sum of those lines — a
+    positive gap is a double count (what this block caught: one issue-pipeline
+    run ledgered at $25.64 against result lines of $12.82), a negative one a
+    call the scraper missed. Runs without claude-cost (most submodule
+    workflows) have no reference and are not compared.
+    """
+    rows = [r for r in entries if r.get("result_line_usd") is not None]
+    ledger = round(sum(float(r.get("cost_usd") or 0.0) for r in rows), 4)
+    lines = round(sum(float(r["result_line_usd"]) for r in rows), 4)
+    off = [r for r in rows if abs(float(r.get("cost_usd") or 0.0) - float(r["result_line_usd"])) > 0.005]
+    return {
+        "measure": "Claude CI cost, API-equivalent (estimate)",
+        "ours": "ledger cost_usd of runs that carry claude-cost result lines",
+        "reference": "claude-cost `claude-run-result` lines (one per session)",
+        "runs_compared": len(rows),
+        "ledger_usd": ledger,
+        "result_lines_usd": lines,
+        "gap_pct": actions_analytics.gap_pct(ledger, lines),
+        "runs_off": len(off),
+        "runs_off_sample": [r.get("url") for r in off[:5]],
+    }
+
+
 # --------------------------------------------------------------------------- #
 # commits + PRs
 # --------------------------------------------------------------------------- #
@@ -602,43 +754,21 @@ def _rollup(rows: list[dict], key) -> dict[str, dict]:
     return agg
 
 
-def hub_entry(fleet_path: Path = FLEET) -> dict | None:
-    """The hub as a pseudo-registry row.
-
-    `_data/projects.yml` lists the SUBMODULES; the control plane itself is
-    declared in `_data/fleet.yml` `hub.repo`. Every number on this page was
-    computed without it, which omitted fleet-pulse's doctor, the issue
-    pipeline's three tiers and the fan-outs — the loops with the largest caps
-    in `budget.call_sites`.
-    """
-    try:
-        cfg = yaml.safe_load(fleet_path.read_text()) or {}
-        nwo = (cfg.get("hub") or {}).get("repo")
-    except Exception:
-        nwo = None
-    if not nwo:
-        return None
-    return {"name": str(nwo).split("/")[-1], "repo_url": f"https://github.com/{nwo}",
-            "category": "harness"}
-
-
-def with_hub(registry: list[dict], fleet_path: Path = FLEET) -> list[dict]:
-    hub = hub_entry(fleet_path)
-    if not hub:
-        return list(registry)
-    known = {actions_analytics.owner_repo(p.get("repo_url", "")) for p in registry}
-    if actions_analytics.owner_repo(hub["repo_url"]) in known:
-        return list(registry)
-    return [hub, *registry]
+# The hub as a pseudo-registry row, and the registry with the hub first: one
+# definition, shared with actions_analytics (which needs it for the same reason).
+hub_entry = actions_analytics.hub_entry
+with_hub = actions_analytics.with_hub
 
 
 def build(gh, gh_session, registry: list[dict], window_days: int, max_runs: int,
-          commit_cap: int, out_path: Path) -> dict:
-    now = dt.datetime.utcnow()
+          commit_cap: int, out_path: Path, api=None) -> dict:
+    now = dt.datetime.now(dt.timezone.utc)
     window_start = now - dt.timedelta(days=window_days)
     cat_of = {p["name"]: p.get("category", "uncategorized") for p in registry}
 
-    ci = collect_ci(gh, gh_session, registry, window_start, max_runs)
+    coverage: list[dict] = []
+    ci = collect_ci(api, gh_session, registry, window_start, max_runs, now=now,
+                    coverage=coverage)
     usd_per_turn = load_usd_per_turn()
     bases = estimate_unpriced(ci, usd_per_turn)
     commits, prs = collect_vcs(gh, registry, window_start, commit_cap)
@@ -705,7 +835,15 @@ def build(gh, gh_session, registry: list[dict], window_days: int, max_runs: int,
             {"day": k, **v}
             for k, v in sorted(_rollup(ci, lambda r: r["day"]).items())
         ],
-        "ci_ledger": sorted(ci, key=lambda r: (r["day"], r["repo"]), reverse=True)[:200],
+        "parity": {"ai_ci_cost": ai_parity(ci)},
+        "coverage": {
+            "truncated": any(r["truncated"] for r in coverage),
+            "runs_missed": sum(int(r["runs_missed"] or 0) for r in coverage),
+            "truncated_repos": [r["repo"] for r in coverage if r["truncated"]],
+            "api_calls": dict(sorted(api.calls.items())) if api is not None else None,
+            "repos": coverage,
+        },
+        "ci_ledger": sorted(ci, key=lambda r: (r["day"] or "", r["repo"]), reverse=True)[:200],
         "commit_ledger": sorted(commits, key=lambda c: c["day"], reverse=True)[:100],
         "pr_ledger": sorted(prs, key=lambda p: p["day"], reverse=True)[:100],
     }
@@ -730,6 +868,7 @@ def run(args: argparse.Namespace) -> int:
         sys.stderr.write("No GitHub token (set GH_TOKEN/GITHUB_TOKEN or run `gh auth login`).\n")
         return 2
     gh = Github(auth=Auth.Token(token), per_page=100)
+    api = actions_analytics.RestApi(actions_analytics.requester_of(gh))
     # a raw session for log-zip downloads, sharing the client's token
     gh_session = requests.Session()
     gh_session.headers["Authorization"] = f"token {token}"
@@ -738,10 +877,14 @@ def run(args: argparse.Namespace) -> int:
         registry = yaml.safe_load(fh) or []
     if not args.no_hub:
         registry = with_hub(registry)
+    if args.repo:
+        wanted = set(args.repo)
+        registry = [p for p in registry if p.get("name") in wanted
+                    or actions_analytics.owner_repo(p.get("repo_url", "")) in wanted]
     sys.stderr.write(f"Collecting Claude usage for {len(registry)} repos (last {args.days}d)…\n")
     out = Path(args.out)
     report = build(gh, gh_session, registry, args.days, args.max_runs,
-                   args.commit_cap, out)
+                   args.commit_cap, out, api=api)
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w") as fh:
         fh.write("# GENERATED by .github/scripts/dash-gen (ai_usage_collector) — "
@@ -753,6 +896,15 @@ def run(args: argparse.Namespace) -> int:
         f"+ ${t['ci_estimated_usd']} estimated ({t['ci_unpriced_runs']} runs) "
         f"= ${t['ci_accounted_usd']} accounted · {t['ci_no_spend_runs']} no-spend · "
         f"{t['commits']} commits · {t['prs']} PRs -> {out}\n")
+    par = report["parity"]["ai_ci_cost"]
+    if par["runs_compared"]:
+        sys.stderr.write(
+            f"  parity: ledger ${par['ledger_usd']} vs claude-cost result lines "
+            f"${par['result_lines_usd']} over {par['runs_compared']} runs "
+            f"(gap {par['gap_pct']}%)\n")
+    if report["coverage"]["truncated"]:
+        sys.stderr.write(f"  ! truncated: {report['coverage']['truncated_repos']} "
+                         f"({report['coverage']['runs_missed']} runs missed)\n")
     if report["pricing"]["unpriced_models"]:
         sys.stderr.write(
             "  ! no rate row for: " + ", ".join(report["pricing"]["unpriced_models"])
@@ -762,8 +914,11 @@ def run(args: argparse.Namespace) -> int:
 
 def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--days", type=int, default=14, help="analysis window (default 14)")
-    parser.add_argument("--max-runs", type=int, default=300,
-                        help="max runs examined per repo (default 300)")
+    parser.add_argument("--max-runs", type=int, default=0,
+                        help="cap runs listed per repo; 0 = the whole window (default). "
+                             "A cap that bites is published as coverage truncated + runs_missed")
+    parser.add_argument("--repo", action="append", metavar="NAME",
+                        help="only this registry name or owner/repo (repeatable; a local probe)")
     parser.add_argument("--commit-cap", type=int, default=150,
                         help="max commits scanned per repo (default 150)")
     parser.add_argument("--no-hub", action="store_true",

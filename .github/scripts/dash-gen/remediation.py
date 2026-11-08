@@ -421,8 +421,18 @@ def failing_candidates(triage: dict, owner: str) -> dict[str, dict]:
 # signal 2 — cost / slowness (actions_usage.yml)
 # --------------------------------------------------------------------------- #
 def is_long_running(w: dict, cfg: dict) -> bool:
-    return ((w.get("avg_min") or 0) >= cfg["slow_avg_min"]
-            or (w.get("p95_min") or 0) >= cfg["slow_p95_min"])
+    """Does a run of this workflow take long? LATENCY, read from the wall clock.
+
+    Since `actions-usage/v2` a record's `avg_min` / `p95_min` are job-minutes —
+    what a run COSTS, summed over parallel jobs — and the run's duration is
+    `wall_avg_min` / `wall_p95_min`. A ten-job matrix of 2-minute jobs costs 20
+    minutes and finishes in 2: expensive, never long-running. A v1 snapshot
+    has no `wall_*` fields and its `avg_min` WAS the wall clock, so it is read
+    as before.
+    """
+    avg = w.get("wall_avg_min", w.get("avg_min"))
+    p95 = w.get("wall_p95_min", w.get("p95_min"))
+    return (avg or 0) >= cfg["slow_avg_min"] or (p95 or 0) >= cfg["slow_p95_min"]
 
 
 def is_superseded(w: dict, cfg: dict) -> bool:
@@ -641,6 +651,8 @@ def usage_candidates(usage: dict, cfg: dict, owner: str) -> dict[str, dict]:
                 "total_min": w.get("total_min"),
                 "avg_min": w.get("avg_min"),
                 "p95_min": w.get("p95_min"),
+                "wall_avg_min": w.get("wall_avg_min"),
+                "wall_p95_min": w.get("wall_p95_min"),
                 "waste_min": w.get("waste_min"),
                 "effectiveness_pct": w.get("effectiveness_pct"),
                 "success_rate_pct": w.get("success_rate_pct"),
@@ -825,10 +837,14 @@ def render(cands: list[dict], cfg: dict, hub: str, usage: dict, triage: dict,
 
         usage_rec = c.get("usage")
         if usage_rec:
+            basis = "job-min" if usage.get("minutes_basis") == "job-minutes" else "m"
+            wall = (f"{usage_rec.get('wall_avg_min')}m avg / {usage_rec.get('wall_p95_min')}m p95 "
+                    f"wall clock · " if usage_rec.get("wall_avg_min") is not None else "")
             L.append(f"- **Cost signal ({usage.get('window_days', '?')}d):** "
-                     f"{usage_rec.get('runs')} runs · {usage_rec.get('total_min')}m total · "
-                     f"{usage_rec.get('avg_min')}m avg · {usage_rec.get('p95_min')}m p95 · "
-                     f"{usage_rec.get('waste_min')}m wasted · "
+                     f"{usage_rec.get('runs')} runs · {usage_rec.get('total_min')}{basis} total · "
+                     f"{usage_rec.get('avg_min')}{basis} avg · {usage_rec.get('p95_min')}{basis} p95 · "
+                     + wall
+                     + f"{usage_rec.get('waste_min')}{basis} wasted · "
                      + (f"{usage_rec.get('effectiveness_pct')}% effective · "
                         if usage_rec.get("effectiveness_pct") is not None
                         else "effectiveness unknown · ")
