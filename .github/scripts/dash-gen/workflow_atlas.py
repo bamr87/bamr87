@@ -113,8 +113,13 @@ RULES: list[dict] = [
          why="On a cron or push run `inputs.x` is null, and GitHub compares null and false as equal: "
              "`inputs.apply != false` skipped every scheduled schema-vendor run.",
          fix="Guard it: `github.event_name != 'workflow_dispatch' || inputs.x`.", doc=STANDARDS_DOC, gate=None),
+    dict(id="node-alias", severity="error", title="Node versions are numbers",
+         why="`lts/*` needs setup-node's manifest from the GitHub API and has no fallback: a spent quota failed "
+             "41 build-dash and verify runs. A number checks the runner's cache first and falls back to nodejs.org.",
+         fix="Use the major version, such as `'26'`.", doc=STANDARDS_DOC, gate=None),
     dict(id="workflow-run", severity="warn", title="Prefer `needs:` over `workflow_run`",
-         why="A `workflow_run` follower couples by display name and is silently skipped when the upstream fails.",
+         why="A `workflow_run` follower couples by display name and is silently skipped when the upstream fails. "
+             "A watcher of every workflow (`workflows: [\"**\"]`) names none, and is exempt.",
          fix="Make it a job with `needs:` in the same workflow.", doc=STANDARDS_DOC, gate=None),
     dict(id="pr-token", severity="warn", title="CI-bearing PRs are opened with FLEET_TOKEN",
          why="GitHub fires no workflow events for a PR opened with GITHUB_TOKEN, so its checks never run.",
@@ -151,6 +156,7 @@ NULL_CMP_RX = re.compile(r"inputs\.([\w-]+)\s*[!=]=\s*false\b|\bfalse\s*[!=]=\s*
 # A guard that keeps a non-dispatch run away from the input names the event.
 EVENT_GUARD_RX = re.compile(r"github\.event_name\s*[!=]=\s*'(?:workflow_dispatch|schedule)'")
 ONLY_JOB_TOKEN_RX = re.compile(r"^\s*(?:\$\{\{\s*)?(?:github\.token|secrets\.GITHUB_TOKEN)(?:\s*\}\})?\s*$")
+NODE_ALIAS_RX = re.compile(r"^\s*(?:lts/|latest$|current$|node$)")
 DEFAULT_BRANCHES = ("main", "master")
 CLAUDE_ACTION = "anthropics/claude-code-action"
 ID_RX = re.compile(r"^[a-z][a-z0-9-]{1,40}$")
@@ -849,7 +855,8 @@ def lint_workflow(wf: dict, text: str, fleet: dict, hub_rules: bool = True) -> l
                                         f"`{m.group(0).strip()}` — `inputs.{name}` defaults to true, but on "
                                         f"{', '.join(sorted(others))} runs it is null, which reads as false.",
                                         _line_of(text, re.escape(m.group(0)))))
-    if "workflow_run" in triggers:
+    watched = next((e.get("workflows") or [] for e in wf["events"] if e["name"] == "workflow_run"), [])
+    if "workflow_run" in triggers and not any(w in ("*", "**") for w in watched):
         out.append(_finding("workflow-run", "workflow", wid, file, "Triggered by `workflow_run`.",
                             _line_of(text, r"^\s+workflow_run:")))
     wf_env = data.get("env") if isinstance(data.get("env"), dict) else {}
@@ -857,6 +864,16 @@ def lint_workflow(wf: dict, text: str, fleet: dict, hub_rules: bool = True) -> l
         if not isinstance(job, dict):
             continue
         job_env = job.get("env") if isinstance(job.get("env"), dict) else {}
+
+        def node_alias(with_: dict) -> None:
+            version = str(with_.get("node-version") or "")
+            if NODE_ALIAS_RX.match(version):
+                out.append(_finding("node-alias", "workflow", wid, file,
+                                    f"Job `{jid}` sets `node-version: {version}`, which fails when the API quota is spent.",
+                                    _line_of(text, r"node-version:\s*['\"]?" + re.escape(version)), str(jid)))
+
+        if isinstance(job.get("with"), dict):  # a reusable-workflow call passes it as an input
+            node_alias(job["with"])
         for step in job.get("steps") if isinstance(job.get("steps"), list) else []:
             if not isinstance(step, dict):
                 continue
@@ -864,6 +881,8 @@ def lint_workflow(wf: dict, text: str, fleet: dict, hub_rules: bool = True) -> l
             env = step.get("env") if isinstance(step.get("env"), dict) else {}
             uses = str(step.get("uses") or "")
             with_ = step.get("with") if isinstance(step.get("with"), dict) else {}
+            if uses.startswith("actions/setup-node"):
+                node_alias(with_)
             token = (_token_of(env, job_env, wf_env) if "gh pr create" in run
                      else str(with_.get("token") or "${{ github.token }}") if "create-pull-request" in uses else None)
             if token is not None and ONLY_JOB_TOKEN_RX.match(token):

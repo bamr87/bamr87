@@ -129,6 +129,10 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-082](features/features.yml) | Fleet activity replay: live and historical animated view of agents, harnesses and containers (proposed) | planned | [`docs/prd/FLEET-ACTIVITY-REPLAY.md`](docs/prd/FLEET-ACTIVITY-REPLAY.md) | FR5, FR7, FR10, FR15, FR16, FR17, FR18, FR19, FR20, FR26, FR60, NFR4, NFR5, NFR6, NFR7, NFR9, FR80, FR81, FR82, NFR16 |
 | [HUB-083](features/features.yml) | Fleet security posture from a weekly OpenSSF Scorecard sweep | partial | [`tools/scorecard_snapshot.py`](tools/scorecard_snapshot.py) · [`docs/SECURITY-POSTURE.md`](docs/SECURITY-POSTURE.md) | FR83 |
 | [HUB-084](features/features.yml) | JEV: roadmap FF ids assigned at merge | shipped | [`tools/jev/number.py`](tools/jev/number.py) · [`docs/JEV.md`](docs/JEV.md) | FR28 |
+| [HUB-085](features/features.yml) | Expedite sprints: one accelerated, monitored pilot at a time run by the fleet's agentic loops | planned | [`docs/EXPEDITE-SPRINTS.md`](docs/EXPEDITE-SPRINTS.md) | FR84 |
+| [HUB-087](features/features.yml) | Expedite sprints: one accelerated, monitored pilot at a time run by the fleet's agentic loops | planned | [`docs/EXPEDITE-SPRINTS.md`](docs/EXPEDITE-SPRINTS.md) | FR85 |
+| [HUB-088](features/features.yml) | Typed decisions gate the pipeline: a decision lockfile, traces and replay, the trim and verify loops | planned | [`docs/prd/AGENTIC-SDLC.md`](docs/prd/AGENTIC-SDLC.md) | FR86, FR87, FR88, NFR17, FR7, FR10, FR15, FR26, FR60, NFR4, NFR9 |
+| [HUB-089](features/features.yml) | The console's frame: a sidebar that folds, live counts, and pages that fail one at a time | shipped | [`tools/console/web/src/components/Shell.tsx`](tools/console/web/src/components/Shell.tsx) · [`tools/console/web/README.md`](tools/console/web/README.md) | FR89 |
 
 **Requirement → feature trace**
 
@@ -141,16 +145,16 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR6 | HUB-009, HUB-010, HUB-019, HUB-023, HUB-027, HUB-028, HUB-033 |
 | NFR3 | HUB-011, HUB-012 |
 | TBD | HUB-014, HUB-021, HUB-020 |
-| FR7 | HUB-024, HUB-072, HUB-082 |
+| FR7 | HUB-024, HUB-072, HUB-082, HUB-088 |
 | FR8 | HUB-024 |
 | FR9 | HUB-024 |
-| FR10 | HUB-024, HUB-072, HUB-082 |
+| FR10 | HUB-024, HUB-072, HUB-082, HUB-088 |
 | FR11 | HUB-024 |
 | FR12 | HUB-024 |
 | FR13 | HUB-024 |
 | FR14 | HUB-024 |
-| FR15 | HUB-024, HUB-072, HUB-082 |
-| NFR4 | HUB-024, HUB-072, HUB-082 |
+| FR15 | HUB-024, HUB-072, HUB-082, HUB-088 |
+| NFR4 | HUB-024, HUB-072, HUB-082, HUB-088 |
 | NFR5 | HUB-024, HUB-072, HUB-082 |
 | NFR6 | HUB-024, HUB-072, HUB-082 |
 | FR16 | HUB-025, HUB-072, HUB-082 |
@@ -165,8 +169,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR24 | HUB-029 |
 | FR25 | HUB-029 |
 | NFR8 | HUB-029, HUB-066 |
-| FR26 | HUB-031, HUB-072, HUB-073, HUB-082 |
-| NFR9 | HUB-031, HUB-072, HUB-073, HUB-082 |
+| FR26 | HUB-031, HUB-072, HUB-073, HUB-082, HUB-088 |
+| NFR9 | HUB-031, HUB-072, HUB-073, HUB-082, HUB-088 |
 | FR27 | HUB-032 |
 | NFR10 | HUB-032 |
 | FR3 | HUB-033 |
@@ -204,7 +208,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR57 | HUB-061 |
 | FR58 | HUB-062, HUB-078, HUB-079, HUB-080 |
 | FR59 | HUB-063, HUB-073 |
-| FR60 | HUB-064, HUB-072, HUB-073, HUB-082 |
+| FR60 | HUB-064, HUB-072, HUB-073, HUB-082, HUB-088 |
 | FR61 | HUB-065 |
 | FR62 | HUB-066 |
 | FR63 | HUB-067, HUB-073 |
@@ -232,6 +236,13 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR82 | HUB-082 |
 | NFR16 | HUB-082 |
 | FR83 | HUB-083 |
+| FR84 | HUB-085 |
+| FR85 | HUB-087 |
+| FR86 | HUB-088 |
+| FR87 | HUB-088 |
+| FR88 | HUB-088 |
+| NFR17 | HUB-088 |
+| FR89 | HUB-089 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -309,6 +320,12 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR81: The Harness Console must serve captured activity through one read-only API that streams live events (SSE with Last-Event-ID resume) and replays any past window in order at a chosen speed from the same cursor format, filterable by source, project, container, agent and run, and exposed as MCP read tools.
 - FR82: The Harness Console must render captured activity as an animated timeline and node graph console plugin (live and replay modes, play/pause/scrub/speed, per-event drill-down to Grafana, Kibana and Phoenix), which shows recorded history in snapshot mode on Pages and renders an explicit empty or degraded state when the store or stream is unavailable.
 - FR83: The hub must record a read-only, weekly OpenSSF Scorecard result per public registry repo in the conformance snapshot, without filing issues or pinning dependencies.
+- FR84: The hub must support one expedite sprint at a time — declared by Amr in _data/work_queue.yml, spec-approved and merged through the review gate — run by the existing loops under a sprint ceiling with a circuit breaker, a sprint kill switch, a live record and DORA delivery metrics, without relaxing any quality gate.
+- FR85: The hub must support one expedite sprint at a time — declared by Amr in _data/work_queue.yml, spec-approved and merged through the review gate — run by the existing loops under a sprint ceiling with a circuit breaker, a sprint kill switch, a live record and DORA delivery metrics, without relaxing any quality gate.
+- FR86: A workflow consumes a pipeline decision only through the typed-decision action against an entry in _data/decisions.yml, which declares the question, its options or rubric, its confidence threshold and its conservative branch; a decision below threshold or unanswerable takes the conservative branch and never fails the step.
+- FR87: Every decision writes one trace (policy fingerprint, model version, inputs digest, usage, typed answer, confidence, cleared, outcome) that the lake keeps beside run cost, and the traces of a window can be replayed against the current lockfile and fuzzed for stability.
+- FR88: Test selection and matrix pruning run in shadow per repository until a nightly verify loop has reported zero missed failures over the declared window; a missed failure becomes a regression case in the decision's eval set, raises the threshold and demotes the repository, and an optimization is promoted only when minutes drop on the billing meter while missed failures stay at zero.
+- FR89: The console's frame must keep the current page in view in its navigation, show what needs attention beside the page that holds it, work from the keyboard and to a screen reader on every page, and keep the console usable when one page fails or the backend stops answering.
 
 **Non-functional**
 
@@ -328,6 +345,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - NFR14: The harness core never depends on a single-vendor or pre-1.0 protocol: core tests pass with every adapter removed, a pinned spec drifting raises an attention item instead of a failure, and no adapter can bypass risk tiers, kill switches or budgets.
 - NFR15: The PM review must not write to GitHub: the Fleet project ops it plans are applied only through the § 11 write-back service after a person has read them, and its public outputs must not list a private repo's items.
 - NFR16: Activity capture and replay never block, slow or fail a fleet container, agent or loop: the collector is read-only (docker.sock read-only, no exec), bounded (rate, payload and retention caps from _data/fleet.yml), redacts before storage, counts every dropped event, binds to loopback, and never stores, prints or returns a secret.
+- NFR17: No typed decision ever skips work, lowers a gate or lets an agent act unless its confidence cleared the lockfile threshold; a model error, timeout or usage limit is the conservative branch.
 
 ## 6. Success metrics (proposed — not defined in sources)
 

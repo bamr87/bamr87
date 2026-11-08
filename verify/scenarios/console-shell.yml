@@ -1,0 +1,20 @@
+# The console's frame for a reader on the keyboard or a screen reader: landmarks, one h1, a skip link, sortable headers and rows that open without a mouse.
+id: console-shell
+feature: HUB-NEW:console-shell
+title: "The console's frame works from the keyboard and reads correctly to a screen reader"
+description: "Every page sits in named landmarks under one h1. The first Tab reaches a skip link that moves focus to the page. A table's sortable header is a button that reports its sort, and a row that opens a page carries a real link. Nothing scrolls sideways at either width."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_"]
+steps:
+  - goto: /projects
+  - expect: { status: 200 }
+  - wait: { selector: "a[data-row-link]" }
+  - eval: { name: landmarks, script: "(() => { const h1 = document.querySelectorAll('main h1').length; if (h1 !== 1) throw new Error(`${h1} h1 in main`); if (!document.querySelector(\"nav[aria-label='Console']\")) throw new Error('the sidebar is not a named landmark'); return document.title; })()" }
+  - press: Tab
+  - eval: { name: first_tab, script: "(() => { const t = document.activeElement.innerText; if (t !== 'Skip to content') throw new Error(`the first Tab reached: ${t}`); return t; })()" }
+  - press: Enter
+  - eval: { name: skipped_to, script: "(() => { if (document.activeElement.tagName !== 'MAIN') throw new Error(`focus is on ${document.activeElement.tagName}`); return 'main'; })()" }
+  - eval: { name: sort_by_key, script: "(async () => { const th = [...document.querySelectorAll('th[aria-sort]')].find((h) => h.innerText.trim() === 'status'); if (!th) throw new Error('no sortable status header'); const before = th.getAttribute('aria-sort'); th.querySelector('button').click(); await new Promise((r) => setTimeout(r, 200)); const after = th.getAttribute('aria-sort'); if (before !== 'none' || after !== 'ascending') throw new Error(`${before} -> ${after}`); return after; })()" }
+  - eval: { name: row_link, script: "(() => { const a = document.querySelector('a[data-row-link]'); if (!a.getAttribute('href').includes('/projects/')) throw new Error(a.getAttribute('href')); return a.innerText; })()" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: projects-keyboard

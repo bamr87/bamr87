@@ -7,8 +7,8 @@ ignore_console: ["Failed to load resource", "net::ERR_"]
 steps:
   - goto: /projects
   - expect: { status: 200 }
-  - wait: { selector: "main table.dt" }
-  - expect: { count: { selector: "main table.dt tbody tr", min: 10 } }
+  - wait: { selector: "main table" }
+  - expect: { count: { selector: "main table tbody tr", min: 10 } }
   - expect: { no_horizontal_scroll: true }
   - screenshot: monitor
   - goto: /projects/zer0-mistakes

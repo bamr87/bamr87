@@ -12,13 +12,13 @@ steps:
   - click: "nav[aria-label='Apps'] button:has-text('Console')"
   - wait: { selector: "iframe[title^='Console page']" }
   # The page inside the window rendered, and without a second frame of its own.
-  - eval: { name: framed_page, script: "(async () => { const f = document.querySelector(\"iframe[title^='Console page']\"); for (let i = 0; i < 80 && !f.contentDocument?.querySelector('h2'); i += 1) await new Promise((r) => setTimeout(r, 250)); const d = f.contentDocument; if (!d || !d.querySelector('h2')) throw new Error('the page did not render in the window'); if (d.querySelector('header') || d.querySelector('.mantine-AppShell-navbar')) throw new Error('the framed page kept its own header or sidebar'); return d.querySelector('h2').innerText; })()" }
+  - eval: { name: framed_page, script: "(async () => { const f = document.querySelector(\"iframe[title^='Console page']\"); for (let i = 0; i < 80 && !f.contentDocument?.querySelector('h1'); i += 1) await new Promise((r) => setTimeout(r, 250)); const d = f.contentDocument; if (!d || !d.querySelector('h1')) throw new Error('the page did not render in the window'); if (d.querySelector('header') || d.querySelector('.mantine-AppShell-navbar')) throw new Error('the framed page kept its own header or sidebar'); return d.querySelector('h1').innerText; })()" }
   - wait: { selector: "footer button:has-text('Overview')" }
   - expect: { url: "/desktop" }
   - click: "footer button:has-text('bashOS')"
   - click: "role=menuitem[name='Roadmap']"
   - wait: { selector: "footer button:has-text('Roadmap')" }
   - expect: { count: { selector: "iframe[title^='Console page']", min: 2 } }
-  - eval: { name: second_page, script: "(async () => { const frames = [...document.querySelectorAll(\"iframe[title^='Console page']\")]; const f = frames[frames.length - 1]; for (let i = 0; i < 80 && !f.contentDocument?.querySelector('h2'); i += 1) await new Promise((r) => setTimeout(r, 250)); return f.contentWindow.location.pathname; })()" }
+  - eval: { name: second_page, script: "(async () => { const frames = [...document.querySelectorAll(\"iframe[title^='Console page']\")]; const f = frames[frames.length - 1]; for (let i = 0; i < 80 && !f.contentDocument?.querySelector('h1'); i += 1) await new Promise((r) => setTimeout(r, 250)); return f.contentWindow.location.pathname; })()" }
   - expect: { no_horizontal_scroll: true }
   - screenshot: console-pages-in-windows

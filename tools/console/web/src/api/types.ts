@@ -154,7 +154,8 @@ export interface StateDoc {
   };
   harnesses: HarnessRegistry;
   health: { generated_at?: string; scorecard?: Dict<ScoreMetric>; trip_wires?: TripWire[]; note?: string };
-  triage: { generated_at?: string; totals: Dict<number>; inbox: Dict<unknown>[] };
+  /** `inbox` is the top of the list; `inbox_total` counts all of it. */
+  triage: { generated_at?: string; totals: Dict<number>; inbox: Dict<unknown>[]; inbox_total?: number };
   pipeline: { generated_at?: string; totals: Dict<unknown> };
   rotation: {
     generated_at?: string;
@@ -298,6 +299,8 @@ export interface AppTarget {
   band?: string;
   /** The command that starts a local target's stack. */
   start?: string | null;
+  /** The project a local target belongs to: what `dev-up` and `dev-down` take. */
+  project?: string;
 }
 
 /** A registry frontend as the launcher lists it (fleetcore.apps, fleet-launcher/v1). */

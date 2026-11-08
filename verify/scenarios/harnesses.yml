@@ -7,10 +7,10 @@ ignore_console: ["Failed to load resource", "net::ERR_"]
 steps:
   - goto: /harnesses
   - expect: { status: 200 }
-  - wait: { selector: "main table.dt" }
+  - wait: { selector: "main table" }
   - expect: { no_horizontal_scroll: true }
   - screenshot: harnesses
   - goto: /harnesses/health
   - expect: { status: 200 }
-  - wait: { selector: "main h2" }
+  - wait: { selector: "main h1" }
   - screenshot: harness-health

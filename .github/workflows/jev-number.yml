@@ -129,7 +129,7 @@ jobs:
         if: ${{ !inputs.dry-run }}
         uses: ./.github/actions/utilities/publish-data
         with:
-          paths: 'features/ changelog.d/ _data/roadmap.yml _data/roadmap.d/ docs/ PRD.md CHANGELOG.md CATALOG.md README.md'
+          paths: 'features/ changelog.d/ _data/roadmap.yml _data/roadmap.d/ docs/ PRD.md CHANGELOG.md CATALOG.md README.md verify/scenarios/'
           message: 'chore(jev): assign ids and compile pending fragments'
           title: 'chore(jev): assign ids and compile pending fragments'
           body: |

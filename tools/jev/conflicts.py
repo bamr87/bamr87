@@ -32,6 +32,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -43,6 +44,8 @@ from .common import JevConfig, JevError, finite_usd, git, gh, gh_json, hub_repo,
     registry_repos, run
 from .ledger import Ledger, Resolution, budget_state
 
+#: The review-gate label (constitution § 12.4).
+REVIEW_LABEL = "needs-amr"
 PR_REF = re.compile(r"^(?P<owner>[\w.-]+)/(?P<repo>[\w.-]+)#(?P<number>\d+)$")
 
 #: Validation commands, tried in this order and skipped when the repository
@@ -600,6 +603,45 @@ def escalate(cfg: JevConfig, pr: PullRequest, triage: cls.Triage, extra: str = "
 # --------------------------------------------------------------------------- #
 # the ladder
 # --------------------------------------------------------------------------- #
+def deferred(pr: PullRequest, triage: cls.Triage, tiers: list[str]) -> Resolution:
+    """A conflict this host won't spend a model on, left for a local session. It
+    is not a human's yet, so it gets no label, no comment and no ledger row."""
+    return Resolution(repo=pr.repo, pr=pr.number, tier=tiers[0], outcome="deferred", cost_source="no-spend",
+                      files=triage.file_count, lines=triage.line_count,
+                      reason=f"needs {tiers[0]}, which runs in a local session (tools/dash conflicts sweep)")
+
+
+def gate_for_review(pr: PullRequest, tier: str) -> None:
+    """A model chose how two changes fit together, which is a non-trivial conflict
+    resolution, so the maintainer reviews it before it can merge (§ 12.3)."""
+    gh(["label", "create", REVIEW_LABEL, "--repo", pr.repo, "--color", "B60205",
+        "--description", "Needs Amr's decision (secrets, budget, settings, standards)", "--force"])
+    gh(["pr", "edit", str(pr.number), "--repo", pr.repo, "--add-label", REVIEW_LABEL])
+    gh(["pr", "comment", str(pr.number), "--repo", pr.repo, "--body",
+        f"JEV resolved this PR's merge conflicts with a model ({tier}) and validated the result with the repo's own "
+        f"checks. A model chose how the two sides fit, so this needs a human review before it merges (§ 12.3): the "
+        f"merge commit is the one to read."])
+
+
+def sweep(cfg: JevConfig, repos: list[str] | None, *, dry_run: bool = False, scheduled: bool = False,
+          ledger: Ledger | None = None, say=print) -> dict:
+    """One pass over every conflicting PR: what a local session runs. A failure on
+    one PR never stops the rest: an unreachable repo is no reason to leave the
+    other conflicts sitting there."""
+    led = ledger if ledger is not None else Ledger.load()
+    tally: dict[str, int] = {}
+    for pr in scan(cfg, repos):
+        try:
+            res = resolve(cfg, pr, dry_run=dry_run, scheduled=scheduled, ledger=led)
+            outcome, line = res.outcome, f"{res.outcome} at {res.tier} (${res.cost_usd:.2f}): {res.reason}"
+        except (JevError, OSError, subprocess.SubprocessError) as exc:
+            outcome, line = "error", str(exc)[:300]
+        tally[outcome] = tally.get(outcome, 0) + 1
+        say(f"{pr.ref}: {line}")
+    say("swept: " + (", ".join(f"{n} {k}" for k, n in sorted(tally.items())) or "nothing is conflicting"))
+    return tally
+
+
 def resolve(cfg: JevConfig, pr: PullRequest, *, dry_run: bool = False, scheduled: bool = False,
             ledger: Ledger | None = None, workdir: Path | None = None) -> Resolution:
     """Triage one pull request and climb the tier ladder until something sticks.
@@ -637,10 +679,14 @@ def resolve(cfg: JevConfig, pr: PullRequest, *, dry_run: bool = False, scheduled
                               cost_source="no-spend", files=triage.file_count,
                               lines=triage.line_count, reason=triage.reason)
 
-        ladder = [t for t in (cls.TIER0, cls.TIER1, cls.TIER2)
-                  if (cls.TIER0, cls.TIER1, cls.TIER2).index(t)
-                  >= (cls.TIER0, cls.TIER1, cls.TIER2).index(triage.tier)
-                  and t in cfg.auto_tiers]
+        reachable = [t for t in (cls.TIER0, cls.TIER1, cls.TIER2)
+                     if (cls.TIER0, cls.TIER1, cls.TIER2).index(t)
+                     >= (cls.TIER0, cls.TIER1, cls.TIER2).index(triage.tier)
+                     and t in cfg.auto_tiers]
+        ladder = [t for t in reachable if t in cfg.tiers_here()]
+        local_only = [t for t in reachable if t not in ladder]
+        if not ladder and local_only:
+            return deferred(pr, triage, local_only)
         if not ladder:
             triage.reason = (f"{triage.tier} is not switched on (_data/fleet.yml jev.auto_tiers: "
                              f"{', '.join(cfg.auto_tiers)}) — {triage.reason}")
@@ -661,7 +707,9 @@ def resolve(cfg: JevConfig, pr: PullRequest, *, dry_run: bool = False, scheduled
                 if dry_run:
                     notes.append(f"{tier}: would run {cfg.tier(tier).model} at "
                                  f"${cfg.tier(tier).max_usd:g}")
-                    break
+                    return Resolution(repo=pr.repo, pr=pr.number, tier=tier, outcome="dry-run",
+                                      cost_source="no-spend", files=triage.file_count,
+                                      lines=triage.line_count, reason="; ".join(notes)[:400])
                 done, cost, used_model, detail = resolve_with_model(cfg, ws, triage, tier)
                 spent += cost
                 model = used_model or model
@@ -689,6 +737,8 @@ def resolve(cfg: JevConfig, pr: PullRequest, *, dry_run: bool = False, scheduled
             pushed, detail = commit_and_push(ws, message)
             outcome = "resolved" if pushed else "failed"
             notes.append(f"push: {detail}")
+            if pushed and tier != cls.TIER0:
+                gate_for_review(pr, tier)
             res = Resolution(repo=pr.repo, pr=pr.number, tier=tier, outcome=outcome, model=model,
                              cost_usd=round(spent, 4),
                              cost_source="reported" if spent else "no-spend",
@@ -697,6 +747,8 @@ def resolve(cfg: JevConfig, pr: PullRequest, *, dry_run: bool = False, scheduled
             led.append(res)
             return res
 
+        if local_only:
+            return deferred(pr, triage, local_only)
         triage.reason = f"every automated tier failed or was unaffordable: {'; '.join(notes)[:300]}"
         escalate(cfg, pr, triage, dry_run=dry_run)
         res = Resolution(repo=pr.repo, pr=pr.number, tier=cls.TIER3, outcome="escalated",
@@ -715,7 +767,7 @@ def resolve(cfg: JevConfig, pr: PullRequest, *, dry_run: bool = False, scheduled
 # CLI
 # --------------------------------------------------------------------------- #
 def add_arguments(ap: argparse.ArgumentParser) -> None:
-    ap.add_argument("action", choices=("scan", "triage", "resolve", "budget"))
+    ap.add_argument("action", choices=("scan", "triage", "resolve", "sweep", "budget"))
     ap.add_argument("--pr", default="", help="owner/repo#number")
     ap.add_argument("--repo", default="", help="limit a scan to one owner/repo")
     ap.add_argument("--dry-run", action="store_true", help="decide and report, change nothing")
@@ -737,10 +789,17 @@ def main(args: argparse.Namespace) -> int:
     if args.action == "budget":
         print(budget_state(cfg, Ledger.load(), scheduled=args.scheduled).summary())
         return 0
-    if not cfg.enabled and args.action == "resolve" and not args.dry_run:
+    if not cfg.enabled and args.action in ("resolve", "sweep") and not args.dry_run:
         print("jev.enabled is false in _data/fleet.yml — refusing to write. "
               "Use --dry-run, or switch it on.")
         return 1
+    if args.action == "sweep":
+        led = Ledger.load()
+        tally = sweep(cfg, [args.repo] if args.repo else None, dry_run=args.dry_run,
+                      scheduled=args.scheduled, ledger=led)
+        if not args.dry_run and os.environ.get("JEV_WRITE_LEDGER", "1") != "0":
+            led.save()
+        return 1 if tally.get("error") else 0
     if args.action == "scan":
         prs = scan(cfg, [args.repo] if args.repo else None)
         if args.json:
@@ -782,4 +841,4 @@ def main(args: argparse.Namespace) -> int:
         led.save()
     print(json.dumps(res.__dict__, indent=2) if args.json
           else f"{res.repo}#{res.pr}: {res.outcome} at {res.tier} (${res.cost_usd:.2f}) — {res.reason}")
-    return 0 if res.outcome in ("resolved", "dry-run", "escalated", "skipped") else 1
+    return 0 if res.outcome in ("resolved", "dry-run", "escalated", "skipped", "deferred") else 1

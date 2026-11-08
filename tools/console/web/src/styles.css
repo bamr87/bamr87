@@ -4,3 +4,14 @@
 html, body { background: var(--page); color: var(--ink); }
 body { margin: 0; }
 a { color: var(--accent); }
+main:focus { outline: none; }
+
+/* Someone who asked for less motion gets none: no transition, loop or smooth scroll. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

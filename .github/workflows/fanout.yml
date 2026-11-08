@@ -35,6 +35,8 @@ name: fanout
 #   schema       the Pyramid Schema kit (docs/SCHEMA-FRAMEWORK.md).
 #   verify       the agent-verification kit (docs/VERIFICATION.md); `target`
 #                defaults to `gaps` from the committed features index.
+#   pr-review    the fleet's one PR comment (constitution § 19): the stub that
+#                calls the hub's reusable pr-review.yml.
 #   feedback     the universal page-feedback widget (specs/FEEDBACK.md). On a
 #                real run it also creates the labels the taxonomy applies — the
 #                one write a kit makes outside its own PR, because GitHub
@@ -59,7 +61,7 @@ on:
         description: "Kit to fan out"
         type: choice
         default: standardize
-        options: [standardize, harness, schema, verify, feedback, deps-latest, docker]
+        options: [standardize, harness, schema, verify, pr-review, feedback, deps-latest, docker]
       target:
         description: "Submodule/registry name, 'all', or 'gaps' (harness, verify). Empty = the kit's default: gaps for harness and verify, all otherwise"
         type: string
@@ -126,7 +128,7 @@ jobs:
             standardize) : "${artifacts:=editorconfig,ci}"; branch=chore/standardize-baseline ;;
             harness)     engine=standardize; : "${artifacts:=claude}" ;;
             schema)      branch=chore/schema-adoption ;;
-            verify|feedback|deps-latest|docker) ;;
+            verify|pr-review|feedback|deps-latest|docker) ;;
             *) echo "::error::unknown kit '$KIT'"; exit 1 ;;
           esac
           [ -n "$artifacts" ] && [ "$engine" != standardize ] && { echo "::warning::artifacts apply to the standardize engine only — ignored for kit '$KIT'"; artifacts=""; }
@@ -141,7 +143,7 @@ jobs:
       - uses: actions/setup-node@v7
         if: ${{ inputs.kit == 'feedback' }}
         with:
-          node-version: lts/*
+          node-version: '26'  # numeric, never lts/* (atlas rule node-alias)
       - name: Pre-flight the kit
         env:
           KIT: ${{ inputs.kit }}

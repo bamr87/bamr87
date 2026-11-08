@@ -1,0 +1,12 @@
+kit: pr-review
+version: 0.1.0
+source: bamr87/bamr87 templates/pr-review/
+seeded-by: tools/fanout.sh --kit pr-review (fanout.yml, kit pr-review)
+files: pr-review.yml
+spec: constitution § 19; specs/WORK.md UPS-WORK-17; reusable .github/workflows/pr-review.yml
+updated: 2026-11-06
+changelog: |
+  0.1.0 — thin caller of the reusable pr-review.yml: CI failures summarized in one sticky comment.
+notes: |
+  - Snapshot to archive/ before editing this template so --upgrade can still
+    recognise machine-seeded copies (same rule as the other kits).

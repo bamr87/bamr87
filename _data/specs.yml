@@ -2127,6 +2127,16 @@ requirements:
     satisfied_by: "parsed `uses:` refs"
     seed: "fan-out of `@v1` callers"
     gap: false
+  - id: UPS-WORK-17
+    area: WORK
+    section: "Pull request feedback"
+    level: MUST
+    applies: [all]
+    applies_notes: ["all except fork"]
+    requirement: "Every CI failure on a pull request is summarized on the PR in one sticky comment (constitution § 19). A job calls the hub's reusable `pr-review.yml`."
+    satisfied_by: "`.github/workflows/pr-review.yml` stub"
+    seed: "`templates/pr-review/`"
+    gap: false
   - id: UPS-WORK-08
     area: WORK
     section: "Freshness"

@@ -43,7 +43,7 @@ MCP servers are already in daily use (console layer, hub `.mcp.json`, verify Pla
 - Amendment + § 25 merged (Amr).
 - Registry stub lists the #684 inventory.
 - Lint warn-only passes on hub; `--gate` fails fixtures with inline secrets / bad shape.
-- Feature + FR compile at merge; FF-0040 linked.
+- Feature + FR compile at merge; FF-NEW:mcp-lifecycle linked.
 
 ## Design for Failure
 

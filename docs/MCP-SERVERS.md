@@ -1,7 +1,7 @@
 # MCP server lifecycle
 
 > Status: **proposed** (constitution § 25, amendment `mcp-lifecycle`; epic [#683](https://github.com/bamr87/bamr87/issues/683), backlog [#684](https://github.com/bamr87/bamr87/issues/684)).
-> Feature: `HUB-NEW` / slug `mcp-lifecycle`. Requirement: `FR-NEW:mcp-lifecycle`. Roadmap: `FF-0040`.
+> Feature: `HUB-NEW` / slug `mcp-lifecycle`. Requirement: `FR-NEW:mcp-lifecycle`. Roadmap: `FF-NEW:mcp-lifecycle`.
 > Sub-PRD / user stories: [`docs/prd/MCP-SERVERS.md`](prd/MCP-SERVERS.md).
 > Operator guide for the console MCP layer (implementation): [`tools/console/docs/mcp-layer.md`](../tools/console/docs/mcp-layer.md).
 

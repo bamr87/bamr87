@@ -1643,12 +1643,13 @@ features:
       `frontend:` block to its live address and to the ports its compose-hosted dev stack publishes in _data/ports.yml.
       The console''s Apps page (/apps, GET /api/apps, the public snapshot) lists every frontend and opens
       one in a sandboxed frame at /apps/ID: Live or Local, at the page width or one of the verify kit''s
-      device sizes, with a path box that stays inside the app. A stopped local stack shows the command that
-      starts it; the public page asks no address anything until a reader opens an app. `tools/dash apps`
+      device sizes, with a path box that stays inside the app. A stopped local stack can be started from
+      the App Shell on a native console (dev-up, dev-down, dev-logs: one project from _data/ports.yml, as
+      console jobs), and shows the command that starts it elsewhere; the public page asks no address anything until a reader opens an app. `tools/dash apps`
       prints the same list in a terminal, `apps open` opens one in the console, and `apps check` reports
       whether each address answers, whether it moves to another origin and whether the shell may frame it.
-      The console''s Content-Security-Policy names exactly the launcher''s origins. Starting a stack, running
-      a repo''s scenarios from the portal, the bridge, and the VS Code and mobile shells are later phases.'
+      The console''s Content-Security-Policy names exactly the launcher''s origins. Running a repo''s
+      scenarios from the portal, the bridge, and the VS Code and mobile shells are later phases.'
     implemented: true
     status: partial
     surface: ui
@@ -1671,6 +1672,7 @@ features:
     - verify/scenarios/apps.yml
     evidence:
     - test/evidence/apps
+    - test/evidence/local-stacks
     prd:
     - FR58
     - FR76
@@ -1689,7 +1691,9 @@ features:
       as windows too (phase D1): framed without their header and sidebar, titled after the page they are
       on, opened from the bashOS start menu, the Console icon or the command palette, and remembered in the
       layout where they are now; the console lets only its own origin frame it (frame-ancestors ''self'').
-      Below 900 px the desktop is a home screen that opens one app at a time.'
+      Below 900 px the desktop is a home screen that opens one app at a time. An icon and a title bar have
+      a context menu (right-click; Shift+F10 on a focused icon; the title bar''s button): open, open beside,
+      Live beside Local (one action, an app''s two targets each filling a half), a new tab and a link.'
     implemented: true
     status: partial
     surface: ui
@@ -1712,9 +1716,11 @@ features:
     scenarios:
     - verify/scenarios/desktop.yml
     - verify/scenarios/desktop-pages.yml
+    - verify/scenarios/desktop-context-menu.yml
     evidence:
     - test/evidence/desktop
     - test/evidence/desktop-pages
+    - test/evidence/desktop-context-menu
     prd:
     - FR58
     - FR77
@@ -1878,3 +1884,119 @@ features:
     - tools/test_jev_number.py
     - tools/test_governance_lint.py
     - tools/test_pm_review.py
+  - id: HUB-085
+    title: 'Expedite sprints: one accelerated, monitored pilot at a time run by the fleet''s agentic loops'
+    description: A hub standard (constitution § 27) for a Kanban-style expedite lane (WIP 1) driven end
+      to end by the existing loops — issue pipeline, JEV tiers, CI, monitoring and the retro ratchet — with
+      three gates Amr passes (declaration in _data/work_queue.yml, spec approval, merge via needs-amr),
+      a sprint ceiling and circuit breaker, a sprint kill switch, a live record and DORA delivery metrics.
+    implemented: false
+    status: planned
+    surface: infra
+    link: docs/EXPEDITE-SPRINTS.md
+    docs: docs/EXPEDITE-SPRINTS.md
+    tags:
+    - harness
+    - loops
+    - governance
+    - devops
+    - dora
+    - standards
+    date: 2026-11-05
+    prd:
+    - FR84
+  - id: HUB-087
+    title: 'Expedite sprints: one accelerated, monitored pilot at a time run by the fleet''s agentic loops'
+    description: A hub standard (constitution § 27) for a Kanban-style expedite lane (WIP 1) driven end
+      to end by the existing loops — issue pipeline, JEV tiers, CI, monitoring and the retro ratchet — with
+      three gates Amr passes (declaration in _data/work_queue.yml, spec approval, merge via needs-amr),
+      a sprint ceiling and circuit breaker, a sprint kill switch, a live record and DORA delivery metrics.
+    implemented: false
+    status: planned
+    surface: infra
+    link: docs/EXPEDITE-SPRINTS.md
+    docs: docs/EXPEDITE-SPRINTS.md
+    tags:
+    - harness
+    - loops
+    - governance
+    - devops
+    - dora
+    - standards
+    date: 2026-11-05
+    prd:
+    - FR85
+  - id: HUB-088
+    title: 'Typed decisions gate the pipeline: a decision lockfile, traces and replay, the trim and verify
+      loops'
+    description: 'Every skip, retry and auto-fix in a fleet pipeline is a typed, thresholded, replayable
+      decision that fails closed: _data/decisions.yml holds each question, its options, its confidence threshold
+      and its conservative branch; the typed-decision composite action asks TypeSafe Jev (or claude -p)
+      and returns answer, confidence and cleared; every decision writes a trace the lake keeps beside run
+      cost, queue time, cache hit rate, flake rate and time-to-green; the doctor and the issue pipeline
+      classify a failure before any agent turn and a 0.70-floor patch screen checks every PR; a per-PR trim
+      loop selects tests and prunes matrix legs in shadow until the nightly decision-verify loop has reported
+      zero missed failures, and a missed failure becomes a regression case and a demotion. Plan and phases:
+      docs/prd/AGENTIC-SDLC.md; decision: ADR 0008.'
+    implemented: false
+    status: planned
+    surface: infra
+    link: docs/prd/AGENTIC-SDLC.md
+    docs: docs/prd/AGENTIC-SDLC.md
+    tags:
+    - ci
+    - jev
+    - decisions
+    - optimization
+    - governance
+    date: 2026-11-06
+    tests: []
+    prd:
+    - FR86
+    - FR87
+    - FR88
+    - NFR17
+    - FR7
+    - FR10
+    - FR15
+    - FR26
+    - FR60
+    - NFR4
+    - NFR9
+  - id: HUB-089
+    title: 'The console''s frame: a sidebar that folds, live counts, and pages that fail one at a time'
+    description: 'The shell every console page shares (tools/console/web/src/components/Shell.tsx, ShellNav.tsx).
+      The sidebar''s nine sections fold, the current page''s section opens itself and stays in view, and
+      the choice is remembered in this browser; beside a page, a live number says what needs attention there
+      (Overview, Inbox, Health, Jobs), and a folded section sums its own. A page names itself once in its
+      PageHeader, which becomes the h1, the tab title, the announcement to a screen reader and the palette''s
+      recent list; the palette opens on the pages this browser last visited. A route change returns to the
+      top and moves focus to the page, except Back and Forward, which keep their place. A page that throws
+      is contained by an error boundary with the header and sidebar still up, a failed load offers Try again,
+      a failed refresh keeps the last answer on screen under a warning, and when the console stops answering
+      one banner says so and clears by itself. Below the md breakpoint the header''s status chips move to
+      the foot of the sidebar. From the keyboard: a skip link, sortable headers that are buttons reporting
+      aria-sort, a real link in every row that opens a page, and Enter that belongs to the focused control,
+      opening the selected row only when nothing is focused. Motion stops under prefers-reduced-motion.'
+    implemented: true
+    status: shipped
+    surface: ui
+    link: tools/console/web/src/components/Shell.tsx
+    docs: tools/console/web/README.md
+    tags:
+    - console
+    - navigation
+    - accessibility
+    - resilience
+    date: 2026-11-06
+    tests:
+    - tools/console/test_pages.py
+    - tools/console/test_console.py
+    scenarios:
+    - verify/scenarios/console-shell.yml
+    - verify/scenarios/console-nav.yml
+    evidence:
+    - test/evidence/console-shell
+    - test/evidence/console-nav
+    prd:
+    - FR89

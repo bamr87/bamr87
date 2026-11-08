@@ -13,7 +13,7 @@
 #   tools/fleet-dev.sh down [project...|--all]   stop
 #   tools/fleet-dev.sh build <project> [svc...]  build images
 #   tools/fleet-dev.sh ps [project...]           what is running, with URLs
-#   tools/fleet-dev.sh logs <project> [svc]      follow logs
+#   tools/fleet-dev.sh logs <project> [svc]      follow logs (--once: the last 200 lines, then exit)
 #   tools/fleet-dev.sh exec <project> <svc> ...  run a command in a service
 #   tools/fleet-dev.sh config <project>          resolved compose for one project
 #   tools/fleet-dev.sh db-upgrade <project> [--service S] [--yes]
@@ -273,7 +273,13 @@ cmd_ps() {
 }
 
 cmd_build()  { ensure_env; local p="${1:?project}"; shift; dc "$p" build "$@"; }
-cmd_logs()   { ensure_env; local p="${1:?project}"; shift; dc "$p" logs -f --tail=100 "$@"; }
+# --once prints the last lines and exits: what a console job runs, since a job
+# that follows forever has no end and holds a slot until someone cancels it.
+cmd_logs() {
+  ensure_env; local p="${1:?project}"; shift
+  if [[ "${1:-}" == "--once" ]]; then shift; dc "$p" logs --tail=200 "$@"; return; fi
+  dc "$p" logs -f --tail=100 "$@"
+}
 cmd_exec()   { ensure_env; local p="${1:?project}"; shift; dc "$p" exec "$@"; }
 cmd_config() { ensure_env; dc "${1:?project}" config; }
 cmd_ports()  { "$PY" "$ROOT/tools/fleet-compose.py" show "$@"; }

@@ -12,12 +12,14 @@ import { Notifications } from '@mantine/notifications';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { BASENAME, hasConsole } from './api/backend';
+import { ApiError } from './api/errors';
 import { LEGACY_ROUTES } from './lib/legacy';
 import { PROFILE_PAGES } from './nav';
 import { resolver, theme } from './theme';
 import { Shell } from './components/Shell';
 import { GlobalKeys } from './components/GlobalKeys';
 import { CommandCenter } from './components/CommandCenter';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { TokenGate } from './components/TokenGate';
 import { JobRunner } from './jobs/JobRunner';
 
@@ -62,7 +64,8 @@ import { GithubPage, GithubRepoPage } from './pages/GithubPage';
 import { NotFound } from './pages/NotFound';
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: true } },
+  // A 4xx is the answer, not a hiccup: asking again only delays saying so.
+  defaultOptions: { queries: { retry: (failures, error) => failures < 1 && !(error instanceof ApiError && error.status >= 400 && error.status < 500), refetchOnWindowFocus: true } },
 });
 
 const colorSchemeManager = localStorageColorSchemeManager({ key: 'console_theme' });
@@ -80,7 +83,7 @@ createRoot(document.getElementById('root')!).render(
               <CommandCenter />
               <Routes>
                 {/* The OS shell is its own chrome: the desktop, not a page inside the console's frame. */}
-                <Route path="desktop" element={<Desktop />} />
+                <Route path="desktop" element={<ErrorBoundary resetKey="desktop"><Desktop /></ErrorBoundary>} />
                 <Route element={<Shell />}>
                   <Route index element={<Home />} />
                   {PROFILE_PAGES.map((slug) => <Route key={slug} path={slug} element={<ProfilePage key={slug} slug={slug} />} />)}

@@ -145,6 +145,9 @@
 #                kit artifacts — the sanctioned exception to ".claude/ never
 #                fans out"). runner.mjs and verify.yml are upgradeable
 #                machine seeds (archive/<file>-<ver>.yml).
+#   pr-review    branch ci/pr-review; the fleet's one PR comment (templates/pr-review/,
+#                constitution § 19): the stub that calls the hub's reusable
+#                pr-review.yml. An upgradeable machine seed.
 #   backlog      branch backlog/<item-id> (FANOUT_BRANCH); ONE hub backlog
 #                item per call, driven by tools/backlog_fanout.py — seeds
 #                FANOUT_BACKLOG_FILE at FANOUT_BACKLOG_PATH, PR title/body from
@@ -221,6 +224,7 @@ FB_VERSION="$(kit_version feedback)"
 IA_VERSION="$(kit_version issue-autopilot)"
 ELK_VERSION="$(kit_version elk)"
 SQ_VERSION="$(kit_version site-quality)"
+PRR_VERSION="$(kit_version pr-review)"
 COMM_VERSION="$(kit_version community)"
 SDLC_VERSION="$(kit_version sdlc)"
 SD_VERSION="$(kit_version spec-driven)"
@@ -316,8 +320,8 @@ seed_workflow_artifact() {  # $1 label, $2 dest, $3 template, $4 name, $5 branch
 }
 
 case "$KIT" in
-  standardize|schema|prose|deps-latest|docker|feedback|elk|verify|site-quality|community|sdlc|spec-driven|agent-context|governance|backlog) ;;
-  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|docker|feedback|elk|verify|site-quality|community|sdlc|spec-driven|agent-context|governance|backlog> --target <name|all> [--artifacts csv] [--apply]" >&2
+  standardize|schema|prose|deps-latest|docker|feedback|elk|verify|pr-review|site-quality|community|sdlc|spec-driven|agent-context|governance|backlog) ;;
+  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|docker|feedback|elk|verify|pr-review|site-quality|community|sdlc|spec-driven|agent-context|governance|backlog> --target <name|all> [--artifacts csv] [--apply]" >&2
      exit 2 ;;
 esac
 [[ -n "$TARGET" ]] || { echo "--target is required (submodule name, or 'all')" >&2; exit 2; }
@@ -370,6 +374,12 @@ case "$KIT" in
     COMMIT_MSG="test: adopt the agent verification kit (feature index + user scenarios + evidence)"
     PR_TITLE="test: adopt the agent verification kit"
     PR_BODY="$(printf 'Automated by bamr87 fanout.yml (tools/fanout.sh --kit verify): seeds the fleet AGENT VERIFICATION standard — a feature index (features/features.yml, schema features/v1) every agent reads for what this product does and what proves it; verify/verify.yml (how to run the app like a user); a smoke user scenario + the Playwright runner (verify/runner.mjs → test/evidence/<id>/ screenshots + report.json); the Playwright MCP config; a thin verify.yml caller of the reusable fleet-verify.yml (scenarios on every PR, an OAuth Claude Code pass driving the live app on `verify`-labelled PRs — advisory until gate: true); and the repo-local verify-feature skill + verifier agent.\n\nAdditive-only — nothing the repo already has is overwritten. After merge: fill verify/verify.yml `app:` for this stack, `npm i -D @playwright/test yaml && npx playwright install --with-deps chromium`, replace the TODO feature entry, create the `verify` and `skip-evidence` labels. Coverage is graded fleet-wide at bamr87.github.io/bamr87/features/. See bamr87/bamr87 docs/VERIFICATION.md.')"
+    ;;
+  pr-review)
+    BRANCH="ci/pr-review"
+    COMMIT_MSG="ci: adopt the fleet PR review stub (CI failures summarized on the PR)"
+    PR_TITLE="ci: summarize CI failures on the PR"
+    PR_BODY="$(printf 'Automated by bamr87 fanout.yml (tools/fanout.sh --kit pr-review): adds the stub that calls the hub reusable pr-review.yml (constitution § 19). Every CI failure on a pull request is summarized in one sticky comment: the job, the reason from its log, whether the PR probably caused it, and what to do. The comment is deleted when nothing is failing. Doc: bamr87/bamr87 templates/pr-review/README.md.')"
     ;;
   site-quality)
     BRANCH="ci/site-quality"
@@ -721,6 +731,11 @@ seed_elk() {
   fi
   [[ -n "$adapter" ]] && echo "    …and import .fleet/logging/${adapter} where logging is configured."
   echo
+}
+
+seed_pr_review() {
+  seed_workflow_artifact "pr-review.yml" .github/workflows/pr-review.yml \
+    "$HUB/templates/pr-review/pr-review.yml" "$1" "$2" "$PRR_VERSION"
 }
 
 seed_site_quality() {
@@ -1106,6 +1121,7 @@ run_one() {
       feedback)    seed_feedback "$(basename "${url%.git}")" "$def"
                    [[ "$APPLY" -eq 1 ]] && feedback_ensure_labels "$slug" || true ;;
       elk)         seed_elk "$(basename "${url%.git}")" "$def" ;;
+      pr-review)   seed_pr_review "$(basename "${url%.git}")" "$def" ;;
       site-quality) seed_site_quality "$(basename "${url%.git}")" "$def" ;;
       community)   seed_community "$(basename "${url%.git}")" "$def" ;;
       sdlc)        seed_sdlc "$(basename "${url%.git}")" "$def" ;;

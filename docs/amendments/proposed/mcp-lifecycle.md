@@ -5,7 +5,7 @@
 - **Date:** 2026-11-05
 - **Proposed by:** Grok Bot (agent), on Amr's instruction as owner
 - **Ratified by:**
-- **Affects:** constitution § 25 (new, follows § 24 `visual-evidence` on main; renumber only if a later amendment claims 25 first); § 16 by reference (AI-ready foundation / MCP); feature `HUB-NEW:mcp-lifecycle`; requirement `FR-NEW:mcp-lifecycle`; roadmap FF-0040; docs `MCP-SERVERS.md`, `prd/MCP-SERVERS.md`; data `_data/mcp_servers.yml`
+- **Affects:** constitution § 25 (new, follows § 24 `visual-evidence` on main; renumber only if a later amendment claims 25 first); § 16 by reference (AI-ready foundation / MCP); feature `HUB-NEW:mcp-lifecycle`; requirement `FR-NEW:mcp-lifecycle`; roadmap FF-NEW:mcp-lifecycle; docs `MCP-SERVERS.md`, `prd/MCP-SERVERS.md`; data `_data/mcp_servers.yml`
 - **Supersedes:** none (extends § 16 and HUB-031 without changing console write gates)
 - **Related:** epic #683, backlog #684; HUB-031 / `tools/console/docs/mcp-layer.md`; #541 MCP Registry `server.json`; ADP-10; UPS `.mcp.json` baseline in `_data/specs.yml`; process mirror #678 / #679 / PR #680 / § 24 / FF-0039; Design for Failure (DFF, `.github/copilot-instructions.md`)
 
@@ -69,6 +69,6 @@ New constitution section:
 - Follow-up on #684: populate registry statuses, wire warn-only into hub CI, then P1 `dash mcp status` / console inventory.
 - Follow-up (epic #683 P2): consolidate duplicates; #541 `server.json`.
 - Follow-up (epic #683 P3): spoke fan-out kit.
-- Feature fragment `features/features.d/mcp-lifecycle.yml` (`HUB-NEW`, `FR-NEW:mcp-lifecycle`); roadmap `FF-0040`.
+- Feature fragment `features/features.d/mcp-lifecycle.yml` (`HUB-NEW`, `FR-NEW:mcp-lifecycle`); roadmap `FF-NEW:mcp-lifecycle`.
 - Predicted ids at merge (as of 2026-11-05 on main): amendment **0024**; feature **HUB-084**; requirement **FR84**. Section number **§ 25**.
 - Ratification: Amr ratifies this amendment by merging the PR; agents propose, never merge (§ 8).

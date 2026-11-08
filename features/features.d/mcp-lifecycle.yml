@@ -1,7 +1,7 @@
 id: HUB-NEW
 slug: mcp-lifecycle
 title: "MCP server lifecycle: centralized registry, config schema, lint and fan-out"
-description: "A hub-owned standard (constitution § 25) that consolidates how the fleet builds, registers, configures and runs MCP servers — single registry (_data/mcp_servers.yml), docs/MCP-SERVERS.md, env-only secrets, stdio/HTTP/tunnel conventions, health and write kill switches, warn-then-fail mcp_servers_lint, and spoke fan-out from the hub. Builds on HUB-031; epic #683, backlog #684, roadmap FF-0040."
+description: "A hub-owned standard (constitution § 25) that consolidates how the fleet builds, registers, configures and runs MCP servers — single registry (_data/mcp_servers.yml), docs/MCP-SERVERS.md, env-only secrets, stdio/HTTP/tunnel conventions, health and write kill switches, warn-then-fail mcp_servers_lint, and spoke fan-out from the hub. Builds on HUB-031; epic #683, backlog #684, roadmap FF-NEW:mcp-lifecycle."
 implemented: false
 status: planned
 surface: infra

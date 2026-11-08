@@ -84,7 +84,9 @@ jobs:
         with:
           # Not vars.NODE_VERSION: the fleet's canonical value (20) is below
           # what React Router 8 requires — the same choice as console-web.yml.
-          node-version: lts/*
+          # A number, never `lts/*`: an alias needs setup-node's manifest from the GitHub
+          # API and has no fallback, so a spent quota fails the step (atlas rule node-alias).
+          node-version: '26'
 
       # The page (base /bamr87/, VITE_STATIC=1) and the snapshot beside it:
       # every API document, a page per route, 404.html, sitemap, feed.

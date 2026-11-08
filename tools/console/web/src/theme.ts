@@ -29,6 +29,7 @@ export const theme = createTheme({
   fontFamilyMonospace: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
   headings: { fontWeight: '650' },
   cursorType: 'pointer',
+  respectReducedMotion: true,
   // Static twins of postcss.config.cjs — keep both in step.
   breakpoints: { xs: '36em', sm: '48em', md: '62em', lg: '75em', xl: '88em' },
   other: LAYOUT,

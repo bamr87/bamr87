@@ -22,9 +22,10 @@ export const useKeys = () =>
   useQuery({ queryKey: ['keys'], queryFn: () => api<{ key: string; dom: string; action: string; label: string; group: string; show: boolean }[]>('/api/keys'), staleTime: Infinity });
 
 /** Jobs poll while one is running (here or in the terminal dash — one runtime). */
-export const useJobs = () =>
+export const useJobs = (enabled = true) =>
   useQuery({
     queryKey: ['jobs'],
+    enabled,
     queryFn: () => api<Job[]>('/api/jobs'),
     refetchInterval: (q) => ((q.state.data ?? []).some((j) => j.status === 'running' || j.status === 'queued') ? 2000 : 6000),
   });
@@ -56,14 +57,16 @@ export const useApps = () => useQuery({ queryKey: ['apps'], queryFn: () => api<A
 /**
  * Does this address answer from where the reader sits? A no-cors fetch
  * resolves for any HTTP response and rejects when nothing listens, which is
- * the question a frame asks: "answers", never "healthy".
+ * the question a frame asks: "answers", never "healthy". `pollMs` asks again
+ * until it answers: for a stack that was just started, never for an idle one.
  */
-export const useReach = (url: string | null | undefined, enabled = true) =>
+export const useReach = (url: string | null | undefined, enabled = true, pollMs = 0) =>
   useQuery({
     queryKey: ['reach', url],
     enabled: Boolean(url) && enabled,
     staleTime: 30_000,
     retry: false,
+    refetchInterval: (q) => (pollMs && q.state.data !== true ? pollMs : false),
     queryFn: async () => {
       const ctl = new AbortController();
       const timer = setTimeout(() => ctl.abort(), 6000);
