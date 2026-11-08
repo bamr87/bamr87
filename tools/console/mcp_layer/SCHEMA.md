@@ -12,7 +12,7 @@ coverage: listed
 | entry | kind | purpose | rules |
 |---|---|---|---|
 | `__init__.py` | file | Package marker | required |
-| `server.py` | file | The MCP server (`MCPServer`): read tools and resources, write tools only with `HARNESS_MCP_ALLOW_WRITES=1` (destructive, `confirm=true`), stdio and streamable HTTP with bearer auth and a loopback Host allowlist | required |
+| `server.py` | file | The MCP server (`MCPServer`): read tools and resources, write tools only with `HARNESS_MCP_ALLOW_WRITES=1` (destructive, `confirm=true`), the scoped `job_dispatch` / `job_cancel` / `work_apply` only with `HARNESS_MCP_SCOPES` (allowlisted, capped, time-limited, audited to `.fleet/mcp/audit.jsonl`), stdio and streamable HTTP with bearer auth and a loopback Host allowlist | required |
 | `client.py` | file | Stdlib HTTP client for the console; reads `DASH_CONSOLE_TOKEN` from env or parses `.env`, never prints it | required |
 
 ## Placement
