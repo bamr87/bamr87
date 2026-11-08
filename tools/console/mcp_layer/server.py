@@ -355,7 +355,10 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
         """Claude usage and GitHub Actions minutes against _data/fleet.yml budgets. Claude dollars are
         API-equivalent ESTIMATES (list prices, not billed); `subscription` sets them against the flat
         Claude subscription as an effective discount — the two are never summed. Metered API spend
-        (api_key runs) is reported separately."""
+        (api_key runs) is reported separately. Actions minutes are job-minutes when
+        `minutes_basis` says so; each side's `parity` is its gap to a reference (the billing
+        meter's account total; claude-cost's result lines) and `coverage` says whether the
+        sweep was truncated or sampled."""
         def run():
             s = state()
             usage, contract = s.get("usage", {}), s.get("contract", {})

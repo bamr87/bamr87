@@ -273,6 +273,26 @@ def test_scorecard_thresholds_and_cost_per_verified_run():
     assert sc["cost_min_per_verified_run"]["value"] is None
 
 
+def test_a_v2_snapshot_is_judged_on_job_minutes():
+    """actions-usage/v2 prices job-minutes and keeps the wall clock beside them
+    (`wall_min`, `wall_avg_min`). The scorecard and the cost wires are COST
+    signals, so they read the job-minute fields — a ten-job matrix finishing
+    in 2 minutes costs 40 and is a cost spike against a 2-minute median —
+    and the extra v2 blocks (parity, coverage, sampled/truncated) are ignored."""
+    flock = [dict(wf(avg=2.0, workflow=f"w{i}"), wall_avg_min=1.0) for i in range(9)]
+    matrix = dict(wf(repo="wide", avg=40.0, workflow="matrix"), wall_avg_min=2.0)
+    v2 = usage(workflows=flock + [matrix], total_min=400.0, waste_min=50.0, wall_min=150.0,
+               sampled=True, truncated=False, job_runs_estimated=12)
+    v2.update(schema="actions-usage/v2", minutes_basis="job-minutes",
+              parity={"actions_minutes": {"gap_pct": -3.2}}, coverage={"truncated": False})
+    wires = wires_by_id(harness.evaluate_trip_wires(CFG, v2, triage(), pipeline(), rotation(), NOW))
+    assert {d["workflow"] for d in wires["cost-spike"]["detail"]} == {"matrix"}
+    assert not wires["waste-ceiling"]["tripped"]            # 50 / 400 = 12.5%
+    assert not wires["stale-data"]["tripped"]
+    sc = harness.build_scorecard(CFG, v2, triage(), pipeline(), rotation())
+    assert sc["cost_min_per_verified_run"]["value"] == 8.0   # 400 job-minutes / 50 verified runs
+
+
 def test_config_falls_back_when_block_absent(tmp_path=None):
     cfg = harness.load_config(Path("/nonexistent/fleet.yml"))
     assert cfg["trip_wires"]["cost_spike_multiplier"] == harness.DEFAULT_TRIP_WIRES["cost_spike_multiplier"]

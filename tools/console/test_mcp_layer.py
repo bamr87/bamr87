@@ -143,6 +143,21 @@ class ReadTools(unittest.TestCase):
         self.assertEqual(p["ai_cost_kind"], "API-equivalent (estimate, not billed)")
         self.assertIsNone(p["subscription_live"])          # no /api/live on the fake console
 
+    def test_spend_vs_budget_passes_the_measurement_contract_through(self):
+        """actions-usage/v2: what the minutes are, their gap to the meter, and the
+        sweep's coverage reach an agent asking about spend — the series do not."""
+        usage = {"ai": {"by_day": [1], "parity": {"ai_ci_cost": {"gap_pct": 0.0}}},
+                 "actions": {"by_day": [1], "minutes_basis": "job-minutes",
+                             "parity": {"actions_minutes": {"gap_pct": -2.4}},
+                             "coverage": {"truncated": False, "sampled": True}}}
+        fc = FakeConsole({"/api/state": {**STATE, "usage": usage}})
+        p = payload(*call(srv.build_server(fc), "spend_vs_budget"))
+        self.assertEqual(p["actions"]["minutes_basis"], "job-minutes")
+        self.assertEqual(p["actions"]["parity"]["actions_minutes"]["gap_pct"], -2.4)
+        self.assertTrue(p["actions"]["coverage"]["sampled"])
+        self.assertEqual(p["ai"]["parity"]["ai_ci_cost"]["gap_pct"], 0.0)
+        self.assertNotIn("by_day", p["actions"])
+
     def test_spend_vs_budget_passes_subscription_model_through(self):
         model = {"windows": {"24h": {"api_equiv_usd": 92.91, "subscription_usd": 6.45, "effective_discount_pct": 93.1}}}
         fc = FakeConsole({"/api/state": {**STATE, "subscription": {"never_summed": True}},
