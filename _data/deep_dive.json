@@ -2,15 +2,15 @@
   "schema": "deep-dive/v1",
   "owner": "bamr87",
   "label": "deep-dive",
-  "refreshed_at": "2026-11-08T12:23:00Z",
+  "refreshed_at": "2026-11-09T12:26:26Z",
   "summary": {
-    "as_of": "2026-11-08",
+    "as_of": "2026-11-09",
     "cycle": 1,
     "cycle_start": "2026-10-30",
     "cycle_end": "2026-12-10",
     "cycle_days": 42,
     "total": 38,
-    "day": 10,
+    "day": 11,
     "processed": 5,
     "counts": {
       "pending": 33,
@@ -20,20 +20,20 @@
     },
     "progress": 0.1316,
     "today": {
-      "date": "2026-11-08",
-      "cycle": 1,
-      "day": 10,
-      "cycle_days": 42,
-      "kind": "scheduled",
-      "repo": "zer0-CMS"
-    },
-    "next": {
       "date": "2026-11-09",
       "cycle": 1,
       "day": 11,
       "cycle_days": 42,
       "kind": "scheduled",
       "repo": "README"
+    },
+    "next": {
+      "date": "2026-11-10",
+      "cycle": 1,
+      "day": 12,
+      "cycle_days": 42,
+      "kind": "scheduled",
+      "repo": "vs-sonic-pi"
     },
     "last": "scripts",
     "last_date": "2026-11-05",
