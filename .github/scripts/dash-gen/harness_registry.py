@@ -72,6 +72,7 @@ except ImportError:  # pragma: no cover
     sys.exit(2)
 
 import actions_analytics  # registry loading + owner_repo + token resolution
+import harness  # the rotation ledger's post-run repo state (rotation_repo_state)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 FLEET_DEFAULT = REPO_ROOT / "_data" / "fleet.yml"
@@ -406,10 +407,14 @@ def classify_workflow(path: str, text: str) -> dict:
 # joins (committed ledgers -> per-repo / per-harness numbers; pure)
 # --------------------------------------------------------------------------- #
 def rotation_secret_states(rotation: dict, name: str = "CLAUDE_CODE_OAUTH_TOKEN") -> dict[str, str]:
+    """nwo -> the secret's state AFTER the rotation run (harness.rotation_repo_state):
+    an applied `written` repo holds the secret even when an old-shape ledger still
+    carries the `missing` its survey saw before the write."""
+    mode = rotation.get("mode")
     for token in rotation.get("tokens") or []:
         if isinstance(token, dict) and token.get("name") == name:
             return {
-                r.get("nwo"): str(r.get("state"))
+                r.get("nwo"): str(harness.rotation_repo_state(r, mode)[0])
                 for r in token.get("repos") or []
                 if isinstance(r, dict) and r.get("nwo")
             }
