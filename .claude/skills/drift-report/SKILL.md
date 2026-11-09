@@ -17,6 +17,7 @@ description: Run the dash drift gate and explain every failure in plain language
    - **(f) standardization conformance** (advisory, never gates) → route to the `standardize-audit` skill (`tools/dash audit` for the per-repo matrix).
    - **(g) GitHub-reality drift** (`--remote`/`--ci` only; advisory) — repo renamed/deleted on GitHub, or declared branch ≠ GitHub default → route to the `update-registry` skill to reconcile `repo_url`/`.gitmodules`/branch.
    - **(h) SCHEMA.md pyramid** → schema errors: run `python3 tools/schema_lint.py check .` and fix what it names; stale generated `projects/SCHEMA.md`: run `python3 tools/gen-projects-schema.py` (never hand-edit it).
+   - **(p) agent inventory** → an agent the hub's files define is not in `_data/agents.yml`, or the file is stale against `_data/fleet.yml` `harness:` → run `tools/dash agents` and commit `_data/agents.yml`; a contract error (unknown KPI or source id) names the `harness.efficacy` / `harness.sources` / `harness.agents` key to fix. Contract gaps and fleet-half drift are warnings, not failures (docs/AGENT-EFFICACY.md).
 3. Offer to apply the safe, non-destructive fixes.
 
 ## Guardrail

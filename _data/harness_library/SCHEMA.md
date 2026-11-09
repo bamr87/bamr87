@@ -17,11 +17,14 @@ coverage: listed
 | entry | kind | purpose | rules |
 | --- | --- | --- | --- |
 | `README.md` | file | What the library is, how an entry is written and read | required |
-| `*/` | pattern | One loop (`<workflow stem>/`), holding `<domain>/<entry>/experience.yml` [+ `harness.diff`] | |
+| `fleet-pulse/` | dir | The fleet-pulse doctor's lessons. Every doctor item is keyed to the hub, which the registry does not list, so they all sit under `unknown/` | terminal |
+| `repo-evolution/` | dir | The repo-evolution evolve step's lessons, one `<domain>/` per registry category | terminal |
+| `repo-scout/` | dir | The repo-scout scout step's lessons, one `<domain>/` per registry category | terminal |
 
 ## Placement
 
 - New lesson → `python3 -m tools.jev refine library add …` (never by hand: the id, the caps and the leak check are the tool's).
+- The first lesson for a new loop creates `<loop>/`: register it here in the same commit, as a `terminal` dir. `schema_lint` matches pattern rows against files only, so a `*/` row cannot cover a loop folder, and `terminal` keeps the walk out of the entries, where `refine library check` is the gate.
 - Anything unrouted → propose an entry in this table first, then create it.
 
 ## Forbidden

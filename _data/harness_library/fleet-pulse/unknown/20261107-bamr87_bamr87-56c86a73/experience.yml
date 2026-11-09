@@ -1,0 +1,26 @@
+schema: jev-experience/v1
+id: 20261107-bamr87_bamr87-56c86a73
+loop: fleet-pulse
+step: doctor
+domain: unknown
+item: bamr87/bamr87
+run_id: '42343685257'
+adopted: none
+date: '2026-11-07'
+source: human
+cue: A workflow flagged flaky, or with a low success rate, in the triage or actions snapshot
+lesson: 'Group its failures by pull request and head commit before diagnosing: a PR whose last commit
+  is red is that PR''s verdict (pr-red), not flakiness, and only one commit with two verdicts is flaky.
+  Check whether the commit meant to fix a red PR was pushed by a bot with GITHUB_TOKEN, which starts no
+  CI, so the PR never gets a green run. (c4 tool guidance: classifying red.)'
+evidence: '2026-11-07: zer0-mistakes ci.yml, flagged flaky at 78.8% success, had 15 failures in 92 runs:
+  10 release-please PRs correctly failing the version-vs-theme-manifest check because Manifest Sync pushes
+  its fix commit with GITHUB_TOKEN and that commit''s CI never runs, 2 zero-job bot placeholder runs,
+  3 real agent-PR failures, none on main. zer0-CMS content.yml, flagged flaky at 80.6%, was six Postgres-job
+  failures in one three-hour window on 2026-10-28, fixed by zer0-CMS#72; no commit had two verdicts. Classifier
+  fix in flight: bamr87/bamr87#766.'
+confidence: high
+edits: []
+components: {}
+notes: Recorded by hand from incidents found in the 2026-11-07 console review and CI deep dives, not from
+  a Propose-Probe-Compose step; no harness edit was adopted, the fix lives in the PR the evidence names.

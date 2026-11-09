@@ -256,6 +256,48 @@ def test_credential_overdue_uses_ledger_policy_plus_grace():
     assert not wires_by_id(wires)["credential-overdue"]["tripped"]
 
 
+def old_shape_apply_ledger(mode="apply", action="written") -> dict:
+    """The committed 2026-11-02 shape: the survey's PRE-write state and age beside
+    `action: written`, and a token-level oldest age taken from the replaced copy."""
+    return {
+        "generated_at": "2026-08-24 22:00 UTC",
+        "mode": mode,
+        "tokens": [{
+            "name": "RELEASE_PLEASE_TOKEN", "oldest_age_days": 86, "max_age_days": 45,
+            "repos": [
+                {"nwo": "bamr87/a", "state": "ok", "age_days": 3, "action": "none"},
+                {"nwo": "bamr87/b", "state": "stale", "age_days": 86, "action": action},
+                {"nwo": "bamr87/c", "state": "missing", "age_days": None, "action": action},
+            ],
+        }],
+    }
+
+
+def test_credential_overdue_ignores_a_copy_the_apply_run_replaced():
+    wires = harness.evaluate_trip_wires(CFG, usage(), triage(), pipeline(),
+                                        old_shape_apply_ledger(), NOW)
+    assert not wires_by_id(wires)["credential-overdue"]["tripped"]
+    sc = harness.build_scorecard(CFG, usage(), triage(), pipeline(), old_shape_apply_ledger())
+    assert sc["oldest_credential_age_days"]["value"] == 3
+
+
+def test_credential_overdue_still_trips_on_a_dry_run_or_a_failed_write():
+    for ledger in (old_shape_apply_ledger(mode="dry-run"),        # "written" = would write
+                   old_shape_apply_ledger(action="failed")):      # the old copy is still there
+        w = wires_by_id(harness.evaluate_trip_wires(CFG, usage(), triage(), pipeline(), ledger, NOW))
+        assert w["credential-overdue"]["tripped"]
+        assert w["credential-overdue"]["detail"][0]["oldest_age_days"] == 86
+
+
+def test_rotation_repo_state_reads_an_applied_write_as_fresh():
+    row = {"state": "missing", "age_days": None, "action": "written"}
+    assert harness.rotation_repo_state(row, "apply") == ("ok", 0)
+    assert harness.rotation_repo_state(row, "dry-run") == ("missing", None)
+    assert harness.rotation_repo_state(dict(row, action="failed"), "apply") == ("missing", None)
+    # A token without repo rows (the fixtures above) keeps its own oldest age.
+    assert harness.rotation_oldest_age({"oldest_age_days": 10}, "apply") == 10
+
+
 def test_scorecard_thresholds_and_cost_per_verified_run():
     sc = harness.build_scorecard(CFG, usage(), triage(), pipeline(), rotation())
     assert sc["completion_rate_pct"]["status"] == "ok"
@@ -271,6 +313,26 @@ def test_scorecard_thresholds_and_cost_per_verified_run():
     sc = harness.build_scorecard(CFG, {}, {}, {}, {})
     assert sc["completion_rate_pct"]["status"] == "unknown"
     assert sc["cost_min_per_verified_run"]["value"] is None
+
+
+def test_a_v2_snapshot_is_judged_on_job_minutes():
+    """actions-usage/v2 prices job-minutes and keeps the wall clock beside them
+    (`wall_min`, `wall_avg_min`). The scorecard and the cost wires are COST
+    signals, so they read the job-minute fields — a ten-job matrix finishing
+    in 2 minutes costs 40 and is a cost spike against a 2-minute median —
+    and the extra v2 blocks (parity, coverage, sampled/truncated) are ignored."""
+    flock = [dict(wf(avg=2.0, workflow=f"w{i}"), wall_avg_min=1.0) for i in range(9)]
+    matrix = dict(wf(repo="wide", avg=40.0, workflow="matrix"), wall_avg_min=2.0)
+    v2 = usage(workflows=flock + [matrix], total_min=400.0, waste_min=50.0, wall_min=150.0,
+               sampled=True, truncated=False, job_runs_estimated=12)
+    v2.update(schema="actions-usage/v2", minutes_basis="job-minutes",
+              parity={"actions_minutes": {"gap_pct": -3.2}}, coverage={"truncated": False})
+    wires = wires_by_id(harness.evaluate_trip_wires(CFG, v2, triage(), pipeline(), rotation(), NOW))
+    assert {d["workflow"] for d in wires["cost-spike"]["detail"]} == {"matrix"}
+    assert not wires["waste-ceiling"]["tripped"]            # 50 / 400 = 12.5%
+    assert not wires["stale-data"]["tripped"]
+    sc = harness.build_scorecard(CFG, v2, triage(), pipeline(), rotation())
+    assert sc["cost_min_per_verified_run"]["value"] == 8.0   # 400 job-minutes / 50 verified runs
 
 
 def test_config_falls_back_when_block_absent(tmp_path=None):

@@ -40,8 +40,9 @@ def test_summary_folds_only_actions_minutes_by_month_and_repo():
     assert set(s["months"]) == {"2026-08", "2026-09"}
     assert s["months"]["2026-08"]["gross_usd"] == 131.3 and s["months"]["2026-08"]["net_usd"] == 0.0
     # storage and Copilot never enter the minutes
-    assert "it-journey" not in s["by_repo_previous_month"]
-    assert list(s["by_repo_previous_month"]) == ["lifehacker.dev", "zpl-viewer"]   # sorted, largest first
+    filed = s["account_total_filed_under_previous_month"]
+    assert "it-journey" not in filed
+    assert list(filed) == ["lifehacker.dev", "zpl-viewer"]   # sorted, largest first
     assert s["days_elapsed"] == 5
     assert s["run_rate_monthly"] == round(6239.0 / 5 * aa.AVG_DAYS_PER_MONTH, 1)
 
@@ -49,9 +50,24 @@ def test_summary_folds_only_actions_minutes_by_month_and_repo():
 def test_summary_survives_an_empty_or_odd_response():
     s = aa.summarize_billing([], dt.date(2026, 9, 5))
     assert s["minutes_this_month"] == 0.0 and s["previous_month"] is None
-    assert s["minutes_previous_month"] is None and s["by_repo_this_month"] == {}
+    assert s["minutes_previous_month"] is None and s["account_total_filed_under_this_month"] == {}
     s = aa.summarize_billing([{"product": "actions"}, {"date": "bad"}], dt.date(2026, 9, 5))
     assert s["months"] == {}
+
+
+def test_the_meter_is_published_as_account_level_never_as_shares():
+    """The meter files the account's whole total under one repository name —
+    lifehacker.dev 43,924 of October's 44,563, bamr87 11,920 of November's
+    first 11,925 — so v1's `by_repo_*` read as shares were not. The map is kept
+    for audit under a name that says what it is, with the scope stated."""
+    s = aa.summarize_billing(ITEMS, dt.date(2026, 9, 5))
+    assert s["scope"] == "account"
+    assert not any(k.startswith("by_repo") for k in s), sorted(s)
+    assert s["account_total_filed_under_this_month"] == {"zer0-mistakes": 6208.0, "zpl-viewer": 31.0}
+    assert "not per-repo shares" in s["filed_under_note"]
+    # an errored meter says its scope too, so no reader mistakes it for a repo figure
+    err = aa.collect_billing(_GH(_Requester(exc=RuntimeError("403"))))
+    assert err["scope"] == "account" and "error" in err
 
 
 class _Requester:

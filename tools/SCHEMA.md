@@ -57,6 +57,8 @@ coverage: listed
 | `issue-evidence.sh` | file | Builds one issue's evidence bundle in an isolated virtual environment — clone, toolchain install, lint/test/build, screenshots, candidate files (tier 1 of docs/ISSUE-PIPELINE.md) | |
 | `claude_code_executes_lint.py` | file | Constitution section 26 lint: validates agent_roles.yml and classifies paths/PRs as direction-setting vs software; warn-only by default, --gate hard-fails | |
 | `test_claude_code_executes_lint.py` | file | Fixture tests for claude_code_executes_lint.py | |
+| `mcp_servers_lint.py` | file | MCP servers lifecycle lint (constitution section 25): validates .mcp.json / verify mcp configs and _data/mcp_servers.yml for shape and inline secrets; warn-only by default, --gate hard-fails (docs/MCP-SERVERS.md) | |
+| `test_mcp_servers_lint.py` | file | Fixture tests for mcp_servers_lint.py (inline token detection, schema shape, registry) | |
 | `guides_visual_lint.py` | file | Guides visual-evidence lint (constitution section 24): flags guide-like Markdown on the curated backlog lacking an image, evidence ref or skip-visuals reason; warn-only by default, --gate hard-fails (docs/VISUAL-EVIDENCE.md) | |
 | `test_guides_visual_lint.py` | file | Fixture tests for guides_visual_lint.py (image/skip detection, backlog gaps, broken links) | |
 | `voices.py` | file | The fleet voice model check — validates `_data/voices/voices.yml` against `voices.schema.json`, `--against` flags drift in a consumer copy, `assign` names the persona for an activity (constitution § 23 rule 7) | |

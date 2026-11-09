@@ -536,6 +536,28 @@ def test_rotation_secret_states_maps_nwo_to_state():
     assert hr.rotation_secret_states({}) == {}
 
 
+def test_rotation_secret_states_count_an_applied_write_as_present():
+    """The 2026-11-02 ledger: 13 repos the apply run wrote still read `missing`
+    (the survey's pre-write state), which raised 13 false coverage-gap items."""
+    def ledger(mode):
+        return {"mode": mode, "tokens": [{"name": "CLAUDE_CODE_OAUTH_TOKEN", "repos": [
+            {"nwo": "bamr87/new", "state": "missing", "action": "written"},
+            {"nwo": "bamr87/broke", "state": "missing", "action": "failed"},
+            {"nwo": "bamr87/had", "state": "ok", "action": "none"},
+        ]}]}
+    states = hr.rotation_secret_states(ledger("apply"))
+    assert states == {"bamr87/new": "ok", "bamr87/broke": "missing", "bamr87/had": "ok"}
+    # A dry run only planned the write, so the repo is still missing its secret.
+    assert hr.rotation_secret_states(ledger("dry-run"))["bamr87/new"] == "missing"
+
+    fixed = repo_row(name="new", harnesses=[harness_row()], oauth_secret=states["bamr87/new"])
+    broke = repo_row(name="broke", harnesses=[harness_row()], oauth_secret=states["bamr87/broke"])
+    for row in (fixed, broke):
+        hr.evaluate_coverage(row, CFG)
+    assert "oauth-secret" not in fixed["coverage"]["missing"]
+    assert "oauth-secret" in broke["coverage"]["missing"]
+
+
 def test_fleet_throughput_total_is_order_independent():
     """The fleet estimate is a float sum at a rounding knife-edge: the real
     fleet's per-repo loads total 10.605, which plain left-to-right addition
