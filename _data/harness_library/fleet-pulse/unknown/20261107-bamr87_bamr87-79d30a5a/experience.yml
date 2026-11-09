@@ -1,0 +1,26 @@
+schema: jev-experience/v1
+id: 20261107-bamr87_bamr87-79d30a5a
+loop: fleet-pulse
+step: doctor
+domain: unknown
+item: bamr87/bamr87
+run_id: '41780616064'
+adopted: none
+date: '2026-11-07'
+source: human
+cue: The same cancel-heavy or multi-run signal on one workflow file in several fleet repos (verify.yml,
+  claude.yml, any file a hub kit seeds)
+lesson: 'Before filing per repo, trace the workflow to its hub kit (templates/<kit>/, the kit stamp in
+  the file header) and compare the deployed copies with it. When the copies are untouched seeds, file
+  ONE hub fix in the kit, name the per-repo symptoms in it and note that a fan-out delivers it; only a
+  hand-modified copy needs its own fix. (c4 tool guidance: where a seeded workflow''s root cause lives.)'
+evidence: 'bamr87/bamr87#649 (law-ai), #650 (cv-pro) and #651 (lifehacker.dev) on 2026-11-04 and #672
+  (bashos) on 2026-11-05 were filed one per repo; all four are the verify kit''s labeled trigger plus
+  workflow-level concurrency. Measured on 2026-11-07 across all 24 deployed copies: 1,009 runs and 2,840
+  job-minutes in 14 days, 46% of the runs redundant (label-started runs, and push runs re-verifying a
+  merge that was already verified). One kit change covers 23 of the 24 copies: bamr87/bamr87#767.'
+confidence: high
+edits: []
+components: {}
+notes: Recorded by hand from incidents found in the 2026-11-07 console review and CI deep dives, not from
+  a Propose-Probe-Compose step; no harness edit was adopted, the fix lives in the PR the evidence names.

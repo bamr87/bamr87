@@ -80,6 +80,9 @@ scout-workorders/
 # dash pm: the routine PM review's local files (model, review, board plan preview);
 # the public snapshot is committed as _data/pm_review.yml.
 .fleet/pm/
+# The MCP layer's scoped-write audit (audit.jsonl: one line per job_dispatch,
+# job_cancel and work_apply call, values scrubbed; tools/console/docs/mcp-layer.md).
+.fleet/mcp/
 # Evidence sandboxes built by tools/issue-evidence.sh.
 .evidence/
 # The agent verification loop's exchange files (fleet-verify.yml /
