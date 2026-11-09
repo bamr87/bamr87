@@ -2000,3 +2000,98 @@ features:
     - test/evidence/console-nav
     prd:
     - FR89
+  - id: HUB-090
+    title: 'Scoped MCP write access: approved report jobs and Work-board prioritisation for remote agents'
+    description: 'HARNESS_MCP_SCOPES grants the Harness Console''s MCP layer narrow write scopes in place
+      of the all-or-nothing HARNESS_MCP_ALLOW_WRITES, so a remote agent such as Grok Bot can act without
+      reaching secret pushes, key rotation, deploys, CI dispatch or the observe reset. The jobs scope adds
+      job_dispatch, which runs one op from a fixed allowlist of local, $0 reports and checks (config-show,
+      status, audit, drift, schema-lint, workflows-lint, observe-status, observe-verify, lake-status, refine-surface),
+      and job_cancel, which stops only those jobs. job_dispatch rechecks each op''s console card, always
+      sends the console confirm=false, gives each op a wall clock that a watchdog enforces by cancelling,
+      allows 2 jobs at once and 20 an hour, and with wait_s returns the end of the log. The work scope adds
+      work_apply: priority, pins, unpin and notes written to the working tree''s _data/work_queue.yml (a
+      roadmap key''s priority to _data/roadmap.yml), never a GitHub label move, a roadmap status change
+      or a commit. It is applied only with confirm=true and the plan_id of a work_preview of the same plan,
+      and is refused when the targets moved after that preview. Two read tools are always on: work_preview,
+      which writes nothing and returns before → after rows, the files an apply would edit and an undo_plan,
+      and work_item. Every scoped call, whether it ran, was refused or failed, is one scrubbed JSON line
+      in .fleet/mcp/audit.jsonl and on stderr. The scoped tools are annotated destructive and closed-world,
+      and console_overview reports mcp_scopes. smoke_mcp_layer.py --url runs the remote handshake against
+      a running HTTP server or the tunnel, and fails when no tools are listed.'
+    implemented: true
+    status: shipped
+    surface: infra
+    link: tools/console/mcp_layer/server.py
+    docs: tools/console/docs/mcp-layer.md
+    tags:
+    - console
+    - mcp
+    - agents
+    - work-board
+    - guardrails
+    - audit
+    date: 2026-11-08
+    tests:
+    - tools/console/test_mcp_layer.py
+    prd:
+    - FR26
+    - NFR9
+    - FR90
+    - NFR18
+  - id: HUB-091
+    title: 'MCP server lifecycle: centralized registry, config schema, lint and fan-out'
+    description: 'A hub-owned standard (constitution § 25) that consolidates how the fleet builds, registers,
+      configures and runs MCP servers — single registry (_data/mcp_servers.yml), docs/MCP-SERVERS.md, env-only
+      secrets, stdio/HTTP/tunnel conventions, health and write kill switches, warn-then-fail mcp_servers_lint,
+      and spoke fan-out from the hub. Builds on HUB-031; epic #683, backlog #684, roadmap FF-0047.'
+    implemented: false
+    status: planned
+    surface: infra
+    link: tools/mcp_servers_lint.py
+    docs: docs/MCP-SERVERS.md
+    tags:
+    - mcp
+    - agents
+    - ai-layer
+    - standards
+    - lint
+    - console
+    date: 2026-11-05
+    tests:
+    - tools/test_mcp_servers_lint.py
+    prd:
+    - FR91
+  - id: HUB-092
+    title: 'The agent inventory: every AI agent registered, graded against the efficacy contract, and held
+      complete by the drift gate'
+    description: '`tools/dash agents` (.github/scripts/dash-gen/agent_inventory.py, constitution § 29, ADR
+      0009) builds the committed _data/agents.yml (schema agents/v1) offline from the hub''s AI workflows
+      (claude-code-action or claude-run), the fleet''s from the committed harness_registry.yml, the JEV
+      loop step specs, the conflict tiers in _data/fleet.yml jev: and the LaunchAgents the tools/install-*.sh
+      installers put on the Mac, plus the agents _data/fleet.yml harness.agents declares before their installer
+      lands. Each entry carries its owner, trigger, kill switch, budget cap and model, the KPIs and thresholds
+      its kind declares in harness.efficacy, the sources it reads with each source''s writer and freshness
+      SLO from harness.sources, where its run records land, whether they reach the reflector, its local
+      entry point and its gaps against the contract''s six rules. Drift check (p) runs `tools/dash agents
+      --check` on every PR: it fails on an unregistered, removed or stale hub agent and on a contract section
+      not regenerated, warns on fleet-half drift and on contract gaps while harness.efficacy.enforce is
+      false (the shadow period), and fleet-pulse.yml refreshes the file daily in the same commit as the
+      harness inventory.'
+    implemented: true
+    status: shipped
+    surface: cli
+    link: .github/scripts/dash-gen/agent_inventory.py
+    docs: docs/AGENT-EFFICACY.md
+    tags:
+    - harness
+    - governance
+    - agents
+    - efficacy
+    - drift
+    date: 2026-11-07
+    tests:
+    - .github/scripts/dash-gen/test_agent_inventory.py
+    prd:
+    - FR92
+    - NFR19

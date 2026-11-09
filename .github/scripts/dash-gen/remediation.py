@@ -13,7 +13,8 @@ dash already collects but previously acted on in two disconnected loops:
 
   EXPENSIVE _data/actions_usage.yml → workflows[]
             Cost / effectiveness / waste per workflow, with flags for slow,
-            flaky, high-cost-low-value, cancel-heavy, cron-heavy.
+            flaky, high-cost-low-value, cancel-heavy, cron-heavy. (`pr-red`
+            is published too but is never a signal here — see PR_SIGNALS.)
 
 The expensive signal is averaged over a 14-day window, which has no memory of
 ORDER, no notion of who pressed the button and no notion of what the minutes
@@ -141,6 +142,13 @@ DEFAULT_SEVERITY = {
 # Signals about whether the workflow WORKS. A later green run settles them: the
 # workflow is not broken now, whatever the window's average says.
 CORRECTNESS_SIGNALS = {"failing", "flaky"}
+
+# `pr-red` (actions_analytics.pr_red): every failure sat on a PR head and no
+# commit both passed and failed, so the PRs are red, not the workflow — a policy
+# gate doing its job (bamr87/bamr87#614). Deliberately NOT a correctness signal
+# and has no severity: the doctor has nothing to fix in the workflow, and
+# "de-flaking" a deterministic gate would defeat it.
+PR_SIGNALS = {"pr-red"}
 
 # Signals about what the workflow COSTS. A hand-driven debugging session inflates
 # all three — failing dispatch runs are what building something looks like.
@@ -423,8 +431,18 @@ def failing_candidates(triage: dict, owner: str) -> dict[str, dict]:
 # signal 2 — cost / slowness (actions_usage.yml)
 # --------------------------------------------------------------------------- #
 def is_long_running(w: dict, cfg: dict) -> bool:
-    return ((w.get("avg_min") or 0) >= cfg["slow_avg_min"]
-            or (w.get("p95_min") or 0) >= cfg["slow_p95_min"])
+    """Does a run of this workflow take long? LATENCY, read from the wall clock.
+
+    Since `actions-usage/v2` a record's `avg_min` / `p95_min` are job-minutes —
+    what a run COSTS, summed over parallel jobs — and the run's duration is
+    `wall_avg_min` / `wall_p95_min`. A ten-job matrix of 2-minute jobs costs 20
+    minutes and finishes in 2: expensive, never long-running. A v1 snapshot
+    has no `wall_*` fields and its `avg_min` WAS the wall clock, so it is read
+    as before.
+    """
+    avg = w.get("wall_avg_min", w.get("avg_min"))
+    p95 = w.get("wall_p95_min", w.get("p95_min"))
+    return (avg or 0) >= cfg["slow_avg_min"] or (p95 or 0) >= cfg["slow_p95_min"]
 
 
 def is_superseded(w: dict, cfg: dict) -> bool:
@@ -620,7 +638,9 @@ def usage_candidates(usage: dict, cfg: dict, owner: str) -> dict[str, dict]:
             # so the priority fallback below is skipped — that fallback is
             # precisely what queued a green, switched-off workflow on the
             # strength of a human's debugging minutes (bamr87/bamr87#92).
-            if suppressed or interactive or productive:
+            # `pr-red` is the same kind of positive finding: the red minutes
+            # are the PRs', so they must not buy the workflow a slot either.
+            if suppressed or interactive or productive or PR_SIGNALS & set(w.get("flags") or []):
                 continue
             if (w.get("priority") or 0) < cfg["min_priority"]:
                 continue
@@ -641,6 +661,8 @@ def usage_candidates(usage: dict, cfg: dict, owner: str) -> dict[str, dict]:
                 "total_min": w.get("total_min"),
                 "avg_min": w.get("avg_min"),
                 "p95_min": w.get("p95_min"),
+                "wall_avg_min": w.get("wall_avg_min"),
+                "wall_p95_min": w.get("wall_p95_min"),
                 "waste_min": w.get("waste_min"),
                 "effectiveness_pct": w.get("effectiveness_pct"),
                 "success_rate_pct": w.get("success_rate_pct"),
@@ -825,10 +847,14 @@ def render(cands: list[dict], cfg: dict, hub: str, usage: dict, triage: dict,
 
         usage_rec = c.get("usage")
         if usage_rec:
+            basis = "job-min" if usage.get("minutes_basis") == "job-minutes" else "m"
+            wall = (f"{usage_rec.get('wall_avg_min')}m avg / {usage_rec.get('wall_p95_min')}m p95 "
+                    f"wall clock · " if usage_rec.get("wall_avg_min") is not None else "")
             L.append(f"- **Cost signal ({usage.get('window_days', '?')}d):** "
-                     f"{usage_rec.get('runs')} runs · {usage_rec.get('total_min')}m total · "
-                     f"{usage_rec.get('avg_min')}m avg · {usage_rec.get('p95_min')}m p95 · "
-                     f"{usage_rec.get('waste_min')}m wasted · "
+                     f"{usage_rec.get('runs')} runs · {usage_rec.get('total_min')}{basis} total · "
+                     f"{usage_rec.get('avg_min')}{basis} avg · {usage_rec.get('p95_min')}{basis} p95 · "
+                     + wall
+                     + f"{usage_rec.get('waste_min')}{basis} wasted · "
                      + (f"{usage_rec.get('effectiveness_pct')}% effective · "
                         if usage_rec.get("effectiveness_pct") is not None
                         else "effectiveness unknown · ")
