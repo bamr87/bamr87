@@ -133,6 +133,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-087](features/features.yml) | Expedite sprints: one accelerated, monitored pilot at a time run by the fleet's agentic loops | planned | [`docs/EXPEDITE-SPRINTS.md`](docs/EXPEDITE-SPRINTS.md) | FR85 |
 | [HUB-088](features/features.yml) | Typed decisions gate the pipeline: a decision lockfile, traces and replay, the trim and verify loops | planned | [`docs/prd/AGENTIC-SDLC.md`](docs/prd/AGENTIC-SDLC.md) | FR86, FR87, FR88, NFR17, FR7, FR10, FR15, FR26, FR60, NFR4, NFR9 |
 | [HUB-089](features/features.yml) | The console's frame: a sidebar that folds, live counts, and pages that fail one at a time | shipped | [`tools/console/web/src/components/Shell.tsx`](tools/console/web/src/components/Shell.tsx) · [`tools/console/web/README.md`](tools/console/web/README.md) | FR89 |
+| [HUB-090](features/features.yml) | Scoped MCP write access: approved report jobs and Work-board prioritisation for remote agents | shipped | [`tools/console/mcp_layer/server.py`](tools/console/mcp_layer/server.py) · [`tools/console/docs/mcp-layer.md`](tools/console/docs/mcp-layer.md) | FR26, NFR9, FR90, NFR18 |
 
 **Requirement → feature trace**
 
@@ -169,8 +170,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR24 | HUB-029 |
 | FR25 | HUB-029 |
 | NFR8 | HUB-029, HUB-066 |
-| FR26 | HUB-031, HUB-072, HUB-073, HUB-082, HUB-088 |
-| NFR9 | HUB-031, HUB-072, HUB-073, HUB-082, HUB-088 |
+| FR26 | HUB-031, HUB-072, HUB-073, HUB-082, HUB-088, HUB-090 |
+| NFR9 | HUB-031, HUB-072, HUB-073, HUB-082, HUB-088, HUB-090 |
 | FR27 | HUB-032 |
 | NFR10 | HUB-032 |
 | FR3 | HUB-033 |
@@ -243,6 +244,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR88 | HUB-088 |
 | NFR17 | HUB-088 |
 | FR89 | HUB-089 |
+| FR90 | HUB-090 |
+| NFR18 | HUB-090 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -326,6 +329,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR87: Every decision writes one trace (policy fingerprint, model version, inputs digest, usage, typed answer, confidence, cleared, outcome) that the lake keeps beside run cost, and the traces of a window can be replayed against the current lockfile and fuzzed for stability.
 - FR88: Test selection and matrix pruning run in shadow per repository until a nightly verify loop has reported zero missed failures over the declared window; a missed failure becomes a regression case in the decision's eval set, raises the threshold and demotes the repository, and an optimization is promoted only when minutes drop on the billing meter while missed failures stay at zero.
 - FR89: The console's frame must keep the current page in view in its navigation, show what needs attention beside the page that holds it, work from the keyboard and to a screen reader on every page, and keep the console usable when one page fails or the backend stops answering.
+- FR90: The MCP layer must let an operator grant a remote agent narrow write scopes in place of the broad write switch: starting and stopping allowlisted local report jobs, and applying Work-board priority, pin and note plans after their preview was approved. Each scoped call needs confirm=true, and a plan apply also needs the plan_id of its preview.
 
 **Non-functional**
 
@@ -346,6 +350,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - NFR15: The PM review must not write to GitHub: the Fleet project ops it plans are applied only through the § 11 write-back service after a person has read them, and its public outputs must not list a private repo's items.
 - NFR16: Activity capture and replay never block, slow or fail a fleet container, agent or loop: the collector is read-only (docker.sock read-only, no exec), bounded (rate, payload and retention caps from _data/fleet.yml), redacts before storage, counts every dropped event, binds to loopback, and never stores, prints or returns a secret.
 - NFR17: No typed decision ever skips work, lowers a gate or lets an agent act unless its confidence cleared the lockfile threshold; a model error, timeout or usage limit is the conservative branch.
+- NFR18: A scoped MCP write tool may add checks of its own: an allowlist, validation, a plan_id binding, caps, a wall clock and an audit line. It never widens what the console allows. It sends the console confirm=false, writes nothing to GitHub, reads or writes no secret, and records every call, whether it ran, was refused or failed, in an append-only, scrubbed audit. This refines NFR9's 'no enforcement of its own' for the scoped tools only.
 
 ## 6. Success metrics (proposed — not defined in sources)
 
