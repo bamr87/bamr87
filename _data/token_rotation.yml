@@ -2,7 +2,7 @@
 # Secret NAMES, AGES, and outcomes only; never a credential value.
 # Variables are not secret, so their VALUES are recorded — this is the
 # only committed record of what the fleet is meant to hold.
-generated_at: 2026-11-02 02:20 UTC
+generated_at: 2026-11-09 02:20 UTC
 mode: apply
 tokens:
 - name: CLAUDE_CODE_OAUTH_TOKEN
@@ -11,168 +11,174 @@ tokens:
   minted: false
   max_age_days: 45
   lifetime_days: 365
-  oldest_age_days: 32
+  oldest_age_days: 39
   attention: []
   counts:
-    repos: 37
-    ok: 25
+    repos: 38
+    ok: 37
     stale: 0
-    missing: 12
+    missing: 1
     unreachable: 0
-    written: 12
+    written: 1
     failed: 0
   repos:
   - nwo: bamr87/.github
     state: ok
-    age_days: 32
+    age_days: 39
     updated_at: '2026-09-30T03:27:28Z'
     behind_hub: false
     action: none
   - nwo: bamr87/README
     state: ok
-    age_days: 32
+    age_days: 39
     updated_at: '2026-09-30T03:27:30Z'
     behind_hub: false
     action: none
   - nwo: bamr87/SCHEMA
     state: ok
-    age_days: 32
+    age_days: 39
     updated_at: '2026-09-30T03:27:31Z'
     behind_hub: false
     action: none
   - nwo: bamr87/amrchy
     state: ok
-    age_days: 6
+    age_days: 13
     updated_at: '2026-10-26T02:34:53Z'
     behind_hub: false
     action: none
   - nwo: bamr87/bamr87
     state: ok
-    age_days: 32
+    age_days: 39
     updated_at: '2026-09-30T03:27:27Z'
     behind_hub: false
     action: none
   - nwo: bamr87/bamr87.github.io
     state: ok
-    age_days: 32
+    age_days: 39
     updated_at: '2026-09-30T03:27:33Z'
     behind_hub: false
     action: none
   - nwo: bamr87/bashcrawl
     state: ok
-    age_days: 32
+    age_days: 39
     updated_at: '2026-09-30T03:27:36Z'
     behind_hub: false
     action: none
   - nwo: bamr87/bashos
     state: ok
-    age_days: 32
+    age_days: 39
     updated_at: '2026-09-30T03:27:36Z'
     behind_hub: false
     action: none
   - nwo: bamr87/cv-pro
     state: ok
-    age_days: 6
+    age_days: 13
     updated_at: '2026-10-26T02:34:53Z'
     behind_hub: false
     action: none
   - nwo: bamr87/djangoerp
     state: ok
-    age_days: 32
+    age_days: 39
     updated_at: '2026-09-30T03:27:41Z'
     behind_hub: false
     action: none
   - nwo: bamr87/edgar-pipeline
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:16Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/fleet-infra
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:17Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/fleet-mobile
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:17Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/fleet-observe
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:18Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/fredgar-ai
     state: ok
-    age_days: 32
+    age_days: 39
     updated_at: '2026-09-30T03:27:43Z'
     behind_hub: false
     action: none
   - nwo: bamr87/githubai
     state: ok
-    age_days: 32
+    age_days: 39
     updated_at: '2026-09-30T03:27:45Z'
     behind_hub: false
     action: none
   - nwo: bamr87/gitorio
     state: ok
-    age_days: 32
+    age_days: 39
     updated_at: '2026-09-30T03:27:47Z'
     behind_hub: false
     action: none
   - nwo: bamr87/godotgo
     state: ok
-    age_days: 6
+    age_days: 13
     updated_at: '2026-10-26T02:34:54Z'
     behind_hub: false
     action: none
   - nwo: bamr87/it-journey
     state: ok
-    age_days: 32
+    age_days: 39
     updated_at: '2026-09-30T03:27:49Z'
     behind_hub: false
     action: none
   - nwo: bamr87/kvlite
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:18Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/law-ai
     state: ok
-    age_days: 32
+    age_days: 39
     updated_at: '2026-09-30T03:27:50Z'
     behind_hub: false
     action: none
   - nwo: bamr87/lifehacker.dev
     state: ok
-    age_days: 32
+    age_days: 39
     updated_at: '2026-09-30T03:27:52Z'
     behind_hub: false
     action: none
   - nwo: bamr87/netprobe
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:18Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/ocrmd
     state: ok
-    age_days: 32
+    age_days: 39
     updated_at: '2026-09-30T03:27:53Z'
     behind_hub: false
     action: none
   - nwo: bamr87/outbox
     state: ok
-    age_days: 20
+    age_days: 27
     updated_at: '2026-10-12T02:47:34Z'
     behind_hub: false
     action: none
   - nwo: bamr87/ragio-ai
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:19Z'
+    behind_hub: false
+    action: none
+  - nwo: bamr87/recon-engine
     state: missing
     age_days: null
     updated_at: null
@@ -180,67 +186,67 @@ tokens:
     action: written
   - nwo: bamr87/rewind-arcade
     state: ok
-    age_days: 32
+    age_days: 39
     updated_at: '2026-09-30T03:27:54Z'
     behind_hub: false
     action: none
   - nwo: bamr87/schema-lang
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:19Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/scripts
     state: ok
-    age_days: 32
+    age_days: 39
     updated_at: '2026-09-30T03:27:55Z'
     behind_hub: false
     action: none
   - nwo: bamr87/sec-lab
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:20Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/sensor-mesh
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:20Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/vs-sonic-pi
     state: ok
-    age_days: 32
+    age_days: 39
     updated_at: '2026-09-30T03:27:57Z'
     behind_hub: false
     action: none
   - nwo: bamr87/zer0-CMS
     state: ok
-    age_days: 32
+    age_days: 39
     updated_at: '2026-09-30T03:27:58Z'
     behind_hub: false
     action: none
   - nwo: bamr87/zer0-id
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:21Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/zer0-kernel
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:21Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/zer0-mistakes
     state: ok
-    age_days: 32
+    age_days: 39
     updated_at: '2026-09-30T03:28:00Z'
     behind_hub: false
     action: none
   - nwo: bamr87/zpl-viewer
     state: ok
-    age_days: 32
+    age_days: 39
     updated_at: '2026-09-30T03:28:03Z'
     behind_hub: false
     action: none
@@ -250,168 +256,174 @@ tokens:
   minted: false
   max_age_days: 45
   lifetime_days: 365
-  oldest_age_days: 86
+  oldest_age_days: 10
   attention: []
   counts:
-    repos: 37
-    ok: 15
-    stale: 1
-    missing: 21
+    repos: 38
+    ok: 37
+    stale: 0
+    missing: 1
     unreachable: 0
-    written: 22
+    written: 1
     failed: 0
   repos:
   - nwo: bamr87/.github
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:22Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/README
     state: ok
-    age_days: 3
+    age_days: 10
     updated_at: '2026-10-30T02:12:08Z'
     behind_hub: false
     action: none
   - nwo: bamr87/SCHEMA
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:22Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/amrchy
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:23Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/bamr87
     state: ok
-    age_days: 3
+    age_days: 10
     updated_at: '2026-10-30T02:12:00Z'
     behind_hub: false
     action: none
   - nwo: bamr87/bamr87.github.io
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:23Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/bashcrawl
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:24Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/bashos
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:24Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/cv-pro
     state: ok
-    age_days: 3
+    age_days: 10
     updated_at: '2026-10-30T02:12:10Z'
     behind_hub: false
     action: none
   - nwo: bamr87/djangoerp
     state: ok
-    age_days: 3
+    age_days: 10
     updated_at: '2026-10-30T02:12:08Z'
     behind_hub: false
     action: none
   - nwo: bamr87/edgar-pipeline
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:25Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/fleet-infra
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:25Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/fleet-mobile
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:25Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/fleet-observe
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:26Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/fredgar-ai
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:26Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/githubai
     state: ok
-    age_days: 3
+    age_days: 10
     updated_at: '2026-10-30T02:12:00Z'
     behind_hub: false
     action: none
   - nwo: bamr87/gitorio
     state: ok
-    age_days: 3
+    age_days: 10
     updated_at: '2026-10-30T02:12:07Z'
     behind_hub: false
     action: none
   - nwo: bamr87/godotgo
     state: ok
-    age_days: 3
+    age_days: 10
     updated_at: '2026-10-30T02:12:04Z'
     behind_hub: false
     action: none
   - nwo: bamr87/it-journey
     state: ok
-    age_days: 3
+    age_days: 10
     updated_at: '2026-10-30T02:12:11Z'
     behind_hub: false
     action: none
   - nwo: bamr87/kvlite
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:27Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/law-ai
     state: ok
-    age_days: 3
+    age_days: 10
     updated_at: '2026-10-30T02:12:02Z'
     behind_hub: false
     action: none
   - nwo: bamr87/lifehacker.dev
     state: ok
-    age_days: 3
+    age_days: 10
     updated_at: '2026-10-30T02:12:06Z'
     behind_hub: false
     action: none
   - nwo: bamr87/netprobe
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:27Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/ocrmd
     state: ok
-    age_days: 3
+    age_days: 10
     updated_at: '2026-10-30T02:12:01Z'
     behind_hub: false
     action: none
   - nwo: bamr87/outbox
     state: ok
-    age_days: 3
+    age_days: 10
     updated_at: '2026-10-30T02:12:05Z'
     behind_hub: false
     action: none
   - nwo: bamr87/ragio-ai
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:28Z'
+    behind_hub: false
+    action: none
+  - nwo: bamr87/recon-engine
     state: missing
     age_days: null
     updated_at: null
@@ -419,67 +431,67 @@ tokens:
     action: written
   - nwo: bamr87/rewind-arcade
     state: ok
-    age_days: 3
+    age_days: 10
     updated_at: '2026-10-30T02:12:03Z'
     behind_hub: false
     action: none
   - nwo: bamr87/schema-lang
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:28Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/scripts
     state: ok
-    age_days: 3
+    age_days: 10
     updated_at: '2026-10-30T02:12:09Z'
     behind_hub: false
     action: none
   - nwo: bamr87/sec-lab
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:29Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/sensor-mesh
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:29Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/vs-sonic-pi
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:30Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/zer0-CMS
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:30Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/zer0-id
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:31Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/zer0-kernel
-    state: missing
-    age_days: null
-    updated_at: null
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:31Z'
     behind_hub: false
-    action: written
+    action: none
   - nwo: bamr87/zer0-mistakes
-    state: stale
-    age_days: 86
-    updated_at: '2026-08-07T04:28:46Z'
-    behind_hub: true
-    action: written
+    state: ok
+    age_days: 6
+    updated_at: '2026-11-02T02:20:32Z'
+    behind_hub: false
+    action: none
   - nwo: bamr87/zpl-viewer
     state: ok
-    age_days: 3
+    age_days: 10
     updated_at: '2026-10-30T02:12:04Z'
     behind_hub: false
     action: none
@@ -528,6 +540,7 @@ variables:
     bamr87/ocrmd: oauth,api_key
     bamr87/outbox: oauth,api_key
     bamr87/ragio-ai: oauth,api_key
+    bamr87/recon-engine: oauth,api_key
     bamr87/rewind-arcade: oauth,api_key
     bamr87/schema-lang: oauth,api_key
     bamr87/scripts: oauth,api_key
@@ -540,12 +553,12 @@ variables:
     bamr87/zer0-mistakes: oauth,api_key
     bamr87/zpl-viewer: oauth,api_key
   counts:
-    repos: 37
-    ok: 23
+    repos: 38
+    ok: 35
     stale: 1
-    missing: 13
+    missing: 2
     unreachable: 0
-    written: 14
+    written: 3
     failed: 0
   repos:
   - nwo: bamr87/.github
@@ -589,41 +602,21 @@ variables:
     differing: []
     action: none
   - nwo: bamr87/edgar-pipeline
-    state: missing
-    differing:
-    - CLAUDE_AUTH_ORDER
-    - FLEET_HUB
-    - NODE_VERSION
-    - PYTHON_VERSION
-    - RUBY_VERSION
-    action: written
+    state: ok
+    differing: []
+    action: none
   - nwo: bamr87/fleet-infra
-    state: missing
-    differing:
-    - CLAUDE_AUTH_ORDER
-    - FLEET_HUB
-    - NODE_VERSION
-    - PYTHON_VERSION
-    - RUBY_VERSION
-    action: written
+    state: ok
+    differing: []
+    action: none
   - nwo: bamr87/fleet-mobile
-    state: missing
-    differing:
-    - CLAUDE_AUTH_ORDER
-    - FLEET_HUB
-    - NODE_VERSION
-    - PYTHON_VERSION
-    - RUBY_VERSION
-    action: written
+    state: ok
+    differing: []
+    action: none
   - nwo: bamr87/fleet-observe
-    state: missing
-    differing:
-    - CLAUDE_AUTH_ORDER
-    - FLEET_HUB
-    - NODE_VERSION
-    - PYTHON_VERSION
-    - RUBY_VERSION
-    action: written
+    state: ok
+    differing: []
+    action: none
   - nwo: bamr87/fredgar-ai
     state: ok
     differing: []
@@ -648,14 +641,9 @@ variables:
     - RUBY_VERSION
     action: written
   - nwo: bamr87/kvlite
-    state: missing
-    differing:
-    - CLAUDE_AUTH_ORDER
-    - FLEET_HUB
-    - NODE_VERSION
-    - PYTHON_VERSION
-    - RUBY_VERSION
-    action: written
+    state: ok
+    differing: []
+    action: none
   - nwo: bamr87/law-ai
     state: ok
     differing: []
@@ -669,14 +657,9 @@ variables:
     - RUBY_VERSION
     action: written
   - nwo: bamr87/netprobe
-    state: missing
-    differing:
-    - CLAUDE_AUTH_ORDER
-    - FLEET_HUB
-    - NODE_VERSION
-    - PYTHON_VERSION
-    - RUBY_VERSION
-    action: written
+    state: ok
+    differing: []
+    action: none
   - nwo: bamr87/ocrmd
     state: ok
     differing: []
@@ -686,6 +669,10 @@ variables:
     differing: []
     action: none
   - nwo: bamr87/ragio-ai
+    state: ok
+    differing: []
+    action: none
+  - nwo: bamr87/recon-engine
     state: missing
     differing:
     - CLAUDE_AUTH_ORDER
@@ -699,36 +686,21 @@ variables:
     differing: []
     action: none
   - nwo: bamr87/schema-lang
-    state: missing
-    differing:
-    - CLAUDE_AUTH_ORDER
-    - FLEET_HUB
-    - NODE_VERSION
-    - PYTHON_VERSION
-    - RUBY_VERSION
-    action: written
+    state: ok
+    differing: []
+    action: none
   - nwo: bamr87/scripts
     state: ok
     differing: []
     action: none
   - nwo: bamr87/sec-lab
-    state: missing
-    differing:
-    - CLAUDE_AUTH_ORDER
-    - FLEET_HUB
-    - NODE_VERSION
-    - PYTHON_VERSION
-    - RUBY_VERSION
-    action: written
+    state: ok
+    differing: []
+    action: none
   - nwo: bamr87/sensor-mesh
-    state: missing
-    differing:
-    - CLAUDE_AUTH_ORDER
-    - FLEET_HUB
-    - NODE_VERSION
-    - PYTHON_VERSION
-    - RUBY_VERSION
-    action: written
+    state: ok
+    differing: []
+    action: none
   - nwo: bamr87/vs-sonic-pi
     state: ok
     differing: []
@@ -738,23 +710,13 @@ variables:
     differing: []
     action: none
   - nwo: bamr87/zer0-id
-    state: missing
-    differing:
-    - CLAUDE_AUTH_ORDER
-    - FLEET_HUB
-    - NODE_VERSION
-    - PYTHON_VERSION
-    - RUBY_VERSION
-    action: written
+    state: ok
+    differing: []
+    action: none
   - nwo: bamr87/zer0-kernel
-    state: missing
-    differing:
-    - CLAUDE_AUTH_ORDER
-    - FLEET_HUB
-    - NODE_VERSION
-    - PYTHON_VERSION
-    - RUBY_VERSION
-    action: written
+    state: ok
+    differing: []
+    action: none
   - nwo: bamr87/zer0-mistakes
     state: ok
     differing: []

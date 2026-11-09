@@ -273,7 +273,11 @@ services:
   # the environment, so `docker inspect` shows none. It reaches the console by
   # service name and presents a loopback Host (DASH_CONSOLE_HOST_HEADER), so the
   # console's DNS-rebinding allowlist stays loopback-only and console is never
-  # recreated for it. Write tools stay off unless HARNESS_MCP_ALLOW_WRITES=1.
+  # recreated for it. Write tools stay off unless HARNESS_MCP_ALLOW_WRITES=1;
+  # HARNESS_MCP_SCOPES=jobs,work grants only the narrow ones (job_dispatch of
+  # local report ops, work_apply of Work-board priority) and leaves the broad
+  # switch off. Each scoped call is audited to .fleet/mcp/audit.jsonl (the one
+  # writable mount; gitignored) as well as to this container's log.
   # No depends_on: bringing this up never touches a running console.
   # tools/console/docs/mcp-layer.md
   # --------------------------------------------------------------------------
@@ -288,10 +292,13 @@ services:
     volumes:
       - .:/workspace:ro
       - venv-mcp:/venv
+      - ./.fleet/mcp:/audit
     environment:
       - DASH_CONSOLE_URL=http://console:4001
       - DASH_CONSOLE_HOST_HEADER=127.0.0.1:4001
       - HARNESS_MCP_ALLOW_WRITES=${HARNESS_MCP_ALLOW_WRITES:-0}
+      - HARNESS_MCP_SCOPES=${HARNESS_MCP_SCOPES:-}
+      - HARNESS_MCP_AUDIT=/audit/audit.jsonl
       - PYTHONDONTWRITEBYTECODE=1
       - PIP_DISABLE_PIP_VERSION_CHECK=1
     command:

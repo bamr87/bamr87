@@ -1,0 +1,26 @@
+schema: jev-experience/v1
+id: 20261107-bamr87_bamr87-b64b4974
+loop: fleet-pulse
+step: doctor
+domain: unknown
+item: bamr87/bamr87
+run_id: '42343685257'
+adopted: none
+date: '2026-11-07'
+source: human
+cue: Ranking or sizing a workflow's cost from _data/actions_usage.yml (total_min, avg_min, runs, billing.by_repo_*)
+lesson: 'Treat the snapshot as a lead, not a measurement: re-measure the candidate from the jobs API (each
+  job''s completed_at minus started_at, rounded up to a whole minute, skipped jobs excluded) before ranking
+  it or quoting savings, and never read billing.by_repo_* as a repository''s share. (c4 tool guidance:
+  which source measures cost.)'
+evidence: 'On 2026-11-07, job-level measurement found zer0-mistakes ci.yml at 1,125 job-minutes over 92
+  runs against 523 over 49 in the snapshot; zer0-CMS content.yml at 883 runner-minutes against 352 (three
+  parallel jobs, and the collector stopped at 600 of 760 runs); lifehacker.dev verify at 275 runs against
+  73. The hub has no rows at all because the collector iterates the registry. billing.by_repo_this_month
+  put 11,920 of 11,925 minutes on bamr87, but the hub measured about 7,900 and the rest of the fleet about
+  4,130: the meter files the account total under one name (October: lifehacker.dev, 43,924).'
+confidence: high
+edits: []
+components: {}
+notes: Recorded by hand from incidents found in the 2026-11-07 console review and CI deep dives, not from
+  a Propose-Probe-Compose step; no harness edit was adopted, the fix lives in the PR the evidence names.
