@@ -134,6 +134,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-088](features/features.yml) | Typed decisions gate the pipeline: a decision lockfile, traces and replay, the trim and verify loops | planned | [`docs/prd/AGENTIC-SDLC.md`](docs/prd/AGENTIC-SDLC.md) | FR86, FR87, FR88, NFR17, FR7, FR10, FR15, FR26, FR60, NFR4, NFR9 |
 | [HUB-089](features/features.yml) | The console's frame: a sidebar that folds, live counts, and pages that fail one at a time | shipped | [`tools/console/web/src/components/Shell.tsx`](tools/console/web/src/components/Shell.tsx) · [`tools/console/web/README.md`](tools/console/web/README.md) | FR89 |
 | [HUB-090](features/features.yml) | Scoped MCP write access: approved report jobs and Work-board prioritisation for remote agents | shipped | [`tools/console/mcp_layer/server.py`](tools/console/mcp_layer/server.py) · [`tools/console/docs/mcp-layer.md`](tools/console/docs/mcp-layer.md) | FR26, NFR9, FR90, NFR18 |
+| [HUB-091](features/features.yml) | MCP server lifecycle: centralized registry, config schema, lint and fan-out | planned | [`tools/mcp_servers_lint.py`](tools/mcp_servers_lint.py) · [`docs/MCP-SERVERS.md`](docs/MCP-SERVERS.md) | FR91 |
 
 **Requirement → feature trace**
 
@@ -246,6 +247,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR89 | HUB-089 |
 | FR90 | HUB-090 |
 | NFR18 | HUB-090 |
+| FR91 | HUB-091 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -330,6 +332,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR88: Test selection and matrix pruning run in shadow per repository until a nightly verify loop has reported zero missed failures over the declared window; a missed failure becomes a regression case in the decision's eval set, raises the threshold and demotes the repository, and an optimization is promoted only when minutes drop on the billing meter while missed failures stay at zero.
 - FR89: The console's frame must keep the current page in view in its navigation, show what needs attention beside the page that holds it, work from the keyboard and to a screen reader on every page, and keep the console usable when one page fails or the backend stops answering.
 - FR90: The MCP layer must let an operator grant a remote agent narrow write scopes in place of the broad write switch: starting and stopping allowlisted local report jobs, and applying Work-board priority, pin and note plans after their preview was approved. Each scoped call needs confirm=true, and a plan apply also needs the plan_id of its preview.
+- FR91: The hub must provide a centralized MCP server lifecycle — a registry (_data/mcp_servers.yml), standard (docs/MCP-SERVERS.md), constitution section, and a warn-then-fail config lint — so every fleet MCP server is named, configured without inline secrets, transported safely (stdio / loopback HTTP / opt-in tunnel), health-checked, and ready for spoke fan-out.
 
 **Non-functional**
 
