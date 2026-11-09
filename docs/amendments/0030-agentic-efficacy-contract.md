@@ -1,10 +1,10 @@
 # 0030 — Every AI agent is registered, measured and held to declared efficacy
 
-- **Status:** proposed
+- **Status:** ratified
 - **Number:** 0030
 - **Date:** 2026-11-07
 - **Proposed by:** agent, at the maintainer's request (2026-11-07: "This all needs to be part of the health checks. add roadmap and backlog item for AI agentic harness and workflow efficacy and management. need major governance and upgraded functionality."; E0 of epic bamr87/bamr87#773 approved the same day)
-- **Ratified by:** the merged PR URL (leave blank until merged)
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/781 (merged 2026-11-09 by @bamr87)
 - **Affects:** constitution § 29 (new; follows § 28 `grok-claude-governance` in PR #695 and §§ 25–26 in PRs #685 and #686, all open — renumber to the next free section if any of them does not merge first); § 10.7, § 10.9, § 13 and § 17 by reference; `_data/fleet.yml` `harness.efficacy`, `harness.sources`, `harness.agents`; `_data/agents.yml` (new, `schema: agents/v1`); drift check (p); AGENTS.md standing rules; feature `HUB-092`; requirements `FR92`, `NFR19`
 - **Supersedes:** none
 - **Related:** ADR 0009 `docs/adr/0009-agentic-efficacy-model.md` (the efficacy model), ADR 0004 (Harness², the reflector), ADR 0008, amendment `local-first-ai` (§ 10.9), epic bamr87/bamr87#773 and its phase bamr87/bamr87#774, the roadmap entry `agentic-harness-efficacy` (PR #780, numbered when it merges), `docs/AGENT-EFFICACY.md` (paths, not links: this record moves to `docs/amendments/` when it is numbered)
