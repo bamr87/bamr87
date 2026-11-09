@@ -135,6 +135,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-089](features/features.yml) | The console's frame: a sidebar that folds, live counts, and pages that fail one at a time | shipped | [`tools/console/web/src/components/Shell.tsx`](tools/console/web/src/components/Shell.tsx) · [`tools/console/web/README.md`](tools/console/web/README.md) | FR89 |
 | [HUB-090](features/features.yml) | Scoped MCP write access: approved report jobs and Work-board prioritisation for remote agents | shipped | [`tools/console/mcp_layer/server.py`](tools/console/mcp_layer/server.py) · [`tools/console/docs/mcp-layer.md`](tools/console/docs/mcp-layer.md) | FR26, NFR9, FR90, NFR18 |
 | [HUB-091](features/features.yml) | MCP server lifecycle: centralized registry, config schema, lint and fan-out | planned | [`tools/mcp_servers_lint.py`](tools/mcp_servers_lint.py) · [`docs/MCP-SERVERS.md`](docs/MCP-SERVERS.md) | FR91 |
+| [HUB-092](features/features.yml) | The agent inventory: every AI agent registered, graded against the efficacy contract, and held complete by the drift gate | shipped | [`.github/scripts/dash-gen/agent_inventory.py`](.github/scripts/dash-gen/agent_inventory.py) · [`docs/AGENT-EFFICACY.md`](docs/AGENT-EFFICACY.md) | FR92, NFR19 |
 
 **Requirement → feature trace**
 
@@ -248,6 +249,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR90 | HUB-090 |
 | NFR18 | HUB-090 |
 | FR91 | HUB-091 |
+| FR92 | HUB-092 |
+| NFR19 | HUB-092 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -333,6 +336,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR89: The console's frame must keep the current page in view in its navigation, show what needs attention beside the page that holds it, work from the keyboard and to a screen reader on every page, and keep the console usable when one page fails or the backend stops answering.
 - FR90: The MCP layer must let an operator grant a remote agent narrow write scopes in place of the broad write switch: starting and stopping allowlisted local report jobs, and applying Work-board priority, pin and note plans after their preview was approved. Each scoped call needs confirm=true, and a plan apply also needs the plan_id of its preview.
 - FR91: The hub must provide a centralized MCP server lifecycle — a registry (_data/mcp_servers.yml), standard (docs/MCP-SERVERS.md), constitution section, and a warn-then-fail config lint — so every fleet MCP server is named, configured without inline secrets, transported safely (stdio / loopback HTTP / opt-in tunnel), health-checked, and ready for spoke fan-out.
+- FR92: Every AI agent the fleet runs (a CI agent step, a local loop step, a scheduled local job or a JEV tier) must be registered in one generated inventory with its owner, trigger, kill switch, budget cap, model, efficacy KPIs and the data sources it reads with their writers, and the drift gate must fail a pull request that adds an agent without registering it.
 
 **Non-functional**
 
@@ -354,6 +358,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - NFR16: Activity capture and replay never block, slow or fail a fleet container, agent or loop: the collector is read-only (docker.sock read-only, no exec), bounded (rate, payload and retention caps from _data/fleet.yml), redacts before storage, counts every dropped event, binds to loopback, and never stores, prints or returns a secret.
 - NFR17: No typed decision ever skips work, lowers a gate or lets an agent act unless its confidence cleared the lockfile threshold; a model error, timeout or usage limit is the conservative branch.
 - NFR18: A scoped MCP write tool may add checks of its own: an allowlist, validation, a plan_id binding, caps, a wall clock and an audit line. It never widens what the console allows. It sends the console confirm=false, writes nothing to GitHub, reads or writes no secret, and records every call, whether it ran, was refused or failed, in an append-only, scrubbed audit. This refines NFR9's 'no enforcement of its own' for the scoped tools only.
+- NFR19: A new agent-efficacy check must run read-only in shadow for at least 14 days, reporting contract gaps as warnings, before any gap can fail a gate; enforcement is switched on only by a gated change to _data/fleet.yml harness.efficacy.enforce, and agents registered before then keep a grace period.
 
 ## 6. Success metrics (proposed — not defined in sources)
 

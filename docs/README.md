@@ -22,6 +22,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 
 | Document | What it covers |
 | --- | --- |
+| [`docs/AGENT-EFFICACY.md`](AGENT-EFFICACY.md) | Every AI agent the fleet runs, in one generated inventory (`_data/agents.yml`), held to the agentic efficacy contract (constitution § 29): what each agent must declare, how drift check (p) keeps the inventory complete, and how the… |
 | [`docs/AI-INTEGRATION.md`](AI-INTEGRATION.md) | The AI layer — every surface where Claude runs, the Claude auth order and secrets matrix, the loops, and how all of it propagates to the fleet. |
 | [`docs/ARCH-RESEARCH-HARNESS.md`](ARCH-RESEARCH-HARNESS.md) | A research-and-development harness that studies the high-level architecture and the deeper structural challenges of every codebase in the bamr87 fleet, grounds each judgement in current software-architecture literature, and turns the… |
 | [`docs/BACKLOG-FANOUT.md`](BACKLOG-FANOUT.md) | Turns the hub's pending backlog into tracking PRs in each fleet repo an item applies to — dry run by default, PR-only and additive. |

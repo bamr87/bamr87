@@ -1,11 +1,11 @@
-# NEW — Every AI agent is registered, measured and held to declared efficacy
+# 0030 — Every AI agent is registered, measured and held to declared efficacy
 
 - **Status:** proposed
-- **Number:** NEW
+- **Number:** 0030
 - **Date:** 2026-11-07
 - **Proposed by:** agent, at the maintainer's request (2026-11-07: "This all needs to be part of the health checks. add roadmap and backlog item for AI agentic harness and workflow efficacy and management. need major governance and upgraded functionality."; E0 of epic bamr87/bamr87#773 approved the same day)
 - **Ratified by:** the merged PR URL (leave blank until merged)
-- **Affects:** constitution § 29 (new; follows § 28 `grok-claude-governance` in PR #695 and §§ 25–26 in PRs #685 and #686, all open — renumber to the next free section if any of them does not merge first); § 10.7, § 10.9, § 13 and § 17 by reference; `_data/fleet.yml` `harness.efficacy`, `harness.sources`, `harness.agents`; `_data/agents.yml` (new, `schema: agents/v1`); drift check (p); AGENTS.md standing rules; feature `HUB-NEW:agent-inventory`; requirements `FR-NEW:agent-inventory`, `NFR-NEW:agent-checks-shadow-first`
+- **Affects:** constitution § 29 (new; follows § 28 `grok-claude-governance` in PR #695 and §§ 25–26 in PRs #685 and #686, all open — renumber to the next free section if any of them does not merge first); § 10.7, § 10.9, § 13 and § 17 by reference; `_data/fleet.yml` `harness.efficacy`, `harness.sources`, `harness.agents`; `_data/agents.yml` (new, `schema: agents/v1`); drift check (p); AGENTS.md standing rules; feature `HUB-092`; requirements `FR92`, `NFR19`
 - **Supersedes:** none
 - **Related:** ADR 0009 `docs/adr/0009-agentic-efficacy-model.md` (the efficacy model), ADR 0004 (Harness², the reflector), ADR 0008, amendment `local-first-ai` (§ 10.9), epic bamr87/bamr87#773 and its phase bamr87/bamr87#774, the roadmap entry `agentic-harness-efficacy` (PR #780, numbered when it merges), `docs/AGENT-EFFICACY.md` (paths, not links: this record moves to `docs/amendments/` when it is numbered)
 
@@ -43,5 +43,5 @@ Add to the constitution:
 - On the first build, 64 of 71 agents have at least one gap. Every agent has its KPIs (R3: 0). The largest gap is the run record (R2: no store yet carries tool errors). After that come missing caps or models (R1: 53, mostly fleet mention handlers that pass no `--max-budget-usd`), missing local entry points (R6: 17), sources without a writer or whose writer is not installed (R4: 5, `conformance` and the lake), and the harness-review job's own records, which the reflector does not read (R5: 1). These gaps are the work list for E1–E5 (#775–#779), not violations, until enforcement is switched on.
 - The shadow period runs to 2026-11-21 (`harness.efficacy.shadow_until`), or 14 days after ratification if that is later; the grace period for the agents registered now runs to 2027-02-01 (`grace_until`). Both are settings in `_data/fleet.yml`, changed by a gated PR.
 - The thresholds in `harness.efficacy.kinds` are provisional starting values; E3 (#777) measures them in shadow and a gated PR retunes them.
-- AGENTS.md gains the standing rule that points here. The PRD gains `FR-NEW:agent-inventory` and `NFR-NEW:agent-checks-shadow-first` through the feature fragment `agent-inventory`.
+- AGENTS.md gains the standing rule that points here. The PRD gains `FR92` and `NFR19` through the feature fragment `agent-inventory`.
 - Merging the pull request that carries this record ratifies it, and accepts ADR 0009. An agent never merges it.

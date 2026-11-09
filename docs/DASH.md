@@ -73,6 +73,7 @@ To add or change a project, edit **only** `_data/projects.yml`. The portfolio, d
 | `tools/dash workflows [list\|show\|lint\|health\|new]` | the WORKFLOW ATLAS — the hub's workflows + composite actions as one model; `lint [--strict]` holds them to the README standards; `health [--days N]` classifies why runs failed (from the lake); `new --kind loop\|agent-loop\|gate\|reusable\|dispatch --id ID [--write]` scaffolds one inside the standards (docs/WORKFLOW-ATLAS.md) |
 | `tools/dash harness` | six-layer harness scorecard + trip wires → _data/harness_health.yml (docs/HARNESS.md) |
 | `tools/dash harnesses [gaps\|deploy]` | fleet AI-harness + schedule inventory → _data/harness_registry.yml (/harnesses/ portal); `gaps` prints fan-out-deployable gap repos; `deploy [--gaps\|--target N] [--artifacts csv] [--upgrade] [--apply]` opens kit PRs via fanout.sh (dry-run default; docs/HARNESS-OPS.md) |
+| `tools/dash agents [--check] [--verbose]` | the agent inventory under the efficacy contract (constitution § 29) → _data/agents.yml: every CI agent step, JEV loop step, conflict tier and LaunchAgent with its owner, trigger, switch, cap, model, KPIs, sources and contract gaps; `--check` is drift check (p) (offline; docs/AGENT-EFFICACY.md) |
 | `tools/dash features [check\|coverage] [path]` | validate / grade one repo's feature index (features/features.yml); `fleet [--write\|--check]` aggregates every submodule → _data/features_index.yml (/features/ portal; docs/VERIFICATION.md) |
 | `tools/dash verify [runner flags]` | run the hub's own user scenarios through Playwright (verify/runner.mjs → test/evidence/); `deploy [--gaps\|--target N] [--upgrade] [--apply]` fans the verify kit out via fanout.sh (dry-run default) |
 | `tools/dash issues` | three-tier issue pipeline queues → _data/issue_pipeline.yml + per-tier work orders (feeds issue-pipeline) |
@@ -119,7 +120,7 @@ To add or change a project, edit **only** `_data/projects.yml`. The portfolio, d
 | `tools/dash ps` | what is running fleet-wide, and who is on the shared network |
 | `tools/dash doctor` | environment checks (setup.sh --dry-run) |
 | `tools/dash test` | run the aggregate test suite |
-| `tools/dash gen <health\|readme\|ai\|ai-check\|ai-run\|ai-usage\|actions\|daily\|triage\|harness\|harnesses\|lake\|content\|observe\|remediate\|issues\|reconcile\|vendor\|estimate\|ledger\|targets\|workflows\|all>` | run the registry generator |
+| `tools/dash gen <health\|readme\|ai\|ai-check\|ai-run\|ai-usage\|actions\|daily\|triage\|harness\|harnesses\|agents\|lake\|content\|observe\|remediate\|issues\|reconcile\|vendor\|estimate\|ledger\|targets\|workflows\|all>` | run the registry generator |
 | `tools/dash help` | this help |
 <!-- AUTO:dash-cli:end -->
 
