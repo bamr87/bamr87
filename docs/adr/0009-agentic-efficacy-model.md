@@ -1,6 +1,7 @@
 # ADR 0009 — The agentic efficacy model: one agent inventory, five KPIs per kind of agent, and checks that run in shadow before they gate
 
-- **Status**: proposed
+- **Status**: accepted
+- **Accepted in**: https://github.com/bamr87/bamr87/pull/781 (merged 2026-11-09 by @bamr87)
 - **Date**: 2026-11-07
 - **Deciders**: proposed by an agent at the maintainer's request (2026-11-07, epic #773, phase E0 #774 approved the same day); the maintainer accepts or rejects it by merging the PR that adds it, which also ratifies amendment `agentic-efficacy-contract`
 - **Related**: constitution § 29 (the contract this ADR's model serves), § 10.7 (honest cost), § 10.8 (prior art first), § 10.9 (local first), § 12.3 (gated changes), § 13 (eval baseline and risk tiers), § 17 (loop switches); [ADR 0002](0002-agent-step-specs-and-local-runner.md) (step specs and the local runner), [ADR 0004](0004-recursive-harness-refinement.md) (Harness² and the reflector), [ADR 0008](0008-typed-decisions-as-pipeline-gates.md) (telemetry scores efficiency); [docs/AGENT-EFFICACY.md](../AGENT-EFFICACY.md), [docs/HARNESS.md](../HARNESS.md), [docs/HARNESS-OPS.md](../HARNESS-OPS.md), [docs/JEV.md](../JEV.md)
