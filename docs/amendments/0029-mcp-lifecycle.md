@@ -1,10 +1,10 @@
 # 0029 — MCP server lifecycle is centrally managed from the hub
 
-- **Status:** proposed (ratification pending — Amr ratifies by merging this PR)
+- **Status:** ratified (ratification pending — Amr ratifies by merging this PR)
 - **Number:** 0029
 - **Date:** 2026-11-05
 - **Proposed by:** Grok Bot (agent), on Amr's instruction as owner
-- **Ratified by:**
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/685 (merged 2026-11-09 by @bamr87)
 - **Affects:** constitution § 25 (new, follows § 24 `visual-evidence` on main; renumber only if a later amendment claims 25 first); § 16 by reference (AI-ready foundation / MCP); feature `HUB-091`; requirement `FR91`; roadmap FF-0047; docs `MCP-SERVERS.md`, `prd/MCP-SERVERS.md`; data `_data/mcp_servers.yml`
 - **Supersedes:** none (extends § 16 and HUB-031 without changing console write gates)
 - **Related:** epic #683, backlog #684; HUB-031 / `tools/console/docs/mcp-layer.md`; #541 MCP Registry `server.json`; ADP-10; UPS `.mcp.json` baseline in `_data/specs.yml`; process mirror #678 / #679 / PR #680 / § 24 / FF-0039; Design for Failure (DFF, `.github/copilot-instructions.md`)
