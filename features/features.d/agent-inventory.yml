@@ -1,0 +1,21 @@
+id: HUB-NEW
+slug: agent-inventory
+title: "The agent inventory: every AI agent registered, graded against the efficacy contract, and held complete by the drift gate"
+description: "`tools/dash agents` (.github/scripts/dash-gen/agent_inventory.py, constitution § 29, ADR 0009) builds the committed _data/agents.yml (schema agents/v1) offline from the hub's AI workflows (claude-code-action or claude-run), the fleet's from the committed harness_registry.yml, the JEV loop step specs, the conflict tiers in _data/fleet.yml jev: and the LaunchAgents the tools/install-*.sh installers put on the Mac, plus the agents _data/fleet.yml harness.agents declares before their installer lands. Each entry carries its owner, trigger, kill switch, budget cap and model, the KPIs and thresholds its kind declares in harness.efficacy, the sources it reads with each source's writer and freshness SLO from harness.sources, where its run records land, whether they reach the reflector, its local entry point and its gaps against the contract's six rules. Drift check (p) runs `tools/dash agents --check` on every PR: it fails on an unregistered, removed or stale hub agent and on a contract section not regenerated, warns on fleet-half drift and on contract gaps while harness.efficacy.enforce is false (the shadow period), and fleet-pulse.yml refreshes the file daily in the same commit as the harness inventory."
+implemented: true
+status: shipped
+surface: cli
+link: .github/scripts/dash-gen/agent_inventory.py
+docs: docs/AGENT-EFFICACY.md
+tags: [ harness, governance, agents, efficacy, drift ]
+date: 2026-11-07
+tests:
+  - .github/scripts/dash-gen/test_agent_inventory.py
+prd: ["FR-NEW:agent-inventory", "NFR-NEW:agent-checks-shadow-first"]
+prd_new:
+  - key: agent-inventory
+    kind: FR
+    text: "Every AI agent the fleet runs (a CI agent step, a local loop step, a scheduled local job or a JEV tier) must be registered in one generated inventory with its owner, trigger, kill switch, budget cap, model, efficacy KPIs and the data sources it reads with their writers, and the drift gate must fail a pull request that adds an agent without registering it."
+  - key: agent-checks-shadow-first
+    kind: NFR
+    text: "A new agent-efficacy check must run read-only in shadow for at least 14 days, reporting contract gaps as warnings, before any gap can fail a gate; enforcement is switched on only by a gated change to _data/fleet.yml harness.efficacy.enforce, and agents registered before then keep a grace period."

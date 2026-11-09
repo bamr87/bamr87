@@ -333,3 +333,18 @@ _(amendment `expedite-sprints`, numbered at merge — see the [amendment log](am
 7. **Live record and metrics** — each sprint keeps a live state record (gates, phase, items, spend vs cap, trip wires) and reports DORA's delivery metrics for the target repo as a guide, never as a target.
 8. **Retro** — every sprint ends with a retro that routes each failure to the strongest ratchet rung (`docs/HARNESS.md`) and files remaining quality debt as issues before it closes.
 9. **Scope** — the standard is [`docs/EXPEDITE-SPRINTS.md`](EXPEDITE-SPRINTS.md); the budget, record and metrics tooling are follow-ups (epic #687).
+
+## 29. The agentic efficacy contract
+
+_(amendment `agentic-efficacy-contract`, numbered at merge — see the [amendment log](amendments/README.md); follows § 28 `grok-claude-governance` (PR #695) and §§ 25–26 (PRs #685, #686), all open — renumber to the next free section if any does not merge first; extends § 10.7, § 10.9, § 13 and § 17; the efficacy model is [ADR 0009](adr/0009-agentic-efficacy-model.md), the operator doc [AGENT-EFFICACY.md](AGENT-EFFICACY.md))_
+
+"Agent" in this section means a CI agent step, a local loop step, a scheduled local job, or a JEV tier. Every agent:
+
+1. **Is registered** in one inventory, `_data/agents.yml`, with its owner, trigger, kill switch, budget cap and model. The inventory is generated from the files that define agents (the workflows, the JEV step specs, `_data/fleet.yml` `jev:`, the `tools/install-*.sh` installers), plus `_data/fleet.yml` `harness.agents` for what the code cannot show; drift check (p) fails a pull request that adds an agent without registering it.
+2. **Writes one run record per model call**, in one schema: its cost and the cost's source, turns, model, outcome, permission denials and tool errors. A run that leaves no record, or reads $0 when its cost is unknown, is a silent failure.
+3. **Declares its efficacy**: KPIs and their thresholds, per kind of agent, in `_data/fleet.yml` `harness.efficacy` (ADR 0009: accepted outcomes per dollar and per Actions minute, time to outcome, false-signal rate, silent-failure rate). Every dollar figure is API-equivalent (estimate) (§ 10.7).
+4. **Names the data it reads**: each source declared in `_data/fleet.yml` `harness.sources` with its writer and a freshness SLO. A source with no writer is a defect, and so is a source older than its SLO.
+5. **Feeds the reflector**: its run records land where the incident reflector (`tools/dash refine reflect`) reads them, so its failures can become lessons in the experience library.
+6. **Has a local entry point** (§ 10.9), unless it must react inside GitHub (an @claude mention handler); the inventory records the exemption and its reason.
+7. **Shadow, then grace.** The checks are read-only. For at least 14 days after this section is ratified, and until `harness.efficacy.shadow_until`, a contract gap is a warning. Enforcement starts only when a gated pull request sets `harness.efficacy.enforce: true`. From then on, an agent first registered after the shadow period complies on arrival, and one registered before it keeps its gaps as warnings until `harness.efficacy.grace_until`. Registration itself (item 1) gates from the start.
+8. **Gated.** The contract's KPIs, thresholds, sources and exemptions change only by a gated change (§ 12.3). An agent never changes its own KPIs, thresholds or exemptions (§ 13.9).
