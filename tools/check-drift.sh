@@ -2,7 +2,7 @@
 # ============================================================================
 # tools/check-drift.sh — hard drift gate for the dash
 #
-# Checks ((a,b,d,e,h,j) gate the exit status unless --report; (c,f,g,i,k) warn only):
+# Checks ((a,b,d,e,h,j,m,n,o,p) gate the exit status unless --report; (c,f,g,i,k) warn only):
 #   (a) registry <-> .gitmodules parity (paths, branches, AND urls) + no
 #       stray/unregistered project dirs. The url leg is offline, so it gates on
 #       every PR; the live GitHub side (renames/deletions) is (g) + `dash reconcile`.
@@ -34,6 +34,16 @@
 #       with it. Offline, so it gates every PR. Advisory half: submodules
 #       still publishing a hardcoded port or setting a container_name.
 #   (o) frontend registry: every submodule's `frontend:` block is valid (§ 18)
+#   (p) the agent inventory: _data/agents.yml registers every agent the hub's
+#       files define (AI workflows, JEV loop steps, conflict tiers, LaunchAgent
+#       installers) and is current against _data/fleet.yml `harness:` (§ 29).
+#       Offline, so it gates every PR; fleet-half drift and contract gaps warn
+#       (the gaps until harness.efficacy.enforce is set after the shadow period).
+#   (p) the agent inventory: _data/agents.yml registers every agent the hub's
+#       files define (AI workflows, JEV loop steps, conflict tiers, LaunchAgent
+#       installers) and is current against _data/fleet.yml `harness:` (§ 29).
+#       Offline, so it gates every PR; fleet-half drift and contract gaps warn
+#       (the gaps until harness.efficacy.enforce is set after the shadow period).
 #   (n) the Docker standard: the hub's OWN Dockerfiles/compose files match the
 #       image registry (_data/fleet.yml `images:`) and the transformer's tests
 #       pass. Advisory half: how much drift the checked-out submodules carry.
@@ -893,6 +903,42 @@ if [[ -f "$ROOT/tools/frontend_registry.py" ]]; then
   if fe_out="$("$PY" "$ROOT/tools/frontend_registry.py" lint 2>&1)"; then ok "${fe_out##*$'\n'}"; else printf '%s\n' "$fe_out" | sed 's/^/    /'; bad "frontend registry (tools/frontend_registry.py lint)"; fi
 else
   warn "skipped (tools/frontend_registry.py absent)"
+fi
+
+# --- (p): the agent inventory (constitution § 29) --------------------------
+# Every agent — an AI workflow, a JEV loop step, a conflict tier, a LaunchAgent
+# a tools/install-*.sh puts on the Mac — must be registered in _data/agents.yml
+# (amendment `agentic-efficacy-contract`). The inventory is rebuilt offline from
+# the hub's own files and compared with the committed one: an agent a PR adds
+# without registering it, a removed or changed one, or a contract edit in
+# _data/fleet.yml `harness:` not regenerated, gates. The FLEET half is read from
+# the committed harness_registry.yml, which fleet-pulse.yml refreshes together
+# with the inventory, so its drift only warns here and gates the daily --ci run.
+# Contract gaps (no KPIs, a source with no writer, …) warn while
+# harness.efficacy.enforce is false — the shadow period.
+echo "(p) agent inventory (_data/agents.yml, efficacy contract)"
+if [[ -f "$ROOT/.github/scripts/dash-gen/agent_inventory.py" ]]; then
+  if ! "$PY" -c 'import yaml' >/dev/null 2>&1; then
+    warn "skipped (PyYAML unavailable)"
+  else
+    p_args=(--check)
+    [[ $RUN_REMOTE -eq 1 ]] && p_args+=(--strict-fleet)
+    p_out="$("$PY" "$ROOT/.github/scripts/dash-gen/dash_gen.py" agents "${p_args[@]}" 2>&1)"
+    p_rc=$?
+    p_bad=0
+    while IFS= read -r line; do
+      case "$line" in
+        "  ✓ "*) ok "${line#  ✓ }" ;;
+        "  ✗ "*) bad "${line#  ✗ }"; p_bad=1 ;;
+        "  ! "*) warn "${line#  ! }" ;;
+      esac
+    done <<< "$p_out"
+    if [[ $p_rc -ne 0 && $p_bad -eq 0 ]]; then
+      bad "tools/dash agents --check exited ${p_rc}: $(printf '%s' "$p_out" | tail -1)"
+    fi
+  fi
+else
+  warn "skipped (agent_inventory.py absent)"
 fi
 
 # --- (c): internal links ---------------------------------------------------

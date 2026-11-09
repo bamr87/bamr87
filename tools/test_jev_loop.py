@@ -511,6 +511,11 @@ def world(box: Box, *, sandbox: bool = True, fleet_edit=None, dirty: list[str] |
               "FLEET_TOKEN"):
         os.environ.pop(k, None)
     os.environ.update({**box.env(), **extra})
+    # the box's own (empty) experience library: the committed _data/harness_library
+    # changes as lessons land, and a loop test must never read it
+    if "JEV_LIBRARY_DIR" not in extra:
+        (box.root / "library").mkdir(exist_ok=True)
+        os.environ["JEV_LIBRARY_DIR"] = str(box.root / "library")
     L.DASH_GEN = box.dash_gen
     L.sandbox_available = lambda: sandbox
     L.hub_state = lambda paths: {"head": "0" * 40, "dirty_paths": list(dirty or [])}
