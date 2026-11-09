@@ -622,6 +622,24 @@
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "4-generate", "order": 8 }
     },
+    // The agent inventory under the efficacy contract (docs/AGENT-EFFICACY.md):
+    // offline; `--check` is drift check (p), `--verbose` lists every gap.
+    {
+      "name": "🛠️ Agent inventory: rebuild _data/agents.yml (offline)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash agents --verbose",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 8 }
+    },
+    {
+      "name": "🛠️ Agent inventory: check (drift check (p), contract gaps)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash agents --check --verbose",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 8 }
+    },
     {
       "name": "🗺️ Workflow atlas: list / health (from the lake)",
       "type": "node-terminal",
@@ -1510,6 +1528,8 @@
         "harnesses",
         "harnesses --gaps",
         "harness",
+        "agents",
+        "agents --check",
         "health",
         "readme",
         "readme --check",
@@ -1639,6 +1659,7 @@
         "python3 tools/gen-catalog.py --check",
         "python3 -m tools.jev generated guard --base origin/main",
         "python3 tools/governance_lint.py check .",
+        "tools/dash agents --check --verbose",
         "tools/dash workflows lint --strict",
         "tools/dash-gen compose --check",
         "tools/dash features check .",

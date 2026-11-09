@@ -31,6 +31,7 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - Constitution § 22 (amendment `repo-cap-42`): the `bamr87` account holds at most 42 repositories (hard cap), and every new repo must come with merging or absorbing an existing one.
 - Proposed constitution § 27 / amendment `expedite-sprints`: one expedite sprint at a time run by the fleet's agentic loops, three Amr gates, sprint ceiling and circuit breaker, kill switch, live record and DORA metrics; standard `docs/EXPEDITE-SPRINTS.md` (epic #687).
 - `pr-review.yml`: a reusable workflow that summarizes every CI failure on a pull request in one sticky comment: the job, the reason from its log, whether the PR probably caused it, and what to do. The comment is deleted when nothing is failing. A fleet repo adopts it with the stub in `templates/pr-review/`.
+- Proposed constitution § 25 / amendment `mcp-lifecycle`: centralized MCP server registry, config rules (no tokens in git), transport/tunnel conventions, warn-only `mcp_servers_lint`, and fleet fan-out path (epic #683).
 
 ### Changed
 
@@ -49,6 +50,9 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - `docker-compose.yml`, `docs/DOCKER.md` and `AGENTS.md` no longer point the core's migration at `dash dev db-upgrade hub`, which targets the separate `fleet-hub` volume.
 - `tools/jev` loop runner (HUB-060): the per-run sandbox evidence works on Claude Code 2.1.308 — the sandbox runtime's per-command line is read from its stderr under `SRT_DEBUG` (which the agent environment now sets) and recorded by `ai-run` in the outcome file, the `--settings` read-fence line is required as well, and the live canary's judge no longer reads a traceback's echoed source as a network success, pairs each `cat` with a python twin, and plants neutrally named fixture files (bamr87/bamr87#560, decision 4c).
 - `tools/jev` loop runner (HUB-060): the live canary appends the `cat` and `python3` probe grants a step's allowlist lacks (the doctor grants no `python3`), recorded in its verdict, so a narrower step's sandbox can be proven instead of judged inconclusive.
+- JEV conflict resolution (`tools/jev/conflicts.py`): a tier-1/2 model attempt now runs with an explicit, narrow tool grant (read, edit, stage, read-only local git) under `--permission-mode dontAsk`, with no MCP servers, and is refused at $0 on a CLI older than 2.1.259; the run's permission denials are recorded in the ledger. Before this a headless attempt inherited the operator's own rules, every edit was denied, and it reported `success` with the conflict untouched.
+- JEV conflict validation reads only the files the merge touched and counts a marker-shaped line only when neither parent has it, so a seven-`=` reStructuredText underline or an article that quotes a conflict no longer fails every resolution in that repository.
+- `_data/token_rotation.yml`: an applied rotation now publishes each repo it wrote in its post-write condition (`state: ok`, `age_days: 0`, the write time), keeps what the survey saw as `observed_state` / `observed_age_days` / `observed_oldest_age_days`, and takes `counts` and `oldest_age_days` over the post-write rows; the harness scorecard, the `credential-overdue` wire and the `oauth-secret` coverage gap read an applied `action: written` row as present and fresh, so a credential the run just wrote no longer reads as missing or overdue.
 
 ## [2.0.0] - 2026-10-14
 

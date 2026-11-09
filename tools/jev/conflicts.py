@@ -34,19 +34,36 @@ import re
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
 
 from . import classify as cls
-from .common import JevConfig, JevError, finite_usd, git, gh, gh_json, hub_repo, load_config, load_fleet, \
-    registry_repos, run
+from . import headless
+from .common import JevConfig, JevError, finite_usd, git, git_bytes, gh, gh_json, hub_repo, load_config, \
+    load_fleet, registry_repos, run
 from .ledger import Ledger, Resolution, budget_state
 
 #: The review-gate label (constitution § 12.4).
 REVIEW_LABEL = "needs-amr"
 PR_REF = re.compile(r"^(?P<owner>[\w.-]+)/(?P<repo>[\w.-]+)#(?P<number>\d+)$")
+
+#: What a tier-1/2 model may do in the throwaway clone: read the tree, edit the
+#: conflicted files, read the merge's three stages (`git show :1:path`), its
+#: history and its state, and stage the result. Nothing that commits, pushes,
+#: fetches or runs a program: the engine commits and pushes after validation.
+#: Granted with `--permission-mode dontAsk`, so anything else is denied without
+#: a prompt nobody would answer; without this list a headless `claude -p`
+#: inherits the operator's own allow rules, Edit is denied, and the attempt
+#: ends "success" with every marker still in place (2026-11-07, five PRs).
+MODEL_ALLOWED_TOOLS: tuple[str, ...] = (
+    "Read", "Edit", "Write", "Glob", "Grep",
+    "Bash(git add:*)", "Bash(git diff:*)", "Bash(git status:*)", "Bash(git show:*)", "Bash(git log:*)",
+)
+#: A conflict-marker line as git writes one at the default conflict-marker-size.
+MARKER_RX = re.compile(r"^(<{7}|={7}|>{7})( |$)")
 
 #: Validation commands, tried in this order and skipped when the repository
 #: does not carry the file each one needs. Discovered rather than configured:
@@ -484,10 +501,50 @@ def claude_argv(model: str, prompt: str, max_usd: float, max_turns: int) -> list
     headless.run_prefix, so it refuses a cap that bounds nothing itself
     (`inf`, `nan`, 0 or below): load_config refuses one first, and this is
     the last line before claude.
+
+    The tools are granted explicitly (`MODEL_ALLOWED_TOOLS`, `--tools` limited
+    to their families, headless.DENY_TOOLS on top) under `--permission-mode
+    dontAsk` and `--permission-prompts none`, the loop runner's conventions
+    (tools/jev/headless.py), and the operator's MCP servers are not loaded
+    (`--strict-mcp-config` with an empty config). Every variadic option
+    (`--tools`, `--allowedTools`, `--disallowedTools`, `--mcp-config`) carries
+    ONE comma-joined value and comes before `--model`, so the positional
+    prompt always follows a single-value option and is never read as one more
+    tool name.
     """
     cap = finite_usd(max_usd, "the --max-budget-usd cap of a JEV conflicts attempt")
-    return ["claude", "-p", "--output-format", "json", "--model", model,
+    return ["claude", "-p", "--output-format", "json",
+            "--tools", ",".join(headless.tool_families(MODEL_ALLOWED_TOOLS)),
+            "--allowedTools", ",".join(MODEL_ALLOWED_TOOLS),
+            "--disallowedTools", ",".join(headless.DENY_TOOLS),
+            "--permission-mode", "dontAsk",
+            "--permission-prompts", "none",
+            "--strict-mcp-config", "--mcp-config", headless.EMPTY_MCP,
+            "--disable-slash-commands",
+            "--no-session-persistence",
+            "--model", model,
             "--max-turns", str(max_turns), "--max-budget-usd", f"{cap:g}", prompt]
+
+
+def _denials(payload: dict) -> str:
+    """The permission denials a run reports, as one short clause ('' for none).
+
+    A denied Edit does not fail a headless run — it ends `success` with the
+    work undone — so the count goes into the attempt's detail, and from there
+    into the ledger's reason, rather than being read as a clean attempt.
+    """
+    raw = payload.get("permission_denials")
+    if isinstance(raw, list):
+        count = len(raw)
+        names = sorted({str(d.get("tool_name")) for d in raw if isinstance(d, dict) and d.get("tool_name")})
+    else:
+        try:
+            count, names = int(raw or 0), []
+        except (TypeError, ValueError):
+            count, names = 0, []
+    if count <= 0:
+        return ""
+    return f"{count} permission denial(s)" + (f" ({', '.join(names[:4])})" if names else "")
 
 
 def _prompt(ws: Workspace, triage: cls.Triage) -> str:
@@ -518,40 +575,141 @@ def resolve_with_model(cfg: JevConfig, ws: Workspace, triage: cls.Triage, tier: 
     the attempt is still charged — at the tier's cap, flagged `estimated` by
     the caller — because an unreadable run is the one most likely to have been
     expensive.
+
+    Before any spend the CLI's version is read through the same runner: one
+    older than headless.MIN_CLI rejects `--permission-prompts`, so the tier is
+    refused at $0 rather than charged for an argument error.
     """
     policy = cfg.tier(tier)
     if not policy.model:
         return False, 0.0, "", f"no model configured for {tier}"
+    probe = runner(["claude", "--version"], cwd=ws.path, timeout=60)
+    if probe.code == 127:
+        return False, 0.0, policy.model, "the `claude` CLI is not installed"
+    version = headless.parse_version(probe.out)
+    if not headless.at_least(version):
+        return False, 0.0, policy.model, (f"the `claude` CLI is {headless.version_str(version) or 'unreadable'}; "
+                                          f"this tier needs {headless.version_str(headless.MIN_CLI)} or later")
     argv = claude_argv(policy.model, _prompt(ws, triage), policy.max_usd, policy.max_turns)
     res = runner(argv, cwd=ws.path, timeout=1800)
-    usd, detail = 0.0, ""
+    usd, detail, denied = 0.0, "", ""
     try:
         payload = json.loads(res.out or "{}")
+        if not isinstance(payload, dict):
+            raise TypeError("the CLI payload is not an object")
         usd = float(payload.get("total_cost_usd") or 0.0)
         detail = str(payload.get("subtype") or payload.get("result") or "")[:200]
+        denied = _denials(payload)
     except (ValueError, TypeError):
         usd, detail = policy.max_usd, "unparseable CLI output; charged at the tier cap"
     if res.code == 127:
         return False, 0.0, policy.model, "the `claude` CLI is not installed"
-    return res.ok, usd, policy.model, detail or ("ok" if res.ok else res.err.strip()[:200])
+    detail = detail or ("ok" if res.ok else res.err.strip()[:200])
+    return res.ok, usd, policy.model, f"{detail}; {denied}" if denied else detail
 
 
-def validate(repo_path: Path) -> tuple[bool, list[str]]:
+def _merge_parents(repo_path: Path) -> list[str]:
+    """HEAD, and MERGE_HEAD while a merge is in progress: the two sides whose
+    own content a resolution may legitimately carry."""
+    refs = ["HEAD"]
+    if git(["rev-parse", "-q", "--verify", "MERGE_HEAD"], cwd=repo_path).ok:
+        refs.append("MERGE_HEAD")
+    return refs
+
+
+def _touched_paths(repo_path: Path, conflicted: Iterable[str] = ()) -> list[str]:
+    """Every path the merge or its resolution changed: the conflicted files,
+    whatever differs from HEAD in the index or the tree, and untracked files.
+    NUL-separated and read as bytes, so no path is quoted or mis-decoded."""
+    paths = {p for p in conflicted if p}
+    for args in (["diff", "--name-only", "-z", "HEAD"], ["diff", "--name-only", "-z", "--cached"],
+                 ["diff", "--name-only", "-z", "--diff-filter=U"],
+                 ["ls-files", "-z", "--others", "--exclude-standard"]):
+        out = git_bytes(args, cwd=repo_path)
+        if out:
+            paths.update(os.fsdecode(p) for p in out.split(b"\0") if p)
+    return sorted(paths)
+
+
+def _marker_lines(data: bytes) -> set[str]:
+    return {line for line in data.decode("utf-8", "replace").splitlines() if MARKER_RX.match(line)}
+
+
+def leftover_markers(repo_path: Path, conflicted: Iterable[str] = ()) -> list[str]:
+    """The touched files that still hold a conflict marker neither parent has.
+
+    Scoped twice, because a whole-tree sweep cannot tell a leftover from
+    content: only files the merge touched are read (an untouched file was
+    clean on both parents), and in those a marker-shaped line counts only if
+    that exact line is in neither the HEAD nor the MERGE_HEAD version of the
+    file. A reStructuredText heading underlined with exactly seven `=`, or an
+    article that quotes a conflict on purpose, is pre-existing content on a
+    parent and never fails validation; the `<<<<<<< HEAD` / `>>>>>>> main`
+    lines git writes are in neither parent, so a real leftover still does.
+    """
+    parents = _merge_parents(repo_path)
+    found: list[str] = []
+    for rel in _touched_paths(repo_path, conflicted):
+        path = repo_path / rel
+        if path.is_symlink() or not path.is_file():
+            continue
+        try:
+            data = path.read_bytes()
+        except OSError:
+            continue
+        if b"\0" in data:
+            continue
+        lines = _marker_lines(data)
+        if not lines:
+            continue
+        known: set[str] = set()
+        for ref in parents:
+            blob = git_bytes(["show", f"{ref}:{rel}"], cwd=repo_path)
+            if blob and b"\0" not in blob:
+                known |= _marker_lines(blob)
+        if lines - known:
+            found.append(rel)
+    return found
+
+
+#: `git diff --check`'s report line: `<path>:<line>: <problem>`; the offending
+#: content follows on lines that start with `+`.
+_CHECK_LINE = re.compile(r"^(?!\+).+:\d+: (?P<problem>.+)$")
+
+
+def _whitespace_errors(args: list[str], repo_path: Path) -> list[str]:
+    """`git diff --check` problems other than a conflict marker.
+
+    git reports a marker-shaped line as "leftover conflict marker" wherever the
+    diff adds one — including a seven-`=` RST underline or a quoted conflict
+    the base branch brought in, which is the parent's content, not a leftover.
+    Markers are `leftover_markers`' to judge (scoped to the merge, compared
+    with both parents); this keeps every other problem `--check` reports.
+    """
+    res = git(args, cwd=repo_path)
+    problems = [m.group("problem") for m in map(_CHECK_LINE.match, res.out.splitlines()) if m]
+    if not problems and res.out.strip():
+        problems = [res.out.strip().splitlines()[0]]      # an unparsed report still fails closed
+    return [p for p in problems if p.strip() != "leftover conflict marker"]
+
+
+def validate(repo_path: Path, conflicted: Iterable[str] = ()) -> tuple[bool, list[str]]:
     """Prove the resolution before it is pushed. Two universal checks, then the repo's own.
 
     `git diff --check` and a conflict-marker sweep are not optional extras:
     a model that "resolved" a conflict by leaving `<<<<<<<` in place produces
-    a tree that builds in some languages and is wrong in all of them.
+    a tree that builds in some languages and is wrong in all of them. The
+    sweep reads only what the merge touched (`leftover_markers`; `conflicted`
+    names the files git conflicted on, for a caller that has them), and owns
+    the marker verdict: `--check`'s own marker report is set aside for it.
     """
     problems: list[str] = []
-    tracked = git(["grep", "-l", "-E", r"^(<{7}|={7}|>{7})( |$)", "--", "."], cwd=repo_path)
-    if tracked.ok and tracked.out.strip():
-        problems.append("conflict markers remain in: " + ", ".join(tracked.out.split()[:10]))
-    whitespace = git(["diff", "--check", "HEAD"], cwd=repo_path)
-    if whitespace.out.strip():
+    leftovers = leftover_markers(repo_path, conflicted)
+    if leftovers:
+        problems.append("conflict markers remain in: " + ", ".join(leftovers[:10]))
+    if _whitespace_errors(["diff", "--check", "HEAD"], repo_path):
         problems.append("git diff --check reports whitespace errors")
-    staged = git(["diff", "--check", "--cached"], cwd=repo_path)
-    if staged.out.strip():
+    if _whitespace_errors(["diff", "--check", "--cached"], repo_path):
         problems.append("git diff --check --cached reports whitespace errors")
     unresolved = git(["diff", "--name-only", "--diff-filter=U"], cwd=repo_path)
     if unresolved.out.strip():
@@ -717,7 +875,7 @@ def resolve(cfg: JevConfig, pr: PullRequest, *, dry_run: bool = False, scheduled
             if not done:
                 git(["checkout", "--", "."], cwd=ws.path)
                 continue
-            good, problems = validate(ws.path)
+            good, problems = validate(ws.path, [f.path for f in ws.conflicted])
             if not good:
                 notes.append(f"{tier}: validation failed — {'; '.join(problems)[:300]}")
                 git(["merge", "--abort"], cwd=ws.path)

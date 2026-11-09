@@ -36,6 +36,7 @@ _data/specs.yml            linguist-generated=true merge=jev-regen
 _data/cv_portfolio.json    linguist-generated=true merge=jev-regen
 _data/features_index.yml   linguist-generated=true merge=jev-regen
 _data/deep_dive.json       linguist-generated=true merge=jev-regen
+_data/agents.yml           linguist-generated=true merge=jev-regen
 docs/README.md             merge=jev-regen jev-main-only
 
 # --- hand-written, with a generated span -------------------------------------

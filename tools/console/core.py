@@ -380,13 +380,33 @@ def load_state(now: dt.datetime | None = None) -> dict:
             ],
         },
         "usage": {
-            "actions": {k: actions.get(k) for k in ("generated_at", "window_days", "totals", "by_day")},
-            "ai": {k: ai.get(k) for k in ("generated", "window_days", "totals", "by_day")},
+            # `minutes_basis` says what the minutes ARE (job-minutes since
+            # actions-usage/v2; absent = the v1 wall clock); `parity` sets them
+            # against the billing meter, and the AI ledger against claude-cost's
+            # result lines; `coverage` says whether the sweep saw the whole window.
+            "actions": {**{k: actions.get(k) for k in ("generated_at", "window_days", "totals", "by_day",
+                                                         "schema", "minutes_basis", "parity")},
+                        "coverage": _coverage_summary(actions.get("coverage"))},
+            "ai": {**{k: ai.get(k) for k in ("generated", "window_days", "totals", "by_day", "parity")},
+                   "coverage": _coverage_summary(ai.get("coverage"))},
         },
         "subscription": _subscription_block(fleet, ai, now),
         "loops": loop_cards(fleet, sources),
         "git": git_info(),
     }
+
+
+def _coverage_summary(cov) -> dict | None:
+    """A sweep's coverage without its per-repo rows: was anything truncated or
+    sampled, and which repos. The rows stay in the committed file."""
+    if not isinstance(cov, dict):
+        return None
+    keep = ("truncated", "runs_missed", "truncated_repos", "sampled", "sampled_repos")
+    out = {k: cov.get(k) for k in keep if k in cov}
+    api = cov.get("api")
+    if isinstance(api, dict):
+        out["api_calls"] = api.get("calls_total")
+    return out
 
 
 def _subscription_block(fleet: dict, ai: dict, now: dt.datetime) -> dict:

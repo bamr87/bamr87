@@ -1648,13 +1648,40 @@ def write_ledger(path: Path, mode: str, entries: list[dict],
         yaml.safe_dump(doc, fh, sort_keys=False, allow_unicode=True, width=100)
 
 
+def after_write(row: dict, stamp: str) -> dict:
+    """The row as the fleet holds it once an APPLIED write succeeded.
+
+    The survey runs BEFORE the writes, so its `state` / `age_days` describe a
+    copy the run has just replaced. Publishing those made every reader of the
+    ledger (harness_registry's coverage gaps, harness.py's credential-overdue
+    wire, the console's credential ages) report a repo the run had fixed as
+    missing or overdue until the next run. What the run saw is kept beside it,
+    additively, as `observed_state` / `observed_age_days`.
+    """
+    return {**row, "state": S_OK, "age_days": 0, "updated_at": stamp, "behind_hub": False,
+            "observed_state": row["state"], "observed_age_days": row["age_days"]}
+
+
 def ledger_entry(token: dict, rows: list[dict], source: str, minted: bool,
-                 written: list[str], failed: list[str], attention: list[str]) -> dict:
+                 written: list[str], failed: list[str], attention: list[str],
+                 *, applied: bool = False, written_at: str | None = None) -> dict:
+    """One token's ledger record.
+
+    With `applied`, `written` names real writes, so those repos are reported in
+    their post-write condition (`after_write`) and the counts and the oldest age
+    are taken over that. A dry run's `written` only means "would write", so it
+    publishes the observed rows unchanged. A failed write keeps what was seen.
+    """
     pol = token["_rotation"]
+    observed_ages = [r["age_days"] for r in rows if r["age_days"] is not None]
+    if applied:
+        stamp = written_at or utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        done = set(written) - set(failed)
+        rows = [after_write(r, stamp) if r["nwo"] in done else r for r in rows]
     ages = [r["age_days"] for r in rows if r["age_days"] is not None]
     by_state = {s: [r["nwo"] for r in rows if r["state"] == s]
                 for s in (S_OK, S_STALE, S_MISSING, S_UNREACHABLE)}
-    return {
+    entry = {
         "name": token["name"],
         "scope": token.get("scope", "fleet"),
         "source": source,
@@ -1683,8 +1710,13 @@ def ledger_entry(token: dict, rows: list[dict], source: str, minted: bool,
             "behind_hub": r.get("behind_hub", False),
             "action": ("failed" if r["nwo"] in failed
                        else "written" if r["nwo"] in written else "none"),
+            **({"observed_state": r["observed_state"],
+                "observed_age_days": r["observed_age_days"]} if "observed_state" in r else {}),
         } for r in rows],
     }
+    if applied:
+        entry["observed_oldest_age_days"] = max(observed_ages) if observed_ages else None
+    return entry
 
 
 # --------------------------------------------------------------------------- #
@@ -1781,9 +1813,12 @@ def rotate_variables(cfg: dict, registry: list, rot: dict,
                       f"{err[0] if err else '(no error output)'}")
                 wrote_all = False
         if wrote_all:
+            # Every differing value was set, so the repo now matches the hub:
+            # report that (the same post-write rule as the secrets' after_write),
+            # and keep what the run saw as `observed_state`.
             print(f"  {EXTRA} {r['nwo']:34} set {', '.join(sorted(diffs))}")
             written.append(r["nwo"])
-            rows.append({"nwo": r["nwo"], "state": state,
+            rows.append({"nwo": r["nwo"], "state": S_OK, "observed_state": state,
                          "differing": sorted(diffs), "action": "written"})
         else:
             failed.append(r["nwo"])
@@ -2009,7 +2044,8 @@ def cmd_rotate(args: argparse.Namespace) -> int:
                     attention.append("refresh-store-failed")
                     exit_code = 1
 
-        entries.append(ledger_entry(t, rows, source, minted, written, failed, attention))
+        entries.append(ledger_entry(t, rows, source, minted, written, failed, attention,
+                                    applied=args.apply))
         attention_any = attention_any or bool(attention)
 
     # --- variables ------------------------------------------------------
