@@ -13,7 +13,8 @@ dash already collects but previously acted on in two disconnected loops:
 
   EXPENSIVE _data/actions_usage.yml → workflows[]
             Cost / effectiveness / waste per workflow, with flags for slow,
-            flaky, high-cost-low-value, cancel-heavy, cron-heavy.
+            flaky, high-cost-low-value, cancel-heavy, cron-heavy. (`pr-red`
+            is published too but is never a signal here — see PR_SIGNALS.)
 
 The expensive signal is averaged over a 14-day window, which has no memory of
 ORDER, no notion of who pressed the button and no notion of what the minutes
@@ -141,6 +142,13 @@ DEFAULT_SEVERITY = {
 # Signals about whether the workflow WORKS. A later green run settles them: the
 # workflow is not broken now, whatever the window's average says.
 CORRECTNESS_SIGNALS = {"failing", "flaky"}
+
+# `pr-red` (actions_analytics.pr_red): every failure sat on a PR head and no
+# commit both passed and failed, so the PRs are red, not the workflow — a policy
+# gate doing its job (bamr87/bamr87#614). Deliberately NOT a correctness signal
+# and has no severity: the doctor has nothing to fix in the workflow, and
+# "de-flaking" a deterministic gate would defeat it.
+PR_SIGNALS = {"pr-red"}
 
 # Signals about what the workflow COSTS. A hand-driven debugging session inflates
 # all three — failing dispatch runs are what building something looks like.
@@ -620,7 +628,9 @@ def usage_candidates(usage: dict, cfg: dict, owner: str) -> dict[str, dict]:
             # so the priority fallback below is skipped — that fallback is
             # precisely what queued a green, switched-off workflow on the
             # strength of a human's debugging minutes (bamr87/bamr87#92).
-            if suppressed or interactive or productive:
+            # `pr-red` is the same kind of positive finding: the red minutes
+            # are the PRs', so they must not buy the workflow a slot either.
+            if suppressed or interactive or productive or PR_SIGNALS & set(w.get("flags") or []):
                 continue
             if (w.get("priority") or 0) < cfg["min_priority"]:
                 continue

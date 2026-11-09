@@ -748,6 +748,25 @@ def main() -> int:
     check("plan mode: the slug is a plain name", remediation.candidate_slug(
         {"repo": "it-journey", "path": ".github/workflows/issue autopilot.yml"}) == "it-journey-issue-autopilot")
 
+    # --- pr-red is not a correctness signal (bamr87/bamr87#614) ------------- #
+    print("pr-red:")
+    gate = ".github/workflows/evidence-gate.yml"
+    check("pr-red is not a correctness signal",
+          "pr-red" not in remediation.CORRECTNESS_SIGNALS
+          and "pr-red" not in remediation.DEFAULT_SEVERITY)
+    # The zer0-mistakes Evidence gate after the analytics fix: `pr-red` only,
+    # with enough priority that the fallback alone would have queued it.
+    pr_only = build(triage(), usage(wf("bamr87/zer0-mistakes", "Evidence gate", gate,
+                                       flags=["pr-red"], waste=12.0, priority=15.0)))
+    check("a pr-red-only workflow is not queued for the doctor", pr_only == [])
+    # A real cost problem on the same workflow still stands.
+    pr_slow = build(triage(), usage(wf("bamr87/zer0-mistakes", "Evidence gate", gate,
+                                       flags=["pr-red", "slow"], avg=30.0)))
+    check("pr-red does not hide a real cost signal",
+          len(pr_slow) == 1 and pr_slow[0]["signals"] == {"slow"})
+    check("pr-red gets no de-flake advice",
+          "non-deterministic" not in remediation.fix_angle({"pr-red"}))
+
     # --- report ------------------------------------------------------------ #
     failed = [label for label, ok in CHECKS if not ok]
     print()
