@@ -38,7 +38,9 @@ tools/dash mcp --list-tools     # print the catalog (read / WRITE) and exit
 | `DASH_CONSOLE_HOST_HEADER` | unset | Host header sent to the console (the sidecar uses `127.0.0.1:4001` to pass its loopback allowlist) |
 | `HARNESS_MCP_FLEET_COMPAT` | off | `1` = `--fleet-compat` |
 | `HARNESS_MCP_HOST` / `HARNESS_MCP_PORT` | `127.0.0.1` / `4002` | HTTP bind; a non-loopback host prints a warning |
-| `HARNESS_MCP_ALLOW_WRITES` | off | `1` registers the write tools |
+| `HARNESS_MCP_ALLOW_WRITES` | off | `1` registers the broad write tools (and every scope) |
+| `HARNESS_MCP_SCOPES` | empty | comma list of narrow write scopes: `jobs` (`job_dispatch`, `job_cancel`), `work` (`work_apply`); unknown names grant nothing ([Scoped write access](#scoped-write-access-harness_mcp_scopes)) |
+| `HARNESS_MCP_AUDIT` | `<repo>/.fleet/mcp/audit.jsonl` | the scoped-write audit file (gitignored); the sidecar writes `/audit/audit.jsonl`, which is `.fleet/mcp/` on the host |
 | `HARNESS_MCP_MAX_CHARS` | `60000` | larger results come back as `{truncated, total_chars, json_prefix}` |
 | `QDRANT_URL` / `OLLAMA_URL` | the `_data/fleet.yml` URLs | where the code index is reached from THIS process (the contract's are the browser's) |
 | `QDRANT_COLLECTION` | the fullest `ws-` collection | the code index's collection name, when the store's listing should not decide |
@@ -71,6 +73,27 @@ Cursor — `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global):
 
 Generic HTTP clients (Grok Bots, other remote agents): MCP streamable HTTP at `POST /mcp` with `Authorization: Bearer <HARNESS_MCP_TOKEN>` and `Accept: application/json, text/event-stream`. A remote agent off this machine needs a tunnel to the HTTP server; pass the tunnel's hostname with `--allow-host`.
 
+### A remote client that says "connected" but lists zero tools
+
+A remote agent such as Grok Bot runs off this machine, so it cannot launch `mcp.sh` over stdio here. Its supported connector is **streamable HTTP**: the tunnel's `https://<host>/mcp` URL (from `tools/dash mcp --tunnel-url`) with the header `Authorization: Bearer <HARNESS_MCP_TOKEN>`. A connector registered as **stdio** that runs a helper script to forward to the tunnel is not this interface, and it fails in a way that looks healthy: the client sees the helper process start and reports "connected", while the helper's own requests never get a tool list through. The server answers each of a bridge's usual mistakes with an error the helper may swallow:
+
+| What the helper does | What the server answers |
+| --- | --- |
+| no or wrong bearer token | `401 unauthorized` (never logged by the server) |
+| `Accept: application/json` only | `406 Not Acceptable` — it must also accept `text/event-stream` |
+| `tools/list` without the `Mcp-Session-Id` header from `initialize` | `400 Bad Request: Missing session ID` |
+| an old session after 30 idle minutes | `404` — the client must send `initialize` again |
+| the legacy HTTP+SSE transport (`GET /sse`) | `404` — only streamable HTTP is served |
+| a tunnel hostname from before the tunnel restarted | Cloudflare `530`, or no answer |
+
+Check the server side with the handshake a connector must complete. It reads the token in-process, prints tool names only, and exits non-zero on zero tools:
+
+```bash
+.venv-mcp/bin/python tools/console/smoke_mcp_layer.py --url "$(tools/dash mcp --tunnel-url)" console_overview
+```
+
+If that lists the tools and the remote client still shows none, the fault is in the client's connector configuration: replace the stdio helper with a streamable-HTTP connector to the current URL and header, then reconnect it. A successful `console_overview` call made by the remote client itself is the proof; an HTTP 200 on `initialize`, or a tool list fetched from this Mac, is not. Each successful `initialize` logs `Created new transport with session ID` in `docker logs fleet-mcp-1`, so a connector that never logs one never reached the server with a valid token.
+
 ## Always-on sidecar (compose profile `mcp`)
 
 ```bash
@@ -78,7 +101,7 @@ docker compose --profile mcp up -d mcp     # 127.0.0.1:4002/mcp, healthy when /m
 docker compose --profile mcp stop mcp
 ```
 
-Opt-in, never started by a plain `docker compose up`. `python:3.13-slim`, repo mounted read-only, venv in the `venv-mcp` volume, token read from the mounted `.env`, talks to `http://console:4001` with `Host: 127.0.0.1:4001`. It does not restart or depend on `console`. Writes stay off unless `HARNESS_MCP_ALLOW_WRITES=1`.
+Opt-in, never started by a plain `docker compose up`. `python:3.14-slim`, repo mounted read-only, venv in the `venv-mcp` volume, token read from the mounted `.env`, talks to `http://console:4001` with `Host: 127.0.0.1:4001`. It does not restart or depend on `console`. Writes stay off unless `HARNESS_MCP_ALLOW_WRITES=1`; `HARNESS_MCP_SCOPES=jobs,work` in the environment or `.env` grants only the scoped tools. Its one writable mount is `.fleet/mcp/` → `/audit`, where the scoped-write audit lands. It runs the main checkout's code, so a change to `mcp_layer/` reaches it only after the checkout has it and the sidecar is recreated (`docker compose --profile mcp up -d --no-deps mcp`); that does not restart the tunnel, so the tunnel's URL stays the same.
 
 ## Remote access (persistent quick tunnel — compose `mcp-tunnel`)
 
@@ -117,12 +140,12 @@ curl -s -X POST http://127.0.0.1:4002/mcp \
 ```
 
 ```python
-import httpx, anyio
+import httpx2, anyio   # mcp v2's HTTP client package
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
 
 async def main():
-    http = httpx.AsyncClient(headers={"Authorization": "Bearer <HARNESS_MCP_TOKEN>"})
+    http = httpx2.AsyncClient(headers={"Authorization": "Bearer <HARNESS_MCP_TOKEN>"})
     async with Client(streamable_http_client("http://127.0.0.1:4002/mcp", http_client=http)) as c:
         print([t.name for t in (await c.list_tools()).tools])
         print(await c.call_tool("console_overview", {}))
@@ -136,7 +159,7 @@ Read tools are annotated `readOnlyHint: true`. Lists come back as `{count, items
 
 | Tool | Console route | What it answers |
 | --- | --- | --- |
-| `console_overview` | `/api/health`, `/api/state` | Is the console up, git head, signal freshness, tripped wires, harness totals, whether writes are on |
+| `console_overview` | `/api/health`, `/api/state` | Is the console up, git head, signal freshness, tripped wires, harness totals, whether writes are on (`mcp_writes_enabled`) and which scopes are granted (`mcp_scopes`) |
 | `fleet_status` | `/api/fleet` | Every registry project: health, triage, CI, docker (`q`, `sort`, `limit`) |
 | `fleet_docker` | `/api/fleet/docker` | Containers on every Docker host, with a reason per unreachable host; errors when none answers (the console's container holds no Docker socket by design) |
 | `project_detail` | `/api/project/{name}` | One project's drill-down |
@@ -157,6 +180,8 @@ Read tools are annotated `readOnlyHint: true`. Lists come back as `{count, items
 | `index_coverage` | `/api/index/coverage` | What the code index covers, which collection it read and where it asked |
 | `deep_dive` | `/api/data/deep_dive` | Deep-dive cycle progress and per-repo status |
 | `work_board` | `/api/work` | One page of the Work board (`lane`, `repo`, `kind`, `stage`, `priority`, `q`, `limit`, `offset`, `summary`) |
+| `work_item` | `/api/work/item` | One item's drill-down: its board row and source record (`key`) |
+| `work_preview` | `/api/work`, `POST /api/work/preview` | What a prioritising plan would change — writes nothing: the console's change lines, each item before → after, the files an apply would edit, `undo_plan` and the `plan_id` that `work_apply` needs |
 | `loops` | `/api/state` `loops` | The control-plane loops |
 | `refine_status` | `/api/refine` | Harness refinement (docs/HARNESS-REFINEMENT.md): the hub's surface check, the fleet sweep's totals, one Propose–Probe–Compose plan per agent step with its ceiling, the library's count, the evidence trees and the review queue; `section` returns one key in full (surface, fleet_surface, plans, library, evidence, reviews, config) |
 | `refine_library` | `/api/refine` `library` | The experience library's lessons (cue, lesson, evidence, confidence, verdicts), newest first (`loop`, `domain`, `limit`) — data to re-verify, never a rule |
@@ -176,6 +201,27 @@ Write tools — registered only with `HARNESS_MCP_ALLOW_WRITES=1`, annotated `de
 
 Resources: `harness://overview`, `harness://health`, `harness://ops`, `harness://deep-dive`, `harness://live`.
 
+## Scoped write access (`HARNESS_MCP_SCOPES`)
+
+`HARNESS_MCP_ALLOW_WRITES=1` is all or nothing. `run_op` passes the console's own confirm, so one flag the agent sets reaches every allowlisted operation: `secrets-push`, `keys-rotate`, `config-sync`, the deploys, CI `dispatch`, `observe-reset` and live `loop-run`. Over a public tunnel that is too much. `HARNESS_MCP_SCOPES` grants narrow slices instead, and leaves the broad tools unregistered:
+
+| Scope | Tools | What they can do |
+| --- | --- | --- |
+| `jobs` | `job_dispatch(op, params, confirm, wait_s)`, `job_cancel(job_id, confirm)` | Start one op from a fixed allowlist of local, $0 reports and checks: `config-show`, `status`, `audit`, `drift`, `schema-lint`, `workflows-lint`, `observe-status`, `observe-verify`, `lake-status` and `refine-surface`. None of them writes to GitHub, reads or writes a secret, or starts or destroys a container. `job_cancel` stops only a job of one of those ops. |
+| `work` | `work_apply(plan, plan_id, confirm)` | Apply a prioritising Work-board plan that `work_preview` returned: `priority`, `pins`, `unpin` and `notes`. It writes `_data/work_queue.yml` (and, for a `roadmap:FF-…` key's priority, `_data/roadmap.yml`) in the console's working tree and commits nothing. Committing the file is the approval the loops read ([docs/WORK-BOARD.md](../../../docs/WORK-BOARD.md)). |
+
+These guards apply to every scoped call, and the console's own gates still apply behind them:
+
+- **Approval.** Every call needs `confirm=true`, which the agent's host sets only after asking the person. `work_apply` also needs the `plan_id` from a `work_preview` of the same plan. An id that no longer matches the plan, or the board, is refused: the preview has to be shown again.
+- **Allowlists and validation.** An op off the list, a parameter the op does not declare, a parameter value that is not a short plain token (`[A-Za-z0-9._/-]`, at most 64 characters), a plan field outside the four, more than 25 items in a plan, or a note longer than 500 characters is refused before the console is asked. `stage` moves change GitHub labels and roadmap status edits change a roadmap entry's lifecycle, so they stay on the console's Work board.
+- **Defence in depth.** `job_dispatch` re-reads the op's card from `/api/ops` and refuses it if the console marks it `remote_write`, spending or unavailable. It always sends the console `confirm=false`, so the console's own gate refuses anything remote even if the list here were wrong. `work_apply` sends `confirm=false` too, and the console needs `confirm` only for a label move.
+- **Bounded execution.** Each op has a wall clock: `config-show` gets 120 s, the others 300–900 s. A daemon thread cancels a dispatched job that passes its limit. At most 2 dispatched jobs run at once and 20 start per hour, and `work_apply` is limited to 30 per hour. `wait_s` (up to 120) waits for the job and returns the end of its log; `job_log` reads it later. The limits live in this process, so a restarted server forgets the deadlines of jobs it had started. Each allowlisted op still ends on its own.
+- **Audit.** Every scoped call is written as one JSON line, whether it ran, was refused or failed: time, tool, scope, op or plan, `plan_id`, job id, the outcome and the reason, the transport and the client's self-reported name. For `work_apply` the line also holds the per-change results and the diff. It goes to `HARNESS_MCP_AUDIT` (default `.fleet/mcp/audit.jsonl`, gitignored) and to stderr as `harness-mcp audit {…}`, which is the record wherever the file cannot be written. Token-shaped strings are scrubbed first. The client name is a label, not an identity: the bearer token is the gate.
+- **Undo.** `work_preview` and `work_apply` return `undo_plan`, the plan that puts every named item back as it was: its override or computed priority, its note and its lane's pin order. Preview it and apply it like any other plan, or restore the file from git.
+- **Annotations.** Like every write tool, the scoped ones are marked `destructiveHint: true` (NFR9), so a host asks before each call. They are also marked `openWorldHint: false`, because they change only local state.
+
+Neither scope writes to GitHub, so neither is a write-back path under constitution § 11. Under § 13.6 their actions are reversible, local and $0. The person's `confirm` comes before each one, and each is audited. A scope can only narrow what the console allows. Turning a scope on for the sidecar is a runtime change on the Mac: set `HARNESS_MCP_SCOPES` in `.env` or the environment, then recreate the `mcp` service.
+
 ## Result size
 
 `HARNESS_MCP_MAX_CHARS` (60,000) is the last line of defence: a result over it becomes `{truncated, total_chars, json_prefix}`, which an agent reads as nothing useful. So a tool whose route answers with the whole of something pages instead of relying on the clip. `work_board` is the one that needs it — `/api/work` is ~390,000 characters over ~400 items, a quarter of it each item's `detail` record — so it defaults to `summary=true` and 40 items (~25,000 characters) and reports `matched`, `matched_by_lane` and `next_offset` so the rest can be walked. `summary=false` returns full items and caps `limit` at 25; one item's whole record is `work_item` / `fleet_work`. `fleet_status`, `jobs_list`, `lake_runs`, `workflow_lines` and `job_log` take the same shape of limit.
@@ -188,11 +234,12 @@ The MCP sidecar and the console run in containers, and the `_data/fleet.yml` URL
 
 ```bash
 tools/console/mcp.sh --list-tools >/dev/null   # bootstrap .venv-mcp once
-.venv-mcp/bin/python tools/console/test_mcp_layer.py      # unit: mocked HTTP, the protocol, HTTP auth
+.venv-mcp/bin/python tools/console/test_mcp_layer.py      # unit: mocked HTTP, the protocol, HTTP auth, scopes
 .venv-mcp/bin/python tools/console/smoke_mcp_layer.py     # live: stdio against the running console
+.venv-mcp/bin/python tools/console/smoke_mcp_layer.py --url http://127.0.0.1:4002/mcp   # live: the HTTP sidecar
 ```
 
-`test_mcp_layer.py` skips cleanly where `mcp` is not installed. The smoke test lists tools and resources and calls a few read tools, printing sizes and top-level keys only.
+`test_mcp_layer.py` skips cleanly where `mcp` is not installed. It covers the scoped tools too: which tools each scope registers, the refusals (no confirm, an op off the allowlist, an undeclared parameter, a stale `plan_id`, a `stage` move), the running and hourly caps, the watchdog's cancel, the round trip of a plan and its `undo_plan`, and the audit's scrubbing. The smoke test lists tools and resources and calls a few read tools, printing sizes and top-level keys only. With `--url` it runs the remote handshake against a running HTTP server, reading the bearer token in-process, and fails when no tools are listed.
 
 ## Not yet
 
