@@ -15,23 +15,23 @@ contract:
     R5: its run records reach the reflector
     R6: a local entry point
 totals:
-  agents: 71
+  agents: 73
   by_category:
-    ci-agent-step: 60
+    ci-agent-step: 62
     local-loop-step: 5
     jev-tier: 3
     scheduled-local-job: 3
   by_kind:
     ci-scheduled: 10
     ci-event: 15
-    ci-mention: 35
+    ci-mention: 37
     loop-step: 5
     jev-tier: 3
     local-job: 3
-  with_gaps: 64
+  with_gaps: 66
   gaps_by_rule:
-    R1: 53
-    R2: 64
+    R1: 55
+    R2: 66
     R3: 0
     R4: 5
     R5: 1
@@ -654,6 +654,34 @@ agents:
   local_entry: null
   first_seen: '2026-11-07'
   gaps: []
+- id: ci:amrchy:claude
+  kind: ci-mention
+  category: ci-agent-step
+  repo: bamr87/amrchy
+  where: .github/workflows/claude.yml
+  owner: bamr87
+  trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
+  switch:
+    exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
+  budget: null
+  model: null
+  kpis:
+    accepted_per_usd: null
+    accepted_per_actions_min: null
+    time_to_outcome_h: 4
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry:
+    exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
+  first_seen: '2026-11-09'
+  gaps:
+  - R1:budget
+  - R1:model
+  - R2:missing:cost_source,tool_errors
 - id: ci:bamr87.github.io:claude
   kind: ci-mention
   category: ci-agent-step
@@ -1612,6 +1640,34 @@ agents:
   local_entry:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
+  gaps:
+  - R1:budget
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+- id: ci:recon-engine:claude
+  kind: ci-mention
+  category: ci-agent-step
+  repo: bamr87/recon-engine
+  where: .github/workflows/claude.yml
+  owner: bamr87
+  trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
+  switch:
+    exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
+  budget: null
+  model: null
+  kpis:
+    accepted_per_usd: null
+    accepted_per_actions_min: null
+    time_to_outcome_h: 4
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry:
+    exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
+  first_seen: '2026-11-09'
   gaps:
   - R1:budget
   - R1:model

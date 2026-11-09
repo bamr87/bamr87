@@ -9,7 +9,7 @@
 # Rendered at /features/ on the dash. Kit: templates/verify/ · doc: docs/VERIFICATION.md
 # =============================================================================
 schema: features-index/v1
-generated_at: '2026-11-08T06:03:52Z'
+generated_at: '2026-11-09T06:19:46Z'
 kit_version: 0.1.0
 totals:
   repos_scanned: 1
@@ -17,9 +17,9 @@ totals:
   repos_with_kit: 1
   repos_prose_only: 0
   repos_no_index: 0
-  features: 88
-  implemented: 56
-  covered: 80
+  features: 91
+  implemented: 58
+  covered: 83
   evidenced: 16
   verified: 8
   ui: 25
@@ -30,7 +30,7 @@ totals:
   dangling: 5
 pct:
   coverage: 143
-  evidence: 29
+  evidence: 28
   verified: 14
   ui_coverage: 100
 attention:
@@ -93,9 +93,9 @@ repos:
     legacy_evidence_kit: false
     legacy_visual_evidence_skill: false
   counts:
-    features: 88
-    implemented: 56
-    covered: 80
+    features: 91
+    implemented: 58
+    covered: 83
     evidenced: 16
     verified: 8
     ui: 25
@@ -104,7 +104,7 @@ repos:
     dangling: 5
   pct:
     coverage: 100
-    evidence: 29
+    evidence: 28
     verified: 14
   last_run: null
   gaps:
@@ -3499,4 +3499,112 @@ repos:
       - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/console-shell/before-mobile-projects.png
       - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/console-shell/desktop-projects-keyboard.png
       - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/console-shell/mobile-projects-keyboard.png
+  - id: HUB-090
+    title: 'Scoped MCP write access: approved report jobs and Work-board prioritisation for remote agents'
+    surface: infra
+    implemented: true
+    link: tools/console/mcp_layer/server.py
+    docs: tools/console/docs/mcp-layer.md
+    tags:
+    - console
+    - mcp
+    - agents
+    - work-board
+    - guardrails
+    - audit
+    date: '2026-11-08'
+    provenance: null
+    tests:
+    - tools/console/test_mcp_layer.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: HARNESS_MCP_SCOPES grants the Harness Console's MCP layer narrow write scopes in place of the all-or-nothing
+      HARNESS_MCP_ALLOW_WRITES, so a remote agent such as Grok Bot can act without reaching secret pushes, key rotation, deploys,
+      CI disp
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/console/mcp_layer/server.py
+      docs: https://github.com/bamr87/bamr87/blob/main/tools/console/docs/mcp-layer.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/console/test_mcp_layer.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-091
+    title: 'MCP server lifecycle: centralized registry, config schema, lint and fan-out'
+    surface: infra
+    implemented: false
+    link: tools/mcp_servers_lint.py
+    docs: docs/MCP-SERVERS.md
+    tags:
+    - mcp
+    - agents
+    - ai-layer
+    - standards
+    - lint
+    - console
+    date: '2026-11-05'
+    provenance: null
+    tests:
+    - tools/test_mcp_servers_lint.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: A hub-owned standard (constitution § 25) that consolidates how the fleet builds, registers, configures and runs
+      MCP servers — single registry (_data/mcp_servers.yml), docs/MCP-SERVERS.md, env-only secrets, stdio/HTTP/tunnel conventions,
+      hea
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/mcp_servers_lint.py
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/MCP-SERVERS.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_mcp_servers_lint.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-092
+    title: 'The agent inventory: every AI agent registered, graded against the efficacy contract, and held complete by the
+      drift gate'
+    surface: cli
+    implemented: true
+    link: .github/scripts/dash-gen/agent_inventory.py
+    docs: docs/AGENT-EFFICACY.md
+    tags:
+    - harness
+    - governance
+    - agents
+    - efficacy
+    - drift
+    date: '2026-11-07'
+    provenance: null
+    tests:
+    - .github/scripts/dash-gen/test_agent_inventory.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: '`tools/dash agents` (.github/scripts/dash-gen/agent_inventory.py, constitution § 29, ADR 0009) builds the committed
+      _data/agents.yml (schema agents/v1) offline from the hub''s AI workflows (claude-code-action or claude-run), the fleet''s
+      from'
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/agent_inventory.py
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/AGENT-EFFICACY.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_agent_inventory.py
+      scenarios: []
+      screenshots: []
   truncated: false
