@@ -748,6 +748,24 @@ def main() -> int:
     check("plan mode: the slug is a plain name", remediation.candidate_slug(
         {"repo": "it-journey", "path": ".github/workflows/issue autopilot.yml"}) == "it-journey-issue-autopilot")
 
+    # --- dedupe reads every open hub item, not the newest 200 --------------- #
+    print("open markers:")
+    old_key = f"{OWNER}/it-journey:.github/workflows/codeql-analysis.yml"
+
+    def fake_gh_json(cmd):
+        # 233 open issues, newest first; the one carrying the marker is the oldest.
+        limit = int(cmd[cmd.index("--limit") + 1])
+        items = [{"body": "unrelated"}] * 232 + [{"body": remediation.doctor_marker(old_key)}]
+        return items[:limit] if cmd[1] == "issue" else []
+
+    real_gh_json = remediation._gh_json
+    remediation._gh_json = fake_gh_json
+    try:
+        seen = remediation.open_markers(HUB)
+    finally:
+        remediation._gh_json = real_gh_json
+    check("open markers: an old issue past the 200th open item still dedupes its key (#210)", old_key in seen)
+
     # --- pr-red is not a correctness signal (bamr87/bamr87#614) ------------- #
     print("pr-red:")
     gate = ".github/workflows/evidence-gate.yml"
