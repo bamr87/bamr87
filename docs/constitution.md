@@ -305,6 +305,21 @@ _(amendment `visual-evidence`, numbered at merge — see the [amendment log](ame
 9. **Fit with § 15** — frontend *PR* evidence stays under § 15; this section covers *published guides*. A change may need both.
 
 
+## 25. MCP server lifecycle
+
+_(amendment `mcp-lifecycle`, numbered at merge — see the [amendment log](amendments/README.md); follows § 24 `visual-evidence` on main; renumber only if another amendment claims 25 first; extends § 16)_
+
+1. **Hub owns the lifecycle** — every MCP server the fleet builds, runs or registers for agents is declared in a hub registry (`_data/mcp_servers.yml`), documented under `docs/MCP-SERVERS.md`, and configured without credentials in git.
+2. **Single registry** — the registry lists each server's id, owner repo/path, role (client-config | hub-server | spoke-server | kit), transport(s), entrypoint, health probe, required secret *names* (never values), and status (`canonical` | `legacy` | `spoke` | `proposed`).
+3. **Config schema** — committed MCP client configs (`.mcp.json`, `verify/mcp.json`, kit templates) use the MCP `mcpServers` object shape; secret values appear only as `${ENV_NAME}` (or equivalent host env interpolation); literal tokens, PATs, API keys and passwords are forbidden in the tree.
+4. **Naming** — server ids are kebab-case, stable, and unique in the registry; the interactive console/fleet server remains registered to agents as `fleet` (HUB-031) unless a migration PR updates permissions and the registry together.
+5. **Transports** — stdio for local agent hosts; streamable HTTP only on loopback by default with a dedicated bearer (`HARNESS_MCP_TOKEN` for the console MCP, never the console's own token on the wire to clients); non-loopback bind requires an explicit allow-host list.
+6. **Tunnels** — public or remote access is opt-in (`mcp-tunnel` profile or `dash mcp --tunnel`); quick-tunnel hostnames are unstable and must not be committed; prefer a named tunnel or Tailscale for standing remote access; `dash mcp --tunnel-url` is the refresh path.
+7. **Writes and kill switch** — MCP write tools stay off unless an explicit env flag enables them; destructive tools require `confirm=true`; console allowlists and workflow kill switches remain authoritative for GitHub writes.
+8. **Health and versioning** — HTTP MCP servers expose a probe the compose/healthcheck or `dash mcp` can run; package pins prefer dist-tags the registry documents (`@latest` only when the UPS baseline allows); breaking tool renames need a registry note and a migration window.
+9. **Enforcement** — `tools/mcp_servers_lint.py` validates client configs and registry rows (schema, no inline secrets, unknown ids); warn-only per repo until adoption/fan-out, then hard fail. Fleet fan-out follows the 0007 pattern.
+10. **Fit with § 16 / HUB-031** — AI-ready per-repo MCP exposure and the console MCP layer stay the implementations; this section is the lifecycle and governance umbrella.
+
 ## 27. Expedite sprints run by agentic loops
 
 _(amendment `expedite-sprints`, numbered at merge — see the [amendment log](amendments/README.md); follows § 25 `mcp-lifecycle` (PR #685) and § 26 `claude-code-executes` (PR #686), both open; renumber to the next free section if either does not merge first; extends § 9, § 10, § 12, § 13 and § 17)_
@@ -330,3 +345,18 @@ _(amendment `grok-claude-governance`, numbered at merge — see the [amendment l
 5. **Role boundaries** — Grok bots own direction: constitution, amendments, PRD, features, roadmap, research and assessments. Claude Code owns every software change and console job (§ 26). Neither crosses the boundary without Amr's explicit OK.
 6. **Escalation** — if Claude Code is unavailable or out of budget, the work **stops**. The Grok bot records the blocker on the handoff issue and asks Amr; nothing proceeds until Amr approves an alternative path (wait, a one-shot exception, or Amr executes).
 7. **Ratification** — this section and every amendment under it are ratified only when Amr merges the PR (§ 8).
+
+## 29. The agentic efficacy contract
+
+_(amendment `agentic-efficacy-contract`, numbered at merge — see the [amendment log](amendments/README.md); follows § 28 `grok-claude-governance` (PR #695) and §§ 25–26 (PRs #685, #686), all open — renumber to the next free section if any does not merge first; extends § 10.7, § 10.9, § 13 and § 17; the efficacy model is [ADR 0009](adr/0009-agentic-efficacy-model.md), the operator doc [AGENT-EFFICACY.md](AGENT-EFFICACY.md))_
+
+"Agent" in this section means a CI agent step, a local loop step, a scheduled local job, or a JEV tier. Every agent:
+
+1. **Is registered** in one inventory, `_data/agents.yml`, with its owner, trigger, kill switch, budget cap and model. The inventory is generated from the files that define agents (the workflows, the JEV step specs, `_data/fleet.yml` `jev:`, the `tools/install-*.sh` installers), plus `_data/fleet.yml` `harness.agents` for what the code cannot show; drift check (p) fails a pull request that adds an agent without registering it.
+2. **Writes one run record per model call**, in one schema: its cost and the cost's source, turns, model, outcome, permission denials and tool errors. A run that leaves no record, or reads $0 when its cost is unknown, is a silent failure.
+3. **Declares its efficacy**: KPIs and their thresholds, per kind of agent, in `_data/fleet.yml` `harness.efficacy` (ADR 0009: accepted outcomes per dollar and per Actions minute, time to outcome, false-signal rate, silent-failure rate). Every dollar figure is API-equivalent (estimate) (§ 10.7).
+4. **Names the data it reads**: each source declared in `_data/fleet.yml` `harness.sources` with its writer and a freshness SLO. A source with no writer is a defect, and so is a source older than its SLO.
+5. **Feeds the reflector**: its run records land where the incident reflector (`tools/dash refine reflect`) reads them, so its failures can become lessons in the experience library.
+6. **Has a local entry point** (§ 10.9), unless it must react inside GitHub (an @claude mention handler); the inventory records the exemption and its reason.
+7. **Shadow, then grace.** The checks are read-only. For at least 14 days after this section is ratified, and until `harness.efficacy.shadow_until`, a contract gap is a warning. Enforcement starts only when a gated pull request sets `harness.efficacy.enforce: true`. From then on, an agent first registered after the shadow period complies on arrival, and one registered before it keeps its gaps as warnings until `harness.efficacy.grace_until`. Registration itself (item 1) gates from the start.
+8. **Gated.** The contract's KPIs, thresholds, sources and exemptions change only by a gated change (§ 12.3). An agent never changes its own KPIs, thresholds or exemptions (§ 13.9).

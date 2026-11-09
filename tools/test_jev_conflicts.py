@@ -23,7 +23,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools.jev import classify as cls  # noqa: E402
 from tools.jev import conflicts as cf  # noqa: E402
-from tools.jev.common import JevConfig, JevError, TierPolicy, git  # noqa: E402
+from tools.jev import headless  # noqa: E402
+from tools.jev.common import JevConfig, JevError, Run, TierPolicy, git  # noqa: E402
 from tools.jev.ledger import Ledger, Resolution  # noqa: E402
 
 CFG = JevConfig(allowed_authors=["bamr87", "bamr87-bot"], needs_human_label="jev:needs-human")
@@ -455,7 +456,7 @@ class Stage:
         cf.cls.classify = lambda *a, **k: triage
         cf.resolve_tier0 = lambda *a, **k: (stage.tier0_works, "tier0 detail")
         cf.resolve_with_model = lambda c, w, t, tier: (stage.calls.append(f"model:{tier}") or (True, 0.1, "m", "done"))
-        cf.validate = lambda p: (True, [])
+        cf.validate = lambda p, *a, **k: (True, [])
         cf.commit_and_push = lambda w, m: (stage.calls.append("push") or (True, "pushed"))
         cf.escalate = lambda *a, **k: stage.calls.append("escalate")
         cf.gate_for_review = lambda p, t: stage.calls.append(f"gate:{t}")
@@ -630,6 +631,93 @@ def test_validation_catches_an_unmerged_path_with_no_markers():
     (d / "file.txt").write_text("resolved\n")
     good, problems = cf.validate(d)
     assert not good and any("unmerged paths remain" in p for p in problems)
+
+
+def mid_merge_repo(base: dict, ours: dict, theirs: dict) -> Path:
+    """A real repository mid-merge of main INTO feature, each side's files as given."""
+    d = Path(tempfile.mkdtemp()) / "repo"
+    d.mkdir(parents=True)
+    git(["init", "-q", "-b", "main"], cwd=d)
+    git(["config", "user.name", "t"], cwd=d)
+    git(["config", "user.email", "t@example.com"], cwd=d)
+
+    def write(files: dict) -> None:
+        for rel, text in files.items():
+            (d / rel).parent.mkdir(parents=True, exist_ok=True)
+            (d / rel).write_text(text)
+        git(["add", "-A"], cwd=d)
+
+    write(base)
+    git(["commit", "-qm", "base"], cwd=d)
+    git(["checkout", "-qb", "feature"], cwd=d)
+    write(ours)
+    git(["commit", "-qm", "ours"], cwd=d)
+    git(["checkout", "-q", "main"], cwd=d)
+    write(theirs)
+    git(["commit", "-qm", "theirs"], cwd=d)
+    git(["checkout", "-q", "feature"], cwd=d)
+    git(["merge", "--no-ff", "main", "-m", "merge"], cwd=d)
+    return d
+
+
+RST = "Title\n=======\n\nBody.\n"
+
+
+def test_a_pre_existing_rst_underline_in_an_untouched_file_never_fails_validation():
+    # zer0-CMS, 2026-11-07: a whole-tree sweep flagged docs/README.rst, whose
+    # seven-'=' heading underline was on both parents and never touched
+    d = mid_merge_repo({"file.txt": "base\n", "docs/README.rst": RST},
+                       {"file.txt": "ours\n"}, {"file.txt": "theirs\n"})
+    (d / "file.txt").write_text("ours and theirs\n")
+    git(["add", "file.txt"], cwd=d)
+    good, problems = cf.validate(d, ["file.txt"])
+    assert good, problems
+
+
+def test_a_marker_shaped_line_the_base_brought_in_is_content_not_a_leftover():
+    # main adds an RST page (and a quoted conflict in an article) the branch never
+    # had: the file is touched by the merge, but every marker-shaped line in it is
+    # MERGE_HEAD's own content
+    quoted = "To read a conflict:\n<<<<<<< HEAD\nmine\n=======\nyours\n>>>>>>> main\n"
+    d = mid_merge_repo({"file.txt": "base\n"}, {"file.txt": "ours\n"},
+                       {"file.txt": "theirs\n", "docs/new.rst": RST, "_posts/conflicts.md": quoted})
+    (d / "file.txt").write_text("ours and theirs\n")
+    git(["add", "file.txt"], cwd=d)
+    good, problems = cf.validate(d, ["file.txt"])
+    assert good, problems
+
+
+def test_a_leftover_in_the_conflicted_file_still_fails_beside_rst_content():
+    d = mid_merge_repo({"file.txt": "base\n", "docs/README.rst": RST},
+                       {"file.txt": "ours\n"}, {"file.txt": "theirs\n"})
+    git(["add", "file.txt"], cwd=d)   # staged WITH its markers: no unmerged path left to catch it
+    good, problems = cf.validate(d, ["file.txt"])
+    assert not good
+    markers = [p for p in problems if "conflict markers remain" in p]
+    assert markers and "file.txt" in markers[0] and "README.rst" not in markers[0], problems
+
+
+def test_a_marker_written_into_a_file_outside_the_conflict_is_caught():
+    # the scope is what the merge or the model touched, not only git's conflicted list
+    d = mid_merge_repo({"file.txt": "base\n", "other.txt": "x\n"},
+                       {"file.txt": "ours\n"}, {"file.txt": "theirs\n"})
+    (d / "file.txt").write_text("ours and theirs\n")
+    (d / "other.txt").write_text("x\n<<<<<<< HEAD\n")
+    (d / "new.txt").write_text(">>>>>>> main\n")
+    git(["add", "-A"], cwd=d)
+    good, problems = cf.validate(d, ["file.txt"])
+    markers = [p for p in problems if "conflict markers remain" in p]
+    assert not good and markers and "other.txt" in markers[0] and "new.txt" in markers[0], problems
+
+
+def test_a_whitespace_error_in_the_resolution_still_fails_validation():
+    # --check keeps every problem but the marker one, which the scoped sweep owns
+    d = mid_merge_repo({"file.txt": "base\n"}, {"file.txt": "ours\n"}, {"file.txt": "theirs\n"})
+    (d / "file.txt").write_text("ours and theirs   \n")
+    git(["add", "file.txt"], cwd=d)
+    good, problems = cf.validate(d, ["file.txt"])
+    assert not good and any("whitespace errors" in p for p in problems), problems
+    assert not any("conflict markers remain" in p for p in problems), problems
 
 
 def test_tier0_takes_ours_and_stages_it():
@@ -826,6 +914,78 @@ def test_every_model_call_carries_its_dollar_cap_and_a_turn_cap():
     assert "json" in argv, "the cost is read from the CLI's JSON output"
 
 
+def test_a_model_attempt_may_edit_and_stage_but_never_commit_push_or_reach_out():
+    # 2026-11-07: with no allowlist the operator's own rules applied, Edit was
+    # denied, and five attempts ended "success" with every marker in place
+    argv = cf.claude_argv("m", "resolve it", 0.25, 8)
+    allowed = argv[argv.index("--allowedTools") + 1].split(",")
+    for tool in ("Read", "Edit", "Write", "Glob", "Grep", "Bash(git add:*)", "Bash(git show:*)"):
+        assert tool in allowed, tool
+    for grant in allowed:
+        assert not grant.startswith(("Bash(git commit", "Bash(git push", "Bash(git merge", "Bash(git checkout",
+                                     "Bash(gh", "Bash(curl", "WebFetch", "WebSearch")), grant
+        if grant.startswith("Bash("):
+            assert grant.startswith("Bash(git "), f"{grant}: the only shell a resolver gets is local git"
+    assert argv[argv.index("--permission-mode") + 1] == "dontAsk"
+    assert argv[argv.index("--permission-prompts") + 1] == "none"
+    assert argv[argv.index("--disallowedTools") + 1] == ",".join(headless.DENY_TOOLS)
+    assert argv[argv.index("--tools") + 1] == "Read,Edit,Write,Glob,Grep,Bash"
+    assert "--strict-mcp-config" in argv and argv[argv.index("--mcp-config") + 1] == headless.EMPTY_MCP
+
+
+def test_the_prompt_is_never_swallowed_by_a_variadic_option():
+    argv = cf.claude_argv("m", "resolve it", 0.25, 8)
+    assert argv[-1] == "resolve it" and argv[-3] == "--max-budget-usd", argv[-4:]
+    for opt in ("--tools", "--allowedTools", "--disallowedTools", "--mcp-config"):
+        i = argv.index(opt)
+        assert i < argv.index("--model"), f"{opt} must come before the single-value options"
+        assert argv[i + 2].startswith("--"), f"{opt} must carry ONE comma-joined value"
+
+
+def _model_cfg() -> JevConfig:
+    return JevConfig(tiers={"tier1": TierPolicy(name="tier1", model="m", max_usd=0.25, max_turns=8)})
+
+
+def _triaged():
+    ws = cf.Workspace(path=Path("."), pr=pr(), conflicted=[])
+    return ws, cls.classify([cls.ConflictFile("a.py", 1, 2, cls.SOURCE)])
+
+
+def test_a_permission_denial_is_named_in_the_detail_not_read_as_a_clean_success():
+    ws, triage = _triaged()
+    payload = ('{"total_cost_usd": 0.12, "subtype": "success", "permission_denials": ['
+               '{"tool_name": "Edit", "tool_use_id": "a"}, {"tool_name": "Edit", "tool_use_id": "b"}, '
+               '{"tool_name": "Bash", "tool_use_id": "c"}]}')
+
+    def fake(argv, cwd=None, env=None, timeout=900, stdin=None):
+        return Run(0, "2.1.308 (Claude Code)\n", "") if argv[1:] == ["--version"] else Run(0, payload, "")
+
+    ok, usd, _model, detail = cf.resolve_with_model(_model_cfg(), ws, triage, "tier1", runner=fake)
+    assert ok and usd == 0.12
+    assert detail == "success; 3 permission denial(s) (Bash, Edit)", detail
+
+
+def test_an_old_or_missing_cli_is_refused_before_any_spend():
+    ws, triage = _triaged()
+    calls: list[list[str]] = []
+
+    def old(argv, cwd=None, env=None, timeout=900, stdin=None):
+        calls.append(argv)
+        return Run(0, "2.1.200 (Claude Code)\n", "")
+
+    ok, usd, model, detail = cf.resolve_with_model(_model_cfg(), ws, triage, "tier1", runner=old)
+    assert not ok and usd == 0.0 and model == "m" and "2.1.200" in detail and "2.1.259" in detail, detail
+    assert calls == [["claude", "--version"]], "the model must not run on a CLI that rejects its flags"
+
+    def missing(argv, cwd=None, env=None, timeout=900, stdin=None):
+        calls.append(argv)
+        return Run(127, "", "No such file or directory: 'claude'")
+
+    calls.clear()
+    ok, usd, _model, detail = cf.resolve_with_model(_model_cfg(), ws, triage, "tier1", runner=missing)
+    assert not ok and usd == 0.0 and "not installed" in detail and len(calls) == 1
+
+
 def test_an_unreadable_cli_payload_is_charged_at_the_tier_cap_not_at_zero():
     cfg = JevConfig(tiers={"tier1": __import__("tools.jev.common", fromlist=["TierPolicy"])
                            .TierPolicy(name="tier1", model="m", max_usd=0.25, max_turns=8)})
@@ -833,6 +993,8 @@ def test_an_unreadable_cli_payload_is_charged_at_the_tier_cap_not_at_zero():
     triage = cls.classify([cls.ConflictFile("a.py", 1, 2, cls.SOURCE)])
 
     def fake(argv, cwd=None, env=None, timeout=900, stdin=None):
+        if argv[1:] == ["--version"]:
+            return Run(0, "2.1.308 (Claude Code)\n", "")
         return __import__("tools.jev.common", fromlist=["Run"]).Run(0, "not json at all", "")
 
     ok, usd, model, detail = cf.resolve_with_model(cfg, ws, triage, "tier1", runner=fake)
@@ -846,6 +1008,8 @@ def test_a_reported_cost_is_taken_verbatim():
     triage = cls.classify([cls.ConflictFile("a.py", 1, 2, cls.SOURCE)])
 
     def fake(argv, cwd=None, env=None, timeout=900, stdin=None):
+        if argv[1:] == ["--version"]:
+            return Run(0, "2.1.308 (Claude Code)\n", "")
         return __import__("tools.jev.common", fromlist=["Run"]).Run(
             0, '{"total_cost_usd": 0.0731, "subtype": "success"}', "")
 

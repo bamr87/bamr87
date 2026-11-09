@@ -148,16 +148,21 @@ Fleet-wide guardrails sit in the `rotation:` block: `hub_first`, `only_stale`, `
 It records secret **names, ages, and outcomes only**. No credential value is written to it, to any other file, or to a log: the only channel a value travels is an environment variable in and `gh secret set`'s stdin out, and both the access token and the refresh token are registered with the Actions log scrubber before anything else happens.
 
 ```yaml
+mode: apply                  # apply | dry-run | plan
 tokens:
   - name: CLAUDE_CODE_OAUTH_TOKEN
     source: refresh          # refresh | seed | none
     minted: true
-    oldest_age_days: 91
+    oldest_age_days: 0       # over the copies the fleet holds AFTER the run
+    observed_oldest_age_days: 91   # apply only: the oldest copy the survey saw
     attention: []
-    counts: {repos: 34, ok: 30, stale: 2, missing: 1, unreachable: 1, written: 34, failed: 0}
+    counts: {repos: 34, ok: 33, stale: 0, missing: 0, unreachable: 1, written: 33, failed: 0}
     repos:
-      - {nwo: bamr87/it-journey, state: ok, age_days: 3, action: written}
+      - {nwo: bamr87/it-journey, state: ok, age_days: 0, updated_at: '2026-11-02T02:20:00Z',
+         action: written, observed_state: stale, observed_age_days: 91}
 ```
+
+In an **apply** run the survey happens before the writes, so a repo whose write succeeded is published in its **post-write** condition: `state: ok`, `age_days: 0`, `updated_at` the write time, with what the survey saw kept beside it as `observed_state` / `observed_age_days`. `counts` and `oldest_age_days` are taken over those post-write rows. A failed write keeps the observed row. A **dry run** publishes what it observed, and its `action: written` only means "would write". The variables block follows the same rule: a repo whose values were all set reads `ok`, with `observed_state`. Readers of ledgers written before this rule (harness.py's `credential-overdue` wire and scorecard, harness_registry's `oauth-secret` coverage gap) read an applied `action: written` row as present and fresh, through `harness.rotation_repo_state`.
 
 ---
 
