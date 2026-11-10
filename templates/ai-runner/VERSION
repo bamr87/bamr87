@@ -1,10 +1,17 @@
 kit: ai-runner
-version: 0.2.0
+version: 0.2.1
 source: "bamr87/bamr87 templates/ai-runner/ (runtime: .github/actions/claude-run/ + .github/workflows/ai-lane.yml)"
 seeded-by: "consumed BY REFERENCE (uses: bamr87/bamr87/.github/actions/claude-run@main, or the reusable .github/workflows/ai-lane.yml@main); not fanned out by tools/fanout.sh"
 files: ai-lane.template.yml, tests/contract.sh, archive/ai-lane-0.1.0.yml
-updated: 2026-09-30
+updated: 2026-11-10
 changelog: |
+  0.2.1 — an empty `model:` in the consumer's _data/ai.yml is the fleet default.
+  The kit seeds `model: ""` with the comment "Empty = fleet default", and the
+  resolver returned that empty string (`"" || default` is "" in Ruby), so the
+  CLI was called with `--model ""`: twelve evolve lanes carried it on
+  2026-11-10. A null or missing value already fell through. Consumed by
+  reference (@main), so every lane gets this with no fan-out. Contract:
+  tests/contract.sh case 14 (six model-resolution cases).
   0.2.0 — the credential ORDER is configuration. run.sh reads AI_AUTH_ORDER
   (ai-lane.yml passes the caller repo's CLAUDE_AUTH_ORDER; CLAUDE_AUTH_ORDER is
   read directly when AI_AUTH_ORDER is unset), gives the CLI ONLY the credential
