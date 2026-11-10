@@ -9,6 +9,11 @@ record of what GitHub holds, and the traces trustworthy as evidence:
     DEFAULT `show_full_output: false` (SDK options, init model, the result
     block, the session id) and, with full output, assistant turns and tool
     calls with their log-line timestamps; an unrelated log yields nothing;
+  * the hub's loops are read too: claude-cost's `claude-run-result` echo
+    (whose `type` key follows the cost), a run's several Claude calls summed
+    once each though the zip prints every job twice, and a call with no
+    readable cost counted as unknown — never $0 — down to the review, which
+    keeps skipped and no-job runs a real $0;
   * trace and span ids are DETERMINISTIC functions of the run/session key,
     so a re-export cannot duplicate a trace;
   * run spans nest run → job → step, the Claude step becomes the AGENT span
@@ -33,9 +38,12 @@ pytest. Needs only PyYAML:
 """
 from __future__ import annotations
 
+import argparse
+import contextlib
 import io
 import json
 import shutil
+import sqlite3
 import sys
 import tempfile
 import zipfile
@@ -554,6 +562,291 @@ def test_the_shipments_ledger_exists_beside_the_exports_ledger():
     cols = {r[1] for r in conn.execute("PRAGMA table_info(shipments)")}
     assert cols == {"key", "sink", "docs", "bytes", "endpoint", "shipped_at"}, cols
     assert "shipments" in fl.TABLES, "status would not count it"
+
+
+# --------------------------------------------------------------------------- #
+# the hub's own loops: claude-cost's echo, several Claude calls per run, and
+# cost that is unknown rather than $0
+# --------------------------------------------------------------------------- #
+def _echo(session: str, turns: int, cost: float, duration: int) -> str:
+    """claude-cost's `claude-run-result` payload, in the CLI's own key order:
+    `type` comes AFTER num_turns and total_cost_usd (the shape the parser
+    used to read forward from `type` and miss both)."""
+    return json.dumps({
+        "duration_api_ms": duration - 1000, "session_id": session, "total_cost_usd": cost,
+        "usage": {"input_tokens": 192, "cache_creation_input_tokens": 2000,
+                  "cache_read_input_tokens": 90000, "output_tokens": 900},
+        "modelUsage": {"claude-haiku-5-5": {"inputTokens": 30, "outputTokens": 2, "costUSD": 0.0003},
+                       "claude-opus-5-5": {"inputTokens": 162, "outputTokens": 898, "costUSD": cost - 0.0003}},
+        "permission_denials": [{"tool_name": "Bash"}, {"tool_name": "Write"}],
+        "is_error": False, "num_turns": turns, "subtype": "success", "result": "done",
+        "type": "result", "duration_ms": duration}, separators=(",", ":"))
+
+
+def _tier_log(hour: int, session: str, turns: int, cost: float, duration: int) -> tuple[str, str, str]:
+    """One issue-pipeline tier job as GitHub's zip holds it: the agent step's
+    file, the claude-cost step's file, and the per-job roll-up of both."""
+    t = f"2026-11-07T{hour:02d}"
+    agent = (
+        f"{t}:44:07.0290000Z Running Claude Code via SDK (full output hidden for security)...\n"
+        f'{t}:44:07.0290100Z SDK options: {{\n{t}:44:07.0290200Z   "model": "opus",\n'
+        f'{t}:44:07.0290300Z   "maxTurns": 250,\n{t}:44:07.0290400Z   "allowedTools": [\n'
+        f'{t}:44:07.0290500Z     "Read",\n{t}:44:07.0290600Z     "Write"\n{t}:44:07.0290700Z   ]\n'
+        f"{t}:44:07.0290800Z }}\n{t}:44:07.6664407Z {{\n"
+        f'{t}:44:07.6694066Z   "type": "system",\n{t}:44:07.6703993Z   "subtype": "init",\n'
+        f'{t}:44:07.6733964Z   "message": "Claude Code initialized",\n'
+        f'{t}:44:07.6763883Z   "model": "claude-opus-5-5"\n{t}:44:07.6793835Z }}\n'
+        f"{t}:58:39.2091451Z {{\n"
+        f'{t}:58:39.2091798Z   "type": "result",\n{t}:58:39.2092116Z   "subtype": "success",\n'
+        f'{t}:58:39.2092412Z   "is_error": false,\n{t}:58:39.2092678Z   "duration_ms": {duration},\n'
+        f'{t}:58:39.2092954Z   "num_turns": {turns},\n{t}:58:39.2093249Z   "total_cost_usd": {cost},\n'
+        f'{t}:58:39.2094119Z   "permission_denials_count": 2,\n{t}:58:39.2094452Z   "modelUsage": {{\n'
+        f'{t}:58:39.2094735Z     "claude-haiku-5-5": {{\n{t}:58:39.2095102Z       "contextWindow": 1000000\n'
+        f'{t}:58:39.2095727Z     }},\n{t}:58:39.2095979Z     "claude-opus-5-5": {{\n'
+        f'{t}:58:39.2096262Z       "contextWindow": 1000000\n{t}:58:39.2096830Z     }}\n'
+        f"{t}:58:39.2097041Z   }}\n{t}:58:39.2097505Z }}\n"
+        f"{t}:58:39.6102048Z Log saved to /home/runner/work/_temp/claude-execution-output.json\n"
+        f"{t}:58:39.6102493Z Set session_id: {session}\n")
+    cost_step = (
+        f"{t}:58:39.6586551Z \x1b[36;1mprintf 'claude-run-result %s\\n' \"$result\"\x1b[0m\n"
+        f"{t}:58:39.6987956Z claude-run-result {_echo(session, turns, cost, duration)}\n")
+    return agent, cost_step, agent + cost_step
+
+
+TIERS = [(7, "1295a0ad-3a48-4f42-89ba-c92c57ef6562", 184, 6.4238041, 871647),
+         (8, "51b38cf8-415e-41a4-85ce-8d93a94fe1ff", 165, 4.8263, 1183822),
+         (9, "2ead88a7-cb8d-4cbd-aced-640d11ac24b3", 54, 1.5718, 260380)]
+
+TIMED_OUT_LOG = """\
+2026-11-07T10:00:00.0000000Z SDK options: {
+2026-11-07T10:00:00.0000100Z   "maxTurns": 240
+2026-11-07T10:00:00.0000200Z }
+2026-11-07T10:00:01.0000000Z {
+2026-11-07T10:00:01.0000100Z   "type": "system",
+2026-11-07T10:00:01.0000200Z   "subtype": "init",
+2026-11-07T10:00:01.0000300Z   "model": "claude-opus-5-5"
+2026-11-07T10:00:01.0000400Z }
+2026-11-07T10:45:00.0000000Z ##[error]The action 'Diagnose & fix' has timed out after 45 minutes.
+"""
+
+
+def test_claude_cost_echo_yields_turns_cost_and_model():
+    """The hub's loops: the action's reduced block AND claude-cost's echo of
+    the same call. One call, the echo's usage and per-model cost, the init's
+    stamp — and the echo alone (the only record on an abort path) reads too."""
+    _agent, cost_step, rollup = _tier_log(*TIERS[0])
+    facts = fl.parse_agent_log(rollup)
+    assert facts["agent_calls"] == 1 and facts["cost_unread"] == 0, facts
+    assert facts["num_turns"] == 184 and abs(facts["cost_usd"] - 6.4238041) < 1e-9, facts
+    assert facts["model"] == "claude-opus-5-5"            # the costliest model, not the first listed
+    assert facts["session_id"] == TIERS[0][1] and facts["duration_ms"] == 871647
+    assert facts["input_tokens"] == 192 and facts["cache_read_tokens"] == 90000
+    assert facts["cache_write_tokens"] == 2000 and facts["output_tokens"] == 900
+    assert facts["permission_denials"] == 2 and facts["max_turns"] == 250
+    assert facts["is_error"] is False and facts["result_subtype"] == "success"
+    assert facts["started_at"] == "2026-11-07T07:44:07.6703993Z"
+    assert facts["ended_at"].startswith("2026-11-07T07:58:39.2")   # the agent's block, not the echo
+    echo_only = fl.parse_agent_log(cost_step)
+    assert echo_only["num_turns"] == 184 and abs(echo_only["cost_usd"] - 6.4238041) < 1e-9, echo_only
+    assert echo_only["model"] == "claude-opus-5-5" and echo_only["agent_calls"] == 1
+    # the reduced block names models with no cost: it must not outvote the init record
+    block_only = fl.parse_agent_log(_agent)
+    assert block_only["model"] == "claude-opus-5-5" and block_only["num_turns"] == 184, block_only
+
+
+def test_a_multi_job_run_sums_its_calls_without_double_counting():
+    """The issue pipeline runs Claude in three tier jobs; GitHub's zip holds
+    each job as step files AND a roll-up. Three calls, summed, counted once."""
+    entries = []
+    for tier in TIERS:
+        agent, cost_step, rollup = _tier_log(*tier)
+        entries += [agent, cost_step, rollup]           # step files + the roll-up
+    facts = fl.parse_agent_log(fl.ENTRY_SEP.join(entries))
+    assert facts["agent_calls"] == 3 and facts["cost_unread"] == 0, facts
+    assert facts["num_turns"] == 184 + 165 + 54, facts["num_turns"]
+    assert abs(facts["cost_usd"] - (6.4238041 + 4.8263 + 1.5718)) < 1e-6, facts["cost_usd"]
+    assert facts["duration_ms"] == 871647 + 1183822 + 260380
+    assert facts["session_id"] == TIERS[0][1] and facts["permission_denials"] == 6
+    assert facts["started_at"].startswith("2026-11-07T07:44") and facts["ended_at"].startswith("2026-11-07T09:58")
+    # entry order does not matter (zip names sort `10_…` before `9_…`)
+    again = fl.parse_agent_log(fl.ENTRY_SEP.join(reversed(entries)))
+    assert again["agent_calls"] == 3 and abs(again["cost_usd"] - facts["cost_usd"]) < 1e-9
+
+
+def test_claude_code_action_log_is_one_readable_call():
+    facts = fl.parse_agent_log(DOCTOR_LOG)
+    assert facts["agent_calls"] == 1 and facts["cost_unread"] == 0
+    assert fl.parse_agent_log(FULL_OUTPUT_LOG)["agent_calls"] == 1
+
+
+def test_an_unreadable_call_is_unknown_not_zero():
+    """An agent that timed out before its result left no cost: the call is
+    counted, its cost is ABSENT (never 0) — and a truncated echo still yields
+    what it carries."""
+    facts = fl.parse_agent_log(TIMED_OUT_LOG)
+    assert facts["agent_calls"] == 1 and facts["cost_unread"] == 1, facts
+    assert "cost_usd" not in facts and "num_turns" not in facts, facts
+    assert facts["model"] == "claude-opus-5-5" and facts["max_turns"] == 240
+    # one tier read, one timed out: the readable part, flagged partial
+    mixed = fl.parse_agent_log(fl.ENTRY_SEP.join([_tier_log(*TIERS[0])[2], TIMED_OUT_LOG]))
+    assert mixed["agent_calls"] == 2 and mixed["cost_unread"] == 1 and abs(mixed["cost_usd"] - 6.4238041) < 1e-9
+    cut = '2026-11-07T11:00:00.0Z claude-run-result {"num_turns":12,"total_cost_usd":0.5,"type":"result","duration_ms":9'
+    truncated = fl.parse_agent_log(cut)
+    assert truncated["num_turns"] == 12 and truncated["cost_usd"] == 0.5, truncated
+    assert fl.parse_agent_log("2026-11-07T00:00:00.0Z claude-auth: using oauth\n") == {}
+
+
+def test_cost_state_separates_real_zero_from_unknown():
+    s = fl.cost_state
+    assert s({"has_agent": 1, "cost_usd": 1.5, "cost_unread": 0, "agent_calls": 1}) == ("known", "result")
+    assert s({"has_agent": 1, "cost_usd": 1.5, "cost_unread": 1, "agent_calls": 2}) == ("partial", "no-result")
+    assert s({"has_agent": 1, "cost_usd": None, "cost_unread": 1, "agent_calls": 1}) == ("unknown", "no-result")
+    assert s({"has_agent": 1, "cost_usd": None, "agent_calls": None}) == ("unknown", "stale")
+    assert s({"conclusion": "skipped", "status": "completed"}) == ("zero", "skipped")
+    assert s({"status": "in_progress"}) == ("unknown", "pending")
+    assert s({"status": "completed", "conclusion": "success", "has_logs": 1}) == ("zero", "no-claude-step")
+    assert s({"status": "completed", "conclusion": "cancelled", "jobs": 1, "steps_ran": 0}) == ("zero", "no-job-ran")
+    assert s({"status": "completed", "conclusion": "cancelled", "jobs": 0}) == ("zero", "no-job-ran")
+    assert s({"status": "completed", "conclusion": "success", "jobs": 2, "steps_ran": 9}) == ("unknown", "no-log")
+    assert s({"status": "completed", "conclusion": "success", "jobs": 0}) == ("unknown", "no-log")
+    assert fl._usd(None) == "unknown" and fl._usd(0.0) == "$0.00" and fl._usd(1.5, 2) == "$1.50 +2 unknown"
+
+
+def _lake_run(conn, rid: int, path: str, conclusion: str | None, status: str = "completed",
+              nwo: str = "bamr87/bamr87") -> None:
+    fl.upsert(conn, "runs", {
+        "id": rid, "nwo": nwo, "workflow_path": f".github/workflows/{path}", "workflow_name": path,
+        "event": "schedule", "status": status, "conclusion": conclusion, "head_branch": "main",
+        "head_sha": "a", "run_attempt": 1, "run_number": rid, "created_at": "2026-11-07T07:40:53Z",
+        "run_started_at": "2026-11-07T07:40:53Z", "updated_at": "2026-11-07T09:00:00Z",
+        "html_url": f"https://github.com/{nwo}/actions/runs/{rid}", "logs_url": "l", "ai": 1,
+        "synced_at": "2026-11-07T16:00:00Z"}, ["id"])
+
+
+def _lake_logs(conn, rid: int, entries: list[tuple[str, str]]) -> None:
+    for name, text in entries:
+        fl.upsert(conn, "logs", {"run_id": rid, "entry": name, "bytes": len(text), "truncated": 0,
+                                 "text": text}, ["run_id", "entry"])
+
+
+def test_review_shows_the_hub_loops_cost_and_unknown_instead_of_zero():
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        conn = fl.connect(tmp)
+        # 1: the issue pipeline, three tiers, step files + roll-ups
+        _lake_run(conn, 1, "issue-pipeline.yml", "success")
+        entries = []
+        for i, tier in enumerate(TIERS):
+            agent, cost_step, rollup = _tier_log(*tier)
+            entries += [(f"Tier {i}/8_Implement.txt", agent), (f"Tier {i}/9_Report Claude run cost.txt", cost_step),
+                        (f"{i}_Tier {i}.txt", rollup)]
+        _lake_logs(conn, 1, entries + [("3_Scan issues.txt", "2026-11-07T07:41:00Z gate: 3 issues\n")])
+        fl.record_agent_run(conn, 1, "bamr87/bamr87", fl.parse_agent_log(fl.stored_agent_text(conn, 1)))
+        # 2, 3: claude.yml skipped wholesale, and a completed run whose log has no Claude step
+        _lake_run(conn, 2, "claude.yml", "skipped")
+        _lake_run(conn, 3, "claude.yml", "success")
+        _lake_logs(conn, 3, [("0_gate.txt", "2026-11-07T07:41:00Z not a mention; nothing to do\n")])
+        # 4: the doctor timed out before its result; 5: a run still going;
+        # 6: a run whose jobs ran but whose log the lake never fetched
+        _lake_run(conn, 4, "fleet-pulse.yml", "failure")
+        _lake_logs(conn, 4, [("0_Fix failing workflows.txt", TIMED_OUT_LOG)])
+        fl.record_agent_run(conn, 4, "bamr87/bamr87", fl.parse_agent_log(fl.stored_agent_text(conn, 4)))
+        _lake_run(conn, 5, "issue-pipeline.yml", None, status="in_progress")
+        _lake_run(conn, 6, "repo-evolution.yml", "success")
+        fl.upsert(conn, "jobs", {"id": 60, "run_id": 6, "nwo": "bamr87/bamr87", "name": "evolve",
+                                 "status": "completed", "conclusion": "success"}, ["id"])
+        fl.upsert(conn, "steps", {"job_id": 60, "number": 1, "name": "Set up job", "status": "completed",
+                                  "conclusion": "success"}, ["job_id", "number"])
+        # 7: cancelled before any job started
+        _lake_run(conn, 7, "claude.yml", "cancelled")
+        conn.commit()
+        conn.close()
+
+        doc = fl.review(tmp, days=36500)
+        ci = doc["ci"]
+        rows = {w["workflow_path"].split("/")[-1]: w for w in ci["workflows"]}
+        tiers_usd = round(6.4238041 + 4.8263 + 1.5718, 4)
+        assert rows["issue-pipeline.yml"]["runs"] == 2 and rows["issue-pipeline.yml"]["cost_unknown"] == 1
+        assert rows["issue-pipeline.yml"]["cost_usd"] == tiers_usd and rows["issue-pipeline.yml"]["turns"] == 403
+        assert rows["claude.yml"] == {**rows["claude.yml"], "runs": 3, "cost_usd": 0.0, "cost_unknown": 0}
+        assert rows["fleet-pulse.yml"]["cost_usd"] is None and rows["fleet-pulse.yml"]["cost_unknown"] == 1
+        assert rows["repo-evolution.yml"]["cost_usd"] is None
+        assert ci["cost_unknown"] == 3 and ci["cost_unknown_reasons"] == {"no-result": 1, "pending": 1, "no-log": 1}
+        assert ci["cost_label"] == doc["totals"]["cost_label"] == "API-equivalent (estimate)"
+        hub = next(r for r in ci["repos"] if r["repo"] == "bamr87/bamr87")
+        assert hub["runs"] == 2 and hub["turns"] == 403 and hub["cost_usd"] == tiers_usd and hub["cost_unknown"] == 1
+        assert ci["turns"] == 403 and round(ci["cost_usd"], 4) == tiers_usd
+        assert any(f["title"] == "CI agent cost unknown" and "3 AI workflow runs" in f["detail"]
+                   for f in doc["findings"]), doc["findings"]
+        top = ci["top_runs"][0]
+        assert top["id"] == 1 and top["agent_calls"] == 3 and top["cost_unread"] == 0
+        json.dumps(doc, default=str)
+        # and the printed review says so
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            fl.cmd_review(argparse.Namespace(lake=str(tmp), days=36500, repo=None, limit=10, json=False))
+        text = out.getvalue()
+        line = lambda name: next(x for x in text.splitlines() if name in x).rstrip()
+        assert line("bamr87/bamr87/fleet-pulse.yml").endswith("1 runs unknown"), text
+        assert line("bamr87/bamr87/claude.yml").endswith("3 runs $0.00"), text
+        assert line("bamr87/bamr87/issue-pipeline.yml").endswith(f"2 runs ${tiers_usd:.2f} +1 unknown"), text
+        assert "API-equivalent (estimate)" in text
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_sync_rereads_rows_an_older_parser_left_without_cost():
+    """A run's log is downloaded once; a parser fix must still reach it. The
+    re-read is offline, fills a stale row, and never replaces a known cost
+    with an unreadable one."""
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        conn = fl.connect(tmp)
+        _lake_run(conn, 1, "issue-pipeline.yml", "success")
+        _lake_logs(conn, 1, [(f"{i}_Tier {i}.txt", _tier_log(*t)[2]) for i, t in enumerate(TIERS)])
+        fl.upsert(conn, "agent_runs", {"run_id": 1, "nwo": "bamr87/bamr87", "model": "claude-opus-5-5"},
+                  ["run_id"])                                          # what the old parser stored
+        _lake_run(conn, 2, "fleet-pulse.yml", "success")
+        _lake_logs(conn, 2, [("0_doctor.txt", TIMED_OUT_LOG)])
+        fl.upsert(conn, "agent_runs", {"run_id": 2, "nwo": "bamr87/bamr87", "cost_usd": 0.75, "num_turns": 9},
+                  ["run_id"])                                          # a cost the capped text lost
+        conn.commit()
+        assert fl.reparse_stored(conn, "bamr87/bamr87", "2026-11-01T00:00:00Z") == 1
+        conn.commit()
+        row = conn.execute("SELECT * FROM agent_runs WHERE run_id=1").fetchone()
+        assert row["agent_calls"] == 3 and row["num_turns"] == 403 and row["cost_unread"] == 0
+        assert abs(row["cost_usd"] - (6.4238041 + 4.8263 + 1.5718)) < 1e-6
+        kept = conn.execute("SELECT * FROM agent_runs WHERE run_id=2").fetchone()
+        assert kept["cost_usd"] == 0.75 and kept["agent_calls"] is None
+        assert fl.reparse_stored(conn, "bamr87/bamr87", "2026-11-01T00:00:00Z") == 0   # idempotent
+        assert fl.reparse_stored(conn, "bamr87/bamr87", "2026-12-01T00:00:00Z") == 0   # window-bound
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_an_older_lake_gains_the_new_agent_columns_in_place():
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        raw = sqlite3.connect(str(tmp / fl.DB_NAME))
+        raw.execute("CREATE TABLE agent_runs (run_id INTEGER PRIMARY KEY, nwo TEXT, model TEXT, "
+                    "cost_usd REAL, num_turns INTEGER)")
+        raw.execute("INSERT INTO agent_runs (run_id, nwo, model) VALUES (1, 'bamr87/x', 'claude-opus-5')")
+        raw.commit()
+        raw.close()
+        conn = fl.connect(tmp)
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(agent_runs)")}
+        assert {"agent_calls", "cost_unread"} <= cols, cols
+        assert conn.execute("SELECT agent_calls FROM agent_runs").fetchone()[0] is None   # stale, kept
+        assert conn.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0] == "3"
+        conn.close()
+        fl.connect(tmp).close()                                         # a second connect is a no-op
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_the_cost_label_is_the_fleet_one():
+    import ai_activity
+    assert fl.COST_LABEL == ai_activity.COST_LABEL == "API-equivalent (estimate)"
 
 
 # --------------------------------------------------------------------------- #

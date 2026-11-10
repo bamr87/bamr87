@@ -261,3 +261,75 @@ Not changed here, and each a decision of its own:
 - **`RELEASE_PLEASE_TOKEN` in four repos:** `ai-world-view.github.io`, `bash-365-apex`, `bash-365.com` and `year-of-ai.github.io`. Bots on `it-journey`, `zer0-mistakes` and the hub's `amend/` branches still open PRs that wait for approval.
 - **118 references call the hub at `@main`**, and 191 jobs across the fleet have no timeout. The atlas reads only the hub, so neither shows up there.
 
+
+## 2026-11-07 — measured against the meter
+
+E1 of epic #773 (#775): before acting on any more numbers, make the numbers true. CI deep dives that day set the Actions analytics and the Claude ledger against GitHub's billing meter and against the runs' own logs, and found four ways the analytics under-counted and one way the ledger over-counted:
+
+| Defect | Evidence | Change (schema `actions-usage/v2`) |
+| --- | --- | --- |
+| The hub was never scanned | `build_report` iterated `_data/projects.yml`; the hub used about 7,900 of about 12,050 billed minutes on Nov 1–7 | `with_hub()` (`fleet.yml` `hub.repo`), shared with the AI collector |
+| A silent 600-run cap | fleet-pulse passed `--max-runs 600`; zer0-CMS had 767 runs in the window, zer0-mistakes 1,208, lifehacker.dev 1,959 (its `verify.yml` alone 275 against 73 reported) | every run created in the window is listed by date range, split below GitHub's 1,000-result cap; what still falls short is `truncated: true` + `runs_missed` |
+| Cost was run wall clock | GitHub bills each job, rounded up to a minute; on the same runs job-minutes were 1.33x the wall clock overall and up to 2.5x for one workflow, and the deep dive's v1 comparisons (cap and clock together) were 2–4x | `total_min` and its kin are job-minutes; the bounded wall clock stays as `wall_*` and decides `slow` |
+| The meter read as per-repo shares | it files the account's whole total under one name: lifehacker.dev 43,924 of 44,563 in October, bamr87 11,920 of 11,925 in November | `account_total_filed_under_*`, `scope: account`; `parity.actions_minutes` compares totals instead |
+| Every hub Claude call charged twice | claude-code-action's pretty result block was read line by line into a second record beside claude-cost's echo | the block is decoded whole and folded by #771's same-call rules; `parity.ai_ci_cost` holds the ledger to the echo lines |
+
+**Measured on the branch** (a local `dash-gen actions --days 7` over the hub, zer0-mistakes and zer0-CMS, every run measured, none sampled; window 2026-11-01 01:13 → 11-08 01:13 UTC):
+
+| Repo | Runs | v1 would publish | Job-minutes | Wall clock |
+| --- | --- | --- | --- | --- |
+| hub | 2,005 | not scanned | 8,567 | 6,887 |
+| zer0-mistakes | 584 | 942 | 1,663 | 942 |
+| zer0-CMS | 223 | 405 | 716 | 405 |
+| **total** | **2,812** | **1,347** | **10,946** | **8,233** |
+
+Per workflow: the hub's `python-tests.yml` is 5,065 job-minutes over 327 runs, 46% of the three repos; zer0-mistakes `ci.yml` 814 against 491 wall (46 runs); zer0-CMS `content.yml` 302 against 130 (14 runs); the hub's `jev-conflicts.yml` 152 against 61. **Parity:** the cache's job-minutes for runs created between Nov 1 and the meter reading in the committed snapshot (Nov 7 05:40 UTC) are 10,109 for these three repos (the hub 7,894), against 11,925 on the meter for the whole account: −15.2% before the other ~40 repos are counted. The first fleet-wide sweep publishes the real gap. The local run could not read the meter itself (the `gh` token lacks the `user` scope), so its own `parity` block says so.
+
+**The ledger, same day:** `dash-gen ai-usage --days 7` on the hub listed 2,003 runs (the old 300-run budget reached about a day of them; the committed ledger held 5 hub runs for 14 days), found 207 Claude runs, 180 of them no-spend, and priced 26 with result lines at $124.14 — equal to the lines, gap 0.0%. The 23 of those 26 still in the ledger's 200 rows priced at **$221.96 with the old parser and $110.98 with the new**: exactly 2.0x, run 42352285943's $25.64 against $12.82 among them.
+
+**The API budget.** Job-minutes cost one jobs request per run. The jobs endpoint, not `/timing`: on a public repo `/timing` reports `total_ms: 0` for every job, and it is the legacy usage endpoint GitHub is closing down. So:
+
+- a completed run's job-minutes are cached per (repo, run id, attempt) in `.dash-lake/actions_jobs_cache.json`, which fleet-pulse restores and saves with `actions/cache`; only runs new since the last sweep are fetched;
+- `skipped`, `startup_failure` and `action_required` runs need no request (22% of the 2,812 above);
+- the fetch stops at `--max-job-calls` (1,500), at the quota left after `--api-reserve` (1,000) and after `--max-job-seconds` (600), wall-clock suspects first and then round-robin across workflows; anything left is estimated from its workflow's measured job/wall ratio and every row holding an estimate says `sampled: true`.
+
+The measured run above made 2,229 requests (2,193 jobs, 33 listings, 3 workflow lists) in 27 minutes over a home connection. Estimated steady state for the whole fleet: about 600 job requests a day for the runs new since yesterday, plus about 150 listing pages, 45 workflow lists and one meter read — roughly 800 a day, against 5,000 an hour. The first sweeps start cold: they spend the ceiling, publish `sampled: true`, and converge within about a week as the window slides.
+
+Left in E1: the conformance / features-index writer (#775), and a first fleet-wide sweep in fleet-pulse to replace the three-repo parity above with the real one.
+
+## 2026-11-07 — a red PR is not a flaky workflow
+
+The `zer0-mistakes` Evidence gate was flagged `flaky` at 70.3% success, and the fleet-doctor advised de-flaking it. The gate is deterministic: every failure was the gate rejecting a PR that lacked its regression spec or before/after evidence. Five came from one open PR, and one from a PR that passed once its evidence was committed. The `flaky` rule only had counts, so it could not tell "the PR decided the verdict" from "the verdict is random" (#614).
+
+The analytics now record `head_branch` and `head_sha` for each run, plus the repo's default branch (one `/repos/{nwo}` request per repo; the run's embedded `repository` does not carry it), and use the definition of flakiness: **the same commit produced different verdicts**. A workflow that would read `flaky` or `failing` gets **`pr-red`** instead when every failure is on a non-default-branch head and no commit both passed and failed. `pr-red` is not a correctness signal, and `remediate` does not queue a workflow that carries only `pr-red`. A re-run that flips the verdict on one commit is still `flaky`. A failure on the default branch still counts. A run with no head fields falls back to the old rule. The flag catches any check whose verdict depends on the PR's contents, not only the gates someone remembered to list.
+
+## 2026-11-07 — the hub's own minutes
+
+The billing meter put 11,920 of November's first 11,925 minutes on `bamr87`, the hub, and the analytics showed no hub rows at all, because `actions_analytics.py` read only the submodule registry (#782, above, has since added the hub). So the hub's minutes were measured directly: all 1,955 hub runs from Nov 1 to Nov 7, jobs fetched for a stratified sample of 709, and per-job minutes rounded up the way billing rounds them.
+
+| Workflow | Event | Runs | Job-minutes | Billed (rounded per job) |
+| --- | --- | --- | --- | --- |
+| `python-tests` | pull_request | 213 | 3,533 | 3,731 |
+| `python-tests` | push | 102 | 756 | 855 |
+| `drift-check` | pull_request + push | 315 | 579 | 741 |
+| `verify` | pull_request | 149 | 441 | 503 |
+| `build-dash` | all | 193 | 444 | 581 |
+| `jev-number` | push + issues | 114 | 308 | 410 |
+| `issue-pipeline` | schedule + dispatch | 11 | 386 | 402 |
+| `markdown-oneline` | pull_request + push | 277 | 44 | 274 |
+| everything else | | 581 | 445 | 697 |
+| **Hub total** | | **1,955** | **6,936** | **8,194** |
+
+**The meter's per-repo split is not a per-repo split.** Up to the meter's fetch (Nov 7 05:40 UTC) the hub measured about 7,900 billed minutes; a sampled measurement of the other 38 active repos (1,785 runs) came to about 4,130; together about 12,050, against the meter's 11,925 account total. The meter puts that whole total under one repository name: all of October went to `lifehacker.dev` while the hub, with 2,090 runs that month, never appeared, and November's only other row, `zer0-mistakes`' 5 minutes, matches the 5 macOS minutes that repo ran. The hub is about two thirds of the fleet's November minutes, not 99%.
+
+**Where the hub's minutes go.** `python-tests` is 58% of them. The Nov 6 shard split cut wall-clock but raised a full run from about 18.7 to 27.1 billed minutes: four setups, a `changes` job and the final `python-tests` job, each rounded up to a whole minute. The larger cost was inside the tests: every file runs under `coverage run`, and coverage's default tracer more than doubled the console, pages and spec files. The test shards now run with `COVERAGE_CORE=sysmon` (Python 3.12's `sys.monitoring`). On `python:3.12` with coverage 7.17, the same files took 930 seconds under the old tracer and 570 under `sysmon` (`test_console` 116 → 50, `test_jev_spec` 62 → 28, `test_jev_loop` 310 → 249, the `rest` shard 214 → 149), and the coverage table was identical (5,758 statements, the same misses). That is about 7 billed minutes off each full run, roughly 2,300 to 2,800 minutes per 14 days at November's volume (estimated). No test, file or gate changed.
+
+Next, by minutes per 14 days, each a change of its own:
+
+- **About 1,300 (new load, not a saving):** `pr-review.yml` started on Nov 7 and runs one ~10-second job, billed as a minute, for each PR workflow that finishes. It already merges pending runs per head SHA; anything more would cost the § 19 contract.
+- **About 900:** cancelled `python-tests` push runs. Merges in quick succession cancel the run before them after all four shards have started.
+- **About 900, once `sysmon` has landed:** two shards instead of four. The serial suite was split because it took 21 minutes, and most of that was the tracer.
+- **About 265:** `jev-conflicts.yml` starts a runner on every push and every six hours only to read `vars.JEV_CONFLICTS_ENABLED`. As a job-level `if:` on `triage`, the check costs nothing, which is the form the atlas rule recommends.
+- **About 230:** the `changes` job also runs on push and on the schedule, where its answer is always "run".
+
+Not costs: the 191 skipped `claude.yml` runs and the 93 skipped `pr-review.yml` runs started no job and billed nothing. Bot data commits carry `[skip ci]` or are pushed with `GITHUB_TOKEN`, so only 6 of the 32 `jev-number` commits started a push suite.

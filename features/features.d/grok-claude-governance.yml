@@ -1,0 +1,21 @@
+id: HUB-NEW
+slug: grok-claude-governance
+title: "Grok ↔ Claude Code governance: handoff, audit trail, roles, escalation"
+description: "Constitution § 28 (depends on § 26 claude-code-executes): Grok bots hand off software/console work via a Fleet issue or console job that states the requirement and links the ratified governing amendment; Claude Code executes; Grok reviews the result for alignment with direction before merge. Every PR carries a Governed by: line traced to an amendment or PRD requirement (warn-then-fail lint). If Claude Code is unavailable, work stops until Amr approves an alternative. Roadmap FF-NEW:grok-claude-governance."
+implemented: false
+status: planned
+surface: infra
+link: tools/governance_trace_lint.py
+docs: docs/prd/GROK-CLAUDE-GOVERNANCE.md
+tags: [governance, agents, claude-code, grok, traceability, lint]
+date: 2026-11-05
+tests:
+  - tools/test_governance_trace_lint.py
+prd: ["FR-NEW:grok-claude-handoff", "FR-NEW:change-traceability"]
+prd_new:
+  - key: grok-claude-handoff
+    kind: FR
+    text: "Grok bots must hand off software and console work through a Fleet issue or Harness Console job that states the requirement, acceptance criteria and a link to the ratified governing amendment or PRD requirement; Claude Code executes against that spec; a Grok bot reviews the result for alignment with direction (not code) before merge; if Claude Code is unavailable or out of budget, work stops until Amr approves an alternative path."
+  - key: change-traceability
+    kind: FR
+    text: "Every software change PR must carry a 'Governed by:' line linking a ratified amendment or PRD requirement (FRn/NFRn/FR-NEW:<key>), checked by tools/governance_trace_lint.py (warn-only until adoption, then hard fail), with no orphan changes."

@@ -846,6 +846,44 @@ def test_state_document_degrades_without_signals(monkeypatch_dir=None):
     assert core.source_meta(None, core.dt.datetime.now(core.dt.timezone.utc))["present"] is False
 
 
+def test_state_usage_carries_the_measurement_contract():
+    """actions-usage/v2: the state says what the minutes are, how far they sit
+    from the billing meter, and whether the sweep saw the whole window — and a
+    v1 snapshot without those fields still loads."""
+    import yaml
+    saved = core.DATA
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        shutil.copytree(saved, tmp / "_data")
+        core.DATA = tmp / "_data"
+        doc = core.load_yaml(core.DATA / "actions_usage.yml") or {}
+        doc.update(schema="actions-usage/v2", minutes_basis="job-minutes",
+                   parity={"actions_minutes": {"basis": "month-to-date", "gap_pct": -2.4}},
+                   coverage={"truncated": True, "runs_missed": 12, "truncated_repos": ["zer0-cms"],
+                             "sampled": False, "sampled_repos": [], "repos": [{"repo": "x"}] * 40,
+                             "api": {"calls_total": 1234}})
+        (core.DATA / "actions_usage.yml").write_text(yaml.safe_dump(doc), encoding="utf-8")
+        ai = core.load_yaml(core.DATA / "ai_usage.yml") or {}
+        ai["parity"] = {"ai_ci_cost": {"runs_compared": 3, "gap_pct": 0.0}}
+        (core.DATA / "ai_usage.yml").write_text(yaml.safe_dump(ai), encoding="utf-8")
+        usage = core.load_state()["usage"]
+        act = usage["actions"]
+        assert act["minutes_basis"] == "job-minutes" and act["schema"] == "actions-usage/v2", act.keys()
+        assert act["parity"]["actions_minutes"]["gap_pct"] == -2.4
+        assert act["coverage"] == {"truncated": True, "runs_missed": 12, "truncated_repos": ["zer0-cms"],
+                                   "sampled": False, "sampled_repos": [], "api_calls": 1234}, act["coverage"]
+        assert usage["ai"]["parity"]["ai_ci_cost"]["runs_compared"] == 3
+        # v1: no marker, no parity, no coverage — nothing breaks, nothing is invented
+        for key in ("schema", "minutes_basis", "parity", "coverage"):
+            doc.pop(key)
+        (core.DATA / "actions_usage.yml").write_text(yaml.safe_dump(doc), encoding="utf-8")
+        act = core.load_state()["usage"]["actions"]
+        assert act["minutes_basis"] is None and act["parity"] is None and act["coverage"] is None, act
+    finally:
+        core.DATA = saved
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_run_quiet_timeout_kills_the_whole_process_group():
     # `git status` forks a child per submodule; a timeout that killed only the
     # parent left those running, then defunct under the container's PID 1.

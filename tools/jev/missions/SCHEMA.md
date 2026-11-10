@@ -5,12 +5,12 @@ coverage: listed
 
 # SCHEMA — tools/jev/missions
 
-> The five stage prompts of a Propose–Probe–Compose refinement step, one `.prompt.txt` each, loaded and rendered by `../refine.py` under the loop-step prompt rules (data only; adapted from Harness², Apache-2.0).
+> The five stage prompts of a Propose–Probe–Compose refinement step and the incident reflector's, one `.prompt.txt` each, loaded and rendered by `../refine.py` under the loop-step prompt rules (data only; adapted from Harness², Apache-2.0).
 
 ## Conventions
 
 - A mission is `<stage>.prompt.txt`: UTF-8, LF, exactly one final newline, no trailing whitespace, no `${{`, only the `{{TOKEN}}`s `refine.MISSION_INPUTS` declares for it. Never `.md` (the prose gates reflow Markdown).
-- Adding a mission is a code change too: its name in `refine.MISSIONS`, its tokens in `refine.MISSION_INPUTS`, a row here and in README.md, and a case in `tools/test_jev_refine.py`.
+- Adding a mission is a code change too: its name in `refine.MISSIONS` (a Propose–Probe–Compose stage) or `refine.INCIDENT_MISSIONS` (the reflector's), its tokens in `refine.MISSION_INPUTS`, a row here and in README.md, and a case in `tools/test_jev_refine.py` or `tools/test_jev_reflect.py`.
 
 ## Structure
 
@@ -22,6 +22,7 @@ coverage: listed
 | `compose.prompt.txt` | file | The composer's mission (parallel aggregation and sequential checkpoints) | required |
 | `select.prompt.txt` | file | The blind selector's mission | required |
 | `reflect.prompt.txt` | file | The experience reflector's mission | required |
+| `reflect-incidents.prompt.txt` | file | The incident reflector's mission (`refine reflect`; `refine.INCIDENT_MISSIONS`) | required |
 
 ## Placement
 

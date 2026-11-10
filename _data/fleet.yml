@@ -820,19 +820,269 @@ harness:
     standing_failures_max: 30     # red-workflow backlog beyond what the doctor's caps can drain
     credential_grace_days: 15     # past max_age_days + this, a credential is an alarm, not a chore
 
+  # ------------------------------------------------------------------------- #
+  # The agentic efficacy contract (amendment `agentic-efficacy-contract`,
+  # constitution § 29; the efficacy model is ADR 0009, epic bamr87/bamr87#773).
+  # Every agent (a CI agent step, a local loop step, a scheduled local job, a
+  # JEV tier) is registered in ONE inventory, _data/agents.yml, built offline
+  # by `tools/dash agents` from the workflows, the JEV step specs, the conflict
+  # tiers and the tools/install-*.sh installers, and graded against the
+  # contract's six rules. Drift check (p) fails a PR that adds an agent without
+  # registering it. The three blocks below are the contract's numbers:
+  # `efficacy` (the KPIs and thresholds per kind, the run-record schema, the
+  # shadow period), `sources` (every data source an agent reads, with its
+  # writer and its freshness SLO) and `agents` (the per-agent facts the code
+  # cannot show). Changing any of them is a gated change (constitution § 12.3).
+  # ------------------------------------------------------------------------- #
+  efficacy:
+    # Contract gaps are WARNINGS while this is false. The checks run in shadow
+    # first (epic #773: 14 days, read-only); a gated PR sets it true no earlier
+    # than shadow_until — `tools/dash agents --check` refuses it before then.
+    enforce: false
+    shadow_until: '2026-11-21'
+    # The grace period of every agent first seen before shadow_until (the
+    # inventory's `first_seen`): its gaps stay warnings until this date even
+    # under enforcement. An agent first seen later complies on arrival.
+    grace_until: '2027-02-01'
+    owner: bamr87                 # accountable for an agent no switch entry names an owner for
+
+    # The KPI catalogue (ADR 0009, decision 2). Outcomes are counted, not runs:
+    # an accepted outcome is a merged PR, an issue a person kept open or fixed,
+    # a conflict resolution whose PR merged, a lesson a person filed.
+    kpis:
+      accepted_per_usd:
+        unit: accepted outcomes per USD, API-equivalent (estimate)
+        better: higher
+      accepted_per_actions_min:
+        unit: accepted outcomes per billed Actions minute
+        better: higher
+      time_to_outcome_h:
+        unit: median hours from the trigger to the accepted outcome
+        better: lower
+      false_signal_pct:
+        unit: '% of outputs a person rejected as wrong: closed as not planned, reverted, or marked false'
+        better: lower
+      silent_failure_pct:
+        unit: '% of runs that ended as success but left no outcome, no run record, or a cost read as $0'
+        better: lower
+
+    # Thresholds per kind. PROVISIONAL starting values, set from the
+    # 2026-11-07 review (a 0-of-5 conflict tier, 13 of 20 false attention
+    # items) and the caps above; E3 (#777) measures them in shadow and a gated
+    # PR retunes them from that data. null = measured, not judged. A KPI over a
+    # zero denominator (a $0 tier, a local run's Actions minutes) is n/a.
+    kinds:
+      ci-scheduled:               # a scheduled CI agent: the doctor, the pipeline, scout, evolution
+        kpis: {accepted_per_usd: 0.05, accepted_per_actions_min: 0.02, time_to_outcome_h: 72,
+               false_signal_pct: 20, silent_failure_pct: 5}
+        reads: [fleet-config, github-live]
+        run_record: lake
+        reflector_via: lake
+      ci-event:                   # a CI agent an event or a dispatch starts (fan-out fill, verify, a lane)
+        kpis: {accepted_per_usd: 0.1, accepted_per_actions_min: 0.05, time_to_outcome_h: 24,
+               false_signal_pct: 20, silent_failure_pct: 5}
+        reads: [fleet-config, github-live]
+        run_record: lake
+        reflector_via: lake
+      ci-mention:                 # an @claude mention handler: a person asked
+        kpis: {accepted_per_usd: null, accepted_per_actions_min: null, time_to_outcome_h: 4,
+               false_signal_pct: 20, silent_failure_pct: 5}
+        reads: [github-live]
+        run_record: lake
+        reflector_via: lake
+        switch: {exempt: "runs only when a person mentions it (harness_registry's switch-missing excuse)"}
+        local_entry: {exempt: "reacts inside GitHub (amendment local-first-ai, Consequences)"}
+      loop-step:                  # a JEV loop step run on a workstation (tools/dash loop run)
+        kpis: {accepted_per_usd: 0.05, accepted_per_actions_min: null, time_to_outcome_h: 72,
+               false_signal_pct: 20, silent_failure_pct: 5}
+        reads: [fleet-config]     # plus the context pack's providers, read from the spec
+        run_record: ai-ledger
+        reflector_via: loop-runs
+      jev-tier:                   # a rung of the conflict ladder
+        kpis: {accepted_per_usd: 1.0, accepted_per_actions_min: null, time_to_outcome_h: 12,
+               false_signal_pct: 10, silent_failure_pct: 5}
+        reads: [fleet-config, github-live, jev-ledger]
+        run_record: jev-ledger
+        reflector_via: jev-ledger
+      local-job:                  # a LaunchAgent on the Mac
+        kpis: {accepted_per_usd: null, accepted_per_actions_min: null, time_to_outcome_h: null,
+               false_signal_pct: 20, silent_failure_pct: 5}
+        reads: [fleet-config]
+
+    # Rule 2: one run record per model call, in one schema. Three stores hold
+    # them today, each short of the schema; E1 (#775) closes the gaps.
+    run_record:
+      fields: [cost_usd, cost_source, turns, model, outcome, permission_denials, tool_errors]
+      stores:
+        lake:
+          where: .dash-lake/fleet.sqlite agent_runs, from each CI agent step's log (`dash lake sync`)
+          missing: [cost_source, tool_errors]
+        ai-ledger:
+          where: ~/.claude/ai-activity-ledger.json runs, one row per `dash-gen ai-run` (the run-record schema)
+          missing: [permission_denials, tool_errors]
+        jev-ledger:
+          where: _data/jev_resolutions.yml (CI), .fleet/runs/jev_resolutions.yml (local), one row per attempt
+          missing: [turns, permission_denials, tool_errors]
+
+    # Rule 5: what `tools/dash refine reflect` reads (PR #772): the lake's
+    # review of CI agent runs and local sessions, the local loop runs and the
+    # conflict resolutions. An agent feeds the reflector when its records land
+    # in one of these.
+    reflector_inputs: [lake, loop-runs, jev-ledger]
+
+  # Rule 4: every data source an agent reads, with its writer and a freshness
+  # SLO (slo_days, or slo: on-change for configuration a reviewed PR changes,
+  # live for what is read at run time). A source with no writer is a defect.
+  sources:
+    fleet-config:
+      path: _data/fleet.yml
+      writer: maintainer (reviewed PR)
+      slo: on-change
+    registry:
+      path: _data/projects.yml
+      writer: maintainer (reviewed PR); reconcile-registry.yml proposes the changes
+      slo: on-change
+    actions-usage:
+      path: _data/actions_usage.yml
+      writer: fleet-pulse.yml (dash-gen actions)
+      slo_days: 3                 # harness.trip_wires.stale_data_days
+    ai-usage:
+      path: _data/ai_usage.yml
+      writer: fleet-pulse.yml (dash-gen ai-usage)
+      slo_days: 3
+    fleet-triage:
+      path: _data/fleet_triage.yml
+      writer: fleet-pulse.yml (dash-gen triage)
+      slo_days: 3
+    harness-registry:
+      path: _data/harness_registry.yml
+      writer: fleet-pulse.yml (dash-gen harnesses)
+      slo_days: 3
+    harness-health:
+      path: _data/harness_health.yml
+      writer: fleet-pulse.yml (dash-gen harness)
+      slo_days: 3
+    issue-pipeline:
+      path: _data/issue_pipeline.yml
+      writer: issue-pipeline.yml (dash-gen issues)
+      slo_days: 3
+    work-queue:
+      path: _data/work_queue.yml
+      writer: maintainer (the console's work board, through a reviewed PR)
+      slo: on-change
+    conformance:
+      path: _data/conformance.yml
+      # No scheduled writer: `tools/dash spec fleet --write` runs by hand, and
+      # scorecard-sweep.yml writes only its `security:` block. It was 17 days
+      # old on 2026-11-07 (#763). The defect rule 4 names, left visible.
+      writer: null
+      slo_days: 14                # harness.trip_wires.conformance_stale_days
+    token-rotation:
+      path: _data/token_rotation.yml
+      writer: token-rotation.yml
+      slo_days: 10
+    jev-ledger:
+      path: _data/jev_resolutions.yml (CI); .fleet/runs/jev_resolutions.yml (local)
+      writer: jev-conflicts.yml and tools/dash conflicts (the conflict engine, one row per attempt)
+      slo: on-change
+    lake:
+      path: .dash-lake/fleet.sqlite
+      # The daily harness-review LaunchAgent (PR #772); until it is installed,
+      # `tools/dash lake sync` and `lake sessions` run only by hand (the
+      # session import was 6 days old on 2026-11-07).
+      writer: local:harness-review
+      slo_days: 2
+    loop-runs:
+      path: .fleet/runs/
+      writer: the JEV loop runner (tools/dash loop run, one directory per run)
+      slo: on-change
+    harness-library:
+      path: _data/harness_library/
+      writer: maintainer (reviewed PR; tools/dash refine library, the reflector's draft PRs)
+      slo: on-change
+    code-index:
+      path: the Kilo Code index (Qdrant, 127.0.0.1:6333)
+      writer: Kilo Code's indexer, when the editor opens the workspace (kilo.jsonc)
+      slo: on-change
+    telemetry:
+      path: the local log plane (Elasticsearch), Claude Code's tool errors
+      writer: Claude Code's OpenTelemetry through the local collector (tools/dash observe claude enable)
+      slo: live
+    claude-transcripts:
+      path: ~/.claude/projects/
+      writer: Claude Code (every local session)
+      slo: live
+    github-live:
+      path: the GitHub API at run time (the triggering event, the repo, its issues, PRs and run logs)
+      writer: GitHub
+      slo: live
+
+  # The per-agent facts the code cannot show, keyed by inventory id. `reads`
+  # adds to the kind's sources; a loop step also inherits its CI twin's.
+  # `model_from` / `budget_from` are references into this file, never copies.
+  # `declare` registers an agent before its installer lands. It keeps winning
+  # until a PR drops it, so the installer's own merge cannot change the
+  # inventory under an unrelated PR; once the installer is in the tree the
+  # generator says to drop the block and regenerate.
+  agents:
+    ci:bamr87:fleet-pulse:
+      reads: [actions-usage, fleet-triage]
+    ci:bamr87:issue-pipeline:
+      reads: [issue-pipeline, work-queue, registry]
+    ci:bamr87:repo-evolution:
+      reads: [registry, conformance, work-queue]
+    ci:bamr87:repo-scout:
+      reads: [registry]
+    ci:bamr87:fanout:
+      reads: [registry]
+    ci:bamr87:ai-lane:
+      note: the reusable lane (claude-run); its caller sets the model, so none is named here
+    local:conflict-sweep:
+      reads: [github-live, jev-ledger]
+      model_from: [jev.tiers.tier1.model, jev.tiers.tier2.model]
+      budget_from: {per_run_usd: budget.jev.tier2_usd, monthly_usd: budget.jev.monthly_usd}
+      switch: {config: jev.enabled, uninstall: tools/install-conflict-sweep.sh --uninstall}
+      run_record: jev-ledger
+      reflector_via: jev-ledger
+      local_entry: tools/dash conflicts sweep
+    local:workspace-sync:
+      reads: [registry, github-live]
+      model: none                 # git and update-submodules.sh only: no model call
+      budget: {per_run_usd: 0.0}  # no spend
+      local_entry: tools/update-submodules.sh --no-commit --no-push
+      run_record: none
+    local:harness-review:
+      declare:
+        kind: local-job
+        where: tools/install-harness-review.sh
+        trigger: 'launchd com.bamr87.harness-review: daily 06:23 local'
+        runs: [tools/dash-gen lake sessions --days 2, tools/dash-gen lake sync --days 2 --jobs ai --logs ai,
+               tools/dash-gen lake review --days 7 --json, tools/dash refine reflect --scheduled]
+        pending: bamr87/bamr87#772
+      reads: [claude-transcripts, github-live, lake, harness-health, loop-runs, jev-ledger, harness-library]
+      model_from: harness_refinement.model
+      budget_from: {per_run_usd: harness_refinement.stage_usd, monthly_usd: budget.loops.monthly_usd}
+      switch: {config: harness_refinement.enabled, uninstall: tools/install-harness-review.sh --uninstall}
+      run_record: ai-ledger
+      local_entry: tools/dash refine reflect
+
 # --------------------------------------------------------------------------- #
 # Harness refinement — JEV capability three: recursive harness refinement after
 # Harness² (google-research/harness2; docs/HARNESS-REFINEMENT.md, ADR 0004).
 #
 # The $0 half (`tools/dash refine`: the surface check, the Propose–Probe–Compose
 # plan, the evidence tree, the experience library) reads its caps here. The
-# model-backed stages (P1) stay OFF until `enabled: true` AND the maintainer's
-# --apply, run only through the loop runner's executor, and are capped per
-# improvement session by `stage_usd` inside budget.loops. `k_max` bounds the
+# model-backed stages (P1) run only while `enabled: true`, only through the
+# loop runner's executor, capped per improvement session by `stage_usd` inside
+# budget.loops; a filing needs a person's --apply. `k_max` bounds the
 # task-level recursion budget (4k rollouts + 3k sessions per step).
+# `enabled` was turned on 2026-11-07 (the maintainer's yes) for the one
+# model-backed stage that exists: the incident reflector (`refine reflect`,
+# `reflect:` below), weekly from the local harness-review LaunchAgent
+# (tools/install-harness-review.sh). A scheduled run previews and never files.
 # --------------------------------------------------------------------------- #
 harness_refinement:
-  enabled: false
+  enabled: true
   k_max: 3
   mode: parallel                      # parallel: k candidates per dimension, k compositions; sequential: k rounds
   always_on_max_chars: 32000          # the context-file chain (CLAUDE.md + AGENTS.md): paid for on every turn
@@ -842,6 +1092,12 @@ harness_refinement:
   max_turns: 40
   library_dir: _data/harness_library  # the experience library (committed, human-gated)
   obs_trunc_chars: 6000               # per tool observation in a rendered trajectory; the trajectory itself is whole
+  reflect:                            # the incident reflector (`refine reflect`; ADR 0004 P1, part one)
+    max_entries: 5                    # candidate lessons one session may propose; the engine drops the rest
+    days: 7                           # the review window: lake review, local runs, conflict resolutions
+    every_days: 7                     # a --scheduled run waits this long after the last one that spent:
+                                      # ceil(31/7) x stage_usd = $10 a month at most, inside budget.loops' $40 stop
+    timeout_minutes: 20               # the session's wall clock
 
 # --------------------------------------------------------------------------- #
 # Assistant — the Harness Console's in-page AI assistant (`assist` op;

@@ -622,6 +622,24 @@
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "4-generate", "order": 8 }
     },
+    // The agent inventory under the efficacy contract (docs/AGENT-EFFICACY.md):
+    // offline; `--check` is drift check (p), `--verbose` lists every gap.
+    {
+      "name": "🛠️ Agent inventory: rebuild _data/agents.yml (offline)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash agents --verbose",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 8 }
+    },
+    {
+      "name": "🛠️ Agent inventory: check (drift check (p), contract gaps)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash agents --check --verbose",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 8 }
+    },
     {
       "name": "🗺️ Workflow atlas: list / health (from the lake)",
       "type": "node-terminal",
@@ -845,7 +863,8 @@
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "5-loops", "order": 10 }
     },
-    // Harness refinement (docs/HARNESS-REFINEMENT.md): every subcommand is $0.
+    // Harness refinement (docs/HARNESS-REFINEMENT.md): every subcommand is $0 but
+    // `refine reflect` without --rehearse (ONE capped session; it previews, never files).
     {
       "name": "🧪 Refine: surface check (the hub's harness surface)",
       "type": "node-terminal",
@@ -861,6 +880,22 @@
       "command": "tools/dash refine plan ${input:refineLoop}",
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "5-loops", "order": 12 }
+    },
+    {
+      "name": "🧪 Refine: reflect rehearsal (the incident reflector's evidence and argv, $0)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash refine reflect --rehearse",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 13 }
+    },
+    {
+      "name": "🧪 Refine: reflect (ONE capped session ≤ stage_usd; previews, never files)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash refine reflect",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 14 }
     },
 
     // ---------------------------------------------------------------- VERIFY
@@ -1510,6 +1545,8 @@
         "harnesses",
         "harnesses --gaps",
         "harness",
+        "agents",
+        "agents --check",
         "health",
         "readme",
         "readme --check",
@@ -1639,6 +1676,7 @@
         "python3 tools/gen-catalog.py --check",
         "python3 -m tools.jev generated guard --base origin/main",
         "python3 tools/governance_lint.py check .",
+        "tools/dash agents --check --verbose",
         "tools/dash workflows lint --strict",
         "tools/dash-gen compose --check",
         "tools/dash features check .",

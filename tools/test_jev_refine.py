@@ -116,7 +116,8 @@ def test_ledger_holds_the_identity():
 # --------------------------------------------------------------------------- #
 def test_config_reads_fleet_yml_and_refuses_drift():
     cfg = R.config(fleet())
-    assert cfg.enabled is False and 1 <= cfg.k_max <= 5 and cfg.mode in R.MODES and cfg.stage_usd > 0
+    # on since 2026-11-07 (the maintainer's yes), for the incident reflector — test_jev_reflect.py covers `reflect:`
+    assert cfg.enabled is True and 1 <= cfg.k_max <= 5 and cfg.mode in R.MODES and cfg.stage_usd > 0
     assert cfg.model in SP.allowed_models(fleet()) and cfg.library_dir == "_data/harness_library"
     for mutate, want in (
         (lambda f: f.pop("harness_refinement"), "no `harness_refinement:`"),
@@ -220,7 +221,8 @@ def test_plan_ceiling_is_the_steps_own_cap_times_the_identity():
                              "ceiling_usd": 4 * spec.resolved.max_budget_usd}
     assert c["sessions"]["count"] == 3 and c["sessions"]["cap_usd_each"] == cfg.stage_usd
     assert c["ceiling_usd"] == round(4 * spec.resolved.max_budget_usd + 5 * cfg.stage_usd, 4)
-    assert p["budget"] == {"available": False} and p["model_backed"]["enabled"] is False
+    assert p["budget"] == {"available": False} and p["model_backed"]["enabled"] is True
+    assert "incident reflector" in p["model_backed"]["status"] and "calls no model" in p["model_backed"]["status"]
     assert all(x["exists"] for x in p["tunable"]) and len(p["tunable"]) == 2
     assert p["hard_rules"]["template_sha256"] == spec.template_sha256 and "§ 12.3" in p["hard_rules"]["gated"]
     assert set(p["missions"]) == set(R.MISSIONS)

@@ -49,6 +49,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash workflows [list|show|lint|health|new]${c_off} the WORKFLOW ATLAS — the hub's workflows + composite actions as one model; \`lint [--strict]\` holds them to the README standards; \`health [--days N]\` classifies why runs failed (from the lake); \`new --kind loop|agent-loop|gate|reusable|dispatch --id ID [--write]\` scaffolds one inside the standards (docs/WORKFLOW-ATLAS.md)
   ${c_bold}dash harness${c_off}           six-layer harness scorecard + trip wires → _data/harness_health.yml (docs/HARNESS.md)
   ${c_bold}dash harnesses [gaps|deploy]${c_off} fleet AI-harness + schedule inventory → _data/harness_registry.yml (/harnesses/ portal); \`gaps\` prints fan-out-deployable gap repos; \`deploy [--gaps|--target N] [--artifacts csv] [--upgrade] [--apply]\` opens kit PRs via fanout.sh (dry-run default; docs/HARNESS-OPS.md)
+  ${c_bold}dash agents [--check] [--verbose]${c_off} the agent inventory under the efficacy contract (constitution § 29) → _data/agents.yml: every CI agent step, JEV loop step, conflict tier and LaunchAgent with its owner, trigger, switch, cap, model, KPIs, sources and contract gaps; \`--check\` is drift check (p) (offline; docs/AGENT-EFFICACY.md)
   ${c_bold}dash features [check|coverage] [path]${c_off}  validate / grade one repo's feature index (features/features.yml); \`fleet [--write|--check]\` aggregates every submodule → _data/features_index.yml (/features/ portal; docs/VERIFICATION.md)
   ${c_bold}dash verify [runner flags]${c_off}  run the hub's own user scenarios through Playwright (verify/runner.mjs → test/evidence/); \`deploy [--gaps|--target N] [--upgrade] [--apply]\` fans the verify kit out via fanout.sh (dry-run default)
   ${c_bold}dash issues${c_off}            three-tier issue pipeline queues → _data/issue_pipeline.yml + per-tier work orders (feeds issue-pipeline)
@@ -88,7 +89,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash evolve --all${c_off}      run the weekly repo-evolution loop on every auto_evolve submodule now
   ${c_bold}dash scout [plan|--repo <name>|--all]${c_off} the daily repo-scout loop — \`plan\` shows today's sample and briefs locally; \`--repo\`/\`--all\` dispatch repo-scout.yml (issues in the repos' own trackers; -f dry_run=true to rehearse)
   ${c_bold}dash loop <list|doctor|plan|run|publish|show|budget>${c_off} run a loop's agent step locally with headless Claude Code — isolated, sandboxed, no network, no GitHub credential, held to budget.loops; \`plan\` and \`run --rehearse\` cost nothing; \`run <loop>\` is a capped attempt plus a dry-run preview of the exact issue bodies, and \`--apply\` (typed by the maintainer) files them; \`publish <run> --apply\` files a reviewed dry run; \`doctor\` is the no-spend host check, \`doctor --live\` the one-time ≤ \$0.10 canary (docs/JEV.md)
-  ${c_bold}dash refine <surface|plan|evidence|missions|library>${c_off} recursive harness refinement (Harness²) at \$0 — \`surface check [root]\` validates a repo's harness surface (context files, skills, agents, hooks, MCP), \`plan <loop>\` prints one Propose–Probe–Compose step's schedule and ceiling, \`evidence <loop> --item KEY\` builds the redacted evidence tree a proposer would read from real local runs, \`library\` manages the experience library in _data/harness_library (docs/HARNESS-REFINEMENT.md)
+  ${c_bold}dash refine <surface|plan|evidence|missions|library|reflect>${c_off} recursive harness refinement (Harness²), \$0 but \`reflect\` — \`surface check [root]\` validates a repo's harness surface (context files, skills, agents, hooks, MCP), \`plan <loop>\` prints one Propose–Probe–Compose step's schedule and ceiling, \`evidence <loop> --item KEY\` builds the redacted evidence tree a proposer would read from real local runs, \`library\` manages the experience library in _data/harness_library, \`reflect [--rehearse]\` turns the week's agent incidents into candidate lessons from ONE capped session (previews; \`reflect publish <stamp> --apply\` files a draft PR) (docs/HARNESS-REFINEMENT.md)
   ${c_bold}dash ai${c_off}                shadow-priced Claude Code usage per repo (local)
   ${c_bold}dash ai check${c_off}          reconcile that ledger against ccusage (pricing/alias/dedupe audit)
   ${c_bold}dash ai run -- <args>${c_off}  run \`claude -p\` under the fleet.yml dollar cap, recording what it cost
@@ -99,7 +100,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash ps${c_off}               what is running fleet-wide, and who is on the shared network
   ${c_bold}dash doctor${c_off}            environment checks (setup.sh --dry-run)
   ${c_bold}dash test${c_off}              run the aggregate test suite
-  ${c_bold}dash gen <health|readme|ai|ai-check|ai-run|ai-usage|actions|daily|triage|harness|harnesses|lake|content|observe|remediate|issues|reconcile|vendor|estimate|ledger|targets|workflows|all>${c_off}  run the registry generator
+  ${c_bold}dash gen <health|readme|ai|ai-check|ai-run|ai-usage|actions|daily|triage|harness|harnesses|agents|lake|content|observe|remediate|issues|reconcile|vendor|estimate|ledger|targets|workflows|all>${c_off}  run the registry generator
   ${c_bold}dash help${c_off}             this help
 EOF
 }
@@ -313,7 +314,8 @@ cmd_mcp() {
   # The Harness Console's API as an MCP server (tools/console/mcp_layer). stdio
   # by default — what an MCP host launches; --http serves streamable HTTP on
   # 127.0.0.1 with bearer auth for remote agents. Writes stay off unless
-  # HARNESS_MCP_ALLOW_WRITES=1. --tunnel adds a temporary cloudflared quick
+  # HARNESS_MCP_ALLOW_WRITES=1, or HARNESS_MCP_SCOPES=jobs,work grants the
+  # narrow ones only. --tunnel adds a temporary cloudflared quick
   # tunnel for an off-machine agent, stopped with the server. --tunnel-url
   # prints the persistent compose `mcp-tunnel` service's current URL.
   exec "${TOOLS}/console/mcp.sh" "$@"
@@ -501,6 +503,8 @@ cmd_reconcile() { "${TOOLS}/dash-gen" reconcile "$@"; }
 cmd_vendor()    { "${TOOLS}/dash-gen" vendor "$@"; }
 cmd_remediate() { "${TOOLS}/dash-gen" remediate "$@"; }
 cmd_harness() { "${TOOLS}/dash-gen" harness "$@"; }
+# The agent inventory under the efficacy contract (docs/AGENT-EFFICACY.md).
+cmd_agents() { "${TOOLS}/dash-gen" agents "$@"; }
 # The fleet-wide AI-harness inventory (plural — `dash harness` above is the
 # hub's own scorecard). `deploy` reuses the standardize fan-out engine with the
 # agent-context kit artifacts, so it inherits every fanout.sh guarantee:
@@ -948,6 +952,7 @@ main() {
     harness) cmd_harness "$@" ;;
     workflows) cmd_workflows "$@" ;;
     harnesses) cmd_harnesses "$@" ;;
+    agents)  cmd_agents "$@" ;;
     features) cmd_features "$@" ;;
     verify)  cmd_verify "$@" ;;
     spec)    cmd_spec "$@" ;;

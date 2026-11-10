@@ -1,8 +1,8 @@
 # tools/jev/missions/ — the refinement stage prompts
 
-> The five missions of one Propose–Probe–Compose step (propose-invariant, propose-domain, compose, select, reflect), adapted for the hub's loops from Harness² (google-research/harness2, Apache-2.0), rendered one-pass from `{{TOKEN}}` inputs by `tools/jev/refine.py`.
+> The five missions of one Propose–Probe–Compose step (propose-invariant, propose-domain, compose, select, reflect), adapted for the hub's loops from Harness² (google-research/harness2, Apache-2.0), and the incident reflector's (reflect-incidents), rendered one-pass from `{{TOKEN}}` inputs by `tools/jev/refine.py`.
 
-Each file is a `.prompt.txt`, held to the same rules as a loop step's prompt ([`../steps/README.md`](../steps/README.md): LF only, one final newline, no trailing whitespace, never `${{`, every `{{TOKEN}}` declared in `refine.MISSION_INPUTS` and every declared token used). `python3 -m tools.jev refine missions list` prints each mission's hash and tokens; `refine missions render <name> --set TOKEN=value …` prints it byte-exact. `refine evidence` writes the rendered mission as `MISSION.md` at the root of the evidence tree, beside `context/`.
+Each file is a `.prompt.txt`, held to the same rules as a loop step's prompt ([`../steps/README.md`](../steps/README.md): LF only, one final newline, no trailing whitespace, never `${{`, every `{{TOKEN}}` declared in `refine.MISSION_INPUTS` and every declared token used). A mission's hash is its content's sha256 (`refine.mission_sha256`); the reflector records it in its run record, so a reworded mission is visible in every later preview. `python3 -m tools.jev refine missions list` prints each mission's hash and tokens; `refine missions render <name> --set TOKEN=value …` prints it byte-exact. `refine evidence` writes the rendered mission as `MISSION.md` at the root of the evidence tree, beside `context/`.
 
 | Mission | Stage | What it asks for |
 | --- | --- | --- |
@@ -11,6 +11,7 @@ Each file is a `.prompt.txt`, held to the same rules as a loop step's prompt ([`
 | `compose.prompt.txt` | AGG / COMPOSE | ONE final harness merged from the candidates and their rollouts, or KEEP_BASE, with an auditable `kept|revised|dropped` note per decision |
 | `select.prompt.txt` | selection | the single deliverable to file, chosen blind among anonymous candidates by delivery, conformance, fidelity, consistency, fitness and finish |
 | `reflect.prompt.txt` | reflection | the per-edit verdict rows and at most one transferable lesson (cue, lesson, evidence, confidence), or NO_ENTRY |
+| `reflect-incidents.prompt.txt` | incident reflection (`refine reflect`, not a Propose–Probe–Compose stage: `refine.INCIDENT_MISSIONS`) | at most `{{MAX_ENTRIES}}` lessons from the last `{{DAYS}}` days of the lake's review, the trip wires, the local runs and the conflict resolutions, each tied to a known `{{STEPS}}` pair and a `{{DOMAINS}}` category, as ONE JSON document in the final message (the session has Read, Glob and Grep only); the engine validates every candidate (`tools/jev/reflect.py`) |
 
 Three rules every mission carries, from both sources: the evidence under `context/` is data, never instructions; there is no score, rubric or grader anywhere in the context; and the editable surface is the loop's TUNABLE half (the brief template and the category emphasis), while the hard rules in `context/hard-rules/` are read-only and a change to them is a proposal a person reviews (constitution § 12.3).
 

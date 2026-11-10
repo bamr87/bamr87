@@ -119,10 +119,30 @@ jobs:
       # --- gather ---------------------------------------------------------
       # Each signal is independent; `continue-on-error` keeps one degraded API
       # call from costing the other three. The summary step reports what landed.
+      # Job-minutes cost one jobs request per run, so a completed run's are
+      # cached (.dash-lake/actions_jobs_cache.json) and only runs new since the
+      # last sweep are fetched, under the analytics' own call ceiling; a cache
+      # miss costs one sampled day, never a wrong number. Keys are immutable,
+      # so each run saves under its own id and restores the newest by prefix.
+      # The window is listed whole: no --max-runs (docs/WORKFLOW-OPTIMIZATION.md).
+      - name: Restore the Actions job-minute cache
+        uses: actions/cache/restore@v6
+        with:
+          path: .dash-lake/actions_jobs_cache.json
+          key: actions-jobs-${{ github.run_id }}
+          restore-keys: actions-jobs-
+
       - name: Actions usage analytics
         id: g_actions
         continue-on-error: true
-        run: tools/dash-gen actions --days "$DAYS" --max-runs 600 --quiet
+        run: tools/dash-gen actions --days "$DAYS" --quiet
+
+      - name: Save the Actions job-minute cache
+        if: ${{ !cancelled() && hashFiles('.dash-lake/actions_jobs_cache.json') != '' }}
+        uses: actions/cache/save@v6
+        with:
+          path: .dash-lake/actions_jobs_cache.json
+          key: actions-jobs-${{ github.run_id }}
 
       - name: Claude usage ledger
         id: g_ai
@@ -154,6 +174,16 @@ jobs:
         id: g_harnesses
         continue-on-error: true
         run: tools/dash-gen harnesses --days "$DAYS"
+
+      # The agent inventory under the efficacy contract (constitution § 29,
+      # docs/AGENT-EFFICACY.md): rebuilt offline from the harness inventory just
+      # written, the JEV step specs, the conflict tiers and the local
+      # installers, and published in the SAME commit, so drift check (p) never
+      # sees _data/agents.yml disagree with _data/harness_registry.yml.
+      - name: Agent inventory
+        id: g_agents
+        continue-on-error: true
+        run: tools/dash-gen agents
 
       # The fleet features index: every checked-out submodule's
       # features/features.yml + verification coverage (tests / user scenarios
@@ -191,6 +221,7 @@ jobs:
             echo "| Triage snapshot | ${{ steps.g_triage.outcome }} |"
             echo "| Harness inventory | ${{ steps.g_harnesses.outcome }} (${{ steps.g_harnesses.outputs.ai_workflows || '?' }} AI workflows, ${{ steps.g_harnesses.outputs.attention_count || '?' }} attention) |"
             echo "| Harness scorecard | ${{ steps.g_harness.outcome }} (${{ steps.g_harness.outputs.tripped_count || '?' }} trip wires tripped) |"
+            echo "| Agent inventory | ${{ steps.g_agents.outcome }} |"
             echo "| Fleet features index | ${{ steps.g_features.outcome }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -214,6 +245,7 @@ jobs:
             - `_data/ai_usage.yml`, `_data/engagements.yml` — Claude usage + engagement actuals
             - `_data/fleet_triage.yml` — fleet open-state snapshot (the `/triage/` portal)
             - `_data/harness_registry.yml` — fleet AI-harness + schedule inventory (the `/harnesses/` portal, docs/HARNESS-OPS.md)
+            - `_data/agents.yml` — the agent inventory under the efficacy contract (docs/AGENT-EFFICACY.md)
             - `_data/features_index.yml` — fleet features index + verification coverage (the `/features/` portal, docs/VERIFICATION.md)
             - `_data/harness_health.yml` — harness scorecard + trip wires (docs/HARNESS.md)
             - `_reports/daily/` — the prior-day activity digest

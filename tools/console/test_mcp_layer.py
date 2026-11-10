@@ -86,7 +86,7 @@ class FakeConsole(Console):
             raise hit
         if hit is None:
             raise ConsoleError(f"console {method} {path} -> 404: not found", 404)
-        return hit
+        return hit(body) if callable(hit) else hit
 
 
 def call(server, name, args=None):
@@ -112,13 +112,14 @@ def tool_names(server):
 
 class ReadTools(unittest.TestCase):
     def test_writes_hidden_by_default(self):
-        with mock.patch.dict(os.environ, {"HARNESS_MCP_ALLOW_WRITES": ""}):
+        with mock.patch.dict(os.environ, {"HARNESS_MCP_ALLOW_WRITES": "", "HARNESS_MCP_SCOPES": ""}):
             names = tool_names(srv.build_server(FakeConsole()))
         self.assertIn("fleet_status", names)
         self.assertFalse({"run_op", "cancel_job", "workflow_kill_switch"} & names)
+        self.assertFalse({"job_dispatch", "job_cancel", "work_apply"} & names)
 
     def test_read_tools_are_annotated_read_only(self):
-        for t in anyio.run(srv.build_server(FakeConsole(), allow_writes=False).list_tools):
+        for t in anyio.run(srv.build_server(FakeConsole(), allow_writes=False, scopes="").list_tools):
             self.assertTrue(t.annotations.read_only_hint, t.name)
 
     def test_harness_health_tripped_first(self):
@@ -142,6 +143,21 @@ class ReadTools(unittest.TestCase):
         self.assertEqual(p["budgets"], {"monthly_budget": 50, "hub.ai_budget_usd": 100})
         self.assertEqual(p["ai_cost_kind"], "API-equivalent (estimate, not billed)")
         self.assertIsNone(p["subscription_live"])          # no /api/live on the fake console
+
+    def test_spend_vs_budget_passes_the_measurement_contract_through(self):
+        """actions-usage/v2: what the minutes are, their gap to the meter, and the
+        sweep's coverage reach an agent asking about spend — the series do not."""
+        usage = {"ai": {"by_day": [1], "parity": {"ai_ci_cost": {"gap_pct": 0.0}}},
+                 "actions": {"by_day": [1], "minutes_basis": "job-minutes",
+                             "parity": {"actions_minutes": {"gap_pct": -2.4}},
+                             "coverage": {"truncated": False, "sampled": True}}}
+        fc = FakeConsole({"/api/state": {**STATE, "usage": usage}})
+        p = payload(*call(srv.build_server(fc), "spend_vs_budget"))
+        self.assertEqual(p["actions"]["minutes_basis"], "job-minutes")
+        self.assertEqual(p["actions"]["parity"]["actions_minutes"]["gap_pct"], -2.4)
+        self.assertTrue(p["actions"]["coverage"]["sampled"])
+        self.assertEqual(p["ai"]["parity"]["ai_ci_cost"]["gap_pct"], 0.0)
+        self.assertNotIn("by_day", p["actions"])
 
     def test_spend_vs_budget_passes_subscription_model_through(self):
         model = {"windows": {"24h": {"api_equiv_usd": 92.91, "subscription_usd": 6.45, "effective_discount_pct": 93.1}}}
@@ -483,6 +499,393 @@ class HttpTransport(unittest.TestCase):
     def test_refuses_empty_token(self):
         with self.assertRaises(ValueError):
             srv.BearerAuth(lambda *a: None, "")
+
+
+# ----------------------------------------------------------- scoped write access
+def is_err(res) -> bool:
+    return res.is_error if hasattr(res, "is_error") else res.isError
+
+
+# What the broad switch reaches and the jobs scope must not: secrets, keys, deploys, CI dispatch,
+# destructive resets, containers, spend, GitHub filing.
+SENSITIVE_OPS = ("secrets-push", "secrets-rotate", "keys-rotate", "config-sync", "ai-auth-sync", "deploy-gaps",
+                 "deploy-target", "dispatch", "observe-reset", "observe-up", "observe-down", "dev-up", "dev-down",
+                 "loop-run", "assist", "content-file", "keys-verify", "keys-status", "secrets-audit", "secrets-plan",
+                 "workflow-new", "lake-sync", "health")
+OPS = [{"id": op, "remote_write": False, "confirm": None, "unavailable": None} for op in srv.DISPATCH_OPS] + [
+    {"id": op, "remote_write": True, "confirm": "write", "unavailable": None} for op in SENSITIVE_OPS]
+
+
+class JobsConsole(FakeConsole):
+    """A console whose job API keeps state: submitted jobs, their logs, cancel."""
+
+    def __init__(self, ops=None, finish=True):
+        super().__init__({"/api/ops": ops or OPS})
+        self.jobs: dict[str, dict] = {}
+        self.finish, self.n = finish, 0
+        self.routes[("POST", "/api/jobs")] = self._submit
+        self.routes[("GET", "/api/jobs")] = lambda body: [dict(j) for j in self.jobs.values()]
+
+    def add(self, op, status="running"):
+        self.n += 1
+        jid = f"{self.n:012x}"
+        job = self.jobs[jid] = {"id": jid, "op": op, "status": status}
+        self.routes[("GET", f"/api/jobs/{jid}")] = lambda b, j=job: {
+            "job": dict(j), "text": "$ tools/dash config show\nbudget: ok\n", "done": j["status"] != "running"}
+
+        def cancel(b, j=job):
+            j["status"] = "cancelled"
+            return dict(j)
+        self.routes[("POST", f"/api/jobs/{jid}/cancel")] = cancel
+        return job
+
+    def _submit(self, body):
+        return dict(self.add(body["op"], "succeeded" if self.finish else "running"))
+
+
+class ScopedCase(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.audit_path = Path(tmp.name) / "audit.jsonl"
+        self.stream = io.StringIO()
+        self.audit = srv.Audit(self.audit_path, stream=self.stream)
+
+    def server(self, fc, scopes, dispatcher=None, **kw):
+        disp = dispatcher or srv.Dispatcher(fc, self.audit, watch=False)
+        return srv.build_server(fc, allow_writes=False, scopes=scopes, audit=self.audit, dispatcher=disp, **kw)
+
+    def audit_lines(self) -> list[dict]:
+        if not self.audit_path.exists():
+            return []
+        return [json.loads(line) for line in self.audit_path.read_text().splitlines()]
+
+
+class Scopes(ScopedCase):
+    def test_parsing_grants_known_names_only(self):
+        self.assertEqual(srv.granted_scopes(" Jobs , work "), (frozenset({"jobs", "work"}), []))
+        self.assertEqual(srv.granted_scopes("admin,secrets,jobs"), (frozenset({"jobs"}), ["admin", "secrets"]))
+        self.assertEqual(srv.granted_scopes(""), (frozenset(), []))
+        self.assertEqual(srv.granted_scopes("", writes=True)[0], frozenset(srv.SCOPES))
+
+    def test_each_scope_registers_only_its_tools(self):
+        broad = {"run_op", "cancel_job", "workflow_kill_switch", "console_run", "console_cancel"}
+        for scopes, want in (("", set()), ("jobs", {"job_dispatch", "job_cancel"}), ("work", {"work_apply"}),
+                             ("jobs,work", {"job_dispatch", "job_cancel", "work_apply"})):
+            names = tool_names(self.server(FakeConsole(), scopes))
+            self.assertEqual(names & {"job_dispatch", "job_cancel", "work_apply"}, want, scopes)
+            self.assertFalse(names & broad, f"{scopes}: a scope never exposes the broad write tools")
+            self.assertTrue({"work_item", "work_preview"} <= names)
+
+    def test_annotations_and_no_context_in_schemas(self):
+        tools = {t.name: t for t in anyio.run(self.server(FakeConsole(), "jobs,work").list_tools)}
+        for name in ("work_item", "work_preview"):
+            self.assertTrue(tools[name].annotations.read_only_hint, name)
+        for name in ("job_dispatch", "job_cancel", "work_apply"):
+            a = tools[name].annotations
+            self.assertFalse(a.read_only_hint, name)
+            self.assertTrue(a.destructive_hint, f"{name}: every write tool is marked destructive (NFR9)")
+            self.assertFalse(a.open_world_hint, name)
+            props = getattr(tools[name], "input_schema", None) or tools[name].inputSchema
+            self.assertNotIn("ctx", props.get("properties", {}), name)
+            self.assertIn("confirm", props.get("properties", {}), name)
+
+    def test_overview_reports_scopes(self):
+        res, text = call(self.server(FakeConsole(), "work"), "console_overview")
+        doc = payload(res, text)
+        self.assertEqual((doc["mcp_writes_enabled"], doc["mcp_scopes"]), (False, ["work"]))
+
+
+class ScopedJobs(ScopedCase):
+    def test_refused_without_confirm_audited_and_nothing_posted(self):
+        fc = JobsConsole()
+        res, text = call(self.server(fc, "jobs"), "job_dispatch", {"op": "config-show"})
+        self.assertTrue(is_err(res))
+        self.assertIn("confirm=true", text)
+        self.assertFalse([c for c in fc.calls if c[0] == "POST"])
+        self.assertEqual([r["outcome"] for r in self.audit_lines()], ["refused"])
+
+    def test_sensitive_ops_are_off_the_allowlist_even_confirmed(self):
+        self.assertFalse(set(SENSITIVE_OPS) & set(srv.DISPATCH_OPS))
+        fc = JobsConsole()
+        s = self.server(fc, "jobs")
+        for op in SENSITIVE_OPS:
+            res, text = call(s, "job_dispatch", {"op": op, "params": {"apply": True}, "confirm": True})
+            self.assertTrue(is_err(res), op)
+            self.assertIn("not on the job_dispatch allowlist", text)
+        self.assertFalse([c for c in fc.calls if c[:2] == ("POST", "/api/jobs")])
+        self.assertEqual(len(self.audit_lines()), len(SENSITIVE_OPS))
+
+    def test_params_are_declared_and_plain(self):
+        fc = JobsConsole()
+        s = self.server(fc, "jobs")
+        for params in ({"apply": True}, {"key": "a b;rm"}, {"key": True}, {"key": "x" * 65}, {"target": "x"}):
+            res, _ = call(s, "job_dispatch", {"op": "config-show", "params": params, "confirm": True})
+            self.assertTrue(is_err(res), params)
+        self.assertFalse([c for c in fc.calls if c[:2] == ("POST", "/api/jobs")])
+
+    def test_dispatch_never_passes_the_consoles_confirm(self):
+        fc = JobsConsole()
+        res, text = call(self.server(fc, "jobs"), "job_dispatch",
+                         {"op": "config-show", "params": {"key": "budget"}, "confirm": True})
+        self.assertFalse(is_err(res), text)
+        post = [c for c in fc.calls if c[:2] == ("POST", "/api/jobs")]
+        self.assertEqual(post[-1][3], {"op": "config-show", "params": {"key": "budget"}, "confirm": False})
+        doc = payload(res, text)
+        self.assertEqual((doc["limit_s"], doc["audit"]), (120, str(self.audit_path)))
+        rec = self.audit_lines()[-1]
+        self.assertEqual((rec["tool"], rec["outcome"], rec["op"], rec["job_id"]),
+                         ("job_dispatch", "started", "config-show", doc["job"]["id"]))
+        self.assertEqual(rec["transport"], "stdio")
+
+    def test_an_op_the_console_marks_as_writing_is_refused(self):
+        ops = [dict(o, remote_write=True, confirm="write") if o["id"] == "status" else o for o in OPS]
+        fc = JobsConsole(ops=ops)
+        res, text = call(self.server(fc, "jobs"), "job_dispatch", {"op": "status", "confirm": True})
+        self.assertTrue(is_err(res))
+        self.assertIn("writing remotely", text)
+        self.assertFalse([c for c in fc.calls if c[:2] == ("POST", "/api/jobs")])
+
+    def test_wait_returns_the_result(self):
+        fc = JobsConsole(finish=True)
+        res, text = call(self.server(fc, "jobs"), "job_dispatch", {"op": "config-show", "confirm": True, "wait_s": 5})
+        doc = payload(res, text)
+        self.assertTrue(doc["done"])
+        self.assertEqual(doc["job"]["status"], "succeeded")
+        self.assertIn("budget: ok", doc["log_tail"])
+
+    def test_running_cap(self):
+        fc = JobsConsole(finish=False)
+        s = self.server(fc, "jobs")
+        for _ in range(srv.DISPATCH_RUNNING_MAX):
+            res, text = call(s, "job_dispatch", {"op": "status", "confirm": True})
+            self.assertFalse(is_err(res), text)
+        res, text = call(s, "job_dispatch", {"op": "status", "confirm": True})
+        self.assertTrue(is_err(res))
+        self.assertIn("still running", text)
+        self.assertEqual(len([c for c in fc.calls if c[:2] == ("POST", "/api/jobs")]), srv.DISPATCH_RUNNING_MAX)
+
+    def test_watchdog_cancels_a_job_past_its_limit_and_forgets_finished_ones(self):
+        now = [1000.0]
+        fc = JobsConsole(finish=False)
+        disp = srv.Dispatcher(fc, self.audit, clock=lambda: now[0], watch=False)
+        s = self.server(fc, "jobs", dispatcher=disp)
+        late = payload(*call(s, "job_dispatch", {"op": "status", "confirm": True}))["job"]["id"]
+        done = payload(*call(s, "job_dispatch", {"op": "lake-status", "confirm": True}))["job"]["id"]
+        fc.jobs[done]["status"] = "succeeded"
+        now[0] += srv.DISPATCH_OPS["status"]["limit_s"] - 1
+        self.assertEqual(disp.sweep(), [])
+        self.assertEqual(set(disp.live), {late})
+        now[0] += 2
+        self.assertEqual(disp.sweep(), [late])
+        self.assertEqual(fc.jobs[late]["status"], "cancelled")
+        self.assertEqual(disp.live, {})
+        self.assertEqual(self.audit_lines()[-1]["outcome"], "cancelled: past its limit")
+
+    def test_job_cancel_only_reaches_allowlisted_jobs(self):
+        fc = JobsConsole(finish=False)
+        s = self.server(fc, "jobs")
+        deploy = fc.add("deploy-gaps")["id"]
+        mine = fc.add("drift")["id"]
+        for args, why in (({"job_id": deploy, "confirm": True}, "stop it from the console"),
+                          ({"job_id": mine}, "confirm=true"), ({"job_id": "../x", "confirm": True}, "12-hex")):
+            res, text = call(s, "job_cancel", args)
+            self.assertTrue(is_err(res), args)
+            self.assertIn(why, text)
+        self.assertEqual(fc.jobs[deploy]["status"], "running")
+        res, text = call(s, "job_cancel", {"job_id": mine, "confirm": True})
+        self.assertFalse(is_err(res), text)
+        self.assertEqual(fc.jobs[mine]["status"], "cancelled")
+        self.assertEqual([r["outcome"] for r in self.audit_lines()], ["refused", "refused", "refused", "cancelled"])
+
+    def test_hourly_cap_rolls(self):
+        now = [0.0]
+        cap = srv.RateCap(2, clock=lambda: now[0])
+        cap.take("x")
+        cap.take("x")
+        with self.assertRaises(srv.ToolError):
+            cap.take("x")
+        now[0] += 3601
+        cap.take("x")
+
+
+def work_board_fixture() -> dict:
+    """BOARD(12) with the fields a plan changes: item 1 pinned first in `ready`, item 3's priority an override,
+    and one roadmap entry."""
+    board = BOARD(12)
+    for it in board["items"]:
+        it.update(rank=None, priority_source="computed", priority_auto=it["priority"], note=None)
+    board["items"][1]["rank"] = 0
+    board["items"][3].update(priority="P0", priority_source="override")
+    board["items"].append({"key": "roadmap:FF-0042", "kind": "roadmap", "ref": "FF-0042", "title": "Roadmap entry",
+                           "repo": "bamr87", "lane": "ready", "stage": "approved", "priority": "P2",
+                           "priority_source": "roadmap", "rank": None, "note": None})
+    return board
+
+
+def fake_board_after(board: dict, plan: dict) -> dict:
+    """What dash-gen work_board.build(inputs, plan) does to the fields the tools read."""
+    b = json.loads(json.dumps(board))
+    by = {it["key"]: it for it in b["items"]}
+    for k, v in (plan.get("priority") or {}).items():
+        if k.startswith("roadmap:"):
+            by[k]["priority"] = v
+        elif v:
+            by[k].update(priority=v, priority_source="override")
+        else:
+            by[k].update(priority=by[k]["priority_auto"], priority_source="computed")
+    for k, v in (plan.get("notes") or {}).items():
+        by[k]["note"] = v or None
+    for lane, keys in (plan.get("pins") or {}).items():
+        for it in b["items"]:
+            if it["lane"] == lane:
+                it["rank"] = None
+        for r, k in enumerate(keys):
+            by[k]["rank"] = r
+    for k in plan.get("unpin") or []:
+        by[k]["rank"] = None
+    b["preview"] = True
+    b["changes"] = [{"key": k, "target": "work_queue", "what": f"{k} changed"} for k in sorted(srv.plan_keys(plan))]
+    return b
+
+
+class WorkConsole(FakeConsole):
+    def __init__(self):
+        super().__init__()
+        self.board = work_board_fixture()
+        self.routes[("GET", "/api/work")] = lambda body: self.board
+        self.routes[("POST", "/api/work/preview")] = lambda body: fake_board_after(self.board, body["plan"])
+        self.routes[("POST", "/api/work/apply")] = self._apply
+
+    def _apply(self, body):
+        self.board = fake_board_after(self.board, body["plan"])
+        self.board.pop("changes")
+        results = [{"key": k, "target": "work_queue", "ok": True, "error": None} for k in srv.plan_keys(body["plan"])]
+        return {"results": results, "pruned": [], "diff": "+priority:\n+  k: P0\n", "board": self.board}
+
+
+K1, K3, K7 = "issue:bamr87/r1#1", "issue:bamr87/r3#3", "issue:bamr87/r7#7"   # lanes ready, review, ready
+
+
+class ScopedWork(ScopedCase):
+    def test_plan_validation(self):
+        many = {"priority": {f"issue:bamr87/x#{i}": "P1" for i in range(srv.WORK_PLAN_MAX_KEYS + 1)}}
+        for plan in ({}, {"priority": {}}, {"priority": {K7: "P9"}}, {"priority": {"not a key": "P1"}},
+                     {"notes": {K7: "x" * (srv.WORK_NOTE_CHARS + 1)}}, {"pins": {"Ready!": [K7]}},
+                     {"pins": {"ready": K7}}, {"bogus": 1}, many, [K7]):
+            with self.assertRaises(srv.ToolError, msg=str(plan)[:80]):
+                srv.check_plan(plan)
+        a = srv.check_plan({"notes": {K7: " why "}, "priority": {K7: "P1", K1: ""}})
+        b = srv.check_plan({"priority": {K1: "", K7: "P1"}, "notes": {K7: "why"}})
+        self.assertEqual(a, b)
+        board = work_board_fixture()
+        self.assertEqual(srv.plan_id_for(a, board), srv.plan_id_for(b, board))
+        self.assertRegex(srv.plan_id_for(a, board), r"^[0-9a-f]{16}$")
+
+    def test_stage_and_roadmap_status_stay_on_the_console(self):
+        fc = WorkConsole()
+        s = self.server(fc, "work")
+        for plan in ({"stage": {K7: "ready"}}, {"roadmap_status": {"FF-0042": "declined"}},
+                     {"roadmap_reason": {"FF-0042": "x"}}, {"priority": {K7: "P1"}, "stage": {K7: "hold"}}):
+            res, text = call(s, "work_preview", {"plan": plan})
+            self.assertTrue(is_err(res), plan)
+            self.assertIn("Work board", text)
+        self.assertEqual(fc.calls, [])
+
+    def test_preview_writes_nothing_and_says_how_to_undo(self):
+        fc = WorkConsole()
+        res, text = call(self.server(fc, ""), "work_preview", {"plan": {"priority": {K7: "P0"}, "notes": {K7: "now"}}})
+        self.assertFalse(is_err(res), text)
+        doc = payload(res, text)
+        self.assertEqual([c[:2] for c in fc.calls], [("GET", "/api/work"), ("POST", "/api/work/preview")])
+        self.assertTrue(doc["writes_nothing"])
+        self.assertFalse(doc["apply_enabled"])
+        self.assertEqual(doc["files"], ["_data/work_queue.yml"])
+        self.assertEqual(doc["undo_plan"], {"priority": {K7: ""}, "notes": {K7: ""}})
+        (row,) = doc["items"]
+        self.assertEqual((row["key"], row["before"]["priority_source"], row["after"]["priority"], row["after"]["note"]),
+                         (K7, "computed", "P0", "now"))
+        self.assertRegex(doc["plan_id"], r"^[0-9a-f]{16}$")
+
+    def test_undo_plans(self):
+        board = work_board_fixture()
+        self.assertEqual(srv.undo_plan({"pins": {"ready": [K7, K1]}}, board), {"pins": {"ready": [K1]}})
+        self.assertEqual(srv.undo_plan({"unpin": [K1]}, board), {"pins": {"ready": [K1]}})
+        self.assertEqual(srv.undo_plan({"priority": {K3: "", K7: "P1"}}, board), {"priority": {K3: "P0", K7: ""}})
+        self.assertEqual(srv.undo_plan({"priority": {"roadmap:FF-0042": "P0"}}, board),
+                         {"priority": {"roadmap:FF-0042": "P2"}})
+        self.assertEqual(srv.plan_files({"priority": {"roadmap:FF-0042": "P0"}}), ["_data/roadmap.yml"])
+
+    def test_apply_needs_the_scope_confirm_and_the_previewed_plan_id(self):
+        self.assertNotIn("work_apply", tool_names(self.server(WorkConsole(), "jobs")))
+        fc = WorkConsole()
+        s = self.server(fc, "work")
+        plan = {"priority": {K7: "P0"}}
+        pid = payload(*call(s, "work_preview", {"plan": plan}))["plan_id"]
+        for args, why in (({"plan": plan, "plan_id": pid}, "confirm=true"),
+                          ({"plan": plan, "plan_id": "0" * 16, "confirm": True}, "does not match"),
+                          ({"plan": {"priority": {K7: "P1"}}, "plan_id": pid, "confirm": True}, "does not match"),
+                          ({"plan": {"stage": {K7: "hold"}}, "plan_id": pid, "confirm": True}, "Work board")):
+            res, text = call(s, "work_apply", args)
+            self.assertTrue(is_err(res), args)
+            self.assertIn(why, text)
+        fc.board["items"][7]["priority_source"] = "override"          # the item moved after the preview
+        res, text = call(s, "work_apply", {"plan": plan, "plan_id": pid, "confirm": True})
+        self.assertTrue(is_err(res))
+        self.assertIn("does not match", text)
+        self.assertFalse([c for c in fc.calls if c[:2] == ("POST", "/api/work/apply")])
+        self.assertEqual([r["outcome"] for r in self.audit_lines()], ["refused"] * 5)
+
+    def test_apply_then_undo_round_trips_and_is_audited(self):
+        fc = WorkConsole()
+        s = self.server(fc, "work")
+        original = json.loads(json.dumps(fc.board))
+        plan = {"priority": {K7: "P0"}, "notes": {K7: "ship first"}, "pins": {"ready": [K7, K1]}}
+        pid = payload(*call(s, "work_preview", {"plan": plan}))["plan_id"]
+        res, text = call(s, "work_apply", {"plan": plan, "plan_id": pid, "confirm": True})
+        self.assertFalse(is_err(res), text)
+        doc = payload(res, text)
+        post = [c for c in fc.calls if c[:2] == ("POST", "/api/work/apply")][-1]
+        self.assertEqual(post[3], {"plan": srv.check_plan(plan), "confirm": False})
+        self.assertFalse(doc["committed"])
+        self.assertIn("+priority", doc["diff"])
+        self.assertEqual({r["key"] for r in doc["items"]}, {K1, K7})
+        undo = doc["undo_plan"]
+        upid = payload(*call(s, "work_preview", {"plan": undo}))["plan_id"]
+        res, text = call(s, "work_apply", {"plan": undo, "plan_id": upid, "confirm": True})
+        self.assertFalse(is_err(res), text)
+        snap = lambda b: {it["key"]: {f: it.get(f) for f in srv.WORK_SNAPSHOT} for it in b["items"]}  # noqa: E731
+        self.assertEqual(snap(fc.board), snap(original))
+        recs = self.audit_lines()
+        self.assertEqual([(r["tool"], r["outcome"]) for r in recs], [("work_apply", "applied")] * 2)
+        self.assertEqual(recs[0]["plan_id"], pid)
+        self.assertNotIn("s3cret-token", self.audit_path.read_text() + self.stream.getvalue())
+
+
+class AuditLog(unittest.TestCase):
+    def test_scrubs_and_appends_one_line_per_record(self):
+        with tempfile.TemporaryDirectory() as d:
+            path, out = Path(d) / "a" / "audit.jsonl", io.StringIO()
+            log = srv.Audit(path, stream=out)
+            tok = "ghp_" + "A" * 36
+            self.assertEqual(log.record(tool="t", params={"x": tok, "y": "Bearer abc.def"}), str(path))
+            log.record(tool="t", outcome="refused")
+            text = path.read_text()
+            self.assertEqual(len(text.splitlines()), 2)
+            self.assertNotIn(tok, text + out.getvalue())
+            self.assertNotIn("abc.def", text)
+            self.assertIn("harness-mcp audit ", out.getvalue())
+
+    def test_a_read_only_mount_falls_back_to_stderr(self):
+        with tempfile.TemporaryDirectory() as d:
+            blocker = Path(d) / "file"
+            blocker.write_text("")
+            log = srv.Audit(blocker / "audit.jsonl", stream=io.StringIO())   # parent is a file: cannot mkdir
+            self.assertEqual(log.record(tool="t"), "stderr")
+
+    def test_default_path_is_gitignored_fleet_mcp(self):
+        with mock.patch.dict(os.environ, {"HARNESS_MCP_AUDIT": ""}):
+            self.assertEqual(srv.audit_file().relative_to(srv.ROOT).as_posix(), ".fleet/mcp/audit.jsonl")
 
 
 if __name__ == "__main__":

@@ -30,6 +30,18 @@ name: 🐍 Python Tests
 # every shard passed. It keeps this workflow's check name, which the ratify guard
 # reads with every other check on a commit (tools/jev/ratify.py).
 #
+# COVERAGE CORE
+# -------------
+# Every test file runs under `coverage run`, and coverage's default tracer
+# (ctrace) more than doubled the console, pages and spec files (2026-11-07,
+# python:3.12, coverage 7.17: test_console 49s plain, 116s ctrace, 50s sysmon;
+# the four named files 717s under ctrace, 421s under sysmon). COVERAGE_CORE=sysmon
+# uses Python 3.12's sys.monitoring instead: the same files, the same tests, the
+# same table (5758 statements, 52% either way), at about plain speed. Line
+# coverage only: sysmon cannot measure branches before Python 3.14, and this
+# workflow does not ask for them. On an older interpreter coverage warns and
+# falls back to ctrace, so the setting can slow nothing down.
+#
 # DOCS-ONLY PRS
 # -------------
 # The `changes` job skips the shards on a PR that touches only docs/, changelog.d/
@@ -143,6 +155,9 @@ jobs:
       - name: Run this shard's test files
         env:
           SHARD: ${{ matrix.shard }}
+          # sys.monitoring, not the ctrace tracer: same coverage, ~40% less
+          # test time on the named shards (see COVERAGE CORE above).
+          COVERAGE_CORE: sysmon
         run: |
           shopt -s nullglob
           all=(.github/scripts/dash-gen/test_*.py tools/test_*.py tools/console/test_*.py tools/tui/test_*.py templates/*/test_*.py)

@@ -315,6 +315,17 @@ def main() -> int:
           build(triage(), usage(dict(nightly, flags=[]))) == []
           and remediation.is_long_running(nightly, CFG))
 
+    # actions-usage/v2: avg_min / p95_min are job-minutes (cost); duration is
+    # the wall clock. A wide matrix is expensive per run but finishes fast, and
+    # must not hold a "long-running" slot; a v1 record (no wall_*) reads as before.
+    matrix = dict(nightly, avg_min=40.0, p95_min=55.0, wall_avg_min=2.5, wall_p95_min=3.0)
+    check("v2: a fast run with many job-minutes is not long-running",
+          not remediation.is_long_running(matrix, CFG))
+    check("v2: a long wall clock is long-running whatever its job-minutes",
+          remediation.is_long_running(dict(matrix, wall_avg_min=14.0), CFG))
+    check("v1: a record without wall_* reads avg_min as the duration, as before",
+          remediation.is_long_running({"avg_min": 13.46, "p95_min": 18.48}, CFG))
+
     # The priority fallback is the documented trap from bamr87/bamr87#92: it
     # admits a candidate on spend alone after the guards emptied its flags.
     fallback = dict(nightly, flags=[], priority=99.0)
@@ -616,6 +627,14 @@ def main() -> int:
     empty = remediation.render([], CFG, HUB, usage(), triage(),
                                {"total": 0, "deduped": 0, "retired": 0})
     check("an empty queue says do nothing", "Nothing to do." in empty)
+    v2 = dict(usage(wf("bamr87/a", "Matrix", ".github/workflows/m.yml", flags=["slow"],
+                       avg=40.0, p95=55.0, total=400.0, waste=40.0)),
+              minutes_basis="job-minutes")
+    v2["workflows"][0].update(wall_avg_min=14.0, wall_p95_min=21.0)
+    v2_md = remediation.render([dict(c, _where="submodule") for c in build(triage(), v2)], CFG, HUB, v2, triage(),
+                               {"total": 1, "deduped": 0, "retired": 0})
+    check("a v2 work order says job-minutes and shows the wall clock beside them",
+          "400.0job-min total" in v2_md and "14.0m avg / 21.0m p95 wall clock" in v2_md)
 
     # --- billing block roll-up (bamr87/bamr87#268) ------------------------- #
     msg = ("The job was not started because recent account payments have failed or "
@@ -728,6 +747,43 @@ def main() -> int:
               rc == 0 and json.loads(out.getvalue())["disabled"] is True)
     check("plan mode: the slug is a plain name", remediation.candidate_slug(
         {"repo": "it-journey", "path": ".github/workflows/issue autopilot.yml"}) == "it-journey-issue-autopilot")
+
+    # --- dedupe reads every open hub item, not the newest 200 --------------- #
+    print("open markers:")
+    old_key = f"{OWNER}/it-journey:.github/workflows/codeql-analysis.yml"
+
+    def fake_gh_json(cmd):
+        # 233 open issues, newest first; the one carrying the marker is the oldest.
+        limit = int(cmd[cmd.index("--limit") + 1])
+        items = [{"body": "unrelated"}] * 232 + [{"body": remediation.doctor_marker(old_key)}]
+        return items[:limit] if cmd[1] == "issue" else []
+
+    real_gh_json = remediation._gh_json
+    remediation._gh_json = fake_gh_json
+    try:
+        seen = remediation.open_markers(HUB)
+    finally:
+        remediation._gh_json = real_gh_json
+    check("open markers: an old issue past the 200th open item still dedupes its key (#210)", old_key in seen)
+
+    # --- pr-red is not a correctness signal (bamr87/bamr87#614) ------------- #
+    print("pr-red:")
+    gate = ".github/workflows/evidence-gate.yml"
+    check("pr-red is not a correctness signal",
+          "pr-red" not in remediation.CORRECTNESS_SIGNALS
+          and "pr-red" not in remediation.DEFAULT_SEVERITY)
+    # The zer0-mistakes Evidence gate after the analytics fix: `pr-red` only,
+    # with enough priority that the fallback alone would have queued it.
+    pr_only = build(triage(), usage(wf("bamr87/zer0-mistakes", "Evidence gate", gate,
+                                       flags=["pr-red"], waste=12.0, priority=15.0)))
+    check("a pr-red-only workflow is not queued for the doctor", pr_only == [])
+    # A real cost problem on the same workflow still stands.
+    pr_slow = build(triage(), usage(wf("bamr87/zer0-mistakes", "Evidence gate", gate,
+                                       flags=["pr-red", "slow"], avg=30.0)))
+    check("pr-red does not hide a real cost signal",
+          len(pr_slow) == 1 and pr_slow[0]["signals"] == {"slow"})
+    check("pr-red gets no de-flake advice",
+          "non-deterministic" not in remediation.fix_angle({"pr-red"}))
 
     # --- report ------------------------------------------------------------ #
     failed = [label for label, ok in CHECKS if not ok]
