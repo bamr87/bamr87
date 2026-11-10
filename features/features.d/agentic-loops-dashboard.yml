@@ -1,0 +1,41 @@
+# One board of every live and routine agentic loop.
+# Numbered at merge: id stays HUB-NEW (amendment 0002).
+id: HUB-NEW
+slug: agentic-loops-dashboard
+title: "Agentic loops dashboard"
+description: "One operations dashboard of every agent and harness, the repo it is on, and its current status. Routine and scheduled loops (Grok bot routines, JEV and fleet loops, console jobs, scheduled workflows) are distinguished from live and ad-hoc sessions (Claude Code, cloud agents, console executions), and in-flight work from completed work. The view links the Harness Console, the inventories and the ledgers. It does not replace them. Design only (docs/prd/AGENTIC-LOOPS-DASHBOARD.md). History and statistics are HUB-NEW:agentic-loops-activity. The BASH Consulting showcase, the brand line A born-again solutions hero, the Bash 365 foundation and the agent installation wizard are HUB-NEW:agentic-loops-foundation. Roadmap FF-NEW:agentic-loops-dashboard."
+implemented: false
+status: planned
+surface: ui
+link: docs/prd/AGENTIC-LOOPS-DASHBOARD.md
+docs: docs/prd/AGENTIC-LOOPS-DASHBOARD.md
+tags: [dashboard, agents, loops, harness, observability]
+date: 2026-11-10
+tests:
+  - {na: "docs-only PRD; the console view lands in a later implementation PR"}
+prd:
+  - "FR-NEW:agentic-loops-board"
+  - "FR-NEW:agentic-loops-populations"
+  - "FR-NEW:agentic-loops-flight"
+  - "NFR-NEW:agentic-loops-complement"
+  - "NFR-NEW:agentic-loops-redaction"
+  - "NFR-NEW:agentic-loops-degraded"
+prd_new:
+  - key: agentic-loops-board
+    kind: FR
+    text: "An operator must be able to open one dashboard and see every agent and harness at work, the repository it is on when the work names one, and a current status of working, idle, stale, failed, completed or unknown, with a link to the console page, job, session, workflow run, issue or pull request that already holds the detail."
+  - key: agentic-loops-populations
+    kind: FR
+    text: "The dashboard must show both populations and distinguish them. Routine and scheduled work covers Grok bot routines, JEV and fleet loops, console jobs and scheduled workflows. Live and ad-hoc work covers Claude Code sessions, cloud agents and console executions. A population with no source record must be listed and marked telemetry-missing."
+  - key: agentic-loops-flight
+    kind: FR
+    text: "The dashboard must distinguish in-flight work from completed work, and completed runs must stay visible as history after the next run starts."
+  - key: agentic-loops-complement
+    kind: NFR
+    text: "The dashboard must link the Harness Console sessions, health, cost and job views, the Loops, schedules and workflows pages, the agent inventory, the pipeline map, the activity log, the activity replay, the fleet graph and the agent news feed. It must not replace those stores or become a social feed. Turning it off must leave those surfaces working."
+  - key: agentic-loops-redaction
+    kind: NFR
+    text: "A dashboard row, history line or public snapshot must contain no token, secret, credential or private-repository body. A cost figure that is an estimate must be labelled API-equivalent (estimate). The public Pages build must show a redacted sample or aggregate counts, never a live session body."
+  - key: agentic-loops-degraded
+    kind: NFR
+    text: "Stale, failed, idle and unknown must be visible states. Missing telemetry must be shown as missing, with the absent source named. The dashboard must not invent a status, a duration or a cost when the source has none. A source that is down must be announced without hiding rows that other sources can still supply."
