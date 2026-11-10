@@ -1054,6 +1054,160 @@ def test_the_resolution_prompt_forbids_committing_pushing_and_merging():
         assert rule in text, rule
 
 
+# --------------------------------------------------------------------------- #
+# differential validation: a check the base branch already fails here
+# --------------------------------------------------------------------------- #
+#: Stands in for a repository gate at a path the engine looks for (`VALIDATORS`):
+#: fails with one `[FAIL] <name>` line per line of fails.txt, as run-all-tests.sh does.
+GATE = """import pathlib, sys
+p = pathlib.Path("fails.txt")
+names = [l.strip() for l in p.read_text().splitlines() if l.strip()] if p.exists() else []
+for n in names:
+    print(f"[FAIL] {n}")
+print("[FAIL] One or more checks failed." if names else "OK")
+sys.exit(1 if names else 0)
+"""
+
+
+def gated_repo(base_fails: str = "", head_fails: str | None = None, gate: str = GATE) -> Path:
+    """`main` (the base) and `feature` (checked out), both carrying the stand-in gate."""
+    cf._BASELINES.clear()
+    d = Path(tempfile.mkdtemp()) / "repo"
+    (d / "tools").mkdir(parents=True)
+    git(["init", "-q", "-b", "main"], cwd=d)
+    git(["config", "user.name", "t"], cwd=d)
+    git(["config", "user.email", "t@example.com"], cwd=d)
+    (d / "tools" / "schema_lint.py").write_text(gate)
+    if base_fails:
+        (d / "fails.txt").write_text(base_fails)
+    git(["add", "-A"], cwd=d)
+    git(["commit", "-qm", "base"], cwd=d)
+    git(["checkout", "-qb", "feature"], cwd=d)
+    (d / "work.txt").write_text("the change\n")
+    if head_fails is not None:
+        (d / "fails.txt").write_text(head_fails)
+    git(["add", "-A"], cwd=d)
+    git(["commit", "-qm", "head"], cwd=d)
+    return d
+
+
+def test_a_check_the_base_already_fails_is_not_held_against_the_resolution():
+    """The hub's own case: run-all-tests.sh fails on a clean main on the maintainer's Mac, so every
+    resolution of a hub pull request was discarded and a second tier was paid to fail the same way."""
+    d = gated_repo(base_fails="tools shellcheck\nfleet smoke\n")
+    good, problems = cf.validate(d)                                   # judged alone, as it used to be
+    assert not good and problems == ["tools/schema_lint.py failed: fleet smoke; tools shellcheck"], problems
+    base = cf.Baseline(d, "main")
+    good, problems = cf.validate(d, [], base)
+    assert good and problems == [], problems
+    assert base.waived == ["tools/schema_lint.py fails on main too (fleet smoke, tools shellcheck)"], base.waived
+
+
+def test_a_check_the_base_passes_still_fails_the_resolution():
+    d = gated_repo(head_fails="the thing this merge broke\n")
+    base = cf.Baseline(d, "main")
+    good, problems = cf.validate(d, [], base)
+    assert not good and problems == ["tools/schema_lint.py failed: the thing this merge broke"], problems
+    assert base.waived == []
+
+
+def test_a_new_failure_inside_a_check_the_base_fails_is_named_and_counted():
+    # the base fails `old`; the merged tree fails `old` and `new`: only `new` is the resolution's, and it counts
+    d = gated_repo(base_fails="old\n", head_fails="old\nnew\n")
+    base = cf.Baseline(d, "main")
+    good, problems = cf.validate(d, [], base)
+    assert not good and problems == ["tools/schema_lint.py failed: new"], problems
+    assert base.waived == []
+
+
+def test_a_base_failure_that_names_nothing_excuses_only_by_parity():
+    # a gate that just exits 1: nothing to compare, so the base failing too is the whole evidence
+    silent = "import pathlib, sys\nprint('boom')\nsys.exit(1 if pathlib.Path('fails.txt').exists() else 0)\n"
+    d = gated_repo(base_fails="x\n", gate=silent)
+    base = cf.Baseline(d, "main")
+    good, problems = cf.validate(d, [], base)
+    assert good and base.waived == ["tools/schema_lint.py fails on main too"], (problems, base.waived)
+    d = gated_repo(head_fails="x\n", gate=silent)                     # the base passes: the failure is the merge's
+    good, problems = cf.validate(d, [], cf.Baseline(d, "main"))
+    assert not good and problems == ["tools/schema_lint.py failed: boom"], problems
+
+
+def test_the_base_is_checked_once_per_commit_and_its_worktree_is_removed():
+    d = gated_repo(base_fails="a\n")
+    seen = []
+    real = cf.run
+
+    def counting(argv, cwd=None, **kw):
+        seen.append(Path(cwd).name if cwd else "")
+        return real(argv, cwd=cwd, **kw)
+
+    cf.run = counting
+    try:
+        for _ in range(3):
+            good, _problems = cf.validate(d, [], cf.Baseline(d, "main", repo="o/r"))
+            assert good
+    finally:
+        cf.run = real
+    assert seen.count("tree") == 1, seen                               # the base ran once; the merged tree three times
+    assert seen.count("repo") == 3, seen
+    listed = subprocess.run(["git", "worktree", "list", "--porcelain"], cwd=d, capture_output=True, text=True).stdout
+    trees = listed.count("worktree ")       # plain git: JEV's own wrapper refuses `worktree list`, by design
+    assert trees == 1, "the baseline's worktree was left behind"
+    assert git(["status", "--porcelain"], cwd=d).out.strip() == "", "the merged tree was touched"
+    # a base that moved is a different baseline
+    git(["checkout", "-q", "main"], cwd=d)
+    (d / "fails.txt").write_text("")
+    git(["commit", "-qam", "base fixed"], cwd=d)
+    git(["checkout", "-q", "feature"], cwd=d)
+    good, problems = cf.validate(d, [], cf.Baseline(d, "main", repo="o/r"))
+    assert not good and problems == ["tools/schema_lint.py failed: a"], problems
+
+
+def test_the_universal_checks_are_never_excused():
+    d = gated_repo(base_fails="a\n")
+    (d / "work.txt").write_text("<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> main\n")
+    base = cf.Baseline(d, "main")
+    good, problems = cf.validate(d, ["work.txt"], base)
+    assert not good and any("conflict markers remain" in p for p in problems), problems
+    assert base.waived == ["tools/schema_lint.py fails on main too (a)"]
+
+
+def test_a_base_that_cannot_be_checked_out_excuses_nothing():
+    d = gated_repo(base_fails="a\n")
+    good, problems = cf.validate(d, [], cf.Baseline(d, "no-such-ref"))
+    assert not good and problems == ["tools/schema_lint.py failed: a"], problems
+
+
+def test_failure_lines_are_read_from_both_gates_formats():
+    out = ("[PASS] dash-gen fixture tests\n\x1b[31m[FAIL]\x1b[0m tools shellcheck\n"
+           "  \x1b[31m✗\x1b[0m docs/DASH.md dash CLI reference is stale\n[FAIL] One or more checks failed.\n")
+    assert cf.failure_signature(out) == {"tools shellcheck", "docs/DASH.md dash CLI reference is stale"}
+    assert cf.failure_signature("all good\nOK\n") == frozenset()
+
+
+def test_a_runner_is_told_apart_from_a_local_session():
+    old = os.environ.get("GITHUB_ACTIONS")
+    try:
+        os.environ["GITHUB_ACTIONS"] = "true"
+        assert cf.on_runner()
+        os.environ.pop("GITHUB_ACTIONS")
+        assert not cf.on_runner()
+    finally:
+        if old is not None:
+            os.environ["GITHUB_ACTIONS"] = old
+
+
+def test_both_local_entry_points_read_the_one_local_ledger():
+    """`tools/dash loop budget` prints the conflict engine's month too. It read the tracked CI ledger
+    (no model spend, ever) while `tools/dash conflicts` wrote the local one, and showed $0.00 of $10
+    against $2.71 actually spent."""
+    dash = (Path(__file__).resolve().parent / "dash").read_text()
+    local = 'JEV_LEDGER="${JEV_LEDGER:-${ROOT}/.fleet/runs/jev_resolutions.yml}"'
+    for fn in ("cmd_loop", "cmd_conflicts"):
+        body = dash.split(f"\n{fn}() {{", 1)[1].split("\n}\n", 1)[0]
+        assert local in body, f"{fn} does not point JEV at the local ledger"
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     failed = 0
