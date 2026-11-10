@@ -349,7 +349,9 @@ def build_registry(g: Graph, root: Path, fleet: dict) -> None:
 
 
 def _atlas(root: Path):
-    sys.path.insert(0, str(root / ".github" / "scripts" / "dash-gen"))
+    gen = str(root / ".github" / "scripts" / "dash-gen")
+    if gen not in sys.path:  # once: a console that rebuilds the graph must not grow sys.path each time
+        sys.path.insert(0, gen)
     import workflow_atlas  # noqa: WPS433 — dash-gen's own module, only when asked
     return workflow_atlas
 

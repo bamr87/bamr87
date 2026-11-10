@@ -423,6 +423,12 @@ class HubGraphTests(unittest.TestCase):
         self.assertEqual([i["path"] for i in self.g.inputs if not i["present"]], [])
         self.assertEqual([i["path"] for i in self.g.inputs if not i["count"]], [])
 
+    def test_rebuilding_does_not_grow_the_import_path(self):
+        before = len(sys.path)
+        fg.build(HUB, parts=("workflows",))
+        fg.build(HUB, parts=("workflows",))
+        self.assertEqual(len(sys.path), before)
+
     def test_no_edge_dangles(self):
         self.assertEqual([f for f in self.findings if f["severity"] == "error"], [])
 
