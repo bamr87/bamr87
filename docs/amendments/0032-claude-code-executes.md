@@ -1,10 +1,10 @@
 # 0032 — Claude Code executes; Grok bots set direction only
 
-- **Status:** proposed (ratification pending — Amr ratifies by merging this PR)
+- **Status:** ratified (ratification pending — Amr ratifies by merging this PR)
 - **Number:** 0032
 - **Date:** 2026-11-05
 - **Proposed by:** Grok Bot (agent), on Amr's instruction as owner
-- **Ratified by:**
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/686 (merged 2026-11-10 by @bamr87)
 - **Affects:** constitution § 26 (new; follows § 24 on main and proposed § 25 from open PR #685 `mcp-lifecycle` — this section is **§ 26** if #685 lands first, else renumber to **§ 25**); § 4 (roles table); § 8 and § 12 by reference; feature `HUB-095`; requirement `FR95`; roadmap FF-0049; `AGENTS.md` agent-roles
 - **Supersedes:** none (narrows which AI actors may open which PRs; does not change maintainer merge authority or § 12.3 ratification-record PRs)
 - **Related:** epic-style handoff via Fleet issues / console jobs; in-flight non-amendment PRs (hub #607; lifehacker.dev #800; scripts #36/#37; bash-365.com open work); Design for Failure (DFF); process mirrors #678/#680, #683/#685
