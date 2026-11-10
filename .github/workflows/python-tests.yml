@@ -62,6 +62,18 @@ name: 🐍 Python Tests
 # it resolved (job summary + `python-deps-resolved` artifact) so a red night
 # can be diffed against the last green one. Nightly at 09:17 UTC is declared in
 # _data/fleet.yml `schedule.python_tests` (test_schedule.py holds them equal).
+#
+# PUSH DEBOUNCE
+# -------------
+# Merges land on main in bursts: a merge, then JEV's follow-up commits, seconds
+# to a few minutes apart. `cancel-in-progress` was cancelling each superseded
+# run only after its four shards had booted: 45 of the 60 push runs between
+# 2026-11-05 and 2026-11-10 ended cancelled, 21 of them within 90 seconds, each
+# about 5 billed job-minutes for a result nobody would read (bamr87/bamr87#799).
+# So a push run waits 90 seconds in `changes`, the one cheap job, where the next
+# push cancels it before any shard starts. That costs one more billed minute on
+# a push run that survives. The last push of a burst still runs every suite on
+# main's tip. A PR, the nightly run and a manual dispatch do not wait.
 
 on:
   pull_request:
@@ -111,12 +123,19 @@ jobs:
           echo "run=$run" >> "$GITHUB_OUTPUT"
           if [ "$run" = false ]; then echo "::notice::docs-only change; skipping the test shards"; fi
 
+      # PUSH DEBOUNCE (header): give the next push of a merge burst time to
+      # cancel this run here, before the four shards boot.
+      - name: Wait for a superseding push
+        if: ${{ github.event_name == 'push' }}
+        run: sleep 90
+
   tests:
     needs: changes
     if: ${{ needs.changes.outputs.run != 'false' }}
     name: tests (${{ matrix.shard }})
     runs-on: ubuntu-latest
-    # The slowest shard takes about 7 minutes; this still stops a hung test.
+    # The slowest shard (`pages`) takes about 10 minutes, the others about 6;
+    # this still stops a hung test.
     timeout-minutes: 15
     strategy:
       fail-fast: false

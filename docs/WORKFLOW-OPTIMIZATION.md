@@ -333,3 +333,9 @@ Next, by minutes per 14 days, each a change of its own:
 - **About 230:** the `changes` job also runs on push and on the schedule, where its answer is always "run".
 
 Not costs: the 191 skipped `claude.yml` runs and the 93 skipped `pr-review.yml` runs started no job and billed nothing. Bot data commits carry `[skip ci]` or are pushed with `GITHUB_TOKEN`, so only 6 of the 32 `jev-number` commits started a push suite.
+
+## 2026-11-09 — push runs wait for the burst to end
+
+The second item on that list, measured again: of the 60 `python-tests` push runs on `main` between Nov 5 and Nov 10, 45 ended cancelled, 13 passed and 2 failed. `cancel-in-progress` was doing its job, but only after the damage: `changes` finishes in 3 seconds, so all four shards had booted by the time the next push of a merge burst cancelled them. 21 of the 45 were cancelled within 90 seconds of starting, about 5 billed job-minutes each for a result nobody would read (#799, found by the fleet-doctor, whose token cannot push a hub workflow change).
+
+A push run now waits 90 seconds in `changes` before the shards start, so a superseding push cancels it while it holds one runner instead of five. A run that would have been cancelled later than that starts its shards 90 seconds later and loses that much less. A push run that survives is billed one more minute: `changes` goes from 3 seconds to 93, which is 2 billed minutes instead of 1, and any wait from 57 to 117 seconds costs the same. The last push of a burst still runs every suite on `main`'s tip, 90 seconds later than before. Pull requests, the nightly run and a manual dispatch do not wait. This also gives the `changes` job a purpose on a push, where its answer was always "run" (the last item on the list above).
