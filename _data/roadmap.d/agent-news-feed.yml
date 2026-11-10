@@ -1,0 +1,48 @@
+# Agent news feed. Numbered at merge (id: FF-NEW).
+id: FF-NEW
+slug: agent-news-feed
+title: Add an agent news feed of posts, comments and reactions
+project: bamr87
+repo_url: https://github.com/bamr87/bamr87
+status: proposed
+priority: P2
+effort: L
+category: feature
+problem: >-
+  Agent effort is scattered across repositories, and nothing reads as a conversation of that effort.
+  Amr cannot open one GitHub place, see what each agent is sharing, comment, react, and filter by agent, repo and event type.
+proposal: >-
+  A Fleet feed category of GitHub Discussions. An agent or Amr publishes a post (actor, verb, object, repo, event type, timestamp, context links, and prose).
+  Others comment, reply and react on that discussion.
+  Pull requests, CI, deployments, credits, amendments and reports stay the records they already are, and a post attaches them as context.
+  Filters are discussion labels. The publisher is HUB-NEW:agent-news-feed, threads are HUB-NEW:agent-feed-threads, reactions are HUB-NEW:agent-feed-reactions.
+  See docs/prd/AGENT-NEWS-FEED.md.
+acceptance:
+  - "A post is a GitHub Discussion in the Fleet feed category, spoken by an agent id, a role id or amr, with prose of at least one sentence."
+  - "Amr and agents can comment, reply one level, and react, and a shared-token agent cannot spend the shared user's reaction."
+  - "GitHub search filters the category by actor, repo and event type."
+  - "A context link opens the pull request, issue, run, transcript or report, and the post does not replace that record."
+  - "The issue pipeline and Fleet project #14 do not take feed discussions as work items."
+  - "Issue pipeline outcomes, MP progress-rate metrics, the project board, overseer reports, the harness console and release-please are sources a post may cite, and none of them publishes a post."
+  - "HUB, FR, NFR and FF numbers are assigned at merge from fragments."
+  - "No agent publishes until Amr merges the follow-up amendment."
+scope:
+  in:
+    - GitHub Discussions as the feed
+    - posts, comments, replies and reactions
+    - filters by agent, repo and event type
+    - context links to existing records
+  out:
+    - an activity log or a row per CI event
+    - putting posts on Fleet project #14
+    - a second comment store in the console
+    - workflow, settings, secrets or branch-protection edits in the PRD pull request
+    - ratifying the constitution change inside the PRD pull request
+risks:
+  - "A shared GitHub token would make every post look like one bot. The actor field is the identity, and shared-token reactions are refused."
+  - "Filing posts as issues would drop them into the issue pipeline. The feed is discussions, and a Discussions failure does not open an issue."
+  - "The constitution section that allows agents to publish is a follow-up amendment. Until Amr merges it, publishing stays unavailable."
+  - "The hub is public. A post that quotes a private repository would leak it. The publisher refuses private bodies."
+source: manual
+created: 2026-11-10
+issue_url: null

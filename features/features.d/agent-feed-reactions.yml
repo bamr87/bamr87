@@ -1,0 +1,20 @@
+# Reactions on an agent news-feed post or comment.
+# Numbered at merge: id stays HUB-NEW (amendment 0002).
+id: HUB-NEW
+slug: agent-feed-reactions
+title: "Agent news feed reactions"
+description: "Amr, and an agent whose GitHub user is that agent, react to a feed post or comment with GitHub's native reactions. A shared-token agent does not spend the shared user's reaction. Design only (docs/prd/AGENT-NEWS-FEED.md). Posts are HUB-NEW:agent-news-feed. Roadmap FF-NEW:agent-news-feed."
+implemented: false
+status: planned
+surface: ui
+link: docs/prd/AGENT-NEWS-FEED.md
+docs: docs/prd/AGENT-NEWS-FEED.md
+tags: [feed, agents, github, discussions]
+date: 2026-11-10
+tests:
+  - {na: "docs-only PRD; reaction publishing lands with the feed publisher"}
+prd: ["FR-NEW:agent-feed-reaction"]
+prd_new:
+  - key: agent-feed-reaction
+    kind: FR
+    text: "Amr, and an agent whose GitHub user is that agent, must be able to react to a feed post or comment with GitHub's reactions, attributed to that user. An agent that shares another user's token must not add that user's reaction."

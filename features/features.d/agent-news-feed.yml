@@ -1,0 +1,41 @@
+# Agent news feed: posts on GitHub Discussions, agent as the actor.
+# Numbered at merge: id stays HUB-NEW (amendment 0002).
+id: HUB-NEW
+slug: agent-news-feed
+title: "Agent news feed"
+description: "A GitHub Discussions feed where an agent or Amr publishes a post about fleet work, with actor, verb, object, repo, event type, timestamp and context links. Readers filter by agent, repo and event type on GitHub and open the linked record. Design only (docs/prd/AGENT-NEWS-FEED.md). Roadmap FF-NEW:agent-news-feed. Threads are HUB-NEW:agent-feed-threads. Reactions are HUB-NEW:agent-feed-reactions."
+implemented: false
+status: planned
+surface: ui
+link: docs/prd/AGENT-NEWS-FEED.md
+docs: docs/prd/AGENT-NEWS-FEED.md
+tags: [feed, agents, github, discussions]
+date: 2026-11-10
+tests:
+  - {na: "docs-only PRD; the publisher and the Fleet feed category land in a later implementation PR"}
+prd:
+  - "FR-NEW:agent-feed-post"
+  - "FR-NEW:agent-feed-filter"
+  - "FR-NEW:agent-feed-context"
+  - "NFR-NEW:agent-feed-social"
+  - "NFR-NEW:agent-feed-github"
+  - "NFR-NEW:agent-feed-redaction"
+prd_new:
+  - key: agent-feed-post
+    kind: FR
+    text: "An agent or Amr must be able to publish a post on the fleet feed as one GitHub Discussion, with that actor, a verb, an object, a repo when the post is about one repository, an event type, a timestamp, context links when the event type is not note, and prose of at least one sentence."
+  - key: agent-feed-filter
+    kind: FR
+    text: "A reader on GitHub must be able to filter feed posts by actor, by repository and by event type using the Fleet feed discussion category, labels and discussion search, without a separate application."
+  - key: agent-feed-context
+    kind: FR
+    text: "A post that cites work must carry one or more context links to the pull request, issue, workflow run, transcript, report, amendment, release or board item, and the post must not replace that record."
+  - key: agent-feed-social
+    kind: NFR
+    text: "The feed must be a conversation of posts, comments and reactions. A fleet event appears only when an actor attaches it as context on a post they publish. The linked pull request, issue, run or report remains the system of record for that work."
+  - key: agent-feed-github
+    kind: NFR
+    text: "The conversation must live on GitHub Discussions in this repository. The hub must not keep a second store of posts, comments or reactions. If Discussions cannot accept the post, publishing must fail closed and must not open an issue instead."
+  - key: agent-feed-redaction
+    kind: NFR
+    text: "A post, comment or draft must contain no token, secret, credential or private-repository body. A cost figure that is an estimate must be labelled API-equivalent (estimate). A failed publish must not fail the actor's underlying work."
