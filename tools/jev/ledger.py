@@ -71,6 +71,11 @@ class Ledger:
     path: Path = LEDGER_PATH
     schema: str = SCHEMA
     resolutions: list[dict] = field(default_factory=list)
+    #: Does memory hold something the file does not? True for a ledger with no
+    #: file yet and after every append; False once loaded or saved. `save` writes
+    #: only while it is true, so a run that recorded nothing leaves the file as
+    #: it was (see `save`).
+    unsaved: bool = field(default=True, repr=False, compare=False)
 
     @classmethod
     def load(cls, path: Path | None = None) -> Ledger:
@@ -86,11 +91,14 @@ class Ledger:
         if not isinstance(rows, list):
             raise JevError(f"{p} is not a mapping with a `resolutions` list — the monthly ceiling cannot be "
                            "judged; repair it in place")
-        return cls(path=p, schema=str(data.get("schema") or SCHEMA),
-                   resolutions=[r for r in rows if isinstance(r, dict)])
+        kept = [r for r in rows if isinstance(r, dict)]
+        # A file holding something that is not a row is rewritten without it, as before.
+        return cls(path=p, schema=str(data.get("schema") or SCHEMA), resolutions=kept,
+                   unsaved=len(kept) != len(rows))
 
     def append(self, record: Resolution) -> None:
         self.resolutions.append({k: v for k, v in asdict(record).items() if v != ""})
+        self.unsaved = True
 
     def _cost(self, r: dict) -> float:
         """A row's `cost_usd` as the ceiling can add it: finite and not negative
@@ -132,7 +140,18 @@ class Ledger:
                    if r.get("repo") == repo and int(r.get("pr") or 0) == pr
                    and str(r.get("outcome")) in ("resolved", "failed"))
 
-    def save(self) -> None:
+    def save(self) -> bool:
+        """Write the file if a row was appended since it was loaded; say whether it was.
+
+        A run that records nothing leaves the file byte for byte as it was.
+        Every save used to restamp `generated`, so a CI sweep that found
+        conflicts and attempted none (they wait for a local session) still
+        changed the file, and jev-conflicts.yml published the new timestamp as
+        `chore(jev): record conflict resolutions`: 15 commits on main in the
+        week to 2026-11-10, every one with `resolutions: []`.
+        """
+        if not self.unsaved and self.path.is_file():
+            return False
         body = {
             "schema": self.schema,
             "call_site": CALL_SITE,
@@ -149,6 +168,8 @@ class Ledger:
             "# The monthly cap lives in _data/fleet.yml budget.jev (docs/JEV.md).\n"
             + yaml.safe_dump(body, sort_keys=False, width=100, allow_unicode=True),
             encoding="utf-8")
+        self.unsaved = False
+        return True
 
 
 @dataclass
