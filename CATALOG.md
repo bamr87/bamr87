@@ -170,8 +170,10 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`gen-projects-schema.py`](tools/gen-projects-schema.py) | Regenerates `projects/SCHEMA.md` from `.gitmodules` + the registry (`--check` gates staleness) |
 | [`gen-specs-data.py`](tools/gen-specs-data.py) | Regenerates `_data/specs.yml` (the machine-readable Universal Project Standard) from the requirement tables in `specs/*.md` (`--check` gates staleness) |
 | [`governance_lint.py`](tools/governance_lint.py) | The fleet GOVERNANCE check: validate, and keep in sync, the chain |
+| [`governance_trace_lint.py`](tools/governance_trace_lint.py) | Warn-then-fail lint for constitution § 28 (grok-claude-governance): |
 | [`guides_visual_lint.py`](tools/guides_visual_lint.py) | Warn-then-fail lint for guide-like Markdown that lacks visual |
 | [`install-conflict-sweep.sh`](tools/install-conflict-sweep.sh) | Installs the `com.bamr87.conflict-sweep` LaunchAgent (macOS), which runs `tools/dash conflicts sweep --scheduled` every few hours, so merge conflicts resolve in a local… |
+| [`install-harness-review.sh`](tools/install-harness-review.sh) | Installs the `com.bamr87.harness-review` LaunchAgent (macOS): daily, off the hour, it imports this machine's Claude Code sessions into the lake (`dash-gen lake sessions… |
 | [`install-prose-hook.sh`](tools/install-prose-hook.sh) | Installs a **global** git `pre-commit` hook (`~/.git-hooks`, `core.hooksPath`) that runs `unwrap-prose.py` over the staged markdown and restages it, so a commit is born… |
 | [`install-workspace-sync.sh`](tools/install-workspace-sync.sh) | Installs the `com.bamr87.workspace-sync` LaunchAgent (macOS) that runs `update-submodules.sh --no-commit --no-push` daily and at login, keeping the local clone on `main`… |
 | [`issue-evidence.sh`](tools/issue-evidence.sh) | Builds one issue's **evidence bundle** in an isolated virtual environment — fresh clone, own toolchain (`venv`/`node_modules`/`vendor/bundle`), the project's own lint/te… |
@@ -209,6 +211,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_fleetcore_nodes.py`](tools/test_fleetcore_nodes.py) | Fixture tests for tools/fleetcore/nodes.py — where each hub workload runs (ADR 0003, docs/PLATFORM.md). |
 | [`test_frontend_registry.py`](tools/test_frontend_registry.py) | Tests for tools/frontend_registry.py — the § 18 frontend: block lint and the launcher projection. |
 | [`test_governance_lint.py`](tools/test_governance_lint.py) | Tests for tools/governance_lint.py (stdlib + PyYAML). |
+| [`test_governance_trace_lint.py`](tools/test_governance_trace_lint.py) | Fixture tests for governance_trace_lint.py.""" import sys from pathlib import Path |
 | [`test_guides_visual_lint.py`](tools/test_guides_visual_lint.py) | Fixture tests for tools/guides_visual_lint.py (constitution § 24).""" from __future__ import annotations |
 | [`test_jev_adapter_fanout_agent_fill.py`](tools/test_jev_adapter_fanout_agent_fill.py) | Fixture tests for tools/jev/adapters/fanout_agent_fill.py — the fan-out agent fill's adapter on the loop engine (bamr87/bamr87#488, ADR 0002 P3, step 3). |
 | [`test_jev_adapter_fleet_pulse_doctor.py`](tools/test_jev_adapter_fleet_pulse_doctor.py) | Fixture tests for tools/jev/adapters/fleet_pulse_doctor.py — the fleet doctor's adapter on the loop engine (bamr87/bamr87#488, ADR 0002 P3). |
@@ -225,6 +228,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_jev_number.py`](tools/test_jev_number.py) | Fixture tests for tools/jev/number.py — the assign-at-merge numbering compiler. |
 | [`test_jev_ratify.py`](tools/test_jev_ratify.py) | Fixture tests for tools/jev/ratify.py — the ratification, acceptance and completion records a maintainer's merge decided, the guard that decides whether the job may merg… |
 | [`test_jev_refine.py`](tools/test_jev_refine.py) | Fixture tests for tools/jev/refine.py — recursive harness refinement, the $0 half (JEV capability three, docs/HARNESS-REFINEMENT.md, ADR 0004). |
+| [`test_jev_reflect.py`](tools/test_jev_reflect.py) | Tests for tools/jev/reflect.py — the incident reflector (`refine reflect`, ADR 0004 P1 part one) — and tools/install-harness-review.sh, its schedule. |
 | [`test_jev_spec.py`](tools/test_jev_spec.py) | Fixture tests for tools/jev/spec.py — the loop step specs (#485, ADR 0002). |
 | [`test_jev_surface.py`](tools/test_jev_surface.py) | Fixture tests for tools/jev/surface.py — the harness surface (JEV capability three, docs/HARNESS-REFINEMENT.md). |
 | [`test_jev_workspace.py`](tools/test_jev_workspace.py) | Fixture tests for tools/jev/workspace.py — the local loop engine's throwaway workspaces (#486, ADR 0002 P1). |

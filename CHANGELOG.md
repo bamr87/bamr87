@@ -32,6 +32,9 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - Proposed constitution § 27 / amendment `expedite-sprints`: one expedite sprint at a time run by the fleet's agentic loops, three Amr gates, sprint ceiling and circuit breaker, kill switch, live record and DORA metrics; standard `docs/EXPEDITE-SPRINTS.md` (epic #687).
 - `pr-review.yml`: a reusable workflow that summarizes every CI failure on a pull request in one sticky comment: the job, the reason from its log, whether the PR probably caused it, and what to do. The comment is deleted when nothing is failing. A fleet repo adopts it with the stub in `templates/pr-review/`.
 - Proposed constitution § 25 / amendment `mcp-lifecycle`: centralized MCP server registry, config rules (no tokens in git), transport/tunnel conventions, warn-only `mcp_servers_lint`, and fleet fan-out path (epic #683).
+- Proposed constitution § 28 / amendment `grok-claude-governance`: Grok → Claude Code handoff contract, `Governed by:` audit trail with a warn-only trace lint, role boundaries and stop-and-escalate when Claude Code cannot run.
+- `tools/dash refine reflect` (`python3 -m tools.jev refine reflect`, ADR 0004 P1 part one): the incident reflector — the lake's review of local sessions and CI agent runs, the trip wires, the local runs and the library become at most `reflect.max_entries` candidate lessons from ONE capped Read/Glob/Grep session inside `budget.loops`, validated by the engine and previewed; `publish <stamp> --apply` files them as a draft PR, and a `--scheduled` run never does. `refine reflect doctor [--live]` is its $0 probe and ≤ $0.10 read-fence canary; `tools/install-harness-review.sh` installs the daily `com.bamr87.harness-review` LaunchAgent (lake sessions, lake sync, lake review, the guarded weekly reflection).
+- `_data/fleet.yml` `harness_refinement.reflect` (`max_entries: 5`, `days: 7`, `every_days: 7`, `timeout_minutes: 20`), validated so a month of scheduled reflections at `stage_usd` fits under `budget.loops`' scheduled stop.
 
 ### Changed
 
@@ -40,6 +43,8 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - `_data/fleet.yml` gains `evolution.model: claude-opus-5-5`, the exact id the workflow's `--model opus` resolved to; `test_evolution.py` reads the hard rules from the spec's render and holds the workflow's literals to `fleet.yml`.
 - `_data/roadmap.yml`: roadmap ids (`FF-NNNN`) are now assigned at merge. A new entry is a fragment `_data/roadmap.d/<slug>.yml` with `id: FF-NEW`, cited elsewhere as `FF-NEW:<slug>`; `python3 -m tools.jev number apply` numbers it on `main` and appends it, and `number lint` rejects a hand-picked `- id: FF-NNNN`.
 - `fleet-verify.yml`: a repo whose `app:` block gives nothing to start or serve on a local URL now stops in seconds with a **Not verified** warning and job summary, and fails under `gate: true`. An app that is configured but fails to build or start now fails the job whatever `gate` says, because no scenario ran. Until now both cases waited out the readiness timeout and passed.
+- `_data/fleet.yml` `harness_refinement.enabled: true` (the maintainer's yes, 2026-11-07), for the incident reflector; the JEV guards allow `gh pr create` only with `--draft` and `git worktree` only as `add --detach` or `remove`.
+- `python-tests.yml`: the test shards run under `COVERAGE_CORE=sysmon` (Python 3.12's `sys.monitoring`) instead of coverage's default tracer. Same tests, same advisory coverage table; the console, pages and spec files ran 2.2 to 2.5 times slower under the old tracer, and the change is measured at about 40% less test time on the named shards, the hub's largest single use of Actions minutes.
 
 ### Fixed
 
