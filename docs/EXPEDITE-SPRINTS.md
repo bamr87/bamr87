@@ -41,7 +41,7 @@ Target `bash-365/bash-365.com` (BASH Consulting). A consultation inquiry form on
 
 ## Design for Failure
 
-See the amendment record (`docs/amendments/proposed/expedite-sprints.md`) for the table: cap hit mid-attempt, unanswered gate, second expedite, broken deploy, kill switch, unreadable cost, quality debt.
+See the amendment record (`docs/amendments/0026-expedite-sprints.md`) for the table: cap hit mid-attempt, unanswered gate, second expedite, broken deploy, kill switch, unreadable cost, quality debt.
 
 ## Related
 

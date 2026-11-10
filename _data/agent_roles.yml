@@ -2,7 +2,7 @@
 # Identities are best-effort; CI starts warn-only. Never put tokens here.
 schema: agent-roles/v1
 updated: "2026-11-05"
-docs: docs/amendments/proposed/claude-code-executes.md
+docs: docs/amendments/0032-claude-code-executes.md
 executors:
   - id: claude-code
     kind: claude-code

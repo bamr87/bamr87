@@ -72,7 +72,7 @@ What that means in practice:
 - **Not main-only:** `projects/SCHEMA.md`, `_data/specs.yml`, `_data/features_index.yml`, `_data/cv_portfolio.json`, `_data/deep_dive.json`. Their own loops (fleet-pulse, deep-dive) or the registry flow write them through their own publish branches, and `check-drift.sh` (h) still gates `projects/SCHEMA.md`; making them main-only would fail those loops' PRs.
 - The conflict engine takes **main's** copy of a main-only file on a conflict and neither regenerates nor `--check`s it on a branch; the merge driver does the same locally.
 
-This refines a constitution §2 invariant, so it ships with a proposed amendment record (`docs/amendments/proposed/generated-files-main-only.md`, numbered at merge).
+This refines a constitution §2 invariant, so it ships with a proposed amendment record (`docs/amendments/0004-generated-files-main-only.md`, numbered at merge).
 
 **Transition.** Everything already numbered keeps its number: `HUB-001`–`HUB-032`, `FR1`–`FR27`, `NFR1`–`NFR10`, amendment `0001`. `governance_lint.py` and `features_index.py` still read the compiled files, the fragment directories are additive, and `number lint` reports on every pull request but only **gates** once `_data/fleet.yml` `jev.numbering.enforce` is `true` — a one-line change to make after amendment 0002 is ratified.
 
