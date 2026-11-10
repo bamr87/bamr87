@@ -990,6 +990,21 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
         return local("t_work", {"lane": lane, "repo": repo, "kind": kind, "next_only": next_only, "limit": limit})
 
     @mcp.tool(annotations=READ)
+    def fleet_workflows(workflow: str = "", health: bool = False, days: int = 30) -> Any:
+        """The hub's GitHub Actions as one model (the workflow atlas): every workflow and composite action with
+        its triggers, crons, inputs, jobs, Claude call sites and kill switch, and every finding against the
+        standards. Pass `workflow` (a file stem such as fleet-pulse, or an action id) for one in full; `health`
+        adds run health and failure causes from the local lake over `days`. Read it before changing a workflow."""
+        return local("t_workflows", {"workflow": workflow, "health": health, "days": max(1, min(days, 365))})
+
+    @mcp.tool(annotations=READ)
+    def workflow_lint(text: str, id: str = "draft") -> Any:
+        """Lint a draft workflow (its YAML text) against the hub's standards and _data/fleet.yml: permissions,
+        timeouts, concurrency, crons, kill switch, Claude budget and usage-limit pairing, PR token, bare pushes.
+        `id` is the file stem it will have. Nothing is written."""
+        return local("t_workflow_lint", {"text": text, "id": id})
+
+    @mcp.tool(annotations=READ)
     def console_ops() -> Any:
         """Alias of ops_list (the legacy `fleet` name)."""
         return ops_list()

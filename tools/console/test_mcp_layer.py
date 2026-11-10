@@ -414,7 +414,33 @@ class ClaudeTelemetryTool(unittest.TestCase):
 class MergedFleet(unittest.TestCase):
     """tools/fleetcore/mcp_server.py folded in: same names, the legacy writes only on --fleet-compat or writes on."""
     LEGACY_READ = {"fleet_overview", "fleet_apps", "fleet_inbox", "fleet_docker", "fleet_work",
-                   "console_ops", "console_jobs", "console_job_log"}
+                   "fleet_workflows", "workflow_lint", "console_ops", "console_jobs", "console_job_log"}
+
+    def test_every_tool_of_the_old_server_is_served_under_its_name(self):
+        """The merge dropped fleet_workflows and workflow_lint once, and nothing noticed: the old server's own
+        TOOLS table is the list, so a tool added there and not here fails this."""
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # tools/, for fleetcore
+        from fleetcore import mcp_server as legacy
+        compat = tool_names(srv.build_server(FakeConsole(), allow_writes=False, fleet_compat=True))
+        self.assertEqual(set(legacy.TOOLS) - compat, set())
+        self.assertEqual({n for n, t in legacy.TOOLS.items() if t["annotations"].get("readOnlyHint")}, self.LEGACY_READ)
+
+    def test_workflow_atlas_and_lint_read_the_checkout(self):
+        s = srv.build_server(FakeConsole(), allow_writes=False)
+        atlas = payload(*call(s, "fleet_workflows"))
+        # `workflows` present at all means the catalog fits the clip (HARNESS_MCP_MAX_CHARS); when it stops
+        # fitting, this fails and the tool needs paging, as work_board did.
+        self.assertEqual(atlas["summary"]["workflows"], len(atlas["workflows"]))
+        self.assertIn("fleet-pulse", {w["id"] for w in atlas["workflows"]})
+        one = payload(*call(s, "fleet_workflows", {"workflow": "fleet-pulse"}))
+        self.assertEqual(one["item"]["switch"], "FLEET_PULSE_ENABLED")
+        res, text = call(s, "fleet_workflows", {"workflow": "no-such-workflow"})
+        self.assertTrue(res.is_error if hasattr(res, "is_error") else res.isError)
+        self.assertIn("no-such-workflow", text)
+        draft = "name: x\non:\n  schedule:\n    - cron: '0 3 * * *'\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo\n"
+        lint = payload(*call(s, "workflow_lint", {"text": draft}))
+        self.assertTrue({f["rule"] for f in lint["findings"]} >= {"permissions", "timeout", "cron-on-hour", "cron-declared"})
+        self.assertEqual(lint["parsed"]["name"], "x")
 
     def test_legacy_names_present_writes_gated(self):
         names = tool_names(srv.build_server(FakeConsole(), allow_writes=False, fleet_compat=False))
