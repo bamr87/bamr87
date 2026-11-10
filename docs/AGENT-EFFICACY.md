@@ -54,7 +54,7 @@ In VS Code, both are under **4-generate** (`🛠️ Agent inventory: …`), and 
   local_entry: tools/dash loop run fleet-pulse doctor   # rule 6
   counterparts: [ci:bamr87:fleet-pulse]
   first_seen: '2026-11-07'
-  gaps: [R2:missing:permission_denials,tool_errors, R4:writer-pending:lake]
+  gaps: [R2:missing:permission_denials,tool_errors]
 ```
 
 The file opens with the contract (`enforce`, `shadow_until`, `grace_until`, the six rules), `totals` (by category, by kind, `gaps_by_rule`), the KPI catalogue, each kind's thresholds, the run-record schema and its stores, and the source catalogue with each writer and SLO. `schema: agents/v1` is the compatibility marker: additive changes keep it, and a rename or removal bumps it.
@@ -88,7 +88,9 @@ The fix for a failure is always the same: `tools/dash agents`, then commit `_dat
 3. If it reads a source the catalogue does not have, add it to `harness.sources` with its writer and SLO. A source with no writer is allowed, as `writer: null`, and it shows as a defect.
 4. Run `tools/dash agents --verbose` and commit `_data/agents.yml`. A changed threshold, source or exemption makes the PR gated (§ 12.3).
 
-`declare` registers an agent before its installer exists (today, `local:harness-review` ahead of PR #772). The declaration keeps winning after the installer lands, so that merge does not change the inventory under an unrelated PR. The generator then says to drop the block, and that later PR shows the diff.
+`declare` registers an agent before its installer exists. The declaration keeps winning after the installer lands, so that merge does not change the inventory under an unrelated PR. The generator then says to drop the block, and that later PR shows the diff. Nothing is declared today: `local:harness-review` was, ahead of PR #772, and its block was dropped once `tools/install-harness-review.sh` was in the tree. While it was declared, every agent reading the lake carried `R4:writer-pending:lake`.
+
+The inventory reads the installer, not the machine. A local job is listed when its installer is in the tree, whether or not its LaunchAgent is loaded on the Mac: `launchctl list | grep com.bamr87` shows which are.
 
 ## Shadow, enforcement and grace
 

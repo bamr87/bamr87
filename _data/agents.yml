@@ -33,7 +33,7 @@ totals:
     R1: 55
     R2: 66
     R3: 0
-    R4: 5
+    R4: 2
     R5: 1
     R6: 17
 kpis:
@@ -2084,7 +2084,6 @@ agents:
   first_seen: '2026-11-07'
   gaps:
   - R2:missing:permission_denials,tool_errors
-  - R4:writer-pending:lake
 - id: loop:repo-evolution/evolve
   kind: loop-step
   category: local-loop-step
@@ -2127,7 +2126,6 @@ agents:
   gaps:
   - R2:missing:permission_denials,tool_errors
   - R4:no-writer:conformance
-  - R4:writer-pending:lake
 - id: loop:repo-scout/scout
   kind: loop-step
   category: local-loop-step
@@ -2167,7 +2165,6 @@ agents:
   first_seen: '2026-11-07'
   gaps:
   - R2:missing:permission_denials,tool_errors
-  - R4:writer-pending:lake
 - id: jev:tier0
   kind: jev-tier
   category: jev-tier
@@ -2296,7 +2293,6 @@ agents:
   category: scheduled-local-job
   repo: bamr87/bamr87
   where: tools/install-harness-review.sh
-  pending: bamr87/bamr87#772
   owner: bamr87
   trigger: 'launchd com.bamr87.harness-review: daily 06:23 local'
   runs:
@@ -2332,7 +2328,6 @@ agents:
   first_seen: '2026-11-07'
   gaps:
   - R2:missing:permission_denials,tool_errors
-  - R4:writer-pending:lake
   - R5:no-reflector
 - id: local:workspace-sync
   kind: local-job

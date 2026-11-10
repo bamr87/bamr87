@@ -105,7 +105,11 @@ HOURS_RX = re.compile(r"^HOURS=(\d+)", re.M)
 HOUR_RX = re.compile(r"^HOUR=(\d+)", re.M)
 AT_RX = re.compile(r'^AT="(\d{2}):(\d{2})"', re.M)
 MINUTE_LITERAL_RX = re.compile(r"<key>Minute</key>\s*<integer>(\d+)</integer>")
-RUN_LINE_RX = re.compile(r"^\s*(?:step\s+)?(tools/(?:dash|dash-gen|update-submodules\.sh)\b[^\n\"']*)", re.M)
+# A command the job runs: bare, behind the installers' `step` helper, or as the
+# condition of an `if` (harness-review tests `lake review` that way, to carry on
+# when it fails). The command ends at a redirect, pipe or `;`.
+RUN_LINE_RX = re.compile(r"^\s*(?:step\s+|(?:if|elif)\s+(?:!\s+)?)?"
+                         r"(tools/(?:dash|dash-gen|update-submodules\.sh)\b[^\n\"'>;|&]*)", re.M)
 
 
 class ContractError(Exception):

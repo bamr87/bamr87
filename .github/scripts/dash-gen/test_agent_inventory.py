@@ -300,6 +300,9 @@ INSTALL_AT = """#!/usr/bin/env bash
 LABEL="com.bamr87.harness-review"
 AT="06:23"
 step tools/dash-gen lake sessions --days 2
+if tools/dash-gen lake review --days 7 --json > .fleet/refine/review-latest.json.tmp; then
+    echo "--- lake review"
+fi
 step tools/dash refine reflect --scheduled
     <key>Label</key>
     <key>StartCalendarInterval</key>
@@ -327,18 +330,24 @@ def test_installers_parse_into_launch_agents_and_a_hook_installer_is_not_one():
     assert found["sync"]["runs"] == ["tools/update-submodules.sh --no-commit --no-push"]
     assert found["sync"]["uninstall"] is None
     assert found["harness-review"]["schedule"] == "daily 06:23 local"
-    assert "tools/dash refine reflect --scheduled" in found["harness-review"]["runs"]
+    # A command tested by an `if` is one the job runs, and it ends at its redirect.
+    assert found["harness-review"]["runs"] == ["tools/dash-gen lake sessions --days 2",
+                                               "tools/dash-gen lake review --days 7 --json",
+                                               "tools/dash refine reflect --scheduled"], found["harness-review"]["runs"]
 
 
-def test_the_harness_review_declaration_matches_what_its_installer_will_say():
-    """harness.agents.local:harness-review is declared before PR #772 lands;
-    its trigger is the one the parser reads from that installer's shape."""
+def test_the_harness_review_agent_is_discovered_from_its_installer():
+    """PR #772 landed tools/install-harness-review.sh, so harness.agents no longer
+    declares local:harness-review: its facts are read from the installer, and they
+    are the ones the declaration held (the trigger and all four commands)."""
     fleet = yaml.safe_load((ai.REPO_ROOT / "_data" / "fleet.yml").read_text())
-    decl = fleet["harness"]["agents"]["local:harness-review"]["declare"]
-    with tempfile.TemporaryDirectory() as tmp:
-        (Path(tmp) / "install-harness-review.sh").write_text(INSTALL_AT)
-        parsed = ai.discover_installers(Path(tmp))[0]
-    assert decl["trigger"] == f"launchd com.bamr87.{parsed['name']}: {parsed['schedule']}", decl["trigger"]
+    assert "declare" not in fleet["harness"]["agents"]["local:harness-review"]
+    review = {i["name"]: i for i in ai.discover_installers(ai.REPO_ROOT / "tools")}["harness-review"]
+    assert review["schedule"] == "daily 06:23 local", review["schedule"]
+    assert review["runs"] == ["tools/dash-gen lake sessions --days 2",
+                              "tools/dash-gen lake sync --days 2 --jobs ai --logs ai",
+                              "tools/dash-gen lake review --days 7 --json",
+                              "tools/dash refine reflect --scheduled"], review["runs"]
 
 
 # --------------------------------------------------------------------------- #
