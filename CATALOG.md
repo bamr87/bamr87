@@ -63,7 +63,7 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 | [`spec-driven/`](templates/spec-driven/) | 0.2.0 | 2026-10-25 | tools/fanout.sh --kit spec-driven (resolver + spec-gate caller + vendored tools; plugin e… | `.claude-plugin/plugin.json`, `BACKLOG.template.md`, `README.md`, `agents/backlog-triager.md`, `constitution.template.md`, `fleet-kit.sh`, `hooks/gate-check.sh`, `hooks/hooks.json`, `review-questions… |
 | [`standard-ci/`](templates/standard-ci/) | 0.1.0 | 2026-08-09 | .github/workflows/fanout.yml (kit standardize, artifact `ci`) via tools/fanout.sh | `ci.yml` |
 | [`ux-audit/`](templates/ux-audit/) | 0.1.0 | 2026-09-18 | tools/fanout.sh --kit ux-audit (OPT-IN; never in the default artifact set) | `AGENT_PROMPT.md`, `README.md`, `prompts/a11y.md`, `prompts/design-system.md`, `prompts/interaction.md`, `prompts/microcopy.md`, `prompts/synthesizer.md`, `scripts/collect_evidence.mjs`, `scripts/ux_… |
-| [`verify/`](templates/verify/) | 0.1.0 | 2026-09-04 | tools/fanout.sh --kit verify (fanout.yml, kit verify); `dash verify deploy` | `EVIDENCE-README.template.md`, `README.md`, `SKILL.template.md`, `features.template.yml`, `mcp.json`, `runner.mjs`, `scenario.template.yml`, `verifier.template.md`, `verify.template.yml`, `verify.yml` |
+| [`verify/`](templates/verify/) | 0.2.0 | 2026-11-07 | tools/fanout.sh --kit verify (fanout.yml, kit verify); `dash verify deploy` | `EVIDENCE-README.template.md`, `README.md`, `SKILL.template.md`, `features.template.yml`, `mcp.json`, `runner.mjs`, `scenario.template.yml`, `verifier.template.md`, `verify.template.yml`, `verify.yml` |
 
 ## 3. Reference implementations
 
