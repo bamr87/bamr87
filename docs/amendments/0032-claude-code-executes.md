@@ -1,11 +1,11 @@
-# NEW — Claude Code executes; Grok bots set direction only
+# 0032 — Claude Code executes; Grok bots set direction only
 
 - **Status:** proposed (ratification pending — Amr ratifies by merging this PR)
-- **Number:** NEW
+- **Number:** 0032
 - **Date:** 2026-11-05
 - **Proposed by:** Grok Bot (agent), on Amr's instruction as owner
 - **Ratified by:**
-- **Affects:** constitution § 26 (new; follows § 24 on main and proposed § 25 from open PR #685 `mcp-lifecycle` — this section is **§ 26** if #685 lands first, else renumber to **§ 25**); § 4 (roles table); § 8 and § 12 by reference; feature `HUB-NEW:claude-code-executes`; requirement `FR-NEW:claude-code-executes`; roadmap FF-NEW:claude-code-executes; `AGENTS.md` agent-roles
+- **Affects:** constitution § 26 (new; follows § 24 on main and proposed § 25 from open PR #685 `mcp-lifecycle` — this section is **§ 26** if #685 lands first, else renumber to **§ 25**); § 4 (roles table); § 8 and § 12 by reference; feature `HUB-095`; requirement `FR95`; roadmap FF-0049; `AGENTS.md` agent-roles
 - **Supersedes:** none (narrows which AI actors may open which PRs; does not change maintainer merge authority or § 12.3 ratification-record PRs)
 - **Related:** epic-style handoff via Fleet issues / console jobs; in-flight non-amendment PRs (hub #607; lifehacker.dev #800; scripts #36/#37; bash-365.com open work); Design for Failure (DFF); process mirrors #678/#680, #683/#685
 
@@ -78,7 +78,7 @@ New constitution section (and § 4 update below):
 
 - Grok bots stop opening software/console implementation PRs after ratification; they hand off.
 - `AGENTS.md` gains an Agent roles section mirroring § 26.
-- Feature `HUB-NEW:claude-code-executes` + `FR-NEW:claude-code-executes`; roadmap `FF-NEW:claude-code-executes`.
+- Feature `HUB-095` + `FR95`; roadmap `FF-0049`.
 - Warn-only `tools/claude_code_executes_lint.py` ships with the PR; hard-fail later.
 - Predicted ids at merge (main tip 2026-11-05): if #685 merges first → amendment **0025**, HUB-**085**, FR**85**, § **26**; if this merges first → amendment **0024**, HUB-**084**, FR**84**, and section renumber to **§ 25** until #685 lands.
 - Ratification: Amr ratifies by merging this PR (merge commit); agents propose, never merge (§ 8).

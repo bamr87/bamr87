@@ -138,6 +138,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-092](features/features.yml) | The agent inventory: every AI agent registered, graded against the efficacy contract, and held complete by the drift gate | shipped | [`.github/scripts/dash-gen/agent_inventory.py`](.github/scripts/dash-gen/agent_inventory.py) · [`docs/AGENT-EFFICACY.md`](docs/AGENT-EFFICACY.md) | FR92, NFR19 |
 | [HUB-093](features/features.yml) | Grok ↔ Claude Code governance: handoff, audit trail, roles, escalation | planned | [`tools/governance_trace_lint.py`](tools/governance_trace_lint.py) · [`docs/prd/GROK-CLAUDE-GOVERNANCE.md`](docs/prd/GROK-CLAUDE-GOVERNANCE.md) | FR93, FR94 |
 | [HUB-094](features/features.yml) | The incident reflector: a week of agent incidents into candidate lessons for the experience library, on a local schedule | shipped | [`tools/jev/reflect.py`](tools/jev/reflect.py) · [`docs/HARNESS-REFINEMENT.md`](docs/HARNESS-REFINEMENT.md) | TBD |
+| [HUB-095](features/features.yml) | Claude Code executes; Grok bots set direction only | planned | [`tools/claude_code_executes_lint.py`](tools/claude_code_executes_lint.py) · `docs/amendments/proposed/claude-code-executes.md` | FR95 |
 
 **Requirement → feature trace**
 
@@ -255,6 +256,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | NFR19 | HUB-092 |
 | FR93 | HUB-093 |
 | FR94 | HUB-093 |
+| FR95 | HUB-095 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -343,6 +345,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR92: Every AI agent the fleet runs (a CI agent step, a local loop step, a scheduled local job or a JEV tier) must be registered in one generated inventory with its owner, trigger, kill switch, budget cap, model, efficacy KPIs and the data sources it reads with their writers, and the drift gate must fail a pull request that adds an agent without registering it.
 - FR93: Grok bots must hand off software and console work through a Fleet issue or Harness Console job that states the requirement, acceptance criteria and a link to the ratified governing amendment or PRD requirement; Claude Code executes against that spec; a Grok bot reviews the result for alignment with direction (not code) before merge; if Claude Code is unavailable or out of budget, work stops until Amr approves an alternative path.
 - FR94: Every software change PR must carry a 'Governed by:' line linking a ratified amendment or PRD requirement (FRn/NFRn/FR-NEW:<key>), checked by tools/governance_trace_lint.py (warn-only until adoption, then hard fail), with no orphan changes.
+- FR95: Software changes and Harness Console executions must be performed by Claude Code; Grok bots may only open direction-setting amendment PRs (constitution, amendments, changelog.d, and supporting feature/PRD/roadmap fragments in that PR), file issues/comments, and hand off implementation via Fleet issues or console jobs, with a warn-then-fail author check and an Amr OK required when Claude Code cannot run.
 
 **Non-functional**
 
