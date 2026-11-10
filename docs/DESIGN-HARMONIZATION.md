@@ -1,6 +1,6 @@
 # Fleet design harmonization — roadmap and plan
 
-> How the fleet's front-ends move to one shell, layout and design language: inventory, shared tokens and shell, a warn-then-fail check, and fan-out PRs. Rule: proposed amendment [`fleet-design-consistency`](amendments/proposed/fleet-design-consistency.md); shell item: roadmap FF-0032 (`_data/roadmap.yml`).
+> How the fleet's front-ends move to one shell, layout and design language: inventory, shared tokens and shell, a warn-then-fail check, and fan-out PRs. Rule: proposed amendment [`fleet-design-consistency`](amendments/0016-fleet-design-consistency.md); shell item: roadmap FF-0032 (`_data/roadmap.yml`).
 
 ## Phases
 

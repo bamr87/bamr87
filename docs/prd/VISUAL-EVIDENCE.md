@@ -5,7 +5,7 @@
 > Requirement: `FR-NEW:visual-evidence` (likely **FR79**).
 > Roadmap: `FF-0039` in [`_data/roadmap.yml`](../../_data/roadmap.yml).
 > Epic: [#678](https://github.com/bamr87/bamr87/issues/678). Backlog P0: [#679](https://github.com/bamr87/bamr87/issues/679).
-> Standard: [`docs/VISUAL-EVIDENCE.md`](../VISUAL-EVIDENCE.md). Amendment: `docs/amendments/proposed/visual-evidence.md`.
+> Standard: [`docs/VISUAL-EVIDENCE.md`](../VISUAL-EVIDENCE.md). Amendment: `docs/amendments/0022-visual-evidence.md`.
 
 ## 1. Overview / problem
 

@@ -675,7 +675,7 @@ features:
     status: planned
     surface: infra
     link: tools/conformance.py
-    docs: docs/amendments/proposed/public-docs-site.md
+    docs: docs/amendments/0007-public-docs-site.md
     tags:
     - governance
     - docs
@@ -695,7 +695,7 @@ features:
     status: planned
     surface: infra
     link: docs/constitution.md
-    docs: docs/amendments/proposed/public-docs-site.md
+    docs: docs/amendments/0007-public-docs-site.md
     tags:
     - governance
     - docs
@@ -734,7 +734,7 @@ features:
     status: planned
     surface: infra
     link: docs/constitution.md
-    docs: docs/amendments/proposed/agent-merge-review-gate.md
+    docs: docs/amendments/0009-agent-merge-review-gate.md
     tags:
     - governance
     - merge
@@ -753,7 +753,7 @@ features:
     status: planned
     surface: infra
     link: tools/conformance.py
-    docs: docs/amendments/proposed/major-change-evidence.md
+    docs: docs/amendments/0010-major-change-evidence.md
     tags:
     - governance
     - verification
@@ -772,7 +772,7 @@ features:
     status: planned
     surface: infra
     link: docs/constitution.md
-    docs: docs/amendments/proposed/major-change-evidence.md
+    docs: docs/amendments/0010-major-change-evidence.md
     tags:
     - governance
     - verification
@@ -791,7 +791,7 @@ features:
     status: planned
     surface: infra
     link: docs/constitution.md
-    docs: docs/amendments/proposed/eval-baseline-risk-tiers.md
+    docs: docs/amendments/0011-eval-baseline-risk-tiers.md
     tags:
     - governance
     - ai
@@ -810,7 +810,7 @@ features:
     status: planned
     surface: infra
     link: docs/constitution.md
-    docs: docs/amendments/proposed/eval-baseline-risk-tiers.md
+    docs: docs/amendments/0011-eval-baseline-risk-tiers.md
     tags:
     - governance
     - ai
@@ -830,7 +830,7 @@ features:
     status: planned
     surface: infra
     link: docs/constitution.md
-    docs: docs/amendments/proposed/ai-ready-foundation.md
+    docs: docs/amendments/0013-ai-ready-foundation.md
     tags:
     - governance
     - ai
@@ -852,7 +852,7 @@ features:
     status: planned
     surface: infra
     link: tools/aieo/
-    docs: docs/amendments/proposed/ai-ready-foundation.md
+    docs: docs/amendments/0013-ai-ready-foundation.md
     tags:
     - governance
     - ai
@@ -1195,8 +1195,8 @@ features:
     implemented: false
     status: planned
     surface: infra
-    link: docs/amendments/proposed/fleet-pr-review.md
-    docs: docs/amendments/proposed/fleet-pr-review.md
+    link: docs/amendments/0017-fleet-pr-review.md
+    docs: docs/amendments/0017-fleet-pr-review.md
     tags:
     - ci
     - governance
@@ -2161,7 +2161,7 @@ features:
     status: planned
     surface: infra
     link: tools/claude_code_executes_lint.py
-    docs: docs/amendments/proposed/claude-code-executes.md
+    docs: docs/amendments/0032-claude-code-executes.md
     tags:
     - governance
     - agents
