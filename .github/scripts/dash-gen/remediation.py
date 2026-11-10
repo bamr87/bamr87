@@ -29,7 +29,10 @@ configured in _data/fleet.yml → remediation:):
   productive_schedule_pct   a cron workflow that is 100% green with zero
                             recorded waste is long because it is WORKING; its
                             duration is the unit price of its output. Drop the
-                            cost signals and the priority fallback.
+                            cost signals and the priority fallback. A green,
+                            zero-waste workflow under that scheduled share
+                            still loses `cron-heavy`, which says only that it
+                            is a cron (bamr87/bamr87#762).
 
 Without the first two, three `workflow_dispatch` runs five minutes apart ending
 green score 33% success and take a remediation slot — which is what happened to
@@ -161,6 +164,16 @@ COST_SIGNALS = {"high-cost-low-value", "slow", "cancel-heavy"}
 # of waste, only of being a cron, so the productive guard clears it too. Kept
 # out of COST_SIGNALS because the interactive guard has no such implication.
 PRODUCTIVE_SUPPRESSES = COST_SIGNALS | {"cron-heavy"}
+
+# …and `cron-heavy` says the same nothing BELOW that share. The flag fires at any
+# scheduled share above 60%, the productive guard only from 90%, and the gap
+# between them queued a daily canary that was 100% green with zero waste: one
+# green `pull_request` run from its `paths:` filter took it to 6 of 7 scheduled
+# (bamr87/bamr87#762, bashos `engine-canary.yml`). A workflow that would have been
+# cleared at 100% scheduled must not be queued for running on a PR as well, so a
+# green, zero-waste workflow loses `cron-heavy` at whatever share raised it. The
+# COST_SIGNALS keep the 90% bar: below it a duration may belong to the PR runs.
+GREEN_ZERO_WASTE_SUPPRESSES = {"cron-heavy"}
 
 # The account-level Actions billing block (bamr87/bamr87#268). Amr chose to keep
 # private-repo Actions spend at $0 ON PURPOSE (option B), so every job in a
@@ -498,6 +511,16 @@ def is_productive_schedule(w: dict, cfg: dict) -> bool:
     """
     if (w.get("sched_pct") or 0) < cfg["productive_schedule_pct"]:
         return False
+    return is_green_zero_waste(w)
+
+
+def is_green_zero_waste(w: dict) -> bool:
+    """100% green with zero recorded waste: the health half of the guard above.
+
+    On its own it clears only `cron-heavy` (GREEN_ZERO_WASTE_SUPPRESSES), and
+    only while the productive guard is switched on. Absent fields read as not
+    green, so a snapshot written before them behaves as it did.
+    """
     if (w.get("success_rate_pct") or 0) < 100.0:
         return False
     return float(w.get("waste_min") or 0) <= 0.0
@@ -622,6 +645,10 @@ def usage_candidates(usage: dict, cfg: dict, owner: str) -> dict[str, dict]:
             suppressed |= raw & COST_SIGNALS
         if productive:
             suppressed |= raw & PRODUCTIVE_SUPPRESSES
+        elif cfg["productive_schedule_pct"] <= 100 and is_green_zero_waste(w):
+            # Under the scheduled share the guard asks for, but as green and as
+            # free of waste: `cron-heavy` goes, the cost signals stay.
+            suppressed |= raw & GREEN_ZERO_WASTE_SUPPRESSES
         signals -= suppressed
 
         # The analytics module flags `slow` relative to the fleet; the fleet

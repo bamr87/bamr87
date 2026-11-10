@@ -291,6 +291,47 @@ def main() -> int:
     check("…but cron-heavy survives when the schedule wastes minutes",
           len(cands_cw) == 1 and "cron-heavy" in cands_cw[0]["signals"])
 
+    # The same flag, one pull-request run under the guard's share
+    # (bamr87/bamr87#762). bashos `engine-canary.yml` is a daily cron whose
+    # `pull_request` trigger has a `paths:` filter: 6 scheduled runs and 1 PR
+    # run in the window, all green, 0.0m waste. That is 85.7% scheduled — over
+    # the 60 that raises `cron-heavy`, under the 90 the guard asks for — so the
+    # canary was queued on a flag the same workflow would have lost at 100%.
+    canary = dict(wf("bamr87/bashos", "engine canary",
+                     ".github/workflows/engine-canary.yml",
+                     runs=7, flags=["cron-heavy"], avg=1.0, p95=1.11, waste=0.0,
+                     total=7.0, priority=0.0, last_conclusion="success",
+                     dispatch_pct=0.0,
+                     events={"schedule": 6, "pull_request": 1}),
+                  sched_pct=85.7, success_rate_pct=100.0,
+                  effectiveness_pct=100.0)
+    check("a green, zero-waste cron under the scheduled share is not queued on cron-heavy",
+          build(triage(), usage(canary)) == [])
+    check("…without becoming a productive schedule",
+          not remediation.is_productive_schedule(canary, CFG)
+          and remediation.is_green_zero_waste(canary))
+    # Only `cron-heavy` goes. Under the share, a duration may belong to the PR
+    # runs, so `slow` (and every cost signal) still needs the 90.
+    canary_slow = dict(canary, flags=["cron-heavy", "slow"],
+                       avg_min=13.46, p95_min=18.48)
+    cands_cs = build(triage(), usage(canary_slow))
+    check("…and under the share it keeps slow, minus cron-heavy",
+          len(cands_cs) == 1 and cands_cs[0]["signals"] == {"slow"})
+    cands_cr = build(triage(), usage(dict(canary, success_rate_pct=85.7)))
+    check("…still queued on cron-heavy when it is not 100% green",
+          len(cands_cr) == 1 and "cron-heavy" in cands_cr[0]["signals"])
+    cands_cz = build(triage(), usage(dict(canary, waste_min=4.0)))
+    check("…and when it records wasted minutes",
+          len(cands_cz) == 1 and "cron-heavy" in cands_cz[0]["signals"])
+    # A snapshot from before `success_rate_pct` / `waste_min` reads as not green.
+    bare = {k: v for k, v in canary.items()
+            if k not in ("success_rate_pct", "waste_min")}
+    check("…and when the health fields are absent",
+          len(build(triage(), usage(bare))) == 1)
+    check("productive_schedule_pct: 101 switches this clearance off too",
+          len(build(triage(), usage(canary),
+                    cfg=dict(CFG, productive_schedule_pct=101))) == 1)
+
     # Each input to the guard has to be load-bearing on its own, or a regression
     # in one hides behind the others. A failing, wasteful or hand-driven
     # workflow is NOT productive work, whatever its cron share.
