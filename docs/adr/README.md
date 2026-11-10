@@ -33,4 +33,4 @@ Add an ADR in the same PR as the change it justifies.
 | 0007 | [The Workflow Studio: the atlas grown to the fleet, one read model on every surface, every change planned and reviewed](0007-workflow-studio.md) | accepted |
 | 0008 | [GitHub Actions as the agentic SDLC substrate: typed decisions gate risk, telemetry scores efficiency, tests gate correctness](0008-typed-decisions-as-pipeline-gates.md) | accepted |
 | 0009 | [The agentic efficacy model: one agent inventory, five KPIs per kind of agent, and checks that run in shadow before they gate](0009-agentic-efficacy-model.md) | accepted |
-| 0010 | [The fleet graph and outcome learning: one model of what the control plane manages, and a shadow estimate of where each loop's work lands](0010-fleet-graph-and-outcome-learning.md) | proposed |
+| 0010 | [The fleet graph and outcome learning: one model of what the control plane manages, and a shadow estimate of where each loop's work lands](0010-fleet-graph-and-outcome-learning.md) | accepted |
