@@ -1,12 +1,12 @@
 # Harness refinement — the Harness² method on the hub's own loops
 
-> Recursive harness refinement (JEV capability three, `tools/dash refine`): the hub's harness surface validated as a sensor, one Propose–Probe–Compose step planned and evidenced from real local runs at $0, and a human-gated experience library whose lessons reach every later attempt through the context pack. Decision: [ADR 0004](adr/0004-recursive-harness-refinement.md).
+> Recursive harness refinement (JEV capability three, `tools/dash refine`): the hub's harness surface validated as a sensor, one Propose–Probe–Compose step planned and evidenced from real local runs at $0, a human-gated experience library whose lessons reach every later attempt through the context pack, and the incident reflector that turns a week of agent incidents into candidate lessons for it. Decision: [ADR 0004](adr/0004-recursive-harness-refinement.md).
 
 ## Why
 
 Agent = model + harness ([HARNESS.md](HARNESS.md)). The hub holds the model fixed and has improved its harnesses one incident at a time: a standing rule after a failure, a sensor after the third correction. Nothing proposed a harness edit from what an attempt actually did, nothing probed an edit before it shipped, and nothing remembered what an edit changed. Two pieces of 2026 research say how that is done in practice. [Harness²](https://github.com/google-research/harness2) (Xu et al., arXiv:2610.14224) refines a harness recursively while the model's weights stay fixed: at the task level, a contrastive Propose–Probe–Compose step; at the harnessing level, a library of adopted harnesses and evidence-supported lessons the next task reads first. [Harness Engineering: Anatomy, Architecture, and Evolution of Coding Agents](https://arxiv.org/abs/2609.00006) (Barbaste et al., eleven production harnesses read in source) says what a harness surface is made of and which rules it must meet: skills with `name` and `description` frontmatter or they are dropped silently, hooks with the shape the runtime dispatches or they never fire, policy as data rather than prose, context files capped and scanned, agent memory behind a human-reviewed inbox, the cheap caps on every loop.
 
-This page is the operator doc for what exists today: the $0 half, built on [ADR 0002](adr/0002-agent-step-specs-and-local-runner.md)'s step specs and local runner. The model-backed stages are the next phase (ADR 0004 P1) and run only through the loop runner's executor, behind the maintainer's `--apply`.
+This page is the operator doc for what exists today: the $0 half, built on [ADR 0002](adr/0002-agent-step-specs-and-local-runner.md)'s step specs and local runner, and the first model-backed stage, the [incident reflector](#the-incident-reflector) (ADR 0004 P1, part one). The Propose–Probe–Compose sessions are P1's next part; like the reflector they run only through the loop runner's executor, and nothing they produce is filed without a person's `--apply`.
 
 ## The map
 
@@ -40,7 +40,7 @@ The check reads a repository's surface and fails on what both sources say breaks
 
 `_data/harness_library/<loop>/<domain>/<entry>/experience.yml` ([`_data/harness_library/README.md`](../_data/harness_library/README.md)) holds, per adopted refinement, the cue (the shape of situation the lesson fires on, one line), the lesson (an operation on a harness, naming its component), the evidence (the edit rows and the execution contrast), a confidence, the per-edit verdicts (`helped`, `hurt`, `no observed effect`, `confounded`), and the adopted edits as `harness.diff`. `<loop>` is the workflow stem and `<domain>` the item's registry category, the grouping the category emphasis already uses.
 
-An entry lands only on a branch and reaches `main` by a reviewed pull request: `refine library add …` is the $0 reflector a person runs after reading a run's record; the model-backed reflector (P1) opens a draft PR. `refine library check` holds every entry to its schema, its field caps and the context pack's redaction, so a local path, a host name, an address or a credential shape can never be committed. The library reaches an agent two ways: the context pack's `library` section ([JEV.md](JEV.md#the-context-pack)) puts the domain's newest lessons beside the brief of every local attempt, as data to re-verify and never as a rule; and `refine evidence` copies the whole library of the domain into the tree a proposer reads.
+An entry lands only on a branch and reaches `main` by a reviewed pull request: `refine library add …` is the $0 reflector a person runs after reading a run's record; the [incident reflector](#the-incident-reflector) proposes entries from a week of incidents, and a person files its preview as a draft PR. `refine library check` holds every entry to its schema, its field caps and the context pack's redaction, so a local path, a host name, an address or a credential shape can never be committed. The library reaches an agent two ways: the context pack's `library` section ([JEV.md](JEV.md#the-context-pack)) puts the domain's newest lessons beside the brief of every local attempt, as data to re-verify and never as a rule; and `refine evidence` copies the whole library of the domain into the tree a proposer reads.
 
 ```bash
 tools/dash refine library list [--loop repo-scout] [--domain dev-tools]
@@ -50,6 +50,32 @@ tools/dash refine library add --loop repo-scout --step scout --domain dev-tools 
     --run <run_id> --adopted base1 --confidence medium --cue "…" --lesson "…" --evidence "…" \
     [--diff harness.diff] [--edit "component|labels|change|observed|verdict"]
 ```
+
+## The incident reflector
+
+```bash
+tools/dash refine reflect --rehearse                 # the evidence and the exact ai-run argv, stopped before the model ($0)
+tools/dash refine reflect                            # ONE capped session: candidate lessons, validated, PREVIEW.md (spends, files nothing)
+tools/dash refine reflect show latest                # the newest preview
+tools/dash refine reflect publish <stamp>            # what a filing would do ($0)
+tools/dash refine reflect publish <stamp> --apply    # file exactly the previewed bytes as a draft PR
+tools/dash refine reflect doctor [--live --yes]      # the $0 isolation probe for its posture; --live the ≤ $0.10 read-fence canary
+```
+
+The lake's review (`tools/dash-gen lake review`) says what went wrong in the agents' week: tool error rates in local Claude Code sessions, permission denials and failed CI agent runs, cost outliers. Nothing turned that into a lesson a loop's next attempt reads. `refine reflect` ([`tools/jev/reflect.py`](../tools/jev/reflect.py), ADR 0004 P1 part one) does, in four steps.
+
+1. **Gather, $0.** An evidence tree under `.fleet/refine/reflect-<stamp>/evidence/` (gitignored): `lake review --days <reflect.days> --json`, the trip wires and scorecard of `_data/harness_health.yml`, the local loop runs of the window (`.fleet/runs`: each item's decision, outcome, cost, reason and flags, and the cached probe and canary verdicts), the conflict engine's resolutions (context only, since the conflict engine reads no library), every entry the library already holds, and the loop steps and registry domains a lesson may name. Every file passes through the context pack's redaction, and the rendered mission ([`reflect-incidents.prompt.txt`](../tools/jev/missions/README.md)) sits beside it. `--lake DIR` and `--runs-from DIR` read another checkout's data.
+2. **One session.** `tools/dash-gen ai-run --isolate` under the loop runner's § 13.8 posture, with Read, Glob and Grep and nothing else (no Bash, no Write), `harness_refinement.model`, `max_turns`, a `stage_usd` cap and the `reflect.timeout_minutes` wall clock. Its working directory is a copy of the evidence under the work root, never the hub, destroyed afterwards. It needs `harness_refinement.enabled`, a passing isolation probe and read-fence canary for its posture (`refine reflect doctor`), and room in `budget.loops`, judged under the loop runner's budget lock; its ledger row carries `origin: local` and `loop: harness-refinement`, so it spends inside the same month as every loop attempt, labelled API-equivalent (estimate). The session cannot write a file: its final message is one JSON document of at most `reflect.max_entries` candidates (`loop`, `step`, `domain`, `item`, `cue`, `lesson`, `evidence`, `confidence`, `source_ref`), which the engine saves as `proposals.json`.
+3. **The engine validates.** Each candidate is dropped, with every reason, when it is past the cap, is not the right shape, names a loop and step with no step spec, a domain that is not a registry category or `unknown`, fails the entry schema (`library.Entry.problems`), carries anything the leak check refuses, or repeats the cue of an existing entry of the same loop (or of an earlier candidate) closely enough to be the same lesson. What survives becomes an entry with `source: reflector`, `adopted: base` and the `source_ref` in its notes. `PREVIEW.md` shows each accepted entry's exact `experience.yml` bytes and every drop; `validated.json` holds the bytes and their hashes.
+4. **A person files it.** `publish <stamp> --apply` (or `--apply` on the run itself, typed by a person) refuses a dirty engine, claims `publish-result.json` once, probes the publish token with `gh api user`, and skips when an open reflector PR exists; then it adds the entries through `library.Library.add` in a detached worktree of `origin/main`, drops any that `main` learned since, runs the library check, commits as `harness-reflector`, pushes `chore/harness-reflector-<stamp>` and opens a draft PR labelled `skip-evidence`. It never merges.
+
+**A scheduled reflection never files.** `--scheduled --apply` exits 2, and the decision comes from the constitution, not from a flag. § 11.8 refuses the local loop runner's filing under `--scheduled` until § 13.7 earned autonomy exists, and the reflector's filing is the same kind of write: a branch and a pull request on the hub, from a local tool. § 13.6 starts an external action at high, which waits for Amr's yes, and no action has earned a lower tier. § 13.8 settles it on its own: the reflector reads private data (this machine's session transcripts, the prompts a person typed) and untrusted content (CI logs and issue text in the lake), and a pull request on a public repository is an external send, so the send always needs a human gate. A scheduled run therefore stops at the preview and posts a macOS notification (`osascript`; `JEV_NOTIFY=0` turns it off) saying how many lessons wait; a person reads `PREVIEW.md` and runs `publish <stamp> --apply`. Making the filing unattended would take an amendment and a § 13.7 record, not a code change.
+
+`--scheduled` also skips quietly ($0) while `enabled` is false, waits `reflect.every_days` after the last scheduled run that reached the model, and stops at `budget.loops.scheduled_stop_pct`; a usage limit or a budget stop is capacity and exits 0, so the next day tries again. At the $2 stage cap a weekly reflection costs at most $10 a month, and `refine.config` refuses a cadence whose month would pass the scheduled stop.
+
+### The schedule
+
+`tools/install-harness-review.sh` installs the `com.bamr87.harness-review` LaunchAgent. Every day at 06:23 local (`--at HH:MM`, never on the hour) it runs, against the checkout at `--root`, `tools/dash-gen lake sessions --days 2` (this machine's transcripts, local, $0), `tools/dash-gen lake sync --days 2 --jobs ai --logs ai` (the CI agent runs, GitHub reads), `tools/dash-gen lake review --days 7 --json` into `.fleet/refine/review-latest.json`, and then `tools/dash refine reflect --scheduled`, guarded: it is skipped quietly while `refine reflect` is not in the checkout or `harness_refinement.enabled` is not true, so the agent can be installed against `main` before this lands and the reflect step switches on when it does. A failed step is logged and the next one still runs; the log is `~/Library/Logs/bamr87-harness-review.log`. It changes the Mac, so the maintainer installs it (§ 10.5): `tools/install-harness-review.sh --root /Users/bamr87/bamr87`; `--print-job` and `--print-plist` show what it would install, `--uninstall` removes it. The first live reflection on a checkout also needs that checkout's `refine reflect doctor --live --yes` (≤ $0.10, once per CLI version and posture).
 
 ## One Propose–Probe–Compose step
 
@@ -82,16 +108,19 @@ ADR 0004 P2 is the Harness Console's **Refine** page (Harnesses → Refine, `/re
 
 | Key | What it bounds |
 | --- | --- |
-| `enabled` | the model-backed stages (P1); `false` until the maintainer turns them on, and `--apply` still gates every spend |
+| `enabled` | the model-backed stages (P1); `true` since 2026-11-07 (the maintainer's yes), for the one that exists, the incident reflector. A filing still needs a person's `--apply` |
 | `k_max`, `mode` | the task-level recursion budget and the default mode (`parallel` or `sequential`) |
 | `always_on_max_chars`, `skill_max_chars` | the surface check's caps |
 | `stage_usd`, `model`, `max_turns` | one improvement session's dollar cap, its model (an exact id in `ai_models.allowed`, § 13.3) and its turns |
 | `library_dir` | the experience library's hub-relative root (`JEV_LIBRARY_DIR` overrides it locally) |
 | `obs_trunc_chars` | the per-observation clip in a rendered trajectory |
+| `reflect` | the incident reflector: `max_entries` (candidates one session may propose, 1..10), `days` (the review window), `every_days` (a scheduled run waits this long after the last one that spent; a month of them at `stage_usd` must fit under `budget.loops`' scheduled stop), `timeout_minutes` (the session's wall clock) |
 
 ## What runs a model, and when
 
-Nothing in this page spends. The model-backed stages (ADR 0004 P1) will run each proposer, composer, selector and reflector session through `tools/dash-gen ai-run --isolate` with the evidence tree as its working directory, under the step's own § 13.8 posture and the loop runner's budget lock, each capped at `stage_usd`; each candidate's rollout is a `tools/dash loop run` attempt whose clone carries the candidate's tunable files; selection is blind over the validated deliverables; and the reflector's entry and the adopted tunable edits land as draft PRs. `harness_refinement.enabled`, `budget.loops` and the maintainer's typed `--apply` gate every spend, and the first live step is a k = 1 canary on the scout. A refinement never edits a step spec: a lesson that needs a hard rule is a proposal in `context/proposals/hard-rules.md` for a gated PR, and a lesson confirmed three times is a candidate for a sensor or a standing rule, the ratchet of [HARNESS.md](HARNESS.md).
+One command spends today: `refine reflect` without `--rehearse`, one session of at most `stage_usd` ($2), plus its one-time read-fence canary (`refine reflect doctor --live`, at most $0.10). It runs by hand, or weekly from the harness-review LaunchAgent as `--scheduled`, and both need `harness_refinement.enabled`, a passing probe and canary, and room in `budget.loops` under the budget lock; the scheduled run stops at the scheduled stop and never files. Every other command on this page is $0: the surface check, the plan, the evidence tree, the library, the rehearsal, `publish` without `--apply`.
+
+The Propose–Probe–Compose stages (ADR 0004 P1, part two) will run each proposer, composer, selector and reflector session the same way, through `tools/dash-gen ai-run --isolate` with a copy of the evidence tree as its working directory, under the § 13.8 posture and the loop runner's budget lock, each capped at `stage_usd`; each candidate's rollout is a `tools/dash loop run` attempt whose clone carries the candidate's tunable files; selection is blind over the validated deliverables; and the reflector's entry and the adopted tunable edits land as draft PRs a person files. The first live step is a k = 1 canary on the scout. A refinement never edits a step spec: a lesson that needs a hard rule is a proposal in `context/proposals/hard-rules.md` for a gated PR, and a lesson confirmed three times is a candidate for a sensor or a standing rule, the ratchet of [HARNESS.md](HARNESS.md).
 
 ## Tests
 
@@ -99,6 +128,7 @@ Nothing in this page spends. The model-backed stages (ADR 0004 P1) will run each
 python3 tools/test_jev_surface.py     # the surface rules on fixtures, the hub's own surface clean, the CLI's exit codes
 python3 tools/test_jev_library.py     # the entry round trip, refusals, leaks, check, the registry domain, the pack's library section
 python3 tools/test_jev_refine.py      # the schedule and its identity, the ledger, the config, the missions, the plan, the evidence tree
+python3 tools/test_jev_reflect.py     # the incident reflector: gather, the drops, the budget stop, rehearse, the probe, canary and a live run (stub claude), --apply against a bare origin, the schedule's job
 ```
 
 ## Related

@@ -221,16 +221,27 @@ repos:
 - day: 11
   repo: README
   scheduled: '2026-11-09'
-  status: pending
-  last_processed: null
+  status: done
+  last_processed: '2026-11-09'
   cycle: 1
-  issues: []
-  prs: []
+  issues:
+  - https://github.com/bamr87/README/issues/51
+  - https://github.com/bamr87/README/issues/52
+  - https://github.com/bamr87/README/issues/53
+  - https://github.com/bamr87/README/issues/54
+  - https://github.com/bamr87/README/issues/55
+  - https://github.com/bamr87/README/issues/56
+  - https://github.com/bamr87/README/issues/57
+  - https://github.com/bamr87/README/issues/58
+  - https://github.com/bamr87/README/issues/59
+  - https://github.com/bamr87/README/issues/60
+  prs:
+  - https://github.com/bamr87/README/pull/61
   open_issues: 0
   open_prs: 0
-  findings: ''
-  score: null
-  next_focus: ''
+  findings: MCP tools get_project/get_nav/get_schema read outside context/ (verified); untrusted upstream docs reach AI prompts, cron-committed README/site and MCP answers with Q4 injection screen survey-only; no secret screen on corpus before commit/Pages/AI, hooks inherit provider keys, local survey follows symlinks; HTTP-date Retry-After aborts build; aggregate.sh no pipefail/ref validation, aggregate.py unused + rstrip('.git') bug; governance check failing (stale PRD block), no SECURITY/CONTRIBUTING/PR template; test results tracked; conformance 47/69 (13 MUST). Unit 148/148, schema/nav/surfaces gates green, vendored tools identical.
+  score: 62.0
+  next_focus: 'Land #51/#52 (MCP confinement, injection gate) then #53 secret screen; seed community+standardize kits (#56/#58).'
 - day: 12
   repo: vs-sonic-pi
   scheduled: '2026-11-10'

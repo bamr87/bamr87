@@ -119,7 +119,7 @@ Each of these came from an incident; the linked doc tells it.
 | `tools/dash workflows` | The workflow atlas: the hub's workflows and actions as one model, linted against the standards, failures classified from the lake, new workflows scaffolded inside the rules (console `/workflows`, MCP `fleet_workflows`) | [WORKFLOW-ATLAS.md](docs/WORKFLOW-ATLAS.md) |
 | `tools/dash agents` | The agent inventory under the efficacy contract (§ 29): every CI agent step, JEV loop step, conflict tier and LaunchAgent, with its owner, trigger, switch, cap, model, KPIs, the sources it reads and their writers, and its contract gaps, in `_data/agents.yml`; `--check` is drift check (p), refreshed daily by `fleet-pulse.yml`; gaps warn until a gated PR enables enforcement after the shadow period | [AGENT-EFFICACY.md](docs/AGENT-EFFICACY.md), [ADR 0009](docs/adr/0009-agentic-efficacy-model.md) |
 | `tools/dash up` / `dev` / `docker` | The container plane, per-project dev stacks, the image standard | [CONTAINERS.md](docs/CONTAINERS.md), [FLEET-COMPOSE.md](docs/FLEET-COMPOSE.md), [DOCKER.md](docs/DOCKER.md) |
-| `tools/dash refine` | Recursive harness refinement (Harness²): the harness surface validated as a sensor (`surface check`), one Propose–Probe–Compose step planned and evidenced from real local attempts at $0 (`plan`, `evidence`), and the human-gated experience library the context pack reads (`library`); a refinement edits only a loop's tunable half, never a step spec; in the console: Harnesses → Refine (the review queue approves a loop-run preview's filing behind the confirm) and Operate → Assist (a read-only assistant over the fleet MCP server); the model-backed stages are ADR 0004 P1 | [HARNESS-REFINEMENT.md](docs/HARNESS-REFINEMENT.md), [ADR 0004](docs/adr/0004-recursive-harness-refinement.md) |
+| `tools/dash refine` | Recursive harness refinement (Harness²): the harness surface validated as a sensor (`surface check`), one Propose–Probe–Compose step planned and evidenced from real local attempts at $0 (`plan`, `evidence`), and the human-gated experience library the context pack reads (`library`), fed by the incident reflector (`reflect`: one capped session over the week's agent incidents, weekly from `tools/install-harness-review.sh`; it previews, a person files); a refinement edits only a loop's tunable half, never a step spec; in the console: Harnesses → Refine (the review queue approves a loop-run preview's filing behind the confirm) and Operate → Assist (a read-only assistant over the fleet MCP server); the Propose–Probe–Compose sessions are ADR 0004 P1's next part | [HARNESS-REFINEMENT.md](docs/HARNESS-REFINEMENT.md), [ADR 0004](docs/adr/0004-recursive-harness-refinement.md) |
 | `tools/dash node` / `infra` | Where hub workloads run — the Mac edge and the forge workload node, from `_data/fleet.yml` `nodes:`: status, plan, generated overlays and Ansible inventory, the forwarding-only link key; OpenTofu for a node's network and volumes (apply needs `--yes` and a current plan) | [PLATFORM.md](docs/PLATFORM.md), [ADR 0003](docs/adr/0003-fleet-platform-nodes-iac-and-scale-out.md) |
 
 ## Gotchas
@@ -142,7 +142,6 @@ Declared in `.github/sdlc.yml` `deviations:` (the hub's SDLC profile, UPS-WORK-0
 
 - UPS-REPO-21 waived until 2027-04-01: the hub's public interface (reusable workflows + checker) versions by hand-cut major tags (`v1`, `v2`) per `docs/WORKFLOW-VERSIONING.md`, and `CHANGELOG.md` is maintained with those cuts rather than by release-please.
 
-
 ## Agent roles (constitution § 26)
 
 Amr's split (amendment `claude-code-executes`, proposed):
@@ -157,6 +156,14 @@ Amr's split (amendment `claude-code-executes`, proposed):
 **Fallback:** if Claude Code is unavailable or out of budget, stop and wait for Amr's explicit OK — do not silently implement as a Grok bot.
 
 Details: [`docs/constitution.md`](docs/constitution.md) § 26; [`docs/amendments/proposed/claude-code-executes.md`](docs/amendments/proposed/claude-code-executes.md).
+
+## Grok ↔ Claude Code governance (proposed § 28; depends on § 26 / #686)
+
+- **Grok bots (direction):** constitution, amendments, PRD, features, roadmap, research, assessments. They hand off software/console work by opening a Fleet issue or console job stating the requirement, acceptance criteria and a link to the **ratified** governing amendment or FR.
+- **Claude Code (execution):** every software change and console job, against that spec; the PR body carries `Governed by:` (amendment and/or `FRn`/`NFRn`/`FR-NEW:<key>`). Check with `python3 tools/governance_trace_lint.py check --body-file BODY.md` (warn-only).
+- **Before merge:** a Grok bot reviews the result for alignment with direction, not the code.
+- **Escalation:** if Claude Code is unavailable or out of budget, work stops until Amr approves an alternative path.
+- No orphan changes. Only Amr ratifies, by merging.
 
 ## Governance
 
