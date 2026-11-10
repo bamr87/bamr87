@@ -142,6 +142,14 @@ Declared in `.github/sdlc.yml` `deviations:` (the hub's SDLC profile, UPS-WORK-0
 
 - UPS-REPO-21 waived until 2027-04-01: the hub's public interface (reusable workflows + checker) versions by hand-cut major tags (`v1`, `v2`) per `docs/WORKFLOW-VERSIONING.md`, and `CHANGELOG.md` is maintained with those cuts rather than by release-please.
 
+## Grok ↔ Claude Code governance (proposed § 28; depends on § 26 / #686)
+
+- **Grok bots (direction):** constitution, amendments, PRD, features, roadmap, research, assessments. They hand off software/console work by opening a Fleet issue or console job stating the requirement, acceptance criteria and a link to the **ratified** governing amendment or FR.
+- **Claude Code (execution):** every software change and console job, against that spec; the PR body carries `Governed by:` (amendment and/or `FRn`/`NFRn`/`FR-NEW:<key>`). Check with `python3 tools/governance_trace_lint.py check --body-file BODY.md` (warn-only).
+- **Before merge:** a Grok bot reviews the result for alignment with direction, not the code.
+- **Escalation:** if Claude Code is unavailable or out of budget, work stops until Amr approves an alternative path.
+- No orphan changes. Only Amr ratifies, by merging.
+
 ## Governance
 
 Read [`docs/constitution.md`](docs/constitution.md) before changing anything: it is the highest-precedence rule set here and wins over this file when they disagree. It changes only through a numbered record in [`docs/amendments/`](docs/amendments/), ratified by the maintainer merging the PR; agents propose, never merge. Every user-facing feature has a stable id in [`features/features.yml`](features/features.yml) with `status`, location and the PRD requirement ids it serves; the PRD's "Feature catalog" block is generated from it (`python3 <bamr87/bamr87>/tools/governance_lint.py prd-sync . --write`; check with `… check .`). Never hand-edit that block or `CHANGELOG.md`.

@@ -334,6 +334,18 @@ _(amendment `expedite-sprints`, numbered at merge — see the [amendment log](am
 8. **Retro** — every sprint ends with a retro that routes each failure to the strongest ratchet rung (`docs/HARNESS.md`) and files remaining quality debt as issues before it closes.
 9. **Scope** — the standard is [`docs/EXPEDITE-SPRINTS.md`](EXPEDITE-SPRINTS.md); the budget, record and metrics tooling are follow-ups (epic #687).
 
+## 28. Grok ↔ Claude Code governance
+
+_(amendment `grok-claude-governance`, numbered at merge — see the [amendment log](amendments/README.md); follows proposed § 25–§ 27 (#685, #686, #693) and may be renumbered by merge order; depends on § 26 `claude-code-executes`)_
+
+1. **Handoff contract** — a Grok bot starts software or console work only by opening a Fleet issue or a Harness Console job that states (a) the requirement (`FRn`/`NFRn`, or `FR-NEW:<key>` in a pending amendment), (b) acceptance criteria and constraints, and (c) a link to the **ratified** amendment or PRD requirement that governs it. Work whose governing amendment is still unratified stays queued.
+2. **Execution** — Claude Code executes against that spec, opens the implementation PR, and links the handoff issue/job and the governing amendment or requirement in the PR body. Ambiguity goes back to the issue as a question, not into invented scope (unknown = **TBD**).
+3. **Direction review** — before merge, a Grok bot reviews the result for **alignment with direction** (does it meet the stated requirement and stay inside the amendment's scope?) and records the verdict on the PR. It does not review or rewrite the code itself; code quality stays with § 12 / § 15 review and CI.
+4. **Audit trail, no orphan changes** — every software change traces to a ratified amendment or PRD requirement. Each PR body carries a `Governed by:` line naming an amendment (`docs/amendments/NNNN-*.md`, `AMEND-NNNN`, or a pending amendment PR) and/or a requirement (`FRn`, `NFRn`, `FR-NEW:<key>`). `tools/governance_trace_lint.py` checks this; warn-only until adoption, then a hard failure. Trivial maintenance (dependency bumps, typo fixes, generated-file refreshes) cites the standing requirement that covers it or is labelled `trace-exempt` by Amr.
+5. **Role boundaries** — Grok bots own direction: constitution, amendments, PRD, features, roadmap, research and assessments. Claude Code owns every software change and console job (§ 26). Neither crosses the boundary without Amr's explicit OK.
+6. **Escalation** — if Claude Code is unavailable or out of budget, the work **stops**. The Grok bot records the blocker on the handoff issue and asks Amr; nothing proceeds until Amr approves an alternative path (wait, a one-shot exception, or Amr executes).
+7. **Ratification** — this section and every amendment under it are ratified only when Amr merges the PR (§ 8).
+
 ## 29. The agentic efficacy contract
 
 _(amendment `agentic-efficacy-contract`, numbered at merge — see the [amendment log](amendments/README.md); follows § 28 `grok-claude-governance` (PR #695) and §§ 25–26 (PRs #685, #686), all open — renumber to the next free section if any does not merge first; extends § 10.7, § 10.9, § 13 and § 17; the efficacy model is [ADR 0009](adr/0009-agentic-efficacy-model.md), the operator doc [AGENT-EFFICACY.md](AGENT-EFFICACY.md))_
