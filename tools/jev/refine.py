@@ -32,8 +32,10 @@ Usage: python3 -m tools.jev refine plan <loop> [--k 1] [--mode parallel|sequenti
        python3 -m tools.jev refine missions list|render NAME --set TOKEN=value …
        python3 -m tools.jev refine surface check|census|diff …   (surface.py)
        python3 -m tools.jev refine library list|show|add|check|index … (library.py)
+       python3 -m tools.jev refine reflect [publish STAMP | show STAMP | doctor] …   (reflect.py: the one
+              stage that calls a model today, the incident reflector)
 Dependencies: Python 3.12 stdlib + PyYAML; tools/jev/spec.py, surface.py,
-              library.py, context.py (redaction). No dash-gen import.
+              library.py, context.py (redaction), reflect.py. No dash-gen import.
 """
 from __future__ import annotations
 
@@ -59,6 +61,10 @@ from .common import HUB, REGISTRY_YML, JevError, is_bare_name, is_nwo
 
 MISSIONS_DIR = HUB / "tools" / "jev" / "missions"
 MISSIONS = ("propose-invariant", "propose-domain", "compose", "select", "reflect")
+#: missions outside the Propose–Probe–Compose step: the incident reflector's
+#: (reflect.py), which reads the lake's review rather than one step's rollouts
+INCIDENT_MISSIONS = ("reflect-incidents",)
+ALL_MISSIONS = (*MISSIONS, *INCIDENT_MISSIONS)
 #: the {{TOKEN}}s each mission declares; the loader refuses a drift either way
 MISSION_INPUTS: dict[str, tuple[str, ...]] = {
     "propose-invariant": ("LOOP", "STEP", "DOMAIN", "WORK", "DELIVERABLE", "K", "INDEX"),
@@ -66,6 +72,7 @@ MISSION_INPUTS: dict[str, tuple[str, ...]] = {
     "compose": ("LOOP", "STEP", "DOMAIN", "WORK", "DELIVERABLE", "K", "N_CANDIDATES"),
     "select": ("LOOP", "STEP", "DOMAIN", "WORK", "DELIVERABLE", "N_CANDIDATES"),
     "reflect": ("LOOP", "STEP", "DOMAIN", "WORK", "DELIVERABLE", "ADOPTED"),
+    "reflect-incidents": ("DAYS", "MAX_ENTRIES", "STEPS", "DOMAINS"),
 }
 MODES = ("parallel", "sequential")
 MODE_TOKENS = {"parallel": "agg", "sequential": "seq"}
@@ -119,6 +126,20 @@ def refine_dir() -> Path:
 # config: _data/fleet.yml harness_refinement
 # --------------------------------------------------------------------------- #
 @dataclass(frozen=True)
+class ReflectConfig:
+    """`harness_refinement.reflect:` — the incident reflector (reflect.py)."""
+
+    max_entries: int       # candidate lessons one session may propose; the engine drops the rest
+    days: int              # the review window
+    every_days: int        # a --scheduled run waits this long after the last one that spent
+    timeout_minutes: int   # the session's wall clock
+
+
+#: the bounds of each `reflect:` key (inclusive)
+REFLECT_BOUNDS = {"max_entries": (1, 10), "days": (1, 90), "every_days": (1, 31), "timeout_minutes": (1, 60)}
+
+
+@dataclass(frozen=True)
 class RefinementConfig:
     enabled: bool
     k_max: int
@@ -130,6 +151,7 @@ class RefinementConfig:
     max_turns: int
     library_dir: str
     obs_trunc_chars: int
+    reflect: ReflectConfig
 
 
 def _pos_int(v: object) -> bool:
@@ -148,7 +170,7 @@ def config(fleet: Mapping) -> RefinementConfig:
         raise RefineError("_data/fleet.yml has no `harness_refinement:` block (docs/HARNESS-REFINEMENT.md)")
     at = "_data/fleet.yml harness_refinement"
     want = {"enabled", "k_max", "mode", "always_on_max_chars", "skill_max_chars", "stage_usd", "model",
-            "max_turns", "library_dir", "obs_trunc_chars"}
+            "max_turns", "library_dir", "obs_trunc_chars", "reflect"}
     missing, unknown = want - set(raw), set(raw) - want
     if missing or unknown:
         raise RefineError(f"{at}: missing {sorted(missing)} / unknown {sorted(map(str, unknown))} key(s)")
@@ -168,10 +190,46 @@ def config(fleet: Mapping) -> RefinementConfig:
     rel = raw["library_dir"]
     if not isinstance(rel, str) or not rel or rel.startswith("/") or ".." in Path(rel).parts:
         raise RefineError(f"{at}.library_dir: a hub-relative path, not {rel!r}")
+    reflect = _reflect_config(raw["reflect"], float(raw["stage_usd"]), fleet, at)
     return RefinementConfig(enabled=raw["enabled"], k_max=raw["k_max"], mode=raw["mode"],
                             always_on_max_chars=raw["always_on_max_chars"], skill_max_chars=raw["skill_max_chars"],
                             stage_usd=float(raw["stage_usd"]), model=raw["model"], max_turns=raw["max_turns"],
-                            library_dir=rel, obs_trunc_chars=raw["obs_trunc_chars"])
+                            library_dir=rel, obs_trunc_chars=raw["obs_trunc_chars"], reflect=reflect)
+
+
+def reflect_month_ceiling(every_days: int, stage_usd: float) -> float:
+    """The most a month of --scheduled reflections can cost: one session every
+    `every_days` across a 31-day month, each at its full `stage_usd` cap."""
+    return math.ceil(31 / every_days) * float(stage_usd)
+
+
+def _reflect_config(raw: object, stage_usd: float, fleet: Mapping, at: str) -> ReflectConfig:
+    """`reflect:` validated: every key required and bounded, and a month of
+    scheduled reflections at the full cap must fit under `budget.loops`'s
+    scheduled stop, so the cadence can never be the thing that spends the
+    month the other loops need."""
+    at = f"{at}.reflect"
+    if not isinstance(raw, Mapping):
+        raise RefineError(f"{at}: a mapping of {sorted(REFLECT_BOUNDS)}")
+    missing, unknown = set(REFLECT_BOUNDS) - set(raw), set(raw) - set(REFLECT_BOUNDS)
+    if missing or unknown:
+        raise RefineError(f"{at}: missing {sorted(missing)} / unknown {sorted(map(str, unknown))} key(s)")
+    for key, (lo, hi) in REFLECT_BOUNDS.items():
+        v = raw[key]
+        if not _pos_int(v) or not lo <= v <= hi:
+            raise RefineError(f"{at}.{key}: an integer in {lo}..{hi}, not {v!r}")
+    loops = ((fleet.get("budget") or {}).get("loops") or {}) if isinstance(fleet, Mapping) else {}
+    usd, pct = loops.get("monthly_usd"), loops.get("scheduled_stop_pct")
+    if not _pos_num(usd) or not _pos_int(pct) or pct > 100:
+        raise RefineError(f"{at}: _data/fleet.yml budget.loops (monthly_usd, scheduled_stop_pct) is needed to judge "
+                          "the reflector's cadence")
+    month, stop = reflect_month_ceiling(raw["every_days"], stage_usd), float(usd) * pct / 100.0
+    if month > stop + 1e-9:
+        raise RefineError(f"{at}.every_days: a session every {raw['every_days']} day(s) at the ${stage_usd:g} "
+                          f"stage cap is up to ${month:g} a month, over budget.loops' scheduled stop ${stop:g} "
+                          "(API-equivalent (estimate))")
+    return ReflectConfig(max_entries=raw["max_entries"], days=raw["days"], every_days=raw["every_days"],
+                         timeout_minutes=raw["timeout_minutes"])
 
 
 # --------------------------------------------------------------------------- #
@@ -310,8 +368,8 @@ def load_mission(name: str, *, root: Path = MISSIONS_DIR) -> str:
     """One mission template, held to the step-spec prompt rules (LF-only, one
     final newline, no `${{`, every token declared and every declared token
     used)."""
-    if name not in MISSIONS:
-        raise RefineError(f"no mission {name!r} (one of {', '.join(MISSIONS)})")
+    if name not in ALL_MISSIONS:
+        raise RefineError(f"no mission {name!r} (one of {', '.join(ALL_MISSIONS)})")
     p = Path(root) / f"{name}.prompt.txt"
     if p.is_symlink() or not p.is_file():
         raise RefineError(f"{p}: missing, or a symlink")
@@ -465,8 +523,10 @@ def plan(loop: str, *, k: int = 1, mode: str | None = None, step: str | None = N
             "cost": cost, "budget": position, "tunable": tunable, "hard_rules": hard, "library": library,
             "missions": missions, "proposer": {"model": cfg.model, "max_turns": cfg.max_turns},
             "model_backed": {"enabled": cfg.enabled,
-                             "status": ("armed: the stages run through the loop runner's executor behind --apply"
-                                        if cfg.enabled else "off (P1 of docs/adr/0004): nothing here calls a model")}}
+                             "status": ("on for the incident reflector (`refine reflect`, P1 part one); the "
+                                        "Propose–Probe–Compose sessions are not built yet, so this plan still "
+                                        "calls no model" if cfg.enabled
+                                        else "off (P1 of docs/adr/0004): nothing here calls a model")}}
 
 
 def render_plan(p: dict) -> str:
@@ -969,7 +1029,7 @@ def cmd_evidence(args: argparse.Namespace) -> int:
 
 def cmd_missions(args: argparse.Namespace) -> int:
     if args.missions_action == "list":
-        for name in MISSIONS:
+        for name in ALL_MISSIONS:
             print(f"{name:18} {mission_sha256(name)[:12]}  tokens: {', '.join(MISSION_INPUTS[name])}")
         return 0
     values: dict[str, str] = {}
@@ -1082,11 +1142,11 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
     e.add_argument("--limit", type=int, default=6)
     e.add_argument("--out", help="a fresh directory (default: .fleet/refine/<stamp>-…)")
     e.add_argument("--json", action="store_true")
-    m = sub.add_parser("missions", help="the five stage prompts")
+    m = sub.add_parser("missions", help="the five stage prompts and the incident reflector's")
     ms = m.add_subparsers(dest="missions_action", required=True)
     ms.add_parser("list", help="names, hashes and tokens")
     r = ms.add_parser("render", help="print one mission, byte-exact")
-    r.add_argument("name", choices=MISSIONS)
+    r.add_argument("name", choices=ALL_MISSIONS)
     r.add_argument("--set", action="append", default=[], metavar="TOKEN=value", dest="values")
     lb = sub.add_parser("library", help="the experience library (_data/harness_library)")
     ls = lb.add_subparsers(dest="library_action", required=True)
@@ -1112,10 +1172,20 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
                      ("--diff", {"help": "a unified diff of the adopted edits (harness.diff)"})):
         x.add_argument(name, **kw)
     x.add_argument("--edit", action="append", metavar="component|candidates|change|observed|verdict")
+    from . import reflect as reflector  # lazy: the reflector imports the loop engine
+    reflector.add_arguments(sub.add_parser(
+        "reflect", help="the incident reflector: the lake's review → at most reflect.max_entries candidate lessons "
+                        "from ONE capped session, validated by the engine, previewed; --apply or `publish` files "
+                        "them as a draft PR (docs/HARNESS-REFINEMENT.md)"))
+
+
+def cmd_reflect(args: argparse.Namespace) -> int:
+    from . import reflect as reflector  # lazy
+    return reflector.main(args)
 
 
 def main(args: argparse.Namespace) -> int:
     action = args.refine_action
     handler = {"surface": cmd_surface, "plan": cmd_plan, "evidence": cmd_evidence, "missions": cmd_missions,
-               "library": cmd_library}[action]
+               "library": cmd_library, "reflect": cmd_reflect}[action]
     return handler(args)

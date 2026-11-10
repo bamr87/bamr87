@@ -1,0 +1,15 @@
+id: HUB-NEW
+slug: harness-incident-reflector
+title: "The incident reflector: a week of agent incidents into candidate lessons for the experience library, on a local schedule"
+description: "`tools/dash refine reflect` (tools/jev/reflect.py, ADR 0004 P1 part one) builds a redacted evidence tree from the lake's review of local Claude Code sessions and CI agent runs, the harness health trip wires, the local loop runs and the library ($0), runs ONE capped Read/Glob/Grep session through `dash-gen ai-run --isolate` inside budget.loops (its own probe and read-fence canary, the budget lock, the AI ledger), validates every candidate lesson in the engine (the entry schema, the leak check, a known step spec and registry domain, no near-duplicate cue, the cap) and writes PREVIEW.md; a person files the preview as a draft PR with `refine reflect publish <stamp> --apply` from a detached worktree of origin/main, after the token probe and the open-PR dedupe. `--rehearse` stops at $0; `--scheduled` needs harness_refinement.enabled, waits reflect.every_days, stops at the scheduled budget stop, never files, and notifies. tools/install-harness-review.sh installs the daily com.bamr87.harness-review LaunchAgent (lake sessions, lake sync, lake review, then the guarded weekly reflection)."
+implemented: true
+status: shipped
+surface: cli
+link: tools/jev/reflect.py
+docs: docs/HARNESS-REFINEMENT.md
+tags: [ jev, harness, refinement, loops, schedule ]
+date: 2026-11-07
+tests:
+  - tools/test_jev_reflect.py
+  - tools/test_jev_refine.py
+  - tools/test_jev_conflicts.py

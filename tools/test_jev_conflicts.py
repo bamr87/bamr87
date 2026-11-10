@@ -118,8 +118,28 @@ def test_the_guard_refuses_destructive_and_settings_verbs_and_allows_what_jev_us
                  ["issue", "create", "-R", "o/r", "--title", "t"], ["repo", "clone", "o/r", "/tmp/x"],
                  ["variable", "get", "REPO_SCOUT_ENABLED", "-R", "o/r"], ["api", "repos/o/r/commits/main"],
                  ["api", "-X", "GET", "repos/o/r"], ["api", "graphql", "-f", "query={ viewer { login } }"],
-                 ["api", "repos/o/r/commits/main", "--jq", ".sha"], ["api", "--paginate", "repos/o/r/pulls"]):
+                 ["api", "repos/o/r/commits/main", "--jq", ".sha"], ["api", "--paginate", "repos/o/r/pulls"],
+                 # the incident reflector's filing (tools/jev/reflect.py): a DRAFT pull request only
+                 ["pr", "create", "-R", "o/r", "--draft", "--base", "main", "--head", "b", "--title", "t"]):
         assert_no_admin(argv)
+    for argv in (["pr", "create", "-R", "o/r", "--title", "t"], ["pr", "create", "--fill"]):
+        try:
+            assert_no_admin(argv)
+        except JevError as exc:
+            assert "only as a draft" in str(exc)
+        else:
+            raise AssertionError(f"gh {argv} (not a draft) was not refused")
+    assert_safe_git(["-c", "submodule.recurse=false", "worktree", "add", "-q", "--detach", "/w", "FETCH_HEAD"])
+    assert_safe_git(["worktree", "remove", "--force", "/w"])
+    for argv in (["worktree", "add", "/w", "main"], ["worktree", "add", "-b", "x", "/w"],
+                 ["worktree", "add", "-B", "main", "/w", "HEAD"], ["worktree", "add", "--detach", "--force", "/w", "x"],
+                 ["worktree", "prune"], ["worktree", "move", "/a", "/b"], ["worktree", "lock", "/w"]):
+        try:
+            assert_safe_git(argv)
+        except JevError as exc:
+            assert "refusing" in str(exc)
+        else:
+            raise AssertionError(f"git {argv} was not refused")
     from tools.jev.common import _api_method
     assert _api_method(["api", "repos/o/r/merges", "-f", "base=main"]) == "POST"
     assert _api_method(["api", "repos/o/r", "--jq", ".x"]) == "GET"

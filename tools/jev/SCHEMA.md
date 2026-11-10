@@ -5,7 +5,7 @@ coverage: listed
 
 # SCHEMA — tools/jev
 
-> JEV, the harness-level agent logic engine: the assign-at-merge numbering compiler (`number.py`), the ratification and acceptance recorder (`ratify.py`), the tiered pull-request conflict triage and resolution engine (`conflicts.py`, `classify.py`, `ledger.py`), the loop step specs (`spec.py`, `steps/`), the headless Claude Code executor layer (`headless.py`), the local loop runner built on them (`loop.py`, `workspace.py`, `adapters/`), its context pack (`context.py`), and recursive harness refinement (`surface.py`, `library.py`, `refine.py`, `missions/`). Entry point `python3 -m tools.jev`; doc `docs/JEV.md`.
+> JEV, the harness-level agent logic engine: the assign-at-merge numbering compiler (`number.py`), the ratification and acceptance recorder (`ratify.py`), the tiered pull-request conflict triage and resolution engine (`conflicts.py`, `classify.py`, `ledger.py`), the loop step specs (`spec.py`, `steps/`), the headless Claude Code executor layer (`headless.py`), the local loop runner built on them (`loop.py`, `workspace.py`, `adapters/`), its context pack (`context.py`), and recursive harness refinement (`surface.py`, `library.py`, `refine.py`, `reflect.py`, `missions/`). Entry point `python3 -m tools.jev`; doc `docs/JEV.md`.
 
 ## Conventions
 
@@ -36,7 +36,8 @@ coverage: listed
 | `surface.py` | file | The harness surface (capability three): Harness²'s eight components mapped onto a Claude Code harness, read as one tree and validated (the always-on cap, skill and subagent frontmatter, the hooks shape, every named script exists, MCP, injection phrasing), the census, the diff and the diversity of candidate trees; `refine surface check`, `census` and `diff` | required |
 | `library.py` | file | The experience library (capability three): `_data/harness_library/<loop>/<domain>/<entry>/experience.yml` (`jev-experience/v1`) + `harness.diff`, the entry schema and field caps, the leak check through the context pack's redaction, the registry domain of an item, `check_all`; `refine library …` | required |
 | `refine.py` | file | Recursive harness refinement (capability three, ADR 0004): the Propose–Probe–Compose schedule in both modes and the R = 4k / P = 3k ledger identity, the `harness_refinement:` config, the one-pass mission render, `refine plan` (the ceiling against `budget.loops`), `refine evidence` (the redacted tree a proposer reads, from `.fleet/runs`), and the `refine` CLI group | required |
-| `missions/` | dir | The five stage prompts of a refinement step (data only, adapted from Harness², Apache-2.0); see its SCHEMA | |
+| `reflect.py` | file | The incident reflector (capability three, ADR 0004 P1 part one), `refine reflect`: the evidence tree from the lake's review, the trip wires, the local runs and the library (redacted, $0); ONE capped Read/Glob/Grep session through `dash-gen ai-run --isolate` inside `budget.loops`; the engine's validation of every candidate lesson; `PREVIEW.md`; `publish <stamp> --apply` (a draft PR from a detached worktree of origin/main, after the token probe and the open-PR dedupe; never under `--scheduled`); `doctor` (the $0 probe and the ≤ $0.10 read-fence canary for its posture) | required |
+| `missions/` | dir | The five stage prompts of a refinement step and the incident reflector's (data only, adapted from Harness², Apache-2.0); see its SCHEMA | |
 | `adapters/` | dir | One adapter per loop the runner can run (the contract and `REGISTRY`); see its SCHEMA | |
 | `steps/` | dir | The loop step specs themselves, one directory per loop workflow (data only); see its SCHEMA | |
 
@@ -50,11 +51,11 @@ coverage: listed
 ## Forbidden
 
 - No ratification-record edit outside the four record files and their status lines (`ratify.ALLOWED_PATH`, `ratify._shape_problem`); the merge of that PR belongs to the `ratify` job's YAML step, never to the Python.
-- No `gh pr merge`, no `--admin`, no repository-settings call, no `gh api` write, no gh command outside the allowlist — asserted in `common.assert_no_admin`; no force-push, mirror or remote delete, no git subcommand, global option or `-c` key outside the allowlist — asserted in `common.assert_safe_git`; both covered by `tools/test_jev_conflicts.py`.
+- No `gh pr merge`, no `--admin`, no repository-settings call, no `gh api` write, no gh command outside the allowlist (a `gh pr create` only with `--draft`) — asserted in `common.assert_no_admin`; no force-push, mirror or remote delete, no git subcommand, global option or `-c` key outside the allowlist (a `git worktree` only as `add --detach <path> <commit>` or `remove`) — asserted in `common.assert_safe_git`; both covered by `tools/test_jev_conflicts.py`.
 - No secret, token or model credential in this directory; the `claude` CLI reads its own environment.
 - No import of dash-gen (`.github/scripts/dash-gen/`) from any module here; dash-gen imports `tools.jev` lazily, never the reverse.
 - No GitHub credential in a local loop-step agent's environment, and no loop-step `claude -p` outside `headless.claude_flags` and `headless.agent_env` (ADR 0002, P1) — except `conflicts.claude_argv` (tiers 1–2), not yet isolated and switched off by `jev.auto_tiers: [tier0]`; it moves onto headless.py before tier1 or tier2 is enabled.
 - No `--dangerously-skip-permissions`, `bypassPermissions` or `--bare` in an agent argv.
 - No publish without the § 13.6 gate, no unattended (`--scheduled`) local filing, and no sandbox-posture attempt without a passing isolation probe and canary for the installed CLI.
 - No workspace inside the hub tree, and no run record outside the gitignored `.fleet/runs/` (a refinement's evidence tree outside `.fleet/refine/`).
-- No refinement that edits a step spec's prompt, grant or caps (§ 12.3): a hard-rule change is a proposal a person reviews; no model call from `refine.py` in this release.
+- No refinement that edits a step spec's prompt, grant or caps (§ 12.3): a hard-rule change is a proposal a person reviews; no model call from `refine.py`, and from `reflect.py` only through `dash-gen ai-run --isolate` with a Read/Glob/Grep grant, a passing probe and read-fence canary, `harness_refinement.enabled` and the `budget.loops` lock; no reflector filing under `--scheduled`.
