@@ -3,9 +3,10 @@
 fleet_lake — the LOCAL DATA LAKE and the TRACE EXPORTER of the local stack.
 
 Everything the control plane knows about the fleet lives in GitHub: workflow
-runs, their jobs and steps, the run logs (where claude-code-action reports
-its model, turns, and cost), the open issues, the workflow files themselves,
-and — for repos managed by GitFactory (bamr87/gitorio) — the `.factory/`
+runs, their jobs and steps, the run logs (where claude-code-action — and,
+for the hub's loops, the claude-cost action after it — reports the model,
+turns and cost of every Claude call), the open issues, the workflow files
+themselves, and — for repos managed by GitFactory (bamr87/gitorio) — the `.factory/`
 blueprints + prompts that those workflows were compiled from. The committed
 `_data/*.yml` signals are AGGREGATES of that data, sized for a static page.
 This module extracts the underlying records into a local SQLite database so
@@ -20,9 +21,11 @@ Three subcommands:
            repos, workflow files (classified with harness_registry — kind,
            auth, kill switch, GitFactory provenance), `.factory/**` and
            `fleet.manifest.yml`, workflow runs → jobs → steps, the run-log
-           zip (per entry, capped), the claude-code-action facts scraped
-           from those logs (model, session id, turns, cost, tool grants),
-           and the window's issues/PRs. Idempotent: rerunning upserts.
+           zip (per entry, capped), the Claude facts scraped from those
+           logs (model, session id, turns, cost, tool grants; summed over
+           every Claude call in the run), and the window's issues/PRs.
+           Idempotent: rerunning upserts, and re-reads stored logs whose
+           facts an older parser wrote.
   status   What the lake holds — tables, freshness, per-repo counts, the
            export ledger, and whether Phoenix is reachable. `--json` is the
            console's /api/lake document.
@@ -74,7 +77,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 FLEET_DEFAULT = REPO_ROOT / "_data" / "fleet.yml"
 LAKE_DIR_DEFAULT = Path(os.environ.get("DASH_LAKE_DIR") or (REPO_ROOT / ".dash-lake"))
 DB_NAME = "fleet.sqlite"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3   # 3: agent_runs.agent_calls + cost_unread (added in place by connect)
 PHOENIX_DEFAULT = os.environ.get("PHOENIX_COLLECTOR_ENDPOINT") or "http://127.0.0.1:6006"
 PHOENIX_UI_DEFAULT = os.environ.get("PHOENIX_UI_URL") or PHOENIX_DEFAULT
 CLAUDE_DIR_DEFAULT = Path(os.environ.get("CLAUDE_CONFIG_DIR") or (Path.home() / ".claude")) / "projects"
@@ -119,7 +122,8 @@ CREATE TABLE IF NOT EXISTS agent_runs (
   run_id INTEGER PRIMARY KEY, nwo TEXT, model TEXT, session_id TEXT, num_turns INTEGER, cost_usd REAL,
   duration_ms INTEGER, permission_denials INTEGER, is_error INTEGER, max_turns INTEGER,
   allowed_tools TEXT, input_tokens INTEGER, output_tokens INTEGER, cache_read_tokens INTEGER,
-  cache_write_tokens INTEGER, started_at TEXT, ended_at TEXT, tool_calls TEXT, turns INTEGER);
+  cache_write_tokens INTEGER, started_at TEXT, ended_at TEXT, tool_calls TEXT, turns INTEGER,
+  agent_calls INTEGER, cost_unread INTEGER);
 CREATE TABLE IF NOT EXISTS issues (
   nwo TEXT, number INTEGER, title TEXT, state TEXT, is_pr INTEGER, labels TEXT, author TEXT,
   created_at TEXT, updated_at TEXT, closed_at TEXT, html_url TEXT, body TEXT, PRIMARY KEY (nwo, number));
@@ -250,10 +254,26 @@ def connect(lake_dir: Path | str | None = None, create: bool = True) -> sqlite3.
     conn.row_factory = sqlite3.Row
     if create:
         conn.executescript(SCHEMA_SQL)
+        _add_columns(conn)
         conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)",
                      (str(SCHEMA_VERSION),))
         conn.commit()
     return conn
+
+
+# Columns added after a table first shipped. CREATE TABLE IF NOT EXISTS never
+# alters an existing table, so a lake built earlier gets them here, in place
+# and empty: a NULL `agent_calls` marks a row the current log parser has not
+# read yet (sync re-derives it from the stored logs).
+ADDED_COLUMNS = {"agent_runs": (("agent_calls", "INTEGER"), ("cost_unread", "INTEGER"))}
+
+
+def _add_columns(conn: sqlite3.Connection) -> None:
+    for table, columns in ADDED_COLUMNS.items():
+        have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+        for name, kind in columns:
+            if name not in have:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {kind}")
 
 
 def upsert(conn: sqlite3.Connection, table: str, row: dict, keys: list[str]) -> None:
@@ -266,10 +286,42 @@ def upsert(conn: sqlite3.Connection, table: str, row: dict, keys: list[str]) -> 
 
 
 # --------------------------------------------------------------------------- #
-# log parsing (pure): claude-code-action facts out of a run log
+# log parsing (pure): Claude's facts out of a run log
 # --------------------------------------------------------------------------- #
 LOG_TS_RX = re.compile(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z) ?(.*)$")
 _NUM = r"\s*:\s*([0-9.]+)"
+
+# .github/actions/claude-cost prints the agent step's LAST result record into
+# the run log as ONE compact line behind this word. It is the hub loops'
+# fullest record (usage, modelUsage, session id) and the only one on an abort
+# path. In it `"type":"result"` comes AFTER `num_turns` and `total_cost_usd`,
+# so the forward-only read this parser used to do found the duration and
+# neither of those: every hub loop (fleet-pulse's doctor, the issue
+# pipeline's three tiers) sat in the lake at 0 turns and $0.
+RUN_RESULT_MARKER = "claude-run-result"
+# A run log that may hold Claude facts (the store_logs pre-filter).
+AGENT_LOG_MARKERS = (CLAUDE_ACTION_MARKER, RUN_RESULT_MARKER, "total_cost_usd", "SDK options:")
+# Joins one run's agent-relevant log entries, so an `init` in one file is never
+# paired with a `result` in another (zip order is by name: `10_…` before `9_…`).
+ENTRY_SEP = "\n##[dash-lake entry]\n"
+# Every dollar figure here is the CLI's own `total_cost_usd`: list-price
+# shadow accounting, not an invoice (ai_activity.COST_LABEL; test-held equal).
+COST_LABEL = "API-equivalent (estimate)"
+
+_RESULT_RX = re.compile(r'"type"\s*:\s*"result"')
+_INIT_RX = re.compile(r'"subtype"\s*:\s*"init"')
+_SDK_RX = re.compile(r"SDK options:")
+_CLOSE_RX = re.compile(r"^\}[ \t]*$", re.M)
+_SESSION_LINE_RX = re.compile(r"Set session_id:\s*([0-9a-fA-F-]{36})")
+_MODEL_RX = re.compile(r'"model"\s*:\s*"([^"]+)"')
+_DECODER = json.JSONDecoder()
+# (lake column, the result payload's usage key, its modelUsage twin)
+_TOKENS = (("input_tokens", "input_tokens", "inputTokens"),
+           ("output_tokens", "output_tokens", "outputTokens"),
+           ("cache_read_tokens", "cache_read_input_tokens", "cacheReadInputTokens"),
+           ("cache_write_tokens", "cache_creation_input_tokens", "cacheCreationInputTokens"))
+_SUMMED = ("num_turns", "cost_usd", "duration_ms", "permission_denials",
+           "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens")
 
 
 def _split_log(text: str) -> tuple[str, list[tuple[int, str | None]]]:
@@ -317,87 +369,292 @@ def _first(rx: str, text: str, start: int = 0, end: int | None = None, flags=0):
     return m.group(1) if m else None
 
 
-def parse_agent_log(text: str) -> dict:
-    """Extract what claude-code-action prints even with its default
-    `show_full_output: false`: the SDK options (model alias, maxTurns,
-    allowedTools), the `system/init` block (resolved model), the `result`
-    block (turns, cost, duration, denials, error flag) and the session id.
-    With full output enabled the per-message JSON is there too, so assistant
-    turns and tool calls are collected with the timestamp of their log line.
-    Everything is optional; an unrelated log yields an empty dict."""
-    body, offsets = _split_log(text)
+def is_agent_text(text: str) -> bool:
+    return any(marker in text for marker in AGENT_LOG_MARKERS)
+
+
+def _record_at(body: str, m: re.Match) -> tuple[int, int, dict | None]:
+    """The JSON record around one `"type": "result"` match: (start, end, the
+    decoded object or None). Two shapes reach a run log: ONE LINE (claude-cost's
+    `claude-run-result {…}` echo, a full-output stream line), where the type
+    key can sit anywhere in the object, and claude-code-action's PRETTY block —
+    a bare `{` line, indented keys, a bare `}` line. Fields are read inside
+    this extent and never past it, where the next record's numbers start."""
+    ls = body.rfind("\n", 0, m.start()) + 1
+    le = body.find("\n", m.end())
+    le = len(body) if le < 0 else le
+    brace = body.find("{", ls, m.start())
+    if brace >= 0:
+        try:
+            obj, end = _DECODER.raw_decode(body, brace)
+        except ValueError:
+            return brace, le, None          # a truncated line: regex inside it
+        return brace, end, obj if isinstance(obj, dict) and obj.get("type") == "result" else None
+    op = body.rfind("\n{", 0, m.start())
+    start = op + 1 if op >= 0 else (0 if body.startswith("{") else ls)
+    close = _CLOSE_RX.search(body, m.end(), min(len(body), m.end() + 200_000))
+    end = close.end() if close else min(len(body), m.end() + 3000)
+    try:
+        obj = json.loads(body[start:end])
+    except ValueError:
+        obj = None                          # the action's reduced block may not be strict JSON
+    return start, end, obj if isinstance(obj, dict) and obj.get("type") == "result" else None
+
+
+def _num(value):
+    return value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def _result_facts(body: str, start: int, end: int, obj: dict | None) -> dict:
+    """Turns, cost, duration, denials, error flag, session, tokens and per-model
+    cost from one result record — from the object when it decoded, else by
+    regex inside its extent (both directions: the key order is not a contract)."""
     out: dict = {}
-    init = re.search(r'"subtype"\s*:\s*"init"', body)
-    if init:
-        out["model"] = _first(r'"model"\s*:\s*"([^"]+)"', body, init.start(), init.start() + 600)
-        out["started_at"] = _stamp_at(offsets, init.start())
-    if "model" not in out or not out.get("model"):
-        alias = _first(r'"model"\s*:\s*"([^"]+)"', body)
-        if alias:
-            out["model"] = alias
-    sdk = body.find("SDK options:")
-    if sdk >= 0:
-        window = body[sdk:sdk + 4000]
-        mt = _first(r'"maxTurns"' + _NUM, window)
-        if mt:
-            out["max_turns"] = int(float(mt))
-        tools = re.search(r'"allowedTools"\s*:\s*\[([^\]]*)\]', window)
-        if tools:
-            out["allowed_tools"] = re.findall(r'"([^"]+)"', tools.group(1))
-    result = None
-    for m in re.finditer(r'"type"\s*:\s*"result"', body):
-        result = m  # the last result block wins (retries print several)
-    if result:
-        seg_end = result.start() + 3000
-        out["ended_at"] = _stamp_at(offsets, result.start())
-        turns = _first(r'"num_turns"' + _NUM, body, result.start(), seg_end)
-        cost = _first(r'"total_cost_usd"' + _NUM, body, result.start(), seg_end)
-        dur = _first(r'"duration_ms"' + _NUM, body, result.start(), seg_end)
-        denials = _first(r'"permission_denials_count"' + _NUM, body, result.start(), seg_end)
-        is_err = _first(r'"is_error"\s*:\s*(true|false)', body, result.start(), seg_end)
-        sub = _first(r'"subtype"\s*:\s*"([^"]+)"', body, result.start(), seg_end)
-        if turns:
-            out["num_turns"] = int(float(turns))
-        if cost:
-            out["cost_usd"] = float(cost)
-        if dur:
-            out["duration_ms"] = int(float(dur))
-        if denials:
-            out["permission_denials"] = int(float(denials))
-        if is_err:
-            out["is_error"] = is_err == "true"
-        if sub:
-            out["result_subtype"] = sub
-        for key, rx in (("input_tokens", r'"input_tokens"' + _NUM),
+    if obj is not None:
+        out["num_turns"] = _num(obj.get("num_turns"))
+        out["cost_usd"] = _num(obj.get("total_cost_usd"))
+        out["duration_ms"] = _num(obj.get("duration_ms"))
+        denials = _num(obj.get("permission_denials_count"))
+        if denials is None and isinstance(obj.get("permission_denials"), list):
+            denials = len(obj["permission_denials"])
+        out["permission_denials"] = denials
+        if isinstance(obj.get("is_error"), bool):
+            out["is_error"] = obj["is_error"]
+        for key, field in (("result_subtype", "subtype"), ("session_id", "session_id")):
+            if isinstance(obj.get(field), str) and obj[field]:
+                out[key] = obj[field]
+        usage = obj.get("usage") if isinstance(obj.get("usage"), dict) else {}
+        model_usage = obj.get("modelUsage") if isinstance(obj.get("modelUsage"), dict) else {}
+        for col, key, camel in _TOKENS:
+            value = _num(usage.get(key))
+            if value is None and model_usage:
+                parts = [_num(mu.get(camel)) for mu in model_usage.values() if isinstance(mu, dict)]
+                parts = [p for p in parts if p is not None]
+                value = sum(parts) if parts else None
+            out[col] = value
+        # The action's reduced block lists the models with only their context
+        # window; a model counts here only with a cost, so that block never
+        # outvotes the init record's resolved model.
+        models = {str(name): float(mu["costUSD"]) for name, mu in model_usage.items()
+                  if isinstance(mu, dict) and _num(mu.get("costUSD")) is not None}
+        if models:
+            out["models"] = models
+    else:
+        for key, rx in (("num_turns", r'"num_turns"' + _NUM),
+                        ("cost_usd", r'"total_cost_usd"' + _NUM),
+                        ("duration_ms", r'"duration_ms"' + _NUM),
+                        ("permission_denials", r'"permission_denials_count"' + _NUM),
+                        ("input_tokens", r'"input_tokens"' + _NUM),
                         ("output_tokens", r'"output_tokens"' + _NUM),
                         ("cache_read_tokens", r'"cache_read_input_tokens"' + _NUM),
                         ("cache_write_tokens", r'"cache_creation_input_tokens"' + _NUM)):
-            v = _first(rx, body, result.start(), seg_end)
-            if v is None:
-                hits = re.findall(rx, body)
-                v = max(hits, key=lambda h: float(h)) if hits else None
-            if v is not None:
-                out[key] = int(float(v))
-    else:
-        cost = _first(r'"total_cost_usd"' + _NUM, body)
-        if cost:
-            out["cost_usd"] = float(cost)
-        turns = _first(r'"num_turns"' + _NUM, body)
-        if turns:
-            out["num_turns"] = int(float(turns))
-    sid = _first(r"Set session_id:\s*([0-9a-fA-F-]{36})", body)
-    if sid:
-        out["session_id"] = sid
-    turns_seen = [m.start() for m in re.finditer(r'"type"\s*:\s*"assistant"', body)]
-    if turns_seen:
-        out["turns"] = len(turns_seen)
-    calls = []
+            value = _first(rx, body, start, end)
+            if value:
+                try:
+                    out[key] = float(value)
+                except ValueError:
+                    pass
+        is_err = _first(r'"is_error"\s*:\s*(true|false)', body, start, end)
+        if is_err:
+            out["is_error"] = is_err == "true"
+        sub = _first(r'"subtype"\s*:\s*"([^"]+)"', body, start, end)
+        if sub:
+            out["result_subtype"] = sub
+        sid = _first(r'"session_id"\s*:\s*"([^"]+)"', body, start, end)
+        if sid:
+            out["session_id"] = sid
+    for key in _SUMMED:
+        if out.get(key) is not None and key != "cost_usd":
+            out[key] = int(out[key])
+    return {k: v for k, v in out.items() if v is not None}
+
+
+def _same_call(a: dict, b: dict) -> bool:
+    """Are two records the same Claude invocation? The same session, or the
+    same init stamp, decides; a conflicting one rules it out; else the same
+    duration and turn count (the action's block and claude-cost's echo of it,
+    the step file and the per-job roll-up GitHub's zip holds twice)."""
+    for key in ("session_id", "started_at"):
+        if a.get(key) and b.get(key) and a[key] == b[key]:
+            return True
+    for key in ("session_id", "started_at"):
+        if a.get(key) and b.get(key):
+            return False
+    da = (a.get("duration_ms"), a.get("num_turns"))
+    return None not in da and da == (b.get("duration_ms"), b.get("num_turns"))
+
+
+def _merge_call(a: dict, b: dict) -> dict:
+    """One invocation from two prints of it. Numbers take the larger (a
+    session's cost and turns are cumulative), the start the earlier, the end
+    the earlier (the agent's own block precedes the cost step's echo)."""
+    out = dict(a)
+    for key, value in b.items():
+        if value is None:
+            continue
+        if out.get(key) is None:
+            out[key] = value
+        elif key in _SUMMED:
+            out[key] = max(out[key], value)
+        elif key in ("started_at", "ended_at"):
+            out[key] = min(out[key], value)
+        elif key == "models":
+            out[key] = {m: max(out[key].get(m, 0.0), c) for m, c in {**out[key], **value}.items()}
+    return out
+
+
+def _entry_calls(text: str, tag: str = "") -> tuple[list[dict], set[str], list[dict]]:
+    """The Claude invocations in ONE log entry, plus its assistant-turn stamps
+    and tool calls (full output only). An invocation opens at `SDK options:`
+    or the `init` record and closes at its first `result`; a later result
+    that is the same call (claude-cost's echo) folds in, an init that never
+    reached a result stays an invocation whose cost could not be read."""
+    body, offsets = _split_log(text)
+    events: list[tuple[int, str, object]] = []
+    events += [(m.start(), "sdk", m) for m in _SDK_RX.finditer(body)]
+    events += [(m.start(), "init", m) for m in _INIT_RX.finditer(body)]
+    read_to = -1
+    for m in _RESULT_RX.finditer(body):
+        if m.start() < read_to:
+            continue                        # inside a record already read
+        start, end, obj = _record_at(body, m)
+        read_to = end
+        events.append((m.start(), "result", (start, end, obj)))
+    events.sort(key=lambda e: e[0])
+    calls: list[dict] = []
+    cur: dict | None = None
+    for i, (pos, kind, payload) in enumerate(events):
+        stamp = _stamp_at(offsets, pos)
+        if kind == "sdk":
+            if cur is None or cur.get("_sdk") or cur.get("_result"):
+                cur = {}
+                calls.append(cur)
+            cur["_sdk"] = True
+            cur.setdefault("started_at", stamp)
+            window = body[pos:pos + 4000]
+            mt = _first(r'"maxTurns"' + _NUM, window)
+            if mt:
+                cur["max_turns"] = int(float(mt))
+            tools = re.search(r'"allowedTools"\s*:\s*\[([^\]]*)\]', window)
+            if tools:
+                cur["allowed_tools"] = re.findall(r'"([^"]+)"', tools.group(1))
+            alias = _MODEL_RX.search(window)
+            if alias:
+                cur["alias_model"] = alias.group(1)
+        elif kind == "init":
+            if cur is None or cur.get("_init") or cur.get("_result"):
+                cur = {}
+                calls.append(cur)
+            cur["_init"] = True
+            cur["started_at"] = stamp       # the init stamp beats the SDK-options one
+            model = _first(r'"model"\s*:\s*"([^"]+)"', body, pos, pos + 600)
+            if model:
+                cur["init_model"] = model
+        else:
+            start, end, obj = payload
+            facts = _result_facts(body, start, end, obj)
+            facts["ended_at"] = stamp
+            if not facts.get("session_id"):
+                nxt = events[i + 1][0] if i + 1 < len(events) else len(body)
+                sid = _SESSION_LINE_RX.search(body, end, max(end, nxt))
+                if sid:
+                    facts["session_id"] = sid.group(1)
+            if cur is not None and (not cur.get("_result") or _same_call(cur, facts)):
+                cur.update(_merge_call(cur, facts))
+            else:
+                cur = facts
+                calls.append(cur)
+            cur["_result"] = True
+    turns = {_stamp_at(offsets, m.start()) or f"{tag}@{m.start()}"
+             for m in re.finditer(r'"type"\s*:\s*"assistant"', body)}
+    tool_calls = []
     for m in re.finditer(r'"type"\s*:\s*"tool_use"', body):
         name = _first(r'"name"\s*:\s*"([^"]+)"', body, m.start(), m.start() + 600)
         if name:
-            calls.append({"name": name, "at": _stamp_at(offsets, m.start())})
-    if calls:
-        out["tool_calls"] = calls
+            tool_calls.append({"name": name, "at": _stamp_at(offsets, m.start()), "_key": f"{tag}@{m.start()}"})
+    return [{k: v for k, v in c.items() if not k.startswith("_")} for c in calls], turns, tool_calls
+
+
+def parse_agent_log(text: str) -> dict:
+    """Claude's facts in one run's log, whichever way the run printed them.
+
+    claude-code-action, even with its default `show_full_output: false`,
+    prints the SDK options (model alias, maxTurns, allowedTools), the
+    `system/init` record (resolved model), a reduced `result` block (turns,
+    cost, duration, denials, error flag) and the session id. The hub's loops
+    then run .github/actions/claude-cost, which echoes the FULL result record
+    (usage, modelUsage, session) on one line behind `claude-run-result`. With
+    full output the per-message JSON is there too, so assistant turns and tool
+    calls are collected with the timestamp of their log line.
+
+    A run can hold several invocations — the issue pipeline runs Claude in
+    three tier jobs — and GitHub's zip can hold each job twice (step files and
+    the per-job roll-up). Each entry (split on ENTRY_SEP) is read on its own,
+    prints of the same invocation are folded (same session, init stamp, or
+    duration and turns), and the run's facts are the SUM over invocations:
+    `agent_calls` counts them, `cost_unread` counts those that left no
+    readable cost (an agent cancelled or timed out before its result), and
+    `cost_usd` is the readable part — absent when none is readable, never 0.
+    Everything is optional; an unrelated log yields an empty dict."""
+    calls: list[dict] = []
+    turn_stamps: set[str] = set()
+    tools: dict[tuple, dict] = {}
+    for n, entry in enumerate(text.split(ENTRY_SEP)):
+        entry_calls, entry_turns, entry_tools = _entry_calls(entry, f"e{n}")
+        calls += entry_calls
+        turn_stamps |= entry_turns
+        for t in entry_tools:
+            key = t.pop("_key")
+            tools.setdefault((t["name"], t["at"] or key), t)
+    merged: list[dict] = []
+    for call in calls:
+        for i, prior in enumerate(merged):
+            if _same_call(prior, call):
+                merged[i] = _merge_call(prior, call)
+                break
+        else:
+            merged.append(call)
+    merged.sort(key=lambda c: c.get("started_at") or c.get("ended_at") or "")
+    out: dict = {}
+    if merged:
+        readable = [c for c in merged if c.get("cost_usd") is not None]
+        out["agent_calls"] = len(merged)
+        out["cost_unread"] = len(merged) - len(readable)
+        if readable:
+            out["cost_usd"] = round(sum(c["cost_usd"] for c in readable), 7)
+        for key in _SUMMED:
+            if key == "cost_usd":
+                continue
+            values = [c[key] for c in merged if c.get(key) is not None]
+            if values:
+                out[key] = int(sum(values))
+        errors = [c["is_error"] for c in merged if c.get("is_error") is not None]
+        if errors:
+            out["is_error"] = any(errors)
+        subtypes = [c for c in merged if c.get("result_subtype")]
+        if subtypes:
+            failed = [c for c in subtypes if c.get("is_error")]
+            out["result_subtype"] = (failed or subtypes)[-1]["result_subtype"]
+        spend: dict[str, float] = {}
+        for c in merged:
+            for model, usd in (c.get("models") or {}).items():
+                spend[model] = spend.get(model, 0.0) + usd
+        model = max(spend, key=lambda m: spend[m]) if spend else None
+        model = model or next((c[k] for k in ("init_model", "alias_model") for c in merged if c.get(k)), None)
+        if not model:                       # a runner that prints neither: any model the log names
+            named = _MODEL_RX.search(text)
+            model = named.group(1) if named else None
+        if model:
+            out["model"] = model
+        for key, pick in (("session_id", lambda vs: vs[0]), ("started_at", min), ("ended_at", max),
+                          ("max_turns", max), ("allowed_tools", lambda vs: vs[0])):
+            values = [c[key] for c in merged if c.get(key)]
+            if values:
+                out[key] = pick(values)
+    if turn_stamps:
+        out["turns"] = len(turn_stamps)
+    if tools:
+        out["tool_calls"] = sorted(tools.values(), key=lambda t: t["at"] or "")
     return out
 
 
@@ -535,12 +792,12 @@ def iter_log_entries(session, logs_url: str):
 def store_logs(conn, session, run_id: int, logs_url: str, max_bytes: int) -> tuple[int, str]:
     """Download one run's log zip and store each entry (step files first, then
     the per-job full logs) until the per-run byte cap. Returns (entries,
-    agent-relevant text) — the text the claude-code-action facts are parsed
-    from."""
+    agent-relevant text) — the text Claude's facts are parsed from, one entry
+    per ENTRY_SEP so the parser never pairs records across files."""
     used, stored = 0, 0
     agent_text: list[str] = []
     for name, raw, text in iter_log_entries(session, logs_url):
-        if CLAUDE_ACTION_MARKER in text or "total_cost_usd" in text or "SDK options:" in text:
+        if is_agent_text(text):
             agent_text.append(text)
         truncated = 0
         if used + len(raw) > max_bytes:
@@ -553,13 +810,41 @@ def store_logs(conn, session, run_id: int, logs_url: str, max_bytes: int) -> tup
         used += len(raw)
         if used >= max_bytes:
             break
-    return stored, "\n".join(agent_text)
+    return stored, ENTRY_SEP.join(agent_text)
+
+
+def stored_agent_text(conn, run_id: int) -> str:
+    """The same agent text, rebuilt from the log entries already in the lake."""
+    rows = conn.execute("SELECT text FROM logs WHERE run_id=? ORDER BY entry", (run_id,))
+    return ENTRY_SEP.join(r["text"] for r in rows if r["text"] and is_agent_text(r["text"]))
+
+
+def reparse_stored(conn, nwo: str, since: str) -> int:
+    """Re-derive Claude's facts for this repo's runs since `since` whose
+    agent row predates the current parser (`agent_calls` NULL), from the logs
+    the lake already holds — offline, no API call. A parser fix then reaches
+    every stored run instead of only the runs downloaded after it (a stored
+    run is never downloaded again). A re-read that finds no cost never
+    replaces a row that had one: the stored text may be capped."""
+    ids = [r["run_id"] for r in conn.execute(
+        "SELECT a.run_id FROM agent_runs a JOIN runs r ON r.id = a.run_id "
+        "WHERE r.nwo = ? AND r.created_at >= ? AND a.agent_calls IS NULL "
+        "AND EXISTS (SELECT 1 FROM logs l WHERE l.run_id = a.run_id)", (nwo, since))]
+    n = 0
+    for run_id in ids:
+        facts = parse_agent_log(stored_agent_text(conn, run_id))
+        old = conn.execute("SELECT cost_usd FROM agent_runs WHERE run_id=?", (run_id,)).fetchone()
+        if not facts or (facts.get("cost_usd") is None and old and old["cost_usd"] is not None):
+            continue
+        record_agent_run(conn, run_id, nwo, facts)
+        n += 1
+    return n
 
 
 def sync_runs(conn, repo, nwo: str, session, window_start: dt.datetime, max_runs: int,
               ai_paths: set[str], jobs_mode: str, logs_mode: str, max_log_bytes: int,
               now: str) -> dict:
-    counts = {"runs": 0, "jobs": 0, "logs": 0, "agent": 0}
+    counts = {"runs": 0, "jobs": 0, "logs": 0, "agent": 0, "reparsed": 0}
     try:
         runs = repo.get_workflow_runs(created=f">={window_start.strftime('%Y-%m-%d')}")
     except Exception:
@@ -618,6 +903,8 @@ def sync_runs(conn, repo, nwo: str, session, window_start: dt.datetime, max_runs
                         record_agent_run(conn, run.id, nwo, facts)
                         counts["agent"] += 1
         conn.commit()
+    counts["reparsed"] = reparse_stored(conn, nwo, iso(window_start))
+    conn.commit()
     return counts
 
 
@@ -636,6 +923,7 @@ def record_agent_run(conn, run_id: int, nwo: str, facts: dict) -> None:
         "started_at": facts.get("started_at"), "ended_at": facts.get("ended_at"),
         "tool_calls": json.dumps(facts.get("tool_calls")) if facts.get("tool_calls") else None,
         "turns": facts.get("turns"),
+        "agent_calls": facts.get("agent_calls", 0), "cost_unread": facts.get("cost_unread", 0),
     }, ["run_id"])
 
 
@@ -701,7 +989,8 @@ def cmd_sync(args: argparse.Namespace) -> int:
     started = utcnow()
     now = iso(started)
     window_start = started - dt.timedelta(days=args.days)
-    totals = {"repos": 0, "runs": 0, "jobs": 0, "logs": 0, "issues": 0, "files": 0, "agent": 0}
+    totals = {"repos": 0, "runs": 0, "jobs": 0, "logs": 0, "issues": 0, "files": 0, "agent": 0,
+              "reparsed": 0}
     for project, nwo in targets:
         sys.stderr.write(f"  lake · {nwo}\n")
         try:
@@ -728,7 +1017,7 @@ def cmd_sync(args: argparse.Namespace) -> int:
         if not repo.archived:
             c = sync_runs(conn, repo, nwo, session, window_start, args.max_runs, set(ai),
                           args.jobs, args.logs, args.max_log_bytes, now)
-            for k in ("runs", "jobs", "logs", "agent"):
+            for k in ("runs", "jobs", "logs", "agent", "reparsed"):
                 totals[k] += c[k]
         if not args.no_issues:
             totals["issues"] += sync_issues(conn, repo, nwo, window_start, args.max_issues)
@@ -739,12 +1028,14 @@ def cmd_sync(args: argparse.Namespace) -> int:
         "VALUES (?,?,?,?,?,?,?,?,?,?)",
         (now, iso(finished), args.days, totals["repos"], totals["runs"], totals["jobs"],
          totals["logs"], totals["issues"], totals["files"],
-         f"jobs={args.jobs} logs={args.logs} agent_runs={totals['agent']}"))
+         f"jobs={args.jobs} logs={args.logs} agent_runs={totals['agent']} "
+         f"reparsed={totals['reparsed']}"))
     conn.commit()
     _, db = lake_paths(args.lake)
     sys.stderr.write(
         f"lake: {db} — {totals['repos']} repos, {totals['runs']} runs, {totals['jobs']} jobs, "
-        f"{totals['logs']} log entries, {totals['agent']} agent runs parsed, "
+        f"{totals['logs']} log entries, {totals['agent']} agent runs parsed "
+        f"(+{totals['reparsed']} re-read from stored logs), "
         f"{totals['issues']} issues/PRs, {totals['files']} files "
         f"in {(finished - started).total_seconds():.0f}s\n")
     return 0
@@ -1605,10 +1896,55 @@ def cmd_sessions(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------- #
 # review — the ANALYSIS layer over both planes, offline
 # --------------------------------------------------------------------------- #
+# Why an AI workflow run's Claude cost is unknown, in the review's words.
+UNKNOWN_REASONS = {
+    "stale": "read by an older parser (`lake sync` re-reads the stored log)",
+    "no-result": "ran Claude but logged no readable cost",
+    "pending": "still running when last synced",
+    "no-log": "log not in the lake",
+}
+
+
+def cost_state(run: dict) -> tuple[str, str]:
+    """How much of one AI workflow run's Claude cost the lake can state:
+    ("known" | "partial" | "zero" | "unknown", why). Pure — `run` is a runs
+    row with `has_agent`, `cost_usd`, `cost_unread`, `agent_calls`,
+    `has_logs`, `jobs` and `steps_ran` beside it (review's query).
+
+    A skipped run, a run whose jobs never ran a step, and a completed run
+    whose log is in the lake with no Claude invocation in it are a real $0. A
+    run that invoked Claude with no readable cost, one still running, and one
+    whose log the lake does not hold are UNKNOWN — reporting those as $0 is
+    how the hub's own loops read as free."""
+    if run.get("has_agent"):
+        if run.get("cost_usd") is None:
+            return "unknown", "stale" if run.get("agent_calls") is None else "no-result"
+        return ("partial", "no-result") if run.get("cost_unread") else ("known", "result")
+    if run.get("conclusion") == "skipped":
+        return "zero", "skipped"
+    if run.get("status") != "completed":
+        return "unknown", "pending"
+    if run.get("has_logs"):
+        return "zero", "no-claude-step"
+    if run.get("jobs") and not run.get("steps_ran"):
+        return "zero", "no-job-ran"
+    if not run.get("jobs") and run.get("conclusion") in ("cancelled", "startup_failure"):
+        return "zero", "no-job-ran"
+    return "unknown", "no-log"
+
+
 def review(lake_dir: Path | str | None = None, days: int = 30, repo: str | None = None,
            limit: int = 10) -> dict:
     """Unify the two planes — local Claude Code sessions and the CI agent runs
-    claude-code-action produced — into one reviewable document.
+    (claude-code-action, the hub loops' claude-cost echo) — into one
+    reviewable document.
+
+    CI cost is never a silent $0: every AI workflow run in the window is
+    classified by `cost_state` — read, partly read, really $0 (skipped, no
+    job ran, no Claude step in its log) or UNKNOWN (Claude ran and left no
+    readable cost, the run is still going, or its log is not in the lake) —
+    and the unknowns are counted beside the dollars, which are
+    API-equivalent (estimate), not an invoice.
 
     Pure SQL over the lake: no network, no Phoenix, no ~/.claude re-read. That
     is the point of extracting first — the review is reproducible from the
@@ -1687,21 +2023,49 @@ def review(lake_dir: Path | str | None = None, days: int = 30, repo: str | None 
             "AND r.conclusion IN ('failure','timed_out','startup_failure')", cp).fetchone()["n"]
         ci["repos"] = [dict(r) for r in conn.execute(
             "SELECT r.nwo AS repo, COUNT(*) AS runs, COALESCE(SUM(a.num_turns),0) AS turns, "
-            "ROUND(COALESCE(SUM(a.cost_usd),0),4) AS cost_usd "
+            "ROUND(SUM(a.cost_usd),4) AS cost_usd, "
+            "SUM(CASE WHEN a.cost_usd IS NULL OR a.cost_unread > 0 THEN 1 ELSE 0 END) AS cost_unknown "
             "FROM agent_runs a JOIN runs r ON r.id=a.run_id "
-            f"WHERE r.created_at >= ?{cf} GROUP BY r.nwo ORDER BY cost_usd DESC", cp)]
-        ci["workflows"] = [dict(r) for r in conn.execute(
-            "SELECT r.nwo, r.workflow_name, r.workflow_path, COUNT(*) AS runs, "
-            "ROUND(COALESCE(SUM(a.cost_usd),0),4) AS cost_usd, "
-            "COALESCE(SUM(a.num_turns),0) AS turns, "
-            "SUM(CASE WHEN r.conclusion IN ('failure','timed_out','startup_failure') THEN 1 ELSE 0 END) AS failures "
+            f"WHERE r.created_at >= ?{cf} GROUP BY r.nwo "
+            "ORDER BY COALESCE(SUM(a.cost_usd), 0) DESC, COUNT(*) DESC", cp)]
+        ai_runs = [dict(r) for r in conn.execute(
+            "SELECT r.nwo, r.workflow_name, r.workflow_path, r.status, r.conclusion, "
+            "a.run_id IS NOT NULL AS has_agent, a.cost_usd, a.cost_unread, a.agent_calls, a.num_turns, "
+            "EXISTS (SELECT 1 FROM logs l WHERE l.run_id = r.id) AS has_logs, "
+            "(SELECT COUNT(*) FROM jobs j WHERE j.run_id = r.id) AS jobs, "
+            "(SELECT COUNT(*) FROM steps s JOIN jobs j ON j.id = s.job_id WHERE j.run_id = r.id "
+            " AND s.conclusion IS NOT NULL AND s.conclusion != 'skipped') AS steps_ran "
             "FROM runs r LEFT JOIN agent_runs a ON a.run_id=r.id "
-            f"WHERE r.created_at >= ? AND r.ai=1{cf} "
-            "GROUP BY r.nwo, r.workflow_path ORDER BY cost_usd DESC", cp)]
+            f"WHERE r.created_at >= ? AND r.ai=1{cf}", cp)]
+        workflows: dict[tuple, dict] = {}
+        reasons: dict[str, int] = {}
+        for run in ai_runs:
+            state, why = cost_state(run)
+            w = workflows.setdefault((run["nwo"], run["workflow_path"]), {
+                "nwo": run["nwo"], "workflow_name": run["workflow_name"],
+                "workflow_path": run["workflow_path"], "runs": 0, "cost_usd": 0.0, "turns": 0,
+                "failures": 0, "cost_unknown": 0, "cost_known": 0})
+            w["runs"] += 1
+            w["turns"] += run["num_turns"] or 0
+            w["failures"] += int(run["conclusion"] in ERROR_CONCLUSIONS)
+            w["cost_usd"] += run["cost_usd"] or 0.0
+            w["cost_known"] += int(state != "unknown")
+            if state in ("unknown", "partial"):
+                w["cost_unknown"] += 1
+                reasons[why] = reasons.get(why, 0) + 1
+        for w in workflows.values():
+            # Every run unknown is "unknown" (None), never $0; some of them
+            # unknown is the readable sum plus `cost_unknown`.
+            w["cost_usd"] = round(w["cost_usd"], 4) if w.pop("cost_known") else None
+        ci["workflows"] = sorted(workflows.values(), key=lambda w: (
+            -(w["cost_usd"] or 0), -w["cost_unknown"], -w["runs"], w["nwo"], w["workflow_path"] or ""))
+        ci["cost_unknown"] = sum(reasons.values())
+        ci["cost_unknown_reasons"] = reasons
+        ci["cost_label"] = COST_LABEL
         ci["top_runs"] = [dict(r) for r in conn.execute(
             "SELECT r.id, r.nwo, r.workflow_name, r.conclusion, r.html_url, r.created_at, "
             "a.model, a.num_turns, ROUND(a.cost_usd,4) AS cost_usd, a.duration_ms, "
-            "a.permission_denials, a.is_error, a.session_id "
+            "a.permission_denials, a.is_error, a.session_id, a.agent_calls, a.cost_unread "
             "FROM agent_runs a JOIN runs r ON r.id=a.run_id "
             f"WHERE r.created_at >= ?{cf} ORDER BY a.cost_usd DESC LIMIT ?", cp + [limit])]
         ci["models"] = {r["model"] or "unknown": r["n"] for r in conn.execute(
@@ -1720,6 +2084,8 @@ def review(lake_dir: Path | str | None = None, days: int = 30, repo: str | None 
         "turns": (local.get("turns") or 0) + (ci.get("turns") or 0),
         "traces": (local.get("sessions") or 0) + (ci.get("agent_runs") or 0),
         "untraced": (local.get("untraced") or 0) + (ci.get("untraced") or 0),
+        "cost_unknown": ci.get("cost_unknown") or 0,
+        "cost_label": COST_LABEL,
     }
     out["findings"] = _findings(out)
     return out
@@ -1741,12 +2107,19 @@ def _findings(doc: dict) -> list[dict]:
 
     if ci.get("errors"):
         f.append({"severity": "error", "plane": "ci", "title": "CI agent runs ended in error",
-                  "detail": f"{ci['errors']} of {ci.get('agent_runs', 0)} claude-code-action runs reported "
+                  "detail": f"{ci['errors']} of {ci.get('agent_runs', 0)} CI agent runs reported "
                             "is_error — read their logs in the lake (`logs` table) before re-dispatching"})
     if ci.get("failed_runs"):
         f.append({"severity": "error", "plane": "ci", "title": "AI workflow runs failed",
                   "detail": f"{ci['failed_runs']} of {ci.get('runs', 0)} AI workflow runs concluded "
                             "failure/timed_out/startup_failure"})
+    if ci.get("cost_unknown"):
+        why = ci.get("cost_unknown_reasons") or {}
+        f.append({"severity": "warn", "plane": "ci", "title": "CI agent cost unknown",
+                  "detail": f"{ci['cost_unknown']} AI workflow runs have no readable Claude cost ("
+                            + ", ".join(f"{n} {UNKNOWN_REASONS.get(k, k)}" for k, n in sorted(why.items()))
+                            + ") — the CI total counts only what it can read; `tools/dash lake sync` "
+                            "fetches missing logs, and a run that never logged a result stays unknown"})
     if ci.get("denials"):
         f.append({"severity": "warn", "plane": "ci", "title": "permission denials in CI",
                   "detail": f"{ci['denials']} tool-permission denials — the allowlist is narrower than the "
@@ -1792,6 +2165,13 @@ def _findings(doc: dict) -> list[dict]:
     return f
 
 
+def _usd(cost, unknown: int = 0) -> str:
+    """A review dollar figure: unknown stays unknown, never $0."""
+    if cost is None:
+        return "unknown"
+    return f"${cost:.2f}" + (f" +{unknown} unknown" if unknown else "")
+
+
 def cmd_review(args: argparse.Namespace) -> int:
     doc = review(args.lake, days=args.days, repo=args.repo, limit=args.limit)
     if args.json:
@@ -1804,8 +2184,9 @@ def cmd_review(args: argparse.Namespace) -> int:
     local, ci, tot = doc["local"], doc["ci"], doc["totals"]
     scope = f" · repo={doc['repo']}" if doc.get("repo") else ""
     print(f"Claude activity review — last {doc['window_days']}d{scope}")
-    print(f"  total: ${tot['cost_usd']:.2f} · {tot['turns']} turns · {tot['traces']} traces "
-          f"({tot['untraced']} not yet in Phoenix)")
+    unknown = f" (+{tot['cost_unknown']} CI runs unknown)" if tot.get("cost_unknown") else ""
+    print(f"  total: ${tot['cost_usd']:.2f}{unknown} · {tot['turns']} turns · {tot['traces']} traces "
+          f"({tot['untraced']} not yet in Phoenix) · cost is {COST_LABEL}")
     print(f"\n  LOCAL sessions (~/.claude transcripts)")
     print(f"    {local['sessions']} sessions · {local['turns']} turns · {local['tool_calls']} tool calls "
           f"({local['tool_errors']} errored) · ${local['cost_usd']:.2f}")
@@ -1817,15 +2198,17 @@ def cmd_review(args: argparse.Namespace) -> int:
         print("    top tools: " + ", ".join(
             f"{t['name']}×{t['calls']}" + (f"({t['errors']}✗)" if t.get("errors") else "")
             for t in local["tools"][:8]))
-    print(f"\n  CI agent runs (claude-code-action)")
+    print(f"\n  CI agent runs (claude-code-action · claude-cost)")
     print(f"    {ci['agent_runs']} agent runs of {ci['runs']} AI workflow runs · {ci['turns']} turns · "
-          f"${ci['cost_usd']:.2f} · {ci['failed_runs']} failed · {ci['denials']} denials")
+          f"{_usd(ci['cost_usd'], ci.get('cost_unknown'))} · {ci['failed_runs']} failed · "
+          f"{ci['denials']} denials")
     for r in ci["repos"][:8]:
-        print(f"      {r['repo']:<28} {r['runs']:>3} runs      {r['turns']:>5} turns  ${r['cost_usd']:.2f}")
+        print(f"      {r['repo']:<28} {r['runs']:>3} runs      {r['turns']:>5} turns  "
+              f"{_usd(r['cost_usd'], r.get('cost_unknown'))}")
     for w in ci["workflows"][:8]:
         mark = "✗" if w.get("failures") else " "
-        print(f"      {mark} {w['nwo']}/{w['workflow_path'].split('/')[-1]:<26} "
-              f"{w['runs']:>3} runs ${w['cost_usd'] or 0:.2f}")
+        print(f"      {mark} {w['nwo']}/{(w['workflow_path'] or '?').split('/')[-1]:<26} "
+              f"{w['runs']:>3} runs {_usd(w['cost_usd'], w.get('cost_unknown'))}")
     if local["top_sessions"]:
         print("\n  most expensive local sessions")
         for r in local["top_sessions"][:5]:
