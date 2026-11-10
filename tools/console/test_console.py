@@ -36,6 +36,7 @@ import shutil
 import sys
 import tempfile
 import time
+from unittest import mock
 from pathlib import Path
 
 # Never the live console's job dir: importing `app` builds its JobManager,
@@ -171,6 +172,40 @@ def test_workflow_routes_atlas_lint_and_scaffold():
     assert r.status_code == 400 and "kind" in r.json()["detail"]
     h = client.get("/api/workflows/health", params={"days": 7}).json()
     assert "present" in h and isinstance(h["workflows"], list)
+
+
+def test_graph_and_learning_routes_serve_the_shared_views():
+    """Over HTTP: the graph answers one question per request with the document
+    the CLI and the MCP print, an unknown node is a 404 that names it, and
+    learning answers in shadow whether or not this machine has a lake."""
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    doc = client.get("/api/graph").json()
+    assert doc["schema"] == "fleet-graph/v1" and doc["check"]["error"] == 0 and doc["nodes"] > 800, doc.get("check")
+    shown = client.get("/api/graph", params={"action": "show", "node": "loop:hub/fleet-pulse"}).json()
+    assert shown["out"]["runs"]["nodes"][0]["id"] == "workflow:bamr87/bamr87:fleet-pulse"
+    hit = client.get("/api/graph", params={"action": "impact", "node": "action:bamr87/bamr87:claude-cost", "depth": 1}).json()
+    assert "workflow:bamr87/bamr87:fleet-pulse" in {n["id"] for n in hit["nodes"]}
+    r = client.get("/api/graph", params={"action": "show", "node": "no-such-node-anywhere"})
+    assert r.status_code == 404 and "no node matches" in r.json()["detail"]
+    assert client.get("/api/graph", params={"action": "impact"}).status_code == 400          # no node
+    assert client.get("/api/graph", params={"action": "nonsense"}).status_code == 400
+    assert client.get("/api/graph", params={"action": "find", "kind": "widget"}).status_code == 400
+    with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {"DASH_LAKE_DIR": tmp}):  # no lake here
+        learning = client.get("/api/learn", params={"loop": "repo-scout"}).json()
+        assert learning["schema"] == "learning/v1" and learning["mode"] == "shadow"
+        assert learning["available"] is False and "lake" in learning["reason"]
+    assert client.get("/api/learn", params={"loop": "no-such-loop"}).status_code == 400
+    for op in ("graph-check", "learn-status", "learn-plan"):                                   # the page can run them
+        argv = core.OPS[op]["argv"]({})
+        assert argv[0] == core.DASH and not core.OPS[op].get("remote"), op
 
 
 def test_a_dev_stack_op_names_one_project_from_the_port_registry():

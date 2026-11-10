@@ -57,7 +57,9 @@ import claude_telemetry
 # renders, the keys v1 table, and the bashOS palette.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fleetcore import apps as fapps  # noqa: E402
+from fleetcore import graph as fgraph  # noqa: E402
 from fleetcore import keys as fkeys  # noqa: E402
+from fleetcore import learn as flearn  # noqa: E402
 from fleetcore import theme as ftheme  # noqa: E402
 from fleetcore import views as fviews  # noqa: E402
 
@@ -932,6 +934,36 @@ def apps_view() -> dict:
     from. Addresses only: whether one answers is the browser's to find out,
     because a frame loads from where the reader sits, not from this process."""
     return fapps.apps_view(core.REPO_ROOT)
+
+
+@app.get("/api/graph", dependencies=[Depends(require_token)])
+def graph_view(action: str = Query(default="summary", pattern=r"^[a-z]{1,10}$"),
+               node: str = Query(default="", max_length=200), to: str = Query(default="", max_length=200),
+               text: str = Query(default="", max_length=120), kind: str = Query(default="", pattern=r"^[a-z]{0,12}$"),
+               depth: int = Query(default=3, ge=1, le=6), limit: int = Query(default=40, ge=1, le=500)) -> dict:
+    """One question of the fleet graph (fleetcore.graph; docs/FLEET-GRAPH.md):
+    what the control plane manages and how it relates, read from the checkout.
+    `action` is summary · find · show · impact · lineage · path · check — the
+    document `tools/dash graph --json` prints and the MCP's fleet_graph returns."""
+    try:
+        return fgraph.view(core.REPO_ROOT, action=action, node=node, to=to, text=text, kind=kind, depth=depth, limit=limit)
+    except KeyError as exc:  # a node that does not resolve, or resolves to several
+        raise HTTPException(status_code=404, detail=str(exc.args[0] if exc.args else exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/api/learn", dependencies=[Depends(require_token)])
+def learn_view(loop: str = Query(default="", pattern=r"^[a-z0-9-]{0,40}$"), slots: int = Query(default=5, ge=1, le=50),
+               limit: int = Query(default=12, ge=1, le=200)) -> dict:
+    """Outcome learning, shadow only (fleetcore.learn; docs/LEARNING.md): what
+    happened to each loop's output, the estimate per loop and per repo, the
+    plan for the next slots and the replay test, from the local lake opened
+    read-only. `available: false` says why when the lake cannot answer."""
+    try:
+        return flearn.view(core.REPO_ROOT, loop=loop, slots=slots, limit=limit)
+    except flearn.ConfigError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.get("/api/keys")

@@ -641,6 +641,30 @@
       "presentation": { "group": "4-generate", "order": 8 }
     },
     {
+      "name": "🕸️ Fleet graph: summary + check (one model of the control plane, offline)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash graph summary && tools/dash graph check",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 8 }
+    },
+    {
+      "name": "🕸️ Fleet graph: impact of a node (what depends on it)…",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash graph impact ${input:graphNode}",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 8 }
+    },
+    {
+      "name": "🎯 Outcome learning: status + plan (shadow, from the lake)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash learn status && tools/dash learn plan",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 8 }
+    },
+    {
       "name": "🗺️ Workflow atlas: list / health (from the lake)",
       "type": "node-terminal",
       "request": "launch",
@@ -1590,6 +1614,13 @@
       "type": "pickString",
       "options": ["7", "14", "30", "90"],
       "default": "7"
+    },
+    {
+      // A node of the fleet graph: `<kind>:<key>` or any unique tail of one (tools/dash graph find).
+      "id": "graphNode",
+      "description": "Graph node: an id (file:_data/agents.yml) or a unique tail (claude-cost, fleet-pulse.yml)",
+      "type": "promptString",
+      "default": "action:bamr87/bamr87:claude-cost"
     },
     {
       // Loops with a local: block (tools/dash loop list).

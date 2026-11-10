@@ -50,6 +50,8 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash harness${c_off}           six-layer harness scorecard + trip wires → _data/harness_health.yml (docs/HARNESS.md)
   ${c_bold}dash harnesses [gaps|deploy]${c_off} fleet AI-harness + schedule inventory → _data/harness_registry.yml (/harnesses/ portal); \`gaps\` prints fan-out-deployable gap repos; \`deploy [--gaps|--target N] [--artifacts csv] [--upgrade] [--apply]\` opens kit PRs via fanout.sh (dry-run default; docs/HARNESS-OPS.md)
   ${c_bold}dash agents [--check] [--verbose]${c_off} the agent inventory under the efficacy contract (constitution § 29) → _data/agents.yml: every CI agent step, JEV loop step, conflict tier and LaunchAgent with its owner, trigger, switch, cap, model, KPIs, sources and contract gaps; \`--check\` is drift check (p) (offline; docs/AGENT-EFFICACY.md)
+  ${c_bold}dash graph [summary|find|show|impact|lineage|path|check|export]${c_off} the FLEET GRAPH — repos, workflows, actions, loops, switches, agents, the sources they read, features, requirements, decisions and the four operator surfaces as ONE model, read from the checkout; \`impact <node>\` is what depends on a file, action or source, \`lineage <node>\` what it needs, \`path <a> <b>\` how two things relate, \`check\` the findings (a source nobody writes, a scheduled workflow with no switch entry, an API route no MCP tool reaches, a command no console operation runs); offline, \$0, writes nothing (docs/FLEET-GRAPH.md)
+  ${c_bold}dash learn [status|plan|replay] [--loop L]${c_off} OUTCOME LEARNING, shadow only — what happened to each loop's output (landed · rejected · stale · working · young) from the local lake, one estimate per loop and per repo of how likely the next output is to land, \`plan\` the share of the next slots each repo would get (Thompson sampling, seeded by the date), \`replay\` whether that estimate predicts better than the loop's average; steers nothing and changes no cap; \$0, no model, writes nothing (docs/LEARNING.md)
   ${c_bold}dash features [check|coverage] [path]${c_off}  validate / grade one repo's feature index (features/features.yml); \`fleet [--write|--check]\` aggregates every submodule → _data/features_index.yml (/features/ portal; docs/VERIFICATION.md)
   ${c_bold}dash verify [runner flags]${c_off}  run the hub's own user scenarios through Playwright (verify/runner.mjs → test/evidence/); \`deploy [--gaps|--target N] [--upgrade] [--apply]\` fans the verify kit out via fanout.sh (dry-run default)
   ${c_bold}dash issues${c_off}            three-tier issue pipeline queues → _data/issue_pipeline.yml + per-tier work orders (feeds issue-pipeline)
@@ -510,6 +512,11 @@ cmd_remediate() { "${TOOLS}/dash-gen" remediate "$@"; }
 cmd_harness() { "${TOOLS}/dash-gen" harness "$@"; }
 # The agent inventory under the efficacy contract (docs/AGENT-EFFICACY.md).
 cmd_agents() { "${TOOLS}/dash-gen" agents "$@"; }
+# The fleet graph and outcome learning (ADR 0010). Both are fleetcore read
+# models run as modules, like `dash apps`: the console's /api/graph and
+# /api/learn and the MCP's fleet_graph and fleet_learning call the same code.
+cmd_graph() { (cd "${TOOLS}" && "$PY" -m fleetcore.graph "$@"); }
+cmd_learn() { (cd "${TOOLS}" && "$PY" -m fleetcore.learn "$@"); }
 # The fleet-wide AI-harness inventory (plural — `dash harness` above is the
 # hub's own scorecard). `deploy` reuses the standardize fan-out engine with the
 # agent-context kit artifacts, so it inherits every fanout.sh guarantee:
@@ -958,6 +965,8 @@ main() {
     workflows) cmd_workflows "$@" ;;
     harnesses) cmd_harnesses "$@" ;;
     agents)  cmd_agents "$@" ;;
+    graph)   cmd_graph "$@" ;;
+    learn)   cmd_learn "$@" ;;
     features) cmd_features "$@" ;;
     verify)  cmd_verify "$@" ;;
     spec)    cmd_spec "$@" ;;

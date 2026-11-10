@@ -1113,6 +1113,44 @@ assistant:
   timeout_s: 600
 
 # --------------------------------------------------------------------------- #
+# Learning — what happened to each loop's output, and where its next slots would
+# pay (ADR 0010; docs/LEARNING.md; `tools/dash learn`, tools/fleetcore/learn.py).
+#
+# Read from the local lake's `issues` table: every issue and pull request a loop
+# filed is sorted into landed (merged, or closed as completed), rejected (closed
+# unmerged, not planned, duplicate), stale (open past `horizon_days` with nobody
+# working it), working, young or unread. Each loop and each arm (the repo it
+# acted on) keeps one estimate of how likely its next output is to land, and the
+# plan shares the next slots out by Thompson sampling.
+#
+# SHADOW ONLY. `mode` accepts nothing else: the plan is printed, steers no loop
+# and changes no cap. Letting one loop read it is a gated pull request of its
+# own, after `tools/dash learn replay` shows the estimate predicts better than
+# the loop's average (ADR 0010 decision 6). No model call, no GitHub read, $0.
+# --------------------------------------------------------------------------- #
+learning:
+  schema: learning/v1
+  mode: shadow
+  window_days: 90                      # outputs filed before this are not read
+  horizon_days: 14                     # open this long with nobody working it = stale, and counted as not landed
+  half_life_days: 30                   # an outcome this old weighs half of one from today
+  prior_strength: 4                    # the loop's own rate is worth this many observations in each arm's estimate
+  min_resolved: 8                      # below this many resolved outputs a loop's plan says "not enough evidence"
+  backlog_weeks: {slow: 4, hold: 12}   # open output ÷ what landed per week over the last four: the advice line
+  working_labels: ["agent:ready", "agent:in-pr"]   # an open item a later stage took: neither stale nor landed
+  # How an issue or pull request is attributed to the loop that filed it, by the
+  # labels that loop puts on its output. An item can belong to two loops (the
+  # scout's proposal that the pipeline then implemented). `workflow` joins the
+  # loop to its agent runs' cost in the lake; `arms: registry` adds every active
+  # registry repo as an arm, so a repo with no history still gets a share.
+  loops:
+    repo-scout:     {kind: issue, labels: [ai-scout], workflow: repo-scout.yml, arms: registry}
+    repo-evolution: {kind: pr, labels: [ai-evolution], workflow: repo-evolution.yml, arms: registry}
+    fleet-doctor:   {kind: issue, labels: [fleet-doctor], workflow: fleet-pulse.yml}
+    doctor-fix:     {kind: pr, labels: [fleet-doctor]}
+    issue-pipeline: {kind: issue, any_labels: ["agent:in-pr", "agent:done"], workflow: issue-pipeline.yml}
+
+# --------------------------------------------------------------------------- #
 # Harnesses — the fleet-wide AI-HARNESS DEPLOYMENT contract.
 #
 # `harness:` above watches the hub's own six layers; THIS block governs the
