@@ -1,6 +1,7 @@
 # ADR 0010 — The fleet graph and outcome learning: one model of what the control plane manages, and a shadow estimate of where each loop's work lands
 
-- **Status**: proposed
+- **Status**: accepted
+- **Accepted in**: https://github.com/bamr87/bamr87/pull/811 (merged 2026-11-10 by @bamr87)
 - **Date**: 2026-11-10
 - **Deciders**: proposed by an agent at the maintainer's request (2026-11-10: a continuously operating, efficient and harmonized agentic loop harness with graph and reinforcement-learning components that span the repos, and a console that carries every capability a person or an agent needs to operate it, over MCP or the API); the maintainer accepts or rejects it by merging the PR that adds it
 - **Related**: constitution § 10.6 (read-only tools), § 10.7 (honest cost), § 10.8 (prior art first), § 10.9 (local first), § 11 (write-back), § 12.3 (gated changes), § 13.7 (earned autonomy), § 13.9 (no agent changes its own tier), § 17 (loop switches), § 29 (the efficacy contract); [ADR 0004](0004-recursive-harness-refinement.md) (Harness²), [ADR 0007](0007-workflow-studio.md) (one read model on every surface), [ADR 0009](0009-agentic-efficacy-model.md) (accepted outcomes and the five KPIs); epic #773 phase E3 (#777, outcome tracking) and E5 (#779, the Agents view), epic #737 phase A7 (#748, flow control); [docs/FLEET-GRAPH.md](../FLEET-GRAPH.md), [docs/LEARNING.md](../LEARNING.md)
