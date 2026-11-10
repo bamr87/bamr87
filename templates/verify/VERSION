@@ -1,11 +1,35 @@
 kit: verify
-version: 0.1.0
+version: 0.2.0
 source: bamr87/bamr87 templates/verify/
 seeded-by: tools/fanout.sh --kit verify (fanout.yml, kit verify); `dash verify deploy`
-files: features.template.yml, verify.template.yml, scenario.template.yml, runner.mjs, mcp.json, verify.yml, SKILL.template.md, verifier.template.md, EVIDENCE-README.template.md
+files: features.template.yml, verify.template.yml, scenario.template.yml, runner.mjs, mcp.json, verify.yml, SKILL.template.md, verifier.template.md, EVIDENCE-README.template.md, archive/{verify-0.1.0.yml,verify.template-0.1.0.yml,runner-0.1.0.mjs}
 spec: specs/QUALITY.md "Verification" (UPS-QA-50..53); reusable workflow .github/workflows/fleet-verify.yml; hub aggregator tools/features_index.py; docs/VERIFICATION.md
-updated: 2026-09-04
+updated: 2026-11-07
 changelog: |
+  0.2.0 — the verify.yml caller stops re-running a verdict it already has.
+  Measured over 14 days (2026-10-24..11-07): the 24 deployed copies ran
+  1,009 times for 2,840 wall-clock minutes. On the 23 byte-identical machine
+  seeds, 256 runs were label events on a PR commit that already had a run and
+  213 were pushes to the default branch (151 of the 155 pushes checked were
+  the merge of a PR this workflow had just verified): 469 runs (46%) and 946
+  minutes (33%) that repeated a verdict. Two changes, both the shape the
+  hub's own .github/workflows/verify.yml has run since 2026-10-30 (c9cfd8e):
+  - A label other than `verify` no longer runs the pass. Its run takes a
+    concurrency group of its own (suffixed with the run id) and the job
+    skips, so it can neither re-run the scenarios nor cancel the run in
+    flight. Dependabot's two labels used to start 3 runs per PR, the content
+    agents' four labels 5 (bamr87/bamr87#649, #650, #651, #672). The group
+    and the job `if:` go together: with the `if:` alone (zer0-CMS's
+    hand-edited copy), a label run still takes the shared group and can
+    cancel the real run before skipping, leaving the commit with no verdict.
+  - No `push:` trigger. Dispatch the workflow to verify the default branch.
+  Every PR commit still runs the full pass (opened, synchronize, reopened),
+  a `verify` label still starts the agent pass and supersedes the run in
+  flight, and `gate` is unchanged. archive/ keeps the 0.1.0 shapes of the
+  caller, the run config and the runner, so --upgrade recognises the 23
+  byte-identical machine seeds; the comment no longer spells the gate
+  setting, which features_index.py's `gate:\s*true` probe matched in every
+  seeded copy.
   0.1.0 — initial kit, lifted from three fleet precedents rather than
   invented: zer0-mistakes' features/features.yml registry + test/visual/
   evidence-kit.mjs + .github/skills/visual-evidence (the evidence standard),
