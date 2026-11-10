@@ -61,6 +61,43 @@ def test_a_missing_ledger_loads_empty_rather_than_failing():
     assert led.resolutions == [] and led.month_total("2026-10") == 0.0
 
 
+def test_a_run_that_records_nothing_leaves_the_file_as_it_was():
+    # jev-conflicts.yml publishes this file whenever it differs, so a sweep that
+    # attempted nothing must not restamp `generated`: that was a commit on main
+    # every run, 15 in the week to 2026-11-10, all with `resolutions: []`.
+    led = tmp_ledger()
+    led.append(row(cost_usd=0.2))
+    assert led.save() is True
+    written = led.path.read_text().replace("generated: '", "generated: 'stale-")
+    led.path.write_text(written)          # any later stamp would differ from this one
+
+    again = L.Ledger.load(led.path)
+    assert again.save() is False, "nothing was appended"
+    assert led.path.read_text() == written
+    assert led.save() is False, "…nor since this one's own save"
+    assert led.path.read_text() == written
+
+    again.append(row(pr=2))
+    assert again.save() is True and again.save() is False
+    assert "stale-" not in led.path.read_text()
+    assert len(L.Ledger.load(led.path).resolutions) == 2
+
+
+def test_an_empty_ledger_is_still_written_when_there_is_no_file():
+    led = tmp_ledger()
+    assert led.save() is True and led.path.is_file()
+    assert L.Ledger.load(led.path).save() is False
+
+
+def test_a_file_holding_something_that_is_not_a_row_is_rewritten_without_it():
+    led = tmp_ledger()
+    led.path.write_text("schema: jev-resolutions/v1\nresolutions:\n- repo: o/r\n  pr: 1\n- not a row\n")
+    again = L.Ledger.load(led.path)
+    assert len(again.resolutions) == 1
+    assert again.save() is True
+    assert yaml.safe_load(led.path.read_text())["resolutions"] == [{"repo": "o/r", "pr": 1}]
+
+
 # --------------------------------------------------------------------------- #
 # month-to-date
 # --------------------------------------------------------------------------- #
