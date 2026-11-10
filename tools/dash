@@ -351,8 +351,13 @@ cmd_loop() {
   # The JEV local loop runner (docs/JEV.md "The loop runner"). Run from the hub
   # root with the PyYAML-capable interpreter, because tools.jev is a package;
   # JEV_CALLER_CWD lets a relative --plan-file mean the caller's directory.
+  # JEV_LEDGER: `loop budget` prints the conflict engine's month beside the
+  # loops', and a local session's conflict rows are in the local ledger
+  # (cmd_conflicts below). Without it this read the tracked CI file, which holds
+  # no model spend, and showed $0.00 against a real $2.71.
   local caller="${PWD}"
-  (cd "${ROOT}" && JEV_CALLER_CWD="${caller}" "${PY}" -m tools.jev loop "$@")
+  (cd "${ROOT}" && JEV_CALLER_CWD="${caller}" \
+    JEV_LEDGER="${JEV_LEDGER:-${ROOT}/.fleet/runs/jev_resolutions.yml}" "${PY}" -m tools.jev loop "$@")
 }
 
 cmd_conflicts() {

@@ -693,7 +693,93 @@ def _whitespace_errors(args: list[str], repo_path: Path) -> list[str]:
     return [p for p in problems if p.strip() != "leftover conflict marker"]
 
 
-def validate(repo_path: Path, conflicted: Iterable[str] = ()) -> tuple[bool, list[str]]:
+#: A named failure in a validator's output: `tools/run-all-tests.sh` prints
+#: `[FAIL] <label>`, `tools/check-drift.sh` prints `✗ <what>`.
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+_FAIL_LINE = re.compile(r"^\s*(?:\[FAIL\]|✗)\s+(?P<what>\S.*?)\s*$")
+_FAIL_SUMMARIES = ("One or more checks failed.",)
+#: (repository, base commit, validator) -> (passed, the failures it named).
+#: Kept for the life of the process, so one sweep runs a base's validator once
+#: however many of that repo's pull requests need it.
+_BASELINES: dict[tuple[str, str, str], tuple[bool, frozenset[str]]] = {}
+
+
+def failure_signature(text: str) -> frozenset[str]:
+    """The checks a validator's output names as failed, colour stripped, without its closing summary line."""
+    names = set()
+    for line in _ANSI.sub("", text).splitlines():
+        m = _FAIL_LINE.match(line)
+        if m and m.group("what") not in _FAIL_SUMMARIES:
+            names.add(m.group("what"))
+    return frozenset(names)
+
+
+def on_runner() -> bool:
+    return os.environ.get("GITHUB_ACTIONS") == "true"
+
+
+@dataclass
+class Baseline:
+    """What the base branch already fails, on this host.
+
+    A resolution used to be judged by whether the repository's checks passed
+    on the merged tree. On a host where a check fails on the base branch
+    itself, every resolution was discarded, whatever it did: the hub's
+    `tools/run-all-tests.sh` fails on a clean `main` on the maintainer's Mac
+    (a local shellcheck's style findings; the fleet smoke check wanting
+    project stacks up), so the local model tiers resolved 0 of 6 conflicts and
+    the engine paid a second tier to fail the same way (2026-11-07 to 11-10).
+
+    The question that matters is whether the RESOLUTION broke something. So a
+    check that fails on the merged tree is run once more on the base commit, in
+    a detached worktree of the same scratch clone (same host, same tools, no
+    merge). It is excused only when the base fails it too AND the merged tree
+    names no failure the base does not. It runs only when a check has already
+    failed, so a healthy repository pays nothing.
+    """
+    repo_path: Path
+    base_ref: str
+    repo: str = ""
+    waived: list[str] = field(default_factory=list)
+
+    def base_sha(self) -> str:
+        res = git(["rev-parse", self.base_ref], cwd=self.repo_path)
+        return res.out.strip() if res.ok else ""
+
+    def result(self, marker: str, argv: list[str]) -> tuple[bool, frozenset[str]] | None:
+        """(passed, named failures) of one validator on the base commit; None when the base cannot be checked out."""
+        sha = self.base_sha()
+        if not sha:
+            return None
+        key = (self.repo or str(self.repo_path), sha, marker)
+        if key not in _BASELINES:
+            tree = Path(tempfile.mkdtemp(prefix="jev-base-")) / "tree"
+            try:
+                added = git(["worktree", "add", "--detach", str(tree), sha], cwd=self.repo_path)
+                if not added.ok:
+                    return None
+                res = run(argv, cwd=tree, timeout=1800, env={"JEV_SPANS_ADVISORY": "1"})
+                _BASELINES[key] = (res.ok, failure_signature(f"{res.out}\n{res.err}"))
+            finally:
+                git(["worktree", "remove", "--force", str(tree)], cwd=self.repo_path)
+                shutil.rmtree(tree.parent, ignore_errors=True)
+        return _BASELINES[key]
+
+    def excuses(self, marker: str, argv: list[str], failing: frozenset[str]) -> tuple[bool, frozenset[str]]:
+        """(excused, the failures that are new). Excused only when the base fails the same check and nothing is new."""
+        base = self.result(marker, argv)
+        if base is None or base[0]:
+            return False, failing
+        new = failing - base[1] if failing and base[1] else frozenset()
+        if new:
+            return False, new
+        named = ", ".join(sorted(base[1]))[:120]
+        self.waived.append(f"{marker} fails on {self.base_ref} too" + (f" ({named})" if named else ""))
+        return True, frozenset()
+
+
+def validate(repo_path: Path, conflicted: Iterable[str] = (),
+             baseline: Baseline | None = None) -> tuple[bool, list[str]]:
     """Prove the resolution before it is pushed. Two universal checks, then the repo's own.
 
     `git diff --check` and a conflict-marker sweep are not optional extras:
@@ -702,6 +788,11 @@ def validate(repo_path: Path, conflicted: Iterable[str] = ()) -> tuple[bool, lis
     sweep reads only what the merge touched (`leftover_markers`; `conflicted`
     names the files git conflicted on, for a caller that has them), and owns
     the marker verdict: `--check`'s own marker report is set aside for it.
+
+    With a `baseline`, a repo check that fails here is counted only when the
+    base branch passes it, or when the merged tree names a failure the base
+    does not (`Baseline`); what was excused is left in `baseline.waived`. The
+    universal checks are never excused.
     """
     problems: list[str] = []
     leftovers = leftover_markers(repo_path, conflicted)
@@ -721,9 +812,18 @@ def validate(repo_path: Path, conflicted: Iterable[str] = ()) -> tuple[bool, lis
         # A generated SPAN is regenerated on main after merge, so a stale one
         # is not a reason to discard a resolution (docs/JEV.md).
         res = run(argv, cwd=repo_path, timeout=1800, env={"JEV_SPANS_ADVISORY": "1"})
-        if not res.ok:
-            problems.append(f"{marker} failed: {(res.err or res.out).strip().splitlines()[-1][:160]}"
-                            if (res.err or res.out).strip() else f"{marker} failed")
+        if res.ok:
+            continue
+        failing = failure_signature(f"{res.out}\n{res.err}")
+        if baseline is not None:
+            excused, failing = baseline.excuses(marker, argv, failing)
+            if excused:
+                continue
+        # Name what failed. The last line of a long report is its summary ("OK", a count), which is
+        # how a ledger row came to read "tools/run-all-tests.sh failed: OK".
+        text = (res.err or res.out).strip()
+        detail = "; ".join(sorted(failing))[:160] or (text.splitlines()[-1][:160] if text else "")
+        problems.append(f"{marker} failed: {detail}" if detail else f"{marker} failed")
     return not problems, problems
 
 
@@ -853,6 +953,9 @@ def resolve(cfg: JevConfig, pr: PullRequest, *, dry_run: bool = False, scheduled
                               cost_source="no-spend", files=triage.file_count,
                               lines=triage.line_count, reason=triage.reason)
         spent, model, notes = 0.0, "", []
+        # Off a runner, a check the base branch already fails here is not held against the resolution
+        # (`Baseline`). A runner's tree is clean, and a second run there would only spend minutes.
+        baseline = None if on_runner() else Baseline(ws.path, f"origin/{pr.base}", repo=pr.repo)
         for tier in ladder:
             if tier == cls.TIER0:
                 done, detail = resolve_tier0(ws)
@@ -875,7 +978,12 @@ def resolve(cfg: JevConfig, pr: PullRequest, *, dry_run: bool = False, scheduled
             if not done:
                 git(["checkout", "--", "."], cwd=ws.path)
                 continue
-            good, problems = validate(ws.path, [f.path for f in ws.conflicted])
+            if baseline is not None:
+                baseline.waived.clear()
+            good, problems = validate(ws.path, [f.path for f in ws.conflicted], baseline)
+            waived = list(baseline.waived) if baseline is not None else []
+            if waived:
+                notes.append(f"{tier}: not counted — " + "; ".join(waived)[:300])
             if not good:
                 notes.append(f"{tier}: validation failed — {'; '.join(problems)[:300]}")
                 git(["merge", "--abort"], cwd=ws.path)
@@ -892,6 +1000,10 @@ def resolve(cfg: JevConfig, pr: PullRequest, *, dry_run: bool = False, scheduled
             message = (f"merge: resolve conflicts with {pr.base} ({tier})\n\n"
                        f"Resolved by JEV ({tier}) and validated by the repository's own checks.\n"
                        f"{triage.reason}\n")
+            if waived:
+                message += ("\nNot counted, because the same check already fails on "
+                            f"{pr.base} on the host that resolved this:\n"
+                            + "".join(f"- {w}\n" for w in waived))
             pushed, detail = commit_and_push(ws, message)
             outcome = "resolved" if pushed else "failed"
             notes.append(f"push: {detail}")
