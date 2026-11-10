@@ -1,10 +1,10 @@
 # 0031 — Grok ↔ Claude Code holistic governance (handoff, audit trail, roles, escalation)
 
-- **Status:** proposed (ratification pending — Amr ratifies by merging this PR)
+- **Status:** ratified (ratification pending — Amr ratifies by merging this PR)
 - **Number:** 0031
 - **Date:** 2026-11-05
 - **Proposed by:** Grok Bot (agent), on Amr's instruction as owner
-- **Ratified by:**
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/695 (merged 2026-11-10 by @bamr87)
 - **Affects:** constitution § 28 (new; follows proposed § 25 `mcp-lifecycle` #685, § 26 `claude-code-executes` #686, § 27 `expedite-sprints` #693 — **may be renumbered depending on merge order**); § 4 and § 26 by reference; feature `HUB-093`; requirements `FR93`, `FR94`; roadmap FF-0048; `AGENTS.md` agent roles; `.github/pull_request_template.md`
 - **Supersedes:** none (builds on `claude-code-executes`)
 - **Depends on:** open PR [#686](https://github.com/bamr87/bamr87/pull/686) `claude-code-executes` (§ 26) — **not merged as of 2026-11-05**. This amendment assumes § 26's actor split; if #686 is changed or rejected, this text must be revised before ratification.
