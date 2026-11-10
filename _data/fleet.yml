@@ -987,9 +987,10 @@ harness:
       slo: on-change
     lake:
       path: .dash-lake/fleet.sqlite
-      # The daily harness-review LaunchAgent (PR #772); until it is installed,
-      # `tools/dash lake sync` and `lake sessions` run only by hand (the
-      # session import was 6 days old on 2026-11-07).
+      # The daily harness-review LaunchAgent (tools/install-harness-review.sh,
+      # PR #772). On a Mac where it is not installed, `tools/dash lake sync` and
+      # `lake sessions` run only by hand (the session import was 6 days old on
+      # 2026-11-07, before it existed).
       writer: local:harness-review
       slo_days: 2
     loop-runs:
@@ -1052,13 +1053,6 @@ harness:
       local_entry: tools/update-submodules.sh --no-commit --no-push
       run_record: none
     local:harness-review:
-      declare:
-        kind: local-job
-        where: tools/install-harness-review.sh
-        trigger: 'launchd com.bamr87.harness-review: daily 06:23 local'
-        runs: [tools/dash-gen lake sessions --days 2, tools/dash-gen lake sync --days 2 --jobs ai --logs ai,
-               tools/dash-gen lake review --days 7 --json, tools/dash refine reflect --scheduled]
-        pending: bamr87/bamr87#772
       reads: [claude-transcripts, github-live, lake, harness-health, loop-runs, jev-ledger, harness-library]
       model_from: harness_refinement.model
       budget_from: {per_run_usd: harness_refinement.stage_usd, monthly_usd: budget.loops.monthly_usd}
