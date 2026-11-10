@@ -1,0 +1,18 @@
+id: HUB-NEW
+slug: claude-code-executes
+title: "Claude Code executes; Grok bots set direction only"
+description: "Constitution § 26: software and Harness Console execution changes are done by Claude Code (local CLI or console-dispatched); Grok bots may open only direction-setting amendment PRs (constitution, amendments, changelog.d, plus supporting feature/PRD/roadmap fragments in that same PR), file issues/comments, and hand off work via Fleet issues/console jobs. Warn-then-fail author lint; Amr OK required if Claude Code is unavailable. Roadmap FF-NEW:claude-code-executes."
+implemented: false
+status: planned
+surface: infra
+link: tools/claude_code_executes_lint.py
+docs: docs/amendments/proposed/claude-code-executes.md
+tags: [governance, agents, claude-code, grok, standards, lint]
+date: 2026-11-05
+tests:
+  - tools/test_claude_code_executes_lint.py
+prd: ["FR-NEW:claude-code-executes"]
+prd_new:
+  - key: claude-code-executes
+    kind: FR
+    text: "Software changes and Harness Console executions must be performed by Claude Code; Grok bots may only open direction-setting amendment PRs (constitution, amendments, changelog.d, and supporting feature/PRD/roadmap fragments in that PR), file issues/comments, and hand off implementation via Fleet issues or console jobs, with a warn-then-fail author check and an Amr OK required when Claude Code cannot run."

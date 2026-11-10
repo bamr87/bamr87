@@ -320,6 +320,19 @@ _(amendment `mcp-lifecycle`, numbered at merge — see the [amendment log](amend
 9. **Enforcement** — `tools/mcp_servers_lint.py` validates client configs and registry rows (schema, no inline secrets, unknown ids); warn-only per repo until adoption/fan-out, then hard fail. Fleet fan-out follows the 0007 pattern.
 10. **Fit with § 16 / HUB-031** — AI-ready per-repo MCP exposure and the console MCP layer stay the implementations; this section is the lifecycle and governance umbrella.
 
+## 26. Claude Code executes; Grok bots set direction
+
+_(amendment `claude-code-executes`, numbered at merge — see the [amendment log](amendments/README.md); follows § 24 on main and proposed § 25 `mcp-lifecycle` (PR #685) — this is § 26 if that lands first, else renumber to § 25; amends § 4; extends § 8 and § 12)_
+
+1. **Executor** — every change that modifies software, or that is sent to the Harness Console to be applied as an execution (ops, jobs, loop-run apply, write-back that carries out work rather than only recording direction), is executed by **Claude Code** (local CLI or console-/workflow-dispatched session).
+2. **Director** — **Grok bots** may open PRs only when the PR is **direction-setting**: constitution text, amendment records under `docs/amendments/` (proposed → numbered at merge), and the matching `changelog.d/` entry. They may include `features/features.d/`, `prd_new`, and `_data/roadmap.yml` fragments **only inside that same amendment PR** when those fragments define the capability the amendment introduces.
+3. **What Grok bots may still do without a software PR** — file and comment on GitHub issues; draft console plans that stop before apply; propose handoff issues labelled for Claude Code execution; read and review. They do **not** open implementation PRs, push product commits, or apply console write-back that executes software changes.
+4. **Handoff** — when a Grok bot determines software or console work is needed, it files a Fleet issue (and/or a console job / loop step) that states the goal, acceptance criteria, and constraints; Claude Code picks that up and opens the implementation PR.
+5. **Maintainer override** — Amr may always direct otherwise; an explicit Amr OK is required before a Grok bot executes software work when Claude Code is unavailable or out of budget (Design for Failure).
+6. **Ratification unchanged** — only Amr merges amendments (§ 8); § 12.3 ratification-record PRs remain automation, not Grok implementation work.
+7. **Enforcement** — a warn-then-fail check (`tools/claude_code_executes_lint.py` and/or a workflow) flags PRs authored by known Grok-bot identities whose diff is not direction-setting; warn-only until adoption, then hard fail. Labels such as `direction-setting` / `executor:claude-code` may assist humans and CI.
+8. **Fleet** — spoke repos conform or file their own amendment saying how they do.
+
 ## 27. Expedite sprints run by agentic loops
 
 _(amendment `expedite-sprints`, numbered at merge — see the [amendment log](amendments/README.md); follows § 25 `mcp-lifecycle` (PR #685) and § 26 `claude-code-executes` (PR #686), both open; renumber to the next free section if either does not merge first; extends § 9, § 10, § 12, § 13 and § 17)_

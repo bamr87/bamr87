@@ -142,6 +142,21 @@ Declared in `.github/sdlc.yml` `deviations:` (the hub's SDLC profile, UPS-WORK-0
 
 - UPS-REPO-21 waived until 2027-04-01: the hub's public interface (reusable workflows + checker) versions by hand-cut major tags (`v1`, `v2`) per `docs/WORKFLOW-VERSIONING.md`, and `CHANGELOG.md` is maintained with those cuts rather than by release-please.
 
+## Agent roles (constitution § 26)
+
+Amr's split (amendment `claude-code-executes`, proposed):
+
+| Actor | Does | Does not |
+| --- | --- | --- |
+| **Claude Code** (local CLI or console-/workflow-dispatched) | Execute software changes and Harness Console–bound apply/jobs; open implementation PRs | Merge gated PRs; change settings; print secrets |
+| **Grok bots** (Grok Bot primary, Platform Architect, Fleet Ops, Tools, Sites, Content & Comms, Researcher, Bashcrawl & Games, Law AI Lead, and their subagents) | Propose **direction-setting** amendment PRs (constitution + `docs/amendments/proposed/` + `changelog.d/`); file/comment issues; hand off execution | Open software/console implementation PRs; apply console execution write-back; merge |
+
+**Handoff:** a Grok bot that needs software or console work files a Fleet issue (and/or console job) with goal, acceptance criteria and constraints for Claude Code to execute.
+
+**Fallback:** if Claude Code is unavailable or out of budget, stop and wait for Amr's explicit OK — do not silently implement as a Grok bot.
+
+Details: [`docs/constitution.md`](docs/constitution.md) § 26; [`docs/amendments/proposed/claude-code-executes.md`](docs/amendments/proposed/claude-code-executes.md).
+
 ## Grok ↔ Claude Code governance (proposed § 28; depends on § 26 / #686)
 
 - **Grok bots (direction):** constitution, amendments, PRD, features, roadmap, research, assessments. They hand off software/console work by opening a Fleet issue or console job stating the requirement, acceptance criteria and a link to the **ratified** governing amendment or FR.
