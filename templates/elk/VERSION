@@ -1,13 +1,33 @@
 kit: elk
-version: 0.1.0
+version: 0.2.0
 source: bamr87/bamr87 templates/elk/
 seeded-by: tools/fanout.sh --kit elk --target <name> [--apply]
 files: filebeat.fleet.yml, compose.elk.yml, compose.labels.yml,
   adapters/python-logging.py, adapters/node-pino.mjs, adapters/django-logging.py,
   adapters/rails-lograge.rb, tests/contract.test.mjs
 spec: specs/OPERATIONS.md (UPS-OPS-10, UPS-OPS-12, UPS-OPS-17, UPS-OPS-18)
-updated: 2026-09-22
+updated: 2026-11-10
 changelog: |
+  0.2.0 — the shipper starts again under Filebeat 9.
+
+  filebeat.fleet.yml used the `container` input, a preset of the `log` input
+  that Filebeat 9 no longer starts. Under the pinned 9.5.3 every labelled
+  container failed the autodiscover config check ("Container input is
+  deprecated. Use Filestream input with its container parser instead") and no
+  container log reached the plane: 259 such errors on the hub from 2026-10-17
+  to 2026-11-09, and no `logs-fleet.container-*` data stream.
+
+  * The input is now `filestream` with a per-container id, the `container`
+    parser (Docker's json-file wrapper) and then `ndjson` with the same three
+    options the old `json.*` keys carried (keys at the root, an error key on a
+    line that is not JSON, `msg` as the message key).
+  * `ignore_decoding_error: true`: a plain-text line still ships with its raw
+    `message` and the error key; Filebeat no longer also writes one error to
+    its own log for each.
+  * Checked against elastic/filebeat:9.5.3 over a sample json-file log: the old
+    payload exits at start, the new one ships every line.
+  * 0.1.0 is in archive/, so `--upgrade` still recognises a deployed copy.
+
   0.1.0 — the log plane reaches the fleet.
 
   The hub grew a real log plane (Elasticsearch/Logstash/Kibana + Grafana behind

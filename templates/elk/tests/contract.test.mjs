@@ -110,9 +110,23 @@ test('the shipper opts in by label, and never bypasses the redaction hub', () =>
   );
   assert.match(
     fb,
-    /json\.keys_under_root/,
-    'a UPS-OPS-10 line must be parsed, or every structured log is one opaque string'
+    /- ndjson:\s*\n\s+target: ''/,
+    'a UPS-OPS-10 line must be parsed to the root, or every structured log is one opaque string'
   );
+});
+
+test('the shipper uses an input Filebeat 9 still starts', () => {
+  // The `container` input is a preset of `log`, which 9.0 disabled: with it the
+  // shipper failed its config check for every container and shipped nothing.
+  const fb = read('filebeat.fleet.yml');
+  const inputs = [...fb.matchAll(/^\s+- type: (\S+)\s*$/gm)].map((m) => m[1]).filter((t) => t !== 'docker');
+  assert.deepEqual(inputs, ['filestream'], 'one input, and it is filestream');
+  assert.match(fb, /id: container-\$\{data\.docker\.container\.id\}/, 'filestream needs one id per container');
+  assert.ok(
+    fb.indexOf('- container: ~') > 0 && fb.indexOf('- container: ~') < fb.indexOf('- ndjson:'),
+    "docker's json-file wrapper is unwrapped before the line is parsed"
+  );
+  assert.ok(!/^\s+json\./m.test(fb), 'json.* options belong to the input 9.0 disabled');
 });
 
 test('the vendored payload is byte-identical to its archived shape', () => {

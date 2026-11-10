@@ -21,15 +21,30 @@ filebeat.autodiscover:
         - condition:
             has_fields: ['docker.container.labels.com.bamr87.fleet.project']
           config:
-            - type: container
+            # `filestream`, not `container`: the container input was a preset of
+            # the `log` input, which Filebeat 9 no longer starts. Under 9.x every
+            # matching container failed the autodiscover config check and nothing
+            # was shipped. One input per container: filestream refuses duplicate
+            # ids, and the id is what its registry keys the read offset on.
+            - type: filestream
+              id: container-${data.docker.container.id}
               paths: ['/var/lib/docker/containers/${data.docker.container.id}/*.log']
-              # A UPS-OPS-10 line is JSON and parses here; anything else keeps
-              # its raw `message` and is routed to the container dataset by the
-              # Logstash enrich pipeline. add_error_key makes a malformed line
-              # visible rather than silently dropped.
-              json.keys_under_root: true
-              json.add_error_key: true
-              json.message_key: msg
+              prospector.scanner.symlinks: true
+              close.on_state_change.removed: false
+              parsers:
+                # Docker's json-file wrapper first (stream, time, log) ...
+                - container: ~
+                # ... then the line itself. A UPS-OPS-10 line is JSON and its keys
+                # land at the root; anything else keeps its raw `message` and is
+                # routed to the container dataset by the Logstash enrich pipeline.
+                # add_error_key marks a line that is not JSON on the event itself;
+                # ignore_decoding_error keeps Filebeat from also writing one error to
+                # its own log for every plain-text line a container prints.
+                - ndjson:
+                    target: ''
+                    add_error_key: true
+                    message_key: msg
+                    ignore_decoding_error: true
 
 processors:
   - add_docker_metadata:
