@@ -227,6 +227,10 @@ remediation:
   # the two above and unlike `stale_after_days`, this SUPPRESSES: 100% success
   # with zero recorded waste is positive evidence of health. Set above 100 to
   # switch it off; 90 (rather than 100) tolerates an occasional manual re-run.
+  # Under this share a workflow that is 100% green with zero waste still loses
+  # `cron-heavy` alone, which fires from 60% scheduled and says only that it is a
+  # cron: bashos `engine-canary.yml` was queued at 6 of 7 runs scheduled because
+  # its seventh was a green pull-request run (bamr87/bamr87#762).
   productive_schedule_pct: 90     # ≥ this % scheduled AND 100% green AND zero wasted
                                   # minutes ⇒ bounded productive work, so the cost
                                   # signals (and the priority fallback) don't apply
