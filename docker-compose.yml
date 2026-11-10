@@ -442,6 +442,17 @@ services:
       - "127.0.0.1:${PHOENIX_GRPC_PORT:-4317}:4317"      # OTLP/gRPC
     environment:
       - PHOENIX_WORKING_DIR=/mnt/data
+      # Phoenix 21.0.0 (2026-11-02) turns authentication ON when this is unset
+      # and the server binds beyond loopback, and the image binds `::`. With it
+      # on, every unauthenticated OTLP post is answered 401: the collector logged
+      # 5,747 dropped trace exports between 2026-11-03 and 2026-11-10 and Phoenix
+      # stored nothing. This plane is published on 127.0.0.1 only and reachable
+      # otherwise only from the `fleet` network, the access it was built for, so
+      # the setting is stated instead of inherited. To run it authenticated, set
+      # PHOENIX_ENABLE_AUTH=true in .env, create a system API key in the UI, and
+      # give it to both exporters: PHOENIX_API_KEY for `dash lake export`, and a
+      # `headers:` entry on the collector's otlphttp/phoenix exporter.
+      - PHOENIX_ENABLE_AUTH=${PHOENIX_ENABLE_AUTH:-false}
     volumes:
       - phoenix-data:/mnt/data
     networks:

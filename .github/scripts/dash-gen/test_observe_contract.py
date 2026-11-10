@@ -655,6 +655,45 @@ def test_the_shipper_config_is_label_gated_and_points_at_logstash():
     assert "output.elasticsearch" not in fb
 
 
+def test_the_shipper_uses_an_input_filebeat_still_starts():
+    """Filebeat 9 disabled the `log` input and its `container` preset. With one
+    in the template every labelled container failed the autodiscover config
+    check ("Container input is deprecated. Use Filestream input") and the log
+    plane held no container logs from 2026-10-17 until this was noticed."""
+    fb = yaml.safe_load((CONFIG / "filebeat" / "filebeat.yml").read_text())
+    inputs = [cfg for prov in fb["filebeat.autodiscover"]["providers"]
+              for tmpl in prov["templates"] for cfg in tmpl["config"]]
+    assert inputs, "the template configures no input"
+    for cfg in inputs:
+        assert cfg["type"] == "filestream", f"{cfg['type']!r} is not started by the pinned Filebeat"
+        # one input per container, or filestream refuses the duplicate id
+        assert "${data.docker.container.id}" in cfg["id"], cfg["id"]
+        parsers = [next(iter(p)) for p in cfg["parsers"]]
+        assert parsers[0] == "container", "docker's json-file wrapper must be unwrapped first"
+        nd = next(p["ndjson"] for p in cfg["parsers"] if "ndjson" in p)
+        # what json.keys_under_root / add_error_key / message_key meant on the old input
+        assert nd == {"target": "", "add_error_key": True, "message_key": "msg", "ignore_decoding_error": True}, nd
+        assert not [k for k in cfg if k.startswith("json.")], "json.* options belong to the old input"
+    major = int(str(CONTRACT_FLEET["observability"]["logs"]["stack_version"]).split(".")[0])
+    assert major >= 9, "this shape is for Filebeat 9; an older pin needs the container input back"
+    assert (CONFIG / "filebeat" / "filebeat.yml").read_bytes() == \
+        (REPO_ROOT / "templates" / "elk" / "filebeat.fleet.yml").read_bytes(), "the vendored copy differs"
+
+
+def test_phoenix_states_its_authentication_instead_of_inheriting_it():
+    """Phoenix 21 turns authentication on when PHOENIX_ENABLE_AUTH is unset and
+    the server binds beyond loopback (the image binds `::`). Neither exporter
+    sends a key, so an unset variable means every trace is answered 401."""
+    env = SERVICES["phoenix"]["environment"]
+    auth = [e for e in env if str(e).startswith("PHOENIX_ENABLE_AUTH=")]
+    assert auth == ["PHOENIX_ENABLE_AUTH=${PHOENIX_ENABLE_AUTH:-false}"], auth
+    # stating it off is only sound while the plane stays on loopback
+    for port in SERVICES["phoenix"]["ports"]:
+        assert str(port).startswith("127.0.0.1:"), f"phoenix publishes {port} beyond loopback with auth off"
+    exporter = COLLECTOR["exporters"]["otlphttp/phoenix"]
+    assert "headers" not in exporter, "the collector sends a key now: revisit PHOENIX_ENABLE_AUTH's default"
+
+
 # --------------------------------------------------------------------------- #
 def main() -> int:
     failures = 0
