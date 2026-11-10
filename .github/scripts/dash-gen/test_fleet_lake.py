@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import datetime as dt
 import io
 import json
 import shutil
@@ -837,9 +838,96 @@ def test_an_older_lake_gains_the_new_agent_columns_in_place():
         cols = {r[1] for r in conn.execute("PRAGMA table_info(agent_runs)")}
         assert {"agent_calls", "cost_unread"} <= cols, cols
         assert conn.execute("SELECT agent_calls FROM agent_runs").fetchone()[0] is None   # stale, kept
-        assert conn.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0] == "3"
+        assert conn.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0] == str(fl.SCHEMA_VERSION)
         conn.close()
         fl.connect(tmp).close()                                         # a second connect is a no-op
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+class _Listed:
+    """One row of PyGithub's issues listing: attributes plus the payload dict the listing filled."""
+
+    def __init__(self, number, state="open", pull=None, state_reason=None, labels=()):
+        self.number, self.state, self.title, self.body = number, state, f"item {number}", ""
+        self.pull_request = object() if pull is not None else None
+        self.labels = [type("L", (), {"name": n})() for n in labels]
+        self.user = type("U", (), {"login": "bamr87"})()
+        self.created_at = self.updated_at = dt.datetime(2026, 11, 1, tzinfo=dt.timezone.utc)
+        self.closed_at = None if state == "open" else dt.datetime(2026, 11, 3, tzinfo=dt.timezone.utc)
+        self.html_url = f"https://github.com/bamr87/x/issues/{number}"
+        self._rawData = {"state_reason": state_reason, **({"pull_request": pull} if pull is not None else {})}
+
+    @property
+    def raw_data(self):  # the property PyGithub completes with one request per issue: the sync must not touch it
+        raise AssertionError("raw_data would refetch every listed issue")
+
+
+class _Repo:
+    def __init__(self, issues, fail_after=None):
+        self.issues, self.fail_after = issues, fail_after
+
+    def get_issues(self, **kw):
+        for i, issue in enumerate(self.issues):
+            if self.fail_after is not None and i >= self.fail_after:
+                raise RuntimeError("listing broke")
+            yield issue
+
+
+def test_the_issue_sync_stores_why_it_closed_and_when_it_merged():
+    """Outcome learning reads these two columns; before them a merged pull request and a rejected one
+    were both just `closed`, and so were a fixed issue and a duplicate."""
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        conn = fl.connect(tmp)
+        start = dt.datetime(2026, 10, 1, tzinfo=dt.timezone.utc)
+        repo = _Repo([
+            _Listed(1, "closed", pull={"merged_at": "2026-11-03T04:05:06Z"}),
+            _Listed(2, "closed", pull={"merged_at": None}),
+            _Listed(3, "closed", state_reason="completed"),
+            _Listed(4, "closed", state_reason="not_planned"),
+            _Listed(5, "open", labels=("ai-scout",)),
+        ])
+        assert fl.sync_issues(conn, repo, "bamr87/x", start, cap=50) == 5
+        rows = {r["number"]: (r["is_pr"], r["state"], r["state_reason"], r["merged_at"])
+                for r in conn.execute("SELECT * FROM issues")}
+        assert rows == {1: (1, "closed", None, "2026-11-03T04:05:06Z"), 2: (1, "closed", None, None),
+                        3: (0, "closed", "completed", None), 4: (0, "closed", "not_planned", None),
+                        5: (0, "open", None, None)}, rows
+        # a listing that breaks part way says so and keeps what it read
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            assert fl.sync_issues(conn, _Repo([_Listed(6), _Listed(7)], fail_after=1), "bamr87/x", start, cap=50) == 1
+        assert "issues: stopped after 1 (RuntimeError)" in err.getvalue(), err.getvalue()
+        assert conn.execute("SELECT COUNT(*) FROM issues").fetchone()[0] == 6
+        conn.close()
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_an_issue_with_no_payload_dict_reads_as_unknown_not_as_an_outcome():
+    bare = type("I", (), {})()
+    assert fl.issue_outcome(bare) == (None, None)
+    odd = type("I", (), {"_rawData": {"state_reason": "", "pull_request": "not-a-dict"}})()
+    assert fl.issue_outcome(odd) == (None, None)
+
+
+def test_an_older_lake_gains_the_outcome_columns_in_place():
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        raw = sqlite3.connect(str(tmp / fl.DB_NAME))
+        raw.execute("CREATE TABLE issues (nwo TEXT, number INTEGER, title TEXT, state TEXT, is_pr INTEGER, "
+                    "labels TEXT, author TEXT, created_at TEXT, updated_at TEXT, closed_at TEXT, html_url TEXT, "
+                    "body TEXT, PRIMARY KEY (nwo, number))")
+        raw.execute("INSERT INTO issues (nwo, number, state, is_pr) VALUES ('bamr87/x', 9, 'closed', 1)")
+        raw.commit()
+        raw.close()
+        conn = fl.connect(tmp)
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(issues)")}
+        assert {"state_reason", "merged_at"} <= cols, cols
+        old = conn.execute("SELECT state_reason, merged_at FROM issues WHERE number = 9").fetchone()
+        assert tuple(old) == (None, None)                               # unread, never guessed
+        conn.close()
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

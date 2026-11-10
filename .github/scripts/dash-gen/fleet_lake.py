@@ -77,7 +77,8 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 FLEET_DEFAULT = REPO_ROOT / "_data" / "fleet.yml"
 LAKE_DIR_DEFAULT = Path(os.environ.get("DASH_LAKE_DIR") or (REPO_ROOT / ".dash-lake"))
 DB_NAME = "fleet.sqlite"
-SCHEMA_VERSION = 3   # 3: agent_runs.agent_calls + cost_unread (added in place by connect)
+# 3: agent_runs.agent_calls + cost_unread; 4: issues.state_reason + merged_at (each added in place by connect)
+SCHEMA_VERSION = 4
 PHOENIX_DEFAULT = os.environ.get("PHOENIX_COLLECTOR_ENDPOINT") or "http://127.0.0.1:6006"
 PHOENIX_UI_DEFAULT = os.environ.get("PHOENIX_UI_URL") or PHOENIX_DEFAULT
 CLAUDE_DIR_DEFAULT = Path(os.environ.get("CLAUDE_CONFIG_DIR") or (Path.home() / ".claude")) / "projects"
@@ -265,7 +266,11 @@ def connect(lake_dir: Path | str | None = None, create: bool = True) -> sqlite3.
 # alters an existing table, so a lake built earlier gets them here, in place
 # and empty: a NULL `agent_calls` marks a row the current log parser has not
 # read yet (sync re-derives it from the stored logs).
-ADDED_COLUMNS = {"agent_runs": (("agent_calls", "INTEGER"), ("cost_unread", "INTEGER"))}
+ADDED_COLUMNS = {"agent_runs": (("agent_calls", "INTEGER"), ("cost_unread", "INTEGER")),
+                 # What a person did with it (outcome learning, tools/fleetcore/learn.py): why an issue closed
+                 # (completed · not_planned · duplicate) and when a pull request merged. NULL on a row synced
+                 # before the columns existed, which the reader reports as `unread`, never as a rejection.
+                 "issues": (("state_reason", "TEXT"), ("merged_at", "TEXT"))}
 
 
 def _add_columns(conn: sqlite3.Connection) -> None:
@@ -927,6 +932,19 @@ def record_agent_run(conn, run_id: int, nwo: str, facts: dict) -> None:
     }, ["run_id"])
 
 
+def issue_outcome(issue) -> tuple[str | None, str | None]:
+    """(state_reason, merged_at) of one row of the issues listing, from the
+    payload the listing already returned. `raw_data` would refetch every issue
+    (PyGithub completes a listed object on that property), so this reads the
+    attribute dict the listing filled; a client that stops keeping it yields
+    (None, None), which downstream is `unread`, not a wrong outcome."""
+    raw = getattr(issue, "_rawData", None)
+    raw = raw if isinstance(raw, dict) else {}
+    pull = raw.get("pull_request") if isinstance(raw.get("pull_request"), dict) else {}
+    merged = pull.get("merged_at")
+    return (raw.get("state_reason") or None), (str(merged) if merged else None)
+
+
 def sync_issues(conn, repo, nwo: str, window_start: dt.datetime, cap: int) -> int:
     n = 0
     try:
@@ -935,6 +953,7 @@ def sync_issues(conn, repo, nwo: str, window_start: dt.datetime, cap: int) -> in
             if n >= cap:
                 break
             n += 1
+            state_reason, merged_at = issue_outcome(issue)
             upsert(conn, "issues", {
                 "nwo": nwo, "number": issue.number, "title": (issue.title or "")[:300],
                 "state": issue.state, "is_pr": int(issue.pull_request is not None),
@@ -943,9 +962,10 @@ def sync_issues(conn, repo, nwo: str, window_start: dt.datetime, cap: int) -> in
                 "created_at": iso(issue.created_at), "updated_at": iso(issue.updated_at),
                 "closed_at": iso(issue.closed_at), "html_url": issue.html_url,
                 "body": (issue.body or "")[:20000],
+                "state_reason": state_reason, "merged_at": merged_at,
             }, ["nwo", "number"])
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001 — one repo's listing failing must not stop the sync, but it is said
+        sys.stderr.write(f"    issues: stopped after {n} ({exc.__class__.__name__}); the rest keep what they held\n")
     return n
 
 

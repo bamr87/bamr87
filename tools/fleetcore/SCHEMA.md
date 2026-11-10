@@ -26,6 +26,8 @@ coverage: listed
 | `loopjob.py` | file | The `loop-run` job (the JEV loop runner started from the console) read once: its `--json` run record or, before one exists, its status lines → the fields the page and the TUI render (`parse_log`, `summary_lines`) | required |
 | `keys.py` | file | keys v1 as data — the TUI builds its Bindings from it and the console serves it at `/api/keys` | required |
 | `theme.py` | file | The bashOS palette as tokens → console CSS (`/theme.css`) and Textual themes (`bashos-dark` / `bashos-light`); `OS_TOKENS` is the bashOS GUI desktop's paper palette, served as `--os-*` for the console's Desktop page | required |
+| `graph.py` | file | The fleet graph (`fleet-graph/v1`, ADR 0010): the registry, the workflow atlas, the switches map, the agent inventory, the feature index, the roadmap, the decision logs and the four operator surfaces joined into one typed graph; `show` / `impact` / `lineage` / `path`, the checks (a source nobody writes, a scheduled workflow with no switch entry, the surface-parity notes) and `view()`, the one function `/api/graph` and the MCP's `fleet_graph` serve; `python3 -m fleetcore.graph` is `tools/dash graph` (docs/FLEET-GRAPH.md) | required |
+| `learn.py` | file | Outcome learning, shadow only (`learning/v1`, ADR 0010): each loop's filed issues and pull requests sorted into landed / rejected / stale / working / young / unread from the lake (opened read-only), a decayed Beta estimate per loop and per repo, the Thompson-sampling plan for the next slots, the replay skill test and the backlog advice; `view()` is what `/api/learn` and the MCP's `fleet_learning` serve; `python3 -m fleetcore.learn` is `tools/dash learn` (docs/LEARNING.md) | required |
 | `client.py` | file | Stdlib client for the console's job API over http:// or unix:// (`DASH_CONSOLE_URL`) — how the TUI and the MCP server submit jobs to the same runtime the browser uses | required |
 | `mcp_server.py` | file | MERGED into `tools/console/mcp_layer/`: its tool functions are reused there; running it delegates to the layer (`FLEET_MCP_STDLIB=1` keeps the old stdlib loop) | required |
 
@@ -35,9 +37,11 @@ coverage: listed
 - A new fact about where a frontend runs (a target kind, a launcher field) → `apps.py` (case in `tools/test_fleetcore_apps.py`); the Apps page, `tools/dash apps` and `tools/frontend_registry.py launcher` all read that one projection.
 - A new key → `keys.py` (case in `tools/test_fleetcore.py`); map its action in `tools/tui/app.py` `KEY_ACTIONS` and the page's `KEY_DO`.
 - A new colour role → `theme.py` `TOKENS` + `CSS_ROLES`; a colour of the OS shell's own chrome (the Desktop) → `OS_TOKENS` + `OS_CSS_ROLES`.
+- A new registry, surface or relation the control plane has → a builder in `graph.py` (`BUILDERS`, `KINDS`, `RELS`; case in `tools/test_fleetcore_graph.py`), parsed through its owner's parser, never a second copy of the fact.
+- A new loop whose output should be measured → a rule in `_data/fleet.yml` `learning.loops`; a new outcome or estimate → `learn.py` (case in `tools/test_fleetcore_learn.py`). Anything that lets the estimate steer a loop is a gated change (ADR 0010 decision 6).
 - A new agent capability → a tool in `tools/console/mcp_layer/server.py` over an existing view or console route (case in `tools/test_fleetcore.py`); never a path that skips the console's allowlist.
 
 ## Forbidden
 
-- No writes and no subprocesses other than `docker ps`. Running anything belongs to the console's allowlist (`tools/console/core.py` `OPS`), reached through `client.py`.
+- No writes and no subprocesses other than `docker ps`. `learn.py` opens the lake read-only (`mode=ro`) and `graph.py` writes only the file `export --out` names. Running anything belongs to the console's allowlist (`tools/console/core.py` `OPS`), reached through `client.py`.
 - No credentials stored here; `client.py` reads `DASH_CONSOLE_TOKEN` from the environment and sends it only to the console.

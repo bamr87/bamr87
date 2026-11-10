@@ -1,0 +1,23 @@
+id: HUB-NEW
+slug: fleet-graph
+title: "The fleet graph: what the control plane manages and how it relates, as one model"
+description: "tools/fleetcore/graph.py joins the registry, the workflow atlas, the switches map, the agent inventory, the feature index, the roadmap, the decision logs and the four operator surfaces (dash commands, console operations, API routes, MCP tools) into one typed graph read from the checkout: `tools/dash graph impact|lineage|path|show|find` answer what depends on a node, what it needs and how two things relate; `check` reports a source nobody writes, a scheduled workflow with no switch entry and the surface-parity gaps. One view on the CLI, /api/graph and the MCP's fleet_graph. Offline, $0, read-only. ADR 0010."
+implemented: true
+status: partial
+surface: cli
+link: tools/fleetcore/graph.py
+docs: docs/FLEET-GRAPH.md
+tags: [graph, fleetcore, harness, mcp, console, parity]
+date: 2026-11-10
+tests:
+  - tools/test_fleetcore_graph.py
+  - tools/test_fleetcore_mcp.py
+  - tools/console/test_console.py
+prd: ["FR-NEW:fleet-graph", "NFR-NEW:surface-parity"]
+prd_new:
+  - key: fleet-graph
+    kind: FR
+    text: "The product must answer, from the committed files alone, what depends on any workflow, action, data file, source or loop the hub manages, what that thing needs, and how any two are related, on the CLI, the API and MCP."
+  - key: surface-parity
+    kind: NFR
+    text: "Every capability a person has at the terminal or on a console page must be reachable by an agent over MCP or the API, or carry a recorded reason why not; the gap is reported by a command, not found by a review."

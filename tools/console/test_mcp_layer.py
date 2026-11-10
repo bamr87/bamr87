@@ -414,7 +414,8 @@ class ClaudeTelemetryTool(unittest.TestCase):
 class MergedFleet(unittest.TestCase):
     """tools/fleetcore/mcp_server.py folded in: same names, the legacy writes only on --fleet-compat or writes on."""
     LEGACY_READ = {"fleet_overview", "fleet_apps", "fleet_inbox", "fleet_docker", "fleet_work",
-                   "fleet_workflows", "workflow_lint", "console_ops", "console_jobs", "console_job_log"}
+                   "fleet_workflows", "workflow_lint", "fleet_graph", "fleet_learning",
+                   "console_ops", "console_jobs", "console_job_log"}
 
     def test_every_tool_of_the_old_server_is_served_under_its_name(self):
         """The merge dropped fleet_workflows and workflow_lint once, and nothing noticed: the old server's own
@@ -456,6 +457,26 @@ class MergedFleet(unittest.TestCase):
         self.assertEqual(payload(*call(s, "console_ops"))["items"], [{"id": "status"}])
         call(s, "console_run", {"op": "status"})
         self.assertEqual(fc.calls[-1], ("POST", "/api/jobs", {}, {"op": "status", "params": {}, "confirm": False}))
+
+    def test_the_graph_and_learning_tools_answer_from_the_checkout(self):
+        s = srv.build_server(FakeConsole(), allow_writes=False)
+        summary = payload(*call(s, "fleet_graph"))
+        self.assertEqual(summary["schema"], "fleet-graph/v1")
+        self.assertEqual(summary["check"]["error"], 0)
+        hit = payload(*call(s, "fleet_graph", {"action": "impact", "node": "action:bamr87/bamr87:claude-cost", "depth": 1}))
+        self.assertIn("workflow:bamr87/bamr87:fleet-pulse", {n["id"] for n in hit["nodes"]})
+        res, text = call(s, "fleet_graph", {"action": "show", "node": "no-such-node-anywhere"})
+        self.assertTrue(res.is_error if hasattr(res, "is_error") else res.isError)
+        self.assertIn("no node matches", text)
+        res, text = call(s, "fleet_graph", {"action": "explode"})
+        self.assertTrue(res.is_error if hasattr(res, "is_error") else res.isError)
+        # learning answers whether or not this machine has a lake: shadow either way, never an exception
+        doc = payload(*call(s, "fleet_learning", {"loop": "repo-scout"}))
+        self.assertEqual((doc["schema"], doc["mode"]), ("learning/v1", "shadow"))
+        self.assertIn("available", doc)
+        res, text = call(s, "fleet_learning", {"loop": "no-such-loop"})
+        if doc["available"]:
+            self.assertTrue(res.is_error if hasattr(res, "is_error") else res.isError)
 
     def test_fleet_reads_use_committed_signals(self):
         s = srv.build_server(FakeConsole(), allow_writes=False)

@@ -1005,6 +1005,27 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
         return local("t_workflow_lint", {"text": text, "id": id})
 
     @mcp.tool(annotations=READ)
+    def fleet_graph(action: str = "summary", node: str = "", to: str = "", text: str = "", kind: str = "",
+                    depth: int = 3, limit: int = 40) -> Any:
+        """The fleet graph (docs/FLEET-GRAPH.md): repos, workflows, actions, loops, kill switches, agents, the data
+        sources they read and who writes them, features, requirements, decisions and the four operator surfaces as
+        ONE model, read from the checkout. action: summary · find (text, kind) · show (node) · impact (node: what
+        depends on it) · lineage (node: what it needs) · path (node, to) · check (a source nobody writes, a scheduled
+        workflow with no switch entry, an API route no MCP tool reaches, a command no console operation runs). A
+        node is `<kind>:<key>` or any unique tail of one. Read `impact` before changing a shared action or data file."""
+        return local("t_graph", {"action": action, "node": node, "to": to, "text": text, "kind": kind,
+                                 "depth": depth, "limit": limit})
+
+    @mcp.tool(annotations=READ)
+    def fleet_learning(loop: str = "", slots: int = 5, limit: int = 12) -> Any:
+        """Outcome learning, SHADOW ONLY (docs/LEARNING.md): what happened to each loop's output (landed · rejected ·
+        stale · working · young · unread) from the local lake, one estimate per loop and per repo of how likely the
+        next output is to land, the share of the next `slots` each repo would get (Thompson sampling), whether that
+        estimate predicts better than the loop's average (replay), and the backlog advice (file · slow · hold). It
+        steers no loop and changes no cap. Costs are API-equivalent (estimate)."""
+        return local("t_learning", {"loop": loop, "slots": slots, "limit": limit})
+
+    @mcp.tool(annotations=READ)
     def console_ops() -> Any:
         """Alias of ops_list (the legacy `fleet` name)."""
         return ops_list()

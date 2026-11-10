@@ -1901,6 +1901,19 @@ OPS: dict[str, dict] = {
                            argv=lambda p: [DASH_GEN, "workflows", "lint"], needs_token=False,
                            desc="The README standards and the AGENTS.md standing rules as checks; "
                                 "fails on an error, exactly as test_workflow_atlas.py does in CI."),
+    "graph-check": dict(title="Fleet graph: build it and print the findings", group="verify",
+                        argv=lambda p: [DASH, "graph", "check"], needs_token=False,
+                        desc="Every registry, atlas, inventory and surface joined into one graph (docs/FLEET-GRAPH.md), "
+                             "then its checks: a source nobody writes, a scheduled workflow with no switch entry, an API "
+                             "route no MCP tool reaches, a command no operation runs. Offline, $0; fails on an error."),
+    "learn-status": dict(title="Outcome learning: what happened to each loop's output (shadow)", group="observe",
+                         argv=lambda p: [DASH, "learn", "status"], needs_token=False,
+                         desc="Landed, rejected, stale, working and young per loop from the local lake, the landing "
+                              "estimate and the backlog advice (docs/LEARNING.md). Shadow only: steers nothing. $0."),
+    "learn-plan": dict(title="Outcome learning: where each loop's next slots would pay (shadow)", group="plan",
+                       argv=lambda p: [DASH, "learn", "plan"], needs_token=False,
+                       desc="The share of the next slots each repo would get (Thompson sampling, seeded by the date) "
+                            "beside what the loop filed lately, and the replay test. Prints a plan; changes nothing. $0."),
     "workflow-new": dict(title="Scaffold a new workflow", group="plan", argv=_workflow_new, needs_token=False,
                          desc="Writes .github/workflows/<id>.yml from a template that passes every rule "
                               "(never overwrites) and prints the fleet.yml / README edits that go with it. "

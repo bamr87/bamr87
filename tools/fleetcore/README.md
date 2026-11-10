@@ -11,6 +11,8 @@ The Harness Console (browser, `tools/console/`) and the terminal dash (TTY, `too
 | `client.py` | — (the console *is* the runtime) | the **Jobs** tab and the `:` palette submit jobs to the console |
 | `loopjob.py` | `/api/jobs/:id` → `loop` on a `loop-run` job (the Job page's run summary) | the Jobs tab's summary under a finished loop-run |
 | `nodes.py` | — (planned: a Nodes page, `/api/nodes`, MCP `fleet_nodes`; ADR 0003 phase 11) | — (planned: a node column on the Docker tab); today `tools/dash node` and `tools/dash infra` |
+| `graph.py` | `/api/graph` (one question per request: summary, find, show, impact, lineage, path, check) and the `graph-check` operation; a Graph page is planned | — (planned); today `tools/dash graph` |
+| `learn.py` | `/api/learn` (each loop's outcomes, estimate, plan and replay, shadow only) and the `learn-status` / `learn-plan` operations; a Learning page is planned | — (planned); today `tools/dash learn` |
 | `mcp_server.py` | — | — (the third surface: AI agents, below) |
 
 ## One runtime
@@ -38,6 +40,8 @@ The console process owns the operation allowlist and the job manager. The browse
 | `fleet_work` | the Work board in the loops' order: lanes, each loop's cap and next run, the human's pins and overrides first ([docs/WORK-BOARD.md](../../docs/WORK-BOARD.md)) | no |
 | `fleet_workflows` | the hub's workflows and composite actions as one model with every lint finding; one in full with `workflow`; run health and failure causes from the lake with `health` ([docs/WORKFLOW-ATLAS.md](../../docs/WORKFLOW-ATLAS.md)) | no |
 | `workflow_lint` | a draft workflow's findings against the hub's standards and `_data/fleet.yml` — nothing is written | no |
+| `fleet_graph` | the fleet graph: what the control plane manages and how it relates; `action` is summary, find, show, impact (what depends on a node), lineage (what it needs), path or check ([docs/FLEET-GRAPH.md](../../docs/FLEET-GRAPH.md)) | no |
+| `fleet_learning` | outcome learning in shadow: what happened to each loop's output, the landing estimate per loop and per repo, the plan for the next slots, the replay test and the backlog advice ([docs/LEARNING.md](../../docs/LEARNING.md)); `available: false` when this machine has no lake | no |
 | `console_ops` | the console's allowlisted operations and which can write to GitHub | yes |
 | `console_run` | run one as a job, the same job the browser and the TUI list. A writing operation is refused unless `confirm=true` | yes |
 | `console_jobs` · `console_job_log` · `console_cancel` | list jobs, follow a log by offset, cancel | yes |
@@ -52,4 +56,4 @@ To try it by hand: `FLEET_MCP_STDLIB=1 python3 tools/fleetcore/mcp_server.py` (w
 
 ## Tests
 
-`python3 tools/test_tui_fleet.py` (data layer), `python3 tools/test_fleetcore_apps.py` (the launcher: targets, the ports join, embed rules, address resolution), `python3 tools/test_fleetcore.py` (keys, theme, client, the MCP protocol) and `python3 tools/test_fleetcore_nodes.py` (placement, overlays, the link key, the infra gate, and the committed model), all on PyYAML alone. `tools/console/test_console.py` asserts the console serves exactly these objects and reaches the job API over the socket. `tools/tui/test_app.py` drives the keys and the Jobs tab against a fake console.
+`python3 tools/test_fleetcore_graph.py` (the graph: model, builders, checks, the hub's own graph), `python3 tools/test_fleetcore_learn.py` (outcomes, the estimate, the plan, the replay, the lake reader), `python3 tools/test_tui_fleet.py` (data layer), `python3 tools/test_fleetcore_apps.py` (the launcher: targets, the ports join, embed rules, address resolution), `python3 tools/test_fleetcore.py` (keys, theme, client, the MCP protocol) and `python3 tools/test_fleetcore_nodes.py` (placement, overlays, the link key, the infra gate, and the committed model), all on PyYAML alone. `tools/console/test_console.py` asserts the console serves exactly these objects and reaches the job API over the socket. `tools/tui/test_app.py` drives the keys and the Jobs tab against a fake console.

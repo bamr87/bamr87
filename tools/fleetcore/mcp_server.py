@@ -16,9 +16,10 @@ other MCP host gets the views a person sees and can run what a person can run �
 no more.
 
   read     fleet_overview · fleet_apps · fleet_inbox · fleet_docker ·
-           fleet_work · fleet_workflows · workflow_lint — straight from
-           fleetcore.views (and dash-gen's work_board and workflow_atlas) over
-           the committed signals and the checkout; work with no console running
+           fleet_work · fleet_workflows · workflow_lint · fleet_graph ·
+           fleet_learning — straight from fleetcore (and dash-gen's work_board
+           and workflow_atlas) over the committed signals, the checkout and the
+           local lake; work with no console running
   act      console_ops · console_run · console_jobs · console_job_log ·
            console_cancel — through fleetcore.client to the console, so the
            allowlist, parameter validation and the confirm-before-GitHub-write
@@ -178,6 +179,29 @@ def t_workflow_lint(a: dict) -> dict:
             "parsed": {k: w.get(k) for k in ("name", "triggers", "crons", "dispatch_inputs", "switch", "ai_sites", "parse_error")}}
 
 
+def t_graph(a: dict) -> dict:
+    """One question of the fleet graph (tools/fleetcore/graph.py): what the
+    control plane manages and how it relates, read from the checkout."""
+    from fleetcore import graph as fgraph
+    try:
+        return fgraph.view(ROOT, action=str(a.get("action") or "summary"), node=str(a.get("node") or ""),
+                           to=str(a.get("to") or ""), text=str(a.get("text") or ""), kind=str(a.get("kind") or ""),
+                           depth=int(a.get("depth") or 3), limit=int(a.get("limit") or 40))
+    except KeyError as exc:  # an unknown or ambiguous node: say which, as bad arguments
+        raise ValueError(exc.args[0] if exc.args else str(exc)) from None
+
+
+def t_learning(a: dict) -> dict:
+    """Outcome learning, shadow only (tools/fleetcore/learn.py): what happened
+    to each loop's output and where its next slots would pay."""
+    from fleetcore import learn as flearn
+    try:
+        return flearn.view(ROOT, loop=str(a.get("loop") or ""), slots=int(a.get("slots") or 5),
+                           limit=int(a.get("limit") or 12))
+    except flearn.ConfigError as exc:
+        raise ValueError(str(exc)) from None
+
+
 def t_ops(_: dict) -> dict:
     return {"ops": console().ops()}
 
@@ -248,6 +272,33 @@ TOOLS: dict[str, dict] = {
         "PR token, bare pushes. Nothing is written."),
         schema=_schema({"text": {"type": "string", "description": "the workflow file's YAML"},
                         "id": {"type": "string", "description": "the file stem it will have (its fleet.yml keys)"}}, ["text"])),
+    "fleet_graph": dict(fn=t_graph, annotations=READ, description=(
+        "The fleet graph: repos, workflows, actions, loops, kill switches, agents, the data sources they read and "
+        "who writes them, features, requirements, decisions, and the four operator surfaces (dash commands, console "
+        "operations, API routes, MCP tools) as one model, read from the checkout. `action`: summary (counts) · find "
+        "(`text`, `kind`) · show (`node`: its edges) · impact (`node`: what depends on it) · lineage (`node`: what it "
+        "needs) · path (`node`, `to`) · check (findings: a source nobody writes, a scheduled workflow with no switch "
+        "entry, an API route no MCP tool reaches, a command no console operation runs). A node is `<kind>:<key>` "
+        "(workflow:bamr87/bamr87:fleet-pulse, file:_data/agents.yml) or any unique tail of one. Read `impact` "
+        "before changing a shared action, a data file or a source."), schema=_schema({
+            "action": {"type": "string", "enum": ["summary", "find", "show", "impact", "lineage", "path", "check"]},
+            "node": {"type": "string", "description": "a node id or a unique tail of one"},
+            "to": {"type": "string", "description": "the other node, for path"},
+            "text": {"type": "string", "description": "substring of an id or label, for find"},
+            "kind": {"type": "string", "description": "a node kind, for find (repo, workflow, agent, source, …)"},
+            "depth": {"type": "integer", "minimum": 1, "maximum": 6},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 500}})),
+    "fleet_learning": dict(fn=t_learning, annotations=READ, description=(
+        "Outcome learning, SHADOW ONLY: what happened to each loop's output — landed (merged, or closed as "
+        "completed), rejected, stale (open past the horizon with nobody working it), working, young, unread — from "
+        "the local lake; one estimate per loop and per repo of how likely the next output is to land; the share of "
+        "the next `slots` each repo would get (Thompson sampling, seeded by the date); whether that estimate "
+        "predicts better than the loop's average (replay); and the backlog advice (file · slow · hold). It steers "
+        "no loop and changes no cap. Costs are API-equivalent (estimate) and a floor. `available: false` means the "
+        "lake is missing or predates the outcome columns."), schema=_schema({
+            "loop": {"type": "string", "description": "one loop of _data/fleet.yml learning.loops"},
+            "slots": {"type": "integer", "minimum": 1, "maximum": 50},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 200, "description": "arms returned per loop"}})),
     "console_ops": dict(fn=t_ops, annotations=READ, schema=_schema(), description=(
         "The Harness Console's allowlisted operations: id, title, params, and whether one can write to GitHub.")),
     "console_run": dict(fn=t_run, description=(

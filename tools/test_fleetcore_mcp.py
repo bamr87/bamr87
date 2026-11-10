@@ -170,6 +170,17 @@ def test_read_tools_over_the_committed_signals():
         draft = "name: x\non:\n  schedule:\n    - cron: '0 3 * * *'\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo\n"
         lint, err = call("workflow_lint", {"text": draft})
         assert not err and {f["rule"] for f in lint["findings"]} >= {"permissions", "timeout", "cron-on-hour", "cron-declared"}
+        graph, err = call("fleet_graph")
+        assert not err and graph["schema"] == "fleet-graph/v1" and graph["check"]["error"] == 0, graph.get("check")
+        shown, err = call("fleet_graph", {"action": "show", "node": "loop:hub/fleet-pulse", "limit": 5})
+        assert not err and shown["out"]["runs"]["nodes"][0]["id"] == "workflow:bamr87/bamr87:fleet-pulse"
+        _, err = call("fleet_graph", {"action": "impact"})                       # no node: bad arguments, not a crash
+        assert err
+        _, err = call("fleet_graph", {"action": "show", "node": "claude"})       # ambiguous: says so
+        assert err
+        learning, err = call("fleet_learning", {"loop": "repo-scout", "limit": 3})
+        assert not err and learning["mode"] == "shadow" and "available" in learning
+        assert all(len(lp["arms"]) <= 3 for lp in learning["loops"])
 
 
 class Env:
