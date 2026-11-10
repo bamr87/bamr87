@@ -2,9 +2,10 @@
 # =============================================================================
 # run.sh — the universal AI runner (Claude Code first, Claude API fallback)
 # -----------------------------------------------------------------------------
-# kit: ai-runner — this file is shared VERBATIM across the fleet's content sites
-# (lifehacker.dev is the source of truth; it-journey and zer0-mistakes carry a
-# byte-identical copy). Change it here, then copy it forward; never fork it.
+# kit: ai-runner — this copy, in bamr87/bamr87, is the source of truth
+# (templates/ai-runner/VERSION). Lanes consume it BY REFERENCE through the
+# claude-run action or ai-lane.yml; a repo that still vendors scripts/ai/run.sh
+# copies this file forward and never forks it.
 #
 # EVERY AI call in the repo goes through here — every workflow agent step and
 # every skill — so model, auth, and the fallback are configured in ONE place
@@ -130,7 +131,12 @@ done
 MODEL="$(AI_MODEL="${model_flag:-${AI_MODEL:-}}" ruby -ryaml -e '
   c = (YAML.respond_to?(:unsafe_load) ? YAML.unsafe_load(File.read(ARGV[0])) : YAML.load(File.read(ARGV[0]))) rescue {}
   m = ENV["AI_MODEL"].to_s
-  puts(m.empty? ? ((c.is_a?(Hash) && c["model"]) || "claude-opus-5-5") : m)
+  # An empty or missing model means the fleet default: the kit seeds an empty
+  # string with exactly that comment. In Ruby an empty string is truthy, so
+  # (empty || default) is empty, and twelve lanes were sent to the CLI with an
+  # empty --model until 2026-11-10.
+  f = c.is_a?(Hash) ? c["model"].to_s.strip : ""
+  puts(m.empty? ? (f.empty? ? "claude-opus-5-5" : f) : m)
 ' "$REPO/_data/ai.yml" 2>/dev/null || echo "${model_flag:-${AI_MODEL:-claude-opus-5-5}}")"
 
 USAGE_RB="$REPO/scripts/ai/usage.rb"

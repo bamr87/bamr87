@@ -293,6 +293,39 @@ else
 fi
 rm -rf "$kit" "$budgetstub" "$outf" "$errf"
 
+# 14. Model resolution: --model > AI_MODEL > the consumer's _data/ai.yml > the
+# fleet default. An EMPTY `model:` in ai.yml is the fleet default — the kit seeds
+# `model: ""` with that comment — and used to reach the CLI as `--model ""`.
+argstub="$(mktemp -d)"
+cat > "$argstub/claude" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$@" > "$CLAUDE_ARGV_FILE"
+printf '{"type":"result","subtype":"success","is_error":false,"num_turns":1,"total_cost_usd":0,"usage":{"input_tokens":1,"output_tokens":1},"result":"ok"}\n'
+STUB
+chmod +x "$argstub/claude"
+model_case() {  # <name> <ai.yml text | "-" for no file> <AI_MODEL | ""> <want model>
+  local name="$1" yml="$2" env_model="$3" want="$4" repo argv got
+  repo="$(mktemp -d)"; argv="$(mktemp)"
+  if [[ "$yml" != "-" ]]; then mkdir -p "$repo/_data"; printf '%s\n' "$yml" > "$repo/_data/ai.yml"; fi
+  env -i PATH="${argstub}:/usr/local/bin:/usr/bin:/bin" HOME="${HOME:-/root}" AI_USAGE_DIR="$(mktemp -d)" \
+    AI_REPO_ROOT="$repo" CLAUDE_ARGV_FILE="$argv" CLAUDE_CODE_OAUTH_TOKEN=o ${env_model:+AI_MODEL="$env_model"} \
+    bash "$SUT" --prompt "hello" >/dev/null 2>&1
+  got="$(awk 'prev == "--model" { print; exit } { prev = $0 }' "$argv")"
+  if [[ "$got" == "$want" ]]; then
+    echo "PASS: model: $name"; pass=$((pass + 1))
+  else
+    echo "FAIL: model: $name — --model was '$got', wanted '$want'"; fail=$((fail + 1))
+  fi
+  rm -rf "$repo" "$argv"
+}
+model_case 'an empty model in ai.yml is the fleet default' 'model: ""' "" "claude-opus-5-5"
+model_case 'a null model in ai.yml is the fleet default' 'model:' "" "claude-opus-5-5"
+model_case 'no ai.yml is the fleet default' '-' "" "claude-opus-5-5"
+model_case 'ai.yml names the model' 'model: claude-sonnet-5-5' "" "claude-sonnet-5-5"
+model_case 'AI_MODEL wins over ai.yml' 'model: claude-sonnet-5-5' "claude-haiku-5-5" "claude-haiku-5-5"
+model_case 'AI_MODEL wins over an empty ai.yml' 'model: ""' "claude-haiku-5-5" "claude-haiku-5-5"
+rm -rf "$argstub"
+
 echo
 echo "ai runner contract: $pass passed, $fail failed"
 [[ "$fail" -eq 0 ]] || exit 1
