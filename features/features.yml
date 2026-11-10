@@ -2174,3 +2174,62 @@ features:
     - tools/test_claude_code_executes_lint.py
     prd:
     - FR95
+  - id: HUB-096
+    title: 'The fleet graph: what the control plane manages and how it relates, as one model'
+    description: 'tools/fleetcore/graph.py joins the registry, the workflow atlas, the switches map, the
+      agent inventory, the feature index, the roadmap, the decision logs and the four operator surfaces
+      (dash commands, console operations, API routes, MCP tools) into one typed graph read from the checkout:
+      `tools/dash graph impact|lineage|path|show|find` answer what depends on a node, what it needs and
+      how two things relate; `check` reports a source nobody writes, a scheduled workflow with no switch
+      entry and the surface-parity gaps. One view on the CLI, /api/graph and the MCP''s fleet_graph. Offline,
+      $0, read-only. ADR 0010.'
+    implemented: true
+    status: partial
+    surface: cli
+    link: tools/fleetcore/graph.py
+    docs: docs/FLEET-GRAPH.md
+    tags:
+    - graph
+    - fleetcore
+    - harness
+    - mcp
+    - console
+    - parity
+    date: 2026-11-10
+    tests:
+    - tools/test_fleetcore_graph.py
+    - tools/test_fleetcore_mcp.py
+    - tools/console/test_console.py
+    prd:
+    - FR96
+    - NFR20
+  - id: HUB-097
+    title: 'Outcome learning (shadow): what happened to each loop''s output and where its next slots would
+      pay'
+    description: 'tools/fleetcore/learn.py sorts every issue and pull request a loop filed into landed,
+      rejected, stale, working, young or unread from the local lake (two new columns: why an issue closed,
+      when a pull request merged), keeps a time-decayed Beta estimate per loop and per repo, shares the
+      next slots by Thompson sampling seeded by the date, replays history to test whether the estimate predicts
+      better than the loop''s average, and gives each loop one word of backlog advice. `tools/dash learn
+      status|plan|replay`, /api/learn and the MCP''s fleet_learning serve one view. Shadow only: it steers
+      no loop and changes no cap. $0, no model. ADR 0010.'
+    implemented: true
+    status: partial
+    surface: cli
+    link: tools/fleetcore/learn.py
+    docs: docs/LEARNING.md
+    tags:
+    - learning
+    - bandit
+    - outcomes
+    - loops
+    - lake
+    - fleetcore
+    - shadow
+    date: 2026-11-10
+    tests:
+    - tools/test_fleetcore_learn.py
+    - .github/scripts/dash-gen/test_fleet_lake.py
+    - tools/test_fleetcore_mcp.py
+    prd:
+    - FR97

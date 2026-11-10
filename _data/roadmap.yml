@@ -2039,3 +2039,35 @@
   source: manual
   created: 2026-11-05
   issue_url: ''
+
+- id: FF-0050
+  title: Fleet graph and outcome learning across the harness, on every surface
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: in-progress
+  priority: P1
+  effort: L
+  category: feature
+  problem: 'The hub keeps a dozen partial maps and no way to ask a question that crosses two of them,
+    and every loop ranks its work with a fixed rule that never reads what became of the last thing it
+    filed. Measured 2026-11-10: the scout has 55 issues open and lands three every four weeks, 19 of the
+    doctor''s 88 issues were closed as duplicates, and 20 dash commands and 17 API routes have no MCP
+    path.'
+  proposal: 'ADR 0010. Phase G0/L0 (this change): the graph and outcome learning as fleetcore read models
+    on the CLI, the API and MCP, in shadow. Then: console pages for both (Graph, Learning) with evidence;
+    the loops and the Agents view derived from the graph instead of hand-kept lists; closing the surface-parity
+    notes (read tools for config, content, GitHub and agents; operations for the commands that should
+    have one); the lake''s outcome join per run (E3, #777); and, per loop and only after its replay shows
+    skill, the advise and steer steps as gated changes feeding flow control (#748).'
+  acceptance:
+  - '`tools/dash graph check` passes on main with no error, and its parity notes fall as surfaces are
+    added.'
+  - '`tools/dash learn` shows every loop''s outcomes from the lake with no `unread` after the one-off
+    backfill.'
+  - The console has a Graph page and a Learning page, each with a verify scenario and an evidence bundle.
+  - The console's Loops page and the MCP `loops` tool list every loop in the switches map, read from the
+    graph.
+  - No loop reads the plan until a gated pull request for that loop cites a replay with skill above zero.
+  source: manual
+  created: 2026-11-10
+  issue_url: null

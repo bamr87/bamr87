@@ -139,6 +139,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-093](features/features.yml) | Grok ↔ Claude Code governance: handoff, audit trail, roles, escalation | planned | [`tools/governance_trace_lint.py`](tools/governance_trace_lint.py) · [`docs/prd/GROK-CLAUDE-GOVERNANCE.md`](docs/prd/GROK-CLAUDE-GOVERNANCE.md) | FR93, FR94 |
 | [HUB-094](features/features.yml) | The incident reflector: a week of agent incidents into candidate lessons for the experience library, on a local schedule | shipped | [`tools/jev/reflect.py`](tools/jev/reflect.py) · [`docs/HARNESS-REFINEMENT.md`](docs/HARNESS-REFINEMENT.md) | TBD |
 | [HUB-095](features/features.yml) | Claude Code executes; Grok bots set direction only | planned | [`tools/claude_code_executes_lint.py`](tools/claude_code_executes_lint.py) · [`docs/amendments/0032-claude-code-executes.md`](docs/amendments/0032-claude-code-executes.md) | FR95 |
+| [HUB-096](features/features.yml) | The fleet graph: what the control plane manages and how it relates, as one model | partial | [`tools/fleetcore/graph.py`](tools/fleetcore/graph.py) · [`docs/FLEET-GRAPH.md`](docs/FLEET-GRAPH.md) | FR96, NFR20 |
+| [HUB-097](features/features.yml) | Outcome learning (shadow): what happened to each loop's output and where its next slots would pay | partial | [`tools/fleetcore/learn.py`](tools/fleetcore/learn.py) · [`docs/LEARNING.md`](docs/LEARNING.md) | FR97 |
 
 **Requirement → feature trace**
 
@@ -257,6 +259,9 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR93 | HUB-093 |
 | FR94 | HUB-093 |
 | FR95 | HUB-095 |
+| FR96 | HUB-096 |
+| NFR20 | HUB-096 |
+| FR97 | HUB-097 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -346,6 +351,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR93: Grok bots must hand off software and console work through a Fleet issue or Harness Console job that states the requirement, acceptance criteria and a link to the ratified governing amendment or PRD requirement; Claude Code executes against that spec; a Grok bot reviews the result for alignment with direction (not code) before merge; if Claude Code is unavailable or out of budget, work stops until Amr approves an alternative path.
 - FR94: Every software change PR must carry a 'Governed by:' line linking a ratified amendment or PRD requirement (FRn/NFRn/FR-NEW:<key>), checked by tools/governance_trace_lint.py (warn-only until adoption, then hard fail), with no orphan changes.
 - FR95: Software changes and Harness Console executions must be performed by Claude Code; Grok bots may only open direction-setting amendment PRs (constitution, amendments, changelog.d, and supporting feature/PRD/roadmap fragments in that PR), file issues/comments, and hand off implementation via Fleet issues or console jobs, with a warn-then-fail author check and an Amr OK required when Claude Code cannot run.
+- FR96: The product must answer, from the committed files alone, what depends on any workflow, action, data file, source or loop the hub manages, what that thing needs, and how any two are related, on the CLI, the API and MCP.
+- FR97: The product must record what became of each loop's output (landed, rejected, or left stale), estimate from it how likely each loop's next output is to land per repository, and show where the next slots would pay, in shadow until a gated change lets a loop act on it.
 
 **Non-functional**
 
@@ -368,6 +375,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - NFR17: No typed decision ever skips work, lowers a gate or lets an agent act unless its confidence cleared the lockfile threshold; a model error, timeout or usage limit is the conservative branch.
 - NFR18: A scoped MCP write tool may add checks of its own: an allowlist, validation, a plan_id binding, caps, a wall clock and an audit line. It never widens what the console allows. It sends the console confirm=false, writes nothing to GitHub, reads or writes no secret, and records every call, whether it ran, was refused or failed, in an append-only, scrubbed audit. This refines NFR9's 'no enforcement of its own' for the scoped tools only.
 - NFR19: A new agent-efficacy check must run read-only in shadow for at least 14 days, reporting contract gaps as warnings, before any gap can fail a gate; enforcement is switched on only by a gated change to _data/fleet.yml harness.efficacy.enforce, and agents registered before then keep a grace period.
+- NFR20: Every capability a person has at the terminal or on a console page must be reachable by an agent over MCP or the API, or carry a recorded reason why not; the gap is reported by a command, not found by a review.
 
 ## 6. Success metrics (proposed — not defined in sources)
 
