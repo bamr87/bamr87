@@ -10,14 +10,14 @@ An agent is anything that spends a model call, or runs a scheduled job an agent 
 
 | Category (§ 29) | Kind | Found in | Id |
 | --- | --- | --- | --- |
-| CI agent step | `ci-scheduled`, `ci-event`, `ci-mention` | the hub's `.github/workflows/` (a `claude-code-action` step, or a `uses:` of `.github/actions/claude-run`), and every fleet repo's from the committed `_data/harness_registry.yml` | `ci:<repo>:<workflow stem>` |
+| CI agent step | `ci-scheduled`, `ci-event`, `ci-mention` | the hub's `.github/workflows/` (any route to a model: a `claude-code-action` step, the `claude-run` action, the `ai-lane.yml` workflow, a bare `claude -p`, another provider's key), and every fleet repo's from the committed `_data/harness_registry.yml`. Both halves use the registry's one classifier ([the harness standard](HARNESS-OPS.md#the-harness-standard)), so the two inventories cannot disagree about what an agent is | `ci:<repo>:<workflow stem>` |
 | Local loop step | `loop-step` | `tools/jev/steps/<loop>/<step>.yml`, read through `tools/jev/spec.py` | `loop:<loop>/<step>` |
 | JEV tier | `jev-tier` | `_data/fleet.yml` `jev:` (tier 0, plus each of `jev.tiers`) | `jev:<tier>` |
 | Scheduled local job | `local-job` | a `tools/install-*.sh` that installs a LaunchAgent (`LABEL="com.bamr87.<name>"`), or a `harness.agents.<id>.declare` block before its installer lands | `local:<name>` |
 
 A git-hook installer (`install-prose-hook.sh`) is not a job and is not listed. An archived repo's workflows are listed with `status: archived` and are not graded.
 
-On 2026-11-07 the inventory held 71 agents: 60 CI agent steps (10 scheduled, 15 event-driven, 35 mention handlers), 5 loop steps, 3 JEV tiers and 3 local jobs (`conflict-sweep`, `workspace-sync`, and `harness-review`, declared ahead of PR #772).
+On 2026-11-07 the inventory held 71 agents: 60 CI agent steps (10 scheduled, 15 event-driven, 35 mention handlers), 5 loop steps, 3 JEV tiers and 3 local jobs (`conflict-sweep`, `workspace-sync`, and `harness-review`, declared ahead of PR #772). On 2026-11-11 it held 136: the registry had been recognising one route to a model, and reading every route, and the fleet's own organizations, registered 63 CI agent steps that had been running unlisted (125 in all: 47 scheduled, 36 event-driven, 42 mention handlers).
 
 ## Run it
 
