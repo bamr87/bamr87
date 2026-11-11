@@ -64,7 +64,9 @@ A control is counted only where it can bind. A workflow no stranger can trigger 
 | `lane-adopt` | a bespoke loop, or a hand-rolled route | rebuild it as a caller of `ai-lane.yml` from [`templates/ai-runner/ai-lane.template.yml`](../templates/ai-runner/ai-lane.template.yml) |
 | `factory-recompile` | a GitFactory line | change the blueprint in the studio and recompile; a compiled line is never edited by hand |
 | `hub-fix` | the hub's own workflow | a PR in this repo |
-| `retire` | the repo is archived | its workflows never run; they are listed, and counted for nothing |
+| `retire` | the project is archived | a repo GitHub has archived cannot run its workflows: they are listed, and counted for nothing. One the registry marks archived while GitHub still serves it can, so it stays in every count and raises `archive-mismatch` until the repo is archived (a setting, the maintainer's) or the workflow is removed |
+
+Retirement has two meanings, and only one stops a workflow. *Dormant* is archived on GitHub, where Actions is disabled. *Retired* is that, or `status: archived` in the registry. `csv-vscoode` was retired in the registry on 2026-10-20 and was still live on GitHub three weeks later, with a mention handler that could still be triggered. The fan-out seeds and upgrades neither kind.
 
 `kit-upgrade` and `kit-adopt` are told apart by the fan-out's own test, run at scan time: the copy is compared byte for byte with the current template and every shape in `archive/` (`kit_pristine`). The stamp alone was not enough. A copy that carried a stamp but had been edited by hand read as `upgradeable` for months, and its `kit-drift` finding named a lever that would never close it.
 
@@ -209,11 +211,12 @@ tools/dash lake export --local            # ship; then open http://127.0.0.1:600
 
 `_data/harness_registry.yml` is a **consumed interface**: GitFactory's Fleet Studio reads it as its fleet roster and contract source. The generator stamps `schema: harness-registry/v1` as the file's first key. **Additive changes are free** (new keys, new attention kinds, new totals); a rename or removal of an existing key **bumps the marker**, and the studio's parser is tolerant-by-construction until it catches up. The fields the studio reads today: `contract` (kit, version, baseline, throughput, budget), each `repos[]` row's `repo` / `nwo` / `external` / `archived` / `manifest` / `factory` / `factory_blueprints` / `agent_context` / `oauth_secret` / `coverage`, and each `harnesses[]` row's `path` / `kind` / `auth` / `model` / `max_turns` / `kit` / `kit_status` / `crons` / `switch` / `factory`. Roadmap item FF-0024 in [`_data/roadmap.yml`](../_data/roadmap.yml) is the record of this decision. Each `harnesses[]` row also carries `max_budget_usd` (additive, 2026-10-03): the per-invocation `--max-budget-usd` / `max-budget-usd:` ceiling the workflow passes, or `null` when it passes none.
 
-The harness standard (2026-11-11) is additive too, so the marker stays `harness-registry/v1`. New keys: `contract.standard`, the top-level `catalog` (counts by kind, route and lever, and misses per control), four `totals`, and on each `harnesses[]` row `id` (the id `_data/agents.yml` gives the same workflow), `route`, `routes`, `model_source`, `kit_pristine`, `author_gate`, `least_privilege`, `timeout`, `standard` and `lever`; on each `repos[]` row `workflows_listed` and `workflows_truncated`. Three existing values changed meaning, each to stop a wrong number:
+The harness standard (2026-11-11) is additive too, so the marker stays `harness-registry/v1`. New keys: `contract.standard`, the top-level `catalog` (counts by kind, route and lever, and misses per control), four `totals`, and on each `harnesses[]` row `id` (the id `_data/agents.yml` gives the same workflow), `route`, `routes`, `model_source`, `kit_pristine`, `author_gate`, `least_privilege`, `timeout`, `standard` and `lever`; on each `repos[]` row `workflows_listed` and `workflows_truncated`. Four existing values changed meaning, each to stop a wrong number:
 
 - `external` is now "owned by none of `hub.owners`", the list `tools/fanout.sh` writes to. It used to mean "not under `bamr87/`", which left the fleet's own organizations unscanned.
 - `max_budget_usd` is the ceiling in force: for an `ai-lane` or `claude-run` caller that passes none, the route's default.
-- `totals.ai_workflows`, `mention_handlers`, `scheduled_agents` and the throughput estimate count live harnesses only. An archived repo's workflows are still listed, with `lever: retire`.
+- `totals.ai_workflows`, `mention_handlers`, `scheduled_agents` and the throughput estimate count live harnesses only. The workflows of a repo GitHub has archived are still listed, with `lever: retire`.
+- `deployable` is now also false for a repo the registry marks archived, so `--gaps` never offers one to the fan-out.
 
 A reader that wants only the harnesses the old scanner saw can filter on `route: claude-code-action`.
 

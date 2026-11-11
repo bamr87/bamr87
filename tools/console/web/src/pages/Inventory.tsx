@@ -34,7 +34,10 @@ const kindIcon = (kind: string) => KINDS.find((k) => k.value === kind)?.icon ?? 
 const LEVER_ORDER = ['kit-upgrade', 'fix-controls', 'hub-fix', 'kit-adopt', 'lane-adopt', 'factory-recompile', 'retire'];
 const leverTone = (lever?: string | null): Tone => (lever === 'none' ? 'good' : lever === 'retire' ? 'info' : 'warn');
 
-const retired = (r: HarnessRepo) => Boolean(r.archived) || r.status === 'archived';
+/** Archived on GitHub: its workflows cannot run. */
+const dormant = (r: HarnessRepo) => Boolean(r.archived);
+/** Retired in the registry only: GitHub still serves it, so its workflows still run. */
+const retiredLive = (r: HarnessRepo) => !r.archived && r.status === 'archived';
 const gap = (r: HarnessRepo) => !(r.coverage?.exempt || r.coverage?.ok);
 
 /** What a harness is capped at, as one short string: model / turns / dollars. */
@@ -165,11 +168,11 @@ export function Inventory() {
         const catalog = hr.catalog ?? {};
         const repos = hr.repos ?? [];
         const all: Row[] = repos.flatMap((r) => (r.harnesses ?? []).map((h) => ({ ...h, repo: r })));
-        const live = all.filter((r) => !retired(r.repo));
+        const live = all.filter((r) => !dormant(r.repo));
         const graded = catalog.graded ?? 0;
         const rows = all.filter((r) => {
-          // retired harnesses are listed only when asked for by their lever
-          if (lever ? r.lever !== lever : retired(r.repo)) return false;
+          // a harness GitHub cannot run is listed only when asked for by its lever
+          if (lever ? r.lever !== lever : dormant(r.repo)) return false;
           if (kind && r.kind !== kind) return false;
           if (missing && !(r.standard?.missing ?? []).includes(missing)) return false;
           if (std === 'off' && (r.standard?.conformant ?? true)) return false;
@@ -231,7 +234,7 @@ export function Inventory() {
                     rowLabel={(r) => `${r.repo.repo} ${r.path.replace('.github/workflows/', '')}`}
                     href={(r) => to.project(r.repo.repo, 'harness')}
                     open={(r) => gh.workflow(r.repo.nwo, r.path)}
-                    tone={(r) => (retired(r.repo) ? 'muted' : r.last_conclusion === 'failure' ? 'crit' : undefined)}
+                    tone={(r) => (dormant(r.repo) ? 'muted' : r.last_conclusion === 'failure' ? 'crit' : undefined)}
                     initialSort={{ key: 'std' }}
                     minWidth={1320}
                     maxHeight={640}
@@ -241,7 +244,7 @@ export function Inventory() {
                         key: 'repo', header: 'repo', sort: (r) => r.repo.repo, render: (r) => (
                           <div>
                             <Text fw={600} size="sm" ff="monospace">{r.repo.repo}</Text>
-                            <Text size="xs" c="dimmed">{[r.factory && 'GitFactory line', r.repo.external && 'external', retired(r.repo) && 'archived'].filter(Boolean).join(' · ')}</Text>
+                            <Text size="xs" c="dimmed">{[r.factory && 'GitFactory line', r.repo.external && 'external', dormant(r.repo) && 'archived', retiredLive(r.repo) && 'retired in the registry, live on GitHub'].filter(Boolean).join(' · ')}</Text>
                           </div>
                         ),
                       },

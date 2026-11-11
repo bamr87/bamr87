@@ -10,7 +10,7 @@ Every step passed at both viewports: each route answered 200, the plan, the tile
 
 | Image | Viewport | What to look at |
 | --- | --- | --- |
-| `desktop-harnesses.png` | 1280×800 | the first screen: 5 of 117 on the standard, the three kinds, the rebuild plan with its seven levers |
+| `desktop-harnesses.png` | 1280×800 | the first screen: 6 of 118 on the standard, the three kinds, the rebuild plan with its seven levers |
 | `desktop-harnesses-full.png` | 1280, full page | the whole page: plan, the harness table sorted worst first, the ten controls with their miss counts |
 | `desktop-harnesses-lever.png` | 1280, full page | after clicking the first lever: the row is marked, the table lists that lever's 36 harnesses, and the filter can be cleared |
 | `desktop-harnesses-repos.png` | 1280×800 | the Repos view: the baseline, the kit deploy panel (a dry run unless Apply is ticked), the per-repo table |

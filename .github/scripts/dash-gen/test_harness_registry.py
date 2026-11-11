@@ -829,6 +829,24 @@ def test_a_model_decided_at_run_time_is_not_graded():
     assert h["standard"]["conformant"] and h["standard"]["of"] == 8
 
 
+def test_a_cap_forwarded_from_a_caller_is_not_called_missing():
+    """fleet-verify passes `--max-turns ${{ inputs.max-turns }}`: the cap is
+    there at run time, and the file cannot say what it is."""
+    forwarded = STANDARD_LOOP.replace("--max-turns 240", "--max-turns ${{ inputs.max-turns }}") \
+                             .replace("--max-budget-usd 40", "--max-budget-usd ${{ inputs.cap }}")
+    h = graded(forwarded)
+    assert h["max_turns"] is None and h["max_budget_usd"] is None
+    assert h["runtime"] == ["max_turns", "max_budget_usd"]
+    assert h["standard"]["conformant"] and h["standard"]["of"] == 7
+    # a cap that is simply absent is still missing
+    absent = graded(STANDARD_LOOP.replace("            --max-turns 240\n", ""))
+    assert absent["runtime"] == [] and absent["standard"]["missing"] == ["turn-cap"]
+    # a hub-route caller forwarding its budget does not fall back to the route default
+    lane = graded(LANE_CALLER.replace('      agent: builder\n',
+                                      '      agent: builder\n      max-budget-usd: ${{ vars.CAP }}\n'))
+    assert lane["max_budget_usd"] is None and "max_budget_usd" in lane["runtime"]
+
+
 def test_controls_that_cannot_bind_are_not_counted():
     # dispatch-only: a kill switch is bypassed by a manual run by design
     manual = STANDARD_LOOP.replace("  schedule:\n    - cron: '37 5 * * *'\n", "") \
@@ -1033,6 +1051,25 @@ def test_an_archived_repo_fires_nothing_and_counts_for_nothing():
     assert by_repo["dead"]["harnesses"][0]["lever"] == "retire"
     kinds = {(i["kind"], i.get("repo")) for i in out["attention"]}
     assert ("harness-failing", "dead") not in kinds and ("switch-missing", "dead") not in kinds
+
+
+def test_a_project_the_registry_retired_still_runs_until_github_archives_it():
+    """csv-vscoode: `status: archived` in the registry, live on GitHub. Its
+    handler can still be triggered, so it is counted, and flagged — and the
+    fan-out does not upgrade a harness in a project being retired."""
+    half = scanned("half", STANDARD_LOOP, status="archived")       # registry only
+    full = scanned("full", STANDARD_LOOP, archived=True)           # GitHub too
+    assert hr.is_retired(half) and not hr.is_dormant(half)
+    assert hr.is_retired(full) and hr.is_dormant(full)
+    out = hr.finalize([half, full], CFG, "0.6.0", {}, {}, "live", "now", NOW)
+    by_repo = {r["repo"]: r for r in out["repos"]}
+    assert out["totals"]["ai_workflows"] == 1                       # the live one
+    assert out["catalog"]["retired"] == 2 and out["catalog"]["dormant"] == 1
+    assert by_repo["half"]["est_scheduled_ai_per_day"] == 1.0       # it still fires
+    assert by_repo["half"]["harnesses"][0]["lever"] == "retire"
+    assert by_repo["half"]["deployable"] is False and by_repo["full"]["deployable"] is False
+    flagged = [i["repo"] for i in out["attention"] if i["kind"] == "archive-mismatch"]
+    assert flagged == ["half"]
 
 
 def test_ownership_is_the_fleets_owner_list_not_one_account():

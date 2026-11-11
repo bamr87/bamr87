@@ -128,7 +128,10 @@ export interface HarnessCatalog {
   harnesses?: number;
   graded?: number;
   conformant?: number;
+  /** Harnesses in retired projects (lever: retire). */
   retired?: number;
+  /** …of which GitHub has archived the repo, so they cannot run. */
+  dormant?: number;
   by_kind?: Dict<{ harnesses: number; conformant: number }>;
   by_route?: Dict<number>;
   by_lever?: Dict<number>;

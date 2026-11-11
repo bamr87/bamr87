@@ -124,6 +124,8 @@ ROUTE_IDS = [rid for rid, _ in AI_ROUTES]
 # `model: ${{ inputs.model }}`) is decided at run time, by a planner or a
 # caller; the file cannot say which, so the standard does not grade it.
 MODEL_EXPR_RX = re.compile(r"(?:--model\s+|^\s*model:\s*['\"]?)\$\{\{", re.M)
+TURNS_EXPR_RX = re.compile(r"(?:--max-turns\s+|^\s*max-turns:\s*['\"]?)\$\{\{", re.M)
+BUDGET_EXPR_RX = re.compile(r"(?:--max-budget-usd[= ]\s*|^\s*max-budget-usd:\s*['\"]?)\$\{\{", re.M)
 INPUT_MODEL_RX = re.compile(r"^\s*model:\s*['\"]?([\w.@-]+)['\"]?\s*(?:#.*)?$", re.M)
 INPUT_TURNS_RX = re.compile(r"^\s*max-turns:\s*['\"]?(\d+)", re.M)
 INPUT_SWITCH_RX = re.compile(r"^\s*switch:\s*['\"]?([A-Z][A-Z0-9_]*_ENABLED)\b", re.M)
@@ -256,8 +258,10 @@ LEVERS = {
         "action": "nothing to do"},
     "retire": {
         "title": "Retire",
-        "action": "the repo is archived, so the workflow can never run: delete it when the "
-                  "repo is next unarchived, and stop counting it"},
+        "action": "the project is archived. A repo GitHub has archived cannot run its "
+                  "workflows, so they are listed and counted for nothing; one the registry "
+                  "marks archived but GitHub still serves CAN, until the repo is archived (a "
+                  "setting) or the workflow is removed"},
     "kit-upgrade": {
         "title": "Upgrade from the kit",
         "action": "dispatch fanout.yml (kit: harness) with upgrade=true, or `tools/dash "
@@ -688,8 +692,20 @@ def classify_workflow(path: str, text: str) -> dict:
                                 else "route" if hub_route else "none")
         m = MAX_TURNS_RX.search(code) or (INPUT_TURNS_RX.search(code) if hub_route else None)
         info["max_turns"] = int(m.group(1)) if m else None
+        turns_at_run_time = not m and bool(TURNS_EXPR_RX.search(code))
         m = MAX_BUDGET_RX.search(code)
-        info["max_budget_usd"] = float(m.group(1)) if m else defaults.get("max_budget_usd")
+        budget_at_run_time = not m and bool(BUDGET_EXPR_RX.search(code))
+        info["max_budget_usd"] = (float(m.group(1)) if m
+                                  else None if budget_at_run_time
+                                  else defaults.get("max_budget_usd"))
+        # What the file hands over as an expression instead of a literal: a
+        # reusable workflow forwarding its caller's input, a planner's output.
+        # The value exists at run time; the scan cannot read it, and says so
+        # rather than calling the cap missing.
+        info["runtime"] = [fact for fact, yes in (
+            ("model", info["model_source"] == "expression"),
+            ("max_turns", turns_at_run_time),
+            ("max_budget_usd", budget_at_run_time)) if yes]
         m = KIT_STAMP_RX.search(text)
         info["kit"] = m.group(1) if m else None
         # A prose "@claude" in a header comment must not read as a handler —
@@ -778,12 +794,18 @@ def _model_pinned(h: dict, cfg: dict):
     return source == "route"  # the hub runner resolves a pinned model itself
 
 
+def _cap(h: dict, fact: str):
+    if h.get(fact) is not None:
+        return True
+    return None if fact in (h.get("runtime") or []) else False
+
+
 CONTROL_CHECKS = {
     "standard-route": lambda h, cfg: bool(
         (cfg["standard"]["routes"].get(h.get("route")) or {}).get("standard")),
     "model-pinned": _model_pinned,
-    "budget-cap": lambda h, cfg: h.get("max_budget_usd") is not None,
-    "turn-cap": lambda h, cfg: h.get("max_turns") is not None,
+    "budget-cap": lambda h, cfg: _cap(h, "max_budget_usd"),
+    "turn-cap": lambda h, cfg: _cap(h, "max_turns"),
     "kill-switch": lambda h, cfg: None if _started_by_hand(h) else bool(h.get("switch")),
     "auth-ordered": lambda h, cfg: (
         None if h.get("route") == "other-provider" else h.get("auth") == "ordered"),
@@ -816,9 +838,19 @@ def grade_harness(h: dict, cfg: dict) -> dict | None:
     return {"conformant": not missing, "met": met, "of": met + len(missing), "missing": missing}
 
 
+def is_dormant(repo: dict) -> bool:
+    """Archived ON GITHUB: its workflows never run, because GitHub disables
+    Actions on an archived repo. The files are still there and still listed."""
+    return bool(repo.get("archived"))
+
+
 def is_retired(repo: dict) -> bool:
-    """An archived repo's workflows never run: GitHub disables Actions on it."""
-    return bool(repo.get("archived")) or repo.get("status") == "archived"
+    """The project is retired: GitHub has archived the repo, or the registry
+    says `status: archived`. The second alone does NOT stop a workflow — a
+    repo the registry retired but GitHub still serves keeps running its
+    harnesses (csv-vscoode, 2026-11-11) — so a retired repo is only counted
+    out of the live fleet when it is also dormant."""
+    return is_dormant(repo) or repo.get("status") == "archived"
 
 
 def choose_lever(h: dict, repo: dict, cfg: dict) -> str | None:
@@ -854,7 +886,7 @@ def build_catalog(repos: list[dict], cfg: dict) -> dict:
     """The organized view: every live harness counted by kind, route and lever,
     and how many miss each control. Rows stay under `repos[].harnesses[]`; the
     catalog is the index over them."""
-    live = [(r, h) for r in repos if not is_retired(r) for h in r.get("harnesses") or []]
+    live = [(r, h) for r in repos if not is_dormant(r) for h in r.get("harnesses") or []]
     graded = [(r, h) for r, h in live if h.get("standard")]
     by_kind: dict = {}
     for kind in ALL_KINDS:
@@ -879,6 +911,7 @@ def build_catalog(repos: list[dict], cfg: dict) -> dict:
         "graded": len(graded),
         "conformant": sum(1 for _, h in graded if h["standard"]["conformant"]),
         "retired": sum(len(r.get("harnesses") or []) for r in repos if is_retired(r)),
+        "dormant": sum(len(r.get("harnesses") or []) for r in repos if is_dormant(r)),
         "by_kind": by_kind,
         "by_route": {rid: n for rid, n in by_route.items() if n},
         "by_lever": {lid: n for lid, n in by_lever.items() if n},
@@ -976,7 +1009,7 @@ def repo_schedule_load(repo: dict) -> float:
     """Estimated cron-driven AI workflow runs/day for one repo. An archived
     repo contributes nothing: its crons are still in the files, but GitHub
     never fires them, and counting them spent throughput the fleet did not use."""
-    if is_retired(repo):
+    if is_dormant(repo):
         return 0.0
     parts = [cron_fires_per_day(cron) or 0.0
              for h in repo.get("harnesses") or []
@@ -1000,7 +1033,7 @@ def build_throughput(repos: list[dict], cfg: dict, ai_usage: dict) -> dict:
     # an hourly agent is a per-repo/fleet cap problem, not an adjacency one.
     hour_load: dict[int, list[str]] = {}
     for r in repos:
-        if is_retired(r):
+        if is_dormant(r):
             continue
         for h in r.get("harnesses") or []:
             for cron in h.get("crons") or []:
@@ -1208,7 +1241,7 @@ def build_attention(repos: list[dict], throughput: dict, trends: dict, cfg: dict
                 tally[cid] = tally.get(cid, 0) + 1
         top = ", ".join(f"{cid} ({n})" for cid, n in
                         sorted(tally.items(), key=lambda kv: (-kv[1], kv[0]))[:4])
-        what = (f"{count} harness(es) in archived repos still listed" if lever == "retire"
+        what = (f"{count} harness(es) in retired projects" if lever == "retire"
                 else f"{count} harness(es) off the standard — missing {top}" if top
                 else f"{count} harness(es) behind the current kit")
         add(48 if lever != "retire" else 30, "standard-gap",
@@ -1220,8 +1253,14 @@ def build_attention(repos: list[dict], throughput: dict, trends: dict, cfg: dict
                 f"only {r.get('workflows_total')} of {r.get('workflows_listed')} workflow files were "
                 "read, so harnesses past the cap are not in this inventory",
                 "raise harnesses.inventory.max_workflow_files in _data/fleet.yml", repo=r["repo"])
-        if is_retired(r):
-            continue  # nothing in an archived repo runs, fails or drifts
+        if is_dormant(r):
+            continue  # nothing in a repo GitHub has archived runs, fails or drifts
+        if is_retired(r) and r.get("harnesses"):
+            add(64, "archive-mismatch",
+                f"the registry marks this project archived, but the repo is live on GitHub: "
+                f"{len(r['harnesses'])} AI workflow(s) can still run",
+                "archive the repo on GitHub (a setting: the maintainer's), remove the workflows, "
+                "or correct `status` in _data/projects.yml", repo=r["repo"])
         for h in r.get("harnesses") or []:
             if h.get("last_conclusion") == "failure" or "failing" in (h.get("flags") or []):
                 add(75, "harness-failing",
@@ -1415,6 +1454,7 @@ def harness_row(repo_name: str | None, info: dict, text: str, hub_version: str |
         "route": info.get("route"),
         "routes": info.get("routes") or [],
         "model_source": info.get("model_source"),
+        "runtime": info.get("runtime") or [],
         "kit_pristine": kit_pristine(info["path"], text, shapes),
         "author_gate": info.get("author_gate"),
         "least_privilege": bool(info.get("least_privilege")),
@@ -1491,7 +1531,7 @@ def finalize(repos: list[dict], cfg: dict, hub_version: str | None, ai_usage: di
     graded = [r for r in repos if not (r.get("coverage") or {}).get("exempt")]
     # Live harnesses only: a workflow in an archived repo is listed (lever:
     # retire) but is not an AI workflow the fleet runs.
-    all_harnesses = [h for r in repos if not is_retired(r) for h in r.get("harnesses") or []]
+    all_harnesses = [h for r in repos if not is_dormant(r) for h in r.get("harnesses") or []]
     totals = {
         "repos": len(repos),
         "repos_scanned": sum(1 for r in repos if r.get("scanned")),
@@ -1503,7 +1543,9 @@ def finalize(repos: list[dict], cfg: dict, hub_version: str | None, ai_usage: di
         "est_scheduled_ai_per_day": throughput["est_scheduled_ai_per_day"],
         "baseline_ok": sum(1 for r in graded if (r.get("coverage") or {}).get("ok")),
         "baseline_gaps": sum(1 for r in graded if not (r.get("coverage") or {}).get("ok")),
-        "kit_upgradeable": sum(1 for h in all_harnesses if upgradeable(h)),
+        # what an upgrade fan-out would replace: never a copy in a retired project
+        "kit_upgradeable": sum(1 for r in repos if not is_retired(r)
+                               for h in r.get("harnesses") or [] if upgradeable(h)),
         "factory_repos": sum(1 for r in repos if r.get("factory")),
         "factory_lines": sum(1 for h in all_harnesses if h.get("factory")),
         "scheduled_switched": sum(1 for h in all_harnesses
@@ -1512,6 +1554,7 @@ def finalize(repos: list[dict], cfg: dict, hub_version: str | None, ai_usage: di
         "harnesses_graded": catalog["graded"],
         "harnesses_conformant": catalog["conformant"],
         "harnesses_retired": catalog["retired"],
+        "harnesses_dormant": catalog["dormant"],
         "repos_truncated": sum(1 for r in repos if r.get("workflows_truncated")),
     }
     standard = cfg["standard"]
@@ -1579,11 +1622,12 @@ def is_deployable(row: dict) -> bool:
 
     Two conditions, and neither is "is it a submodule": the engine clones the
     target fresh from GitHub, so a mount buys nothing. It needs an upstream we
-    own (the external-upstream guard refuses anything outside github.com/bamr87)
-    and a repo worth writing to (archived repos are read-only in practice).
+    own (the external-upstream guard refuses anything outside the fleet's owners)
+    and a repo worth writing to: one GitHub has archived is read-only, and one
+    the registry has retired is not a project to seed or upgrade a harness in.
     Registry entries without a submodule_path resolve through the registry.
     """
-    return bool(row.get("nwo")) and not row.get("external") and not row.get("archived")
+    return bool(row.get("nwo")) and not row.get("external") and not is_retired(row)
 
 
 def gap_candidates(registry_path: Path) -> list[dict]:
