@@ -64,7 +64,7 @@ export const NAV: NavSection[] = [
   {
     label: 'Harnesses',
     items: [
-      { label: 'Inventory', to: '/harnesses', icon: IconTopologyStar3, exact: true, hint: 'per-repo AI harness deployment matrix' },
+      { label: 'Inventory', to: '/harnesses', icon: IconTopologyStar3, exact: true, hint: 'every AI workflow, graded against the harness standard' },
       { label: 'Health', to: '/harnesses/health', icon: IconHeartbeat, hint: 'trip wires and the six-layer scorecard' },
       { label: 'Schedules', to: '/schedules', icon: IconCalendarTime, hint: 'crons, caps and collisions' },
       { label: 'Loops', to: '/loops', icon: IconRepeat, hint: 'the control-plane loops' },

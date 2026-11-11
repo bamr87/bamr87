@@ -19,16 +19,43 @@ export interface Attention {
   summary: string;
   action: string;
   repo?: string | null;
+  /** On a `standard-gap` finding: the lever that rebuilds the group. */
+  lever?: string | null;
+}
+
+/** A harness's verdict against the harness standard (fleet.yml `harnesses.standard`). */
+export interface HarnessVerdict {
+  conformant: boolean;
+  met: number;
+  of: number;
+  missing: string[];
 }
 
 export interface HarnessWorkflow {
   path: string;
   kind: string;
+  /** `ci:<repo>:<workflow stem>`, the id _data/agents.yml gives the same workflow. */
+  id?: string;
+  workflow?: string | null;
+  triggers?: string[];
+  crons?: string[];
+  /** How the workflow reaches a model; null on a scan from before routes were read. */
+  route?: string | null;
   model?: string | null;
+  model_source?: string | null;
   max_turns?: number | null;
+  max_budget_usd?: number | null;
   auth?: string | null;
+  switch?: string | null;
   kit?: string | null;
   kit_status?: string | null;
+  /** Byte-identical to a shape the kit seeded, so the fan-out may replace it. */
+  kit_pristine?: boolean | null;
+  factory?: { blueprint?: string | null; hash?: string | null } | null;
+  standard?: HarnessVerdict | null;
+  lever?: string | null;
+  cost_usd_window?: number | null;
+  runs_window?: number | null;
   last_conclusion?: string | null;
 }
 
@@ -44,6 +71,8 @@ export interface HarnessRepo {
   agent_context?: string | null;
   oauth_secret?: string | null;
   workflows_total?: number;
+  workflows_listed?: number;
+  workflows_truncated?: boolean;
   harnesses?: HarnessWorkflow[];
   ai_usage?: { runs?: number; cost_usd?: number | null; minutes?: number | null };
   deployable?: boolean;
@@ -81,11 +110,38 @@ export interface Throughput {
   hour_collisions?: { utc_hour: string; count: number; entries: string[] }[];
 }
 
+export interface HarnessControl {
+  title: string;
+  rule?: string;
+  applies?: string[];
+}
+
+export interface HarnessStandard {
+  version?: number;
+  allowed_models?: string[];
+  routes?: Dict<{ standard?: boolean; title?: string }>;
+  controls?: Dict<HarnessControl>;
+}
+
+/** The index over every live harness: counts by kind, route and lever. */
+export interface HarnessCatalog {
+  harnesses?: number;
+  graded?: number;
+  conformant?: number;
+  retired?: number;
+  by_kind?: Dict<{ harnesses: number; conformant: number }>;
+  by_route?: Dict<number>;
+  by_lever?: Dict<number>;
+  missing_by_control?: Dict<number>;
+  levers?: Dict<{ title: string; action: string }>;
+}
+
 export interface HarnessRegistry {
   generated_at?: string;
-  scan?: { mode?: string };
-  contract?: { kit?: string; kit_version?: string; baseline?: Dict<boolean>; exempt?: string[] };
+  scan?: { mode?: string; scanned_at?: string | null };
+  contract?: { kit?: string; kit_version?: string; baseline?: Dict<boolean>; exempt?: string[]; standard?: HarnessStandard };
   totals?: Dict<number>;
+  catalog?: HarnessCatalog;
   trends?: Dict<Trend>;
   throughput?: Throughput;
   attention?: Attention[];

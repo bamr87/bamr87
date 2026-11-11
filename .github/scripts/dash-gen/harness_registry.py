@@ -1155,10 +1155,13 @@ def build_attention(repos: list[dict], throughput: dict, trends: dict, cfg: dict
                     catalog: dict | None = None) -> list[dict]:
     items: list[dict] = []
 
-    def add(severity: int, kind: str, summary: str, action: str, repo: str | None = None):
+    def add(severity: int, kind: str, summary: str, action: str, repo: str | None = None,
+            lever: str | None = None):
         row = {"severity": severity, "kind": kind, "summary": summary, "action": action}
         if repo:
             row["repo"] = repo
+        if lever:
+            row["lever"] = lever
         items.append(row)
 
     for key, label, unit in (("ai_cost_usd", "Claude CI spend", "USD"),
@@ -1209,7 +1212,7 @@ def build_attention(repos: list[dict], throughput: dict, trends: dict, cfg: dict
                 else f"{count} harness(es) off the standard — missing {top}" if top
                 else f"{count} harness(es) behind the current kit")
         add(48 if lever != "retire" else 30, "standard-gap",
-            f"{LEVERS[lever]['title']}: {what}", LEVERS[lever]["action"])
+            f"{LEVERS[lever]['title']}: {what}", LEVERS[lever]["action"], lever=lever)
 
     for r in repos:
         if r.get("workflows_truncated"):

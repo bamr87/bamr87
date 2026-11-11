@@ -1,11 +1,11 @@
 {
   "id": "harnesses",
-  "title": "Harness inventory renders the deployment matrix",
+  "title": "Harness inventory grades every AI workflow against the standard",
   "features": [
     "HUB-005"
   ],
   "path": "verify/scenarios/harnesses.yml",
-  "started": "2026-10-12T15:56:42.472Z",
+  "started": "2026-11-11T16:45:19.995Z",
   "viewports": [
     {
       "name": "desktop",
@@ -17,7 +17,7 @@
           "step": "goto",
           "arg": "/harnesses",
           "ok": true,
-          "ms": 591
+          "ms": 663
         },
         {
           "step": "expect",
@@ -30,10 +30,90 @@
         {
           "step": "wait",
           "arg": {
-            "selector": "main table.dt"
+            "selector": "main table"
           },
           "ok": true,
-          "ms": 13
+          "ms": 34
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Rebuild plan"
+          },
+          "ok": true,
+          "ms": 4
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "On the standard"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "The standard"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "model-pinned"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "harnesses",
+          "ok": true,
+          "file": "test/evidence/harnesses/desktop-harnesses.png",
+          "ms": 47
+        },
+        {
+          "step": "screenshot",
+          "arg": "harnesses-full",
+          "ok": true,
+          "file": "test/evidence/harnesses/desktop-harnesses-full.png",
+          "ms": 99
+        },
+        {
+          "step": "click",
+          "arg": "main table button[aria-pressed]",
+          "ok": true,
+          "ms": 50
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "url": "lever="
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "main button:has-text('clear')"
+          },
+          "ok": true,
+          "ms": 55
         },
         {
           "step": "expect",
@@ -49,16 +129,91 @@
         },
         {
           "step": "screenshot",
-          "arg": "harnesses",
+          "arg": "harnesses-lever",
           "ok": true,
-          "file": "test/evidence/harnesses/desktop-harnesses.png",
-          "ms": 42
+          "file": "test/evidence/harnesses/desktop-harnesses-lever.png",
+          "ms": 92
+        },
+        {
+          "step": "goto",
+          "arg": "/harnesses?kind=scheduled-agent",
+          "ok": true,
+          "ms": 539
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "main table"
+          },
+          "ok": true,
+          "ms": 24
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "fleet-pulse.yml"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "goto",
+          "arg": "/harnesses?tab=repos",
+          "ok": true,
+          "ms": 558
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "main table"
+          },
+          "ok": true,
+          "ms": 17
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Deploy the agent-context kit"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "harnesses-repos",
+          "ok": true,
+          "file": "test/evidence/harnesses/desktop-harnesses-repos.png",
+          "ms": 55
         },
         {
           "step": "goto",
           "arg": "/harnesses/health",
           "ok": true,
-          "ms": 567
+          "ms": 869
         },
         {
           "step": "expect",
@@ -71,26 +226,29 @@
         {
           "step": "wait",
           "arg": {
-            "selector": "main h2"
+            "selector": "main h1"
           },
           "ok": true,
-          "ms": 25
+          "ms": 16
         },
         {
           "step": "screenshot",
           "arg": "harness-health",
           "ok": true,
           "file": "test/evidence/harnesses/desktop-harness-health.png",
-          "ms": 32
+          "ms": 51
         }
       ],
       "console_errors": [],
       "screenshots": [
         "test/evidence/harnesses/desktop-harnesses.png",
+        "test/evidence/harnesses/desktop-harnesses-full.png",
+        "test/evidence/harnesses/desktop-harnesses-lever.png",
+        "test/evidence/harnesses/desktop-harnesses-repos.png",
         "test/evidence/harnesses/desktop-harness-health.png"
       ],
       "evals": {},
-      "final_url": "http://127.0.0.1:4320/harnesses/health/"
+      "final_url": "http://127.0.0.1:4321/harnesses/health/"
     },
     {
       "name": "mobile",
@@ -102,7 +260,7 @@
           "step": "goto",
           "arg": "/harnesses",
           "ok": true,
-          "ms": 652
+          "ms": 598
         },
         {
           "step": "expect",
@@ -115,10 +273,90 @@
         {
           "step": "wait",
           "arg": {
-            "selector": "main table.dt"
+            "selector": "main table"
           },
           "ok": true,
-          "ms": 10
+          "ms": 26
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Rebuild plan"
+          },
+          "ok": true,
+          "ms": 4
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "On the standard"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "The standard"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "model-pinned"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "harnesses",
+          "ok": true,
+          "file": "test/evidence/harnesses/mobile-harnesses.png",
+          "ms": 34
+        },
+        {
+          "step": "screenshot",
+          "arg": "harnesses-full",
+          "ok": true,
+          "file": "test/evidence/harnesses/mobile-harnesses-full.png",
+          "ms": 78
+        },
+        {
+          "step": "click",
+          "arg": "main table button[aria-pressed]",
+          "ok": true,
+          "ms": 29
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "url": "lever="
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "main button:has-text('clear')"
+          },
+          "ok": true,
+          "ms": 80
         },
         {
           "step": "expect",
@@ -134,16 +372,91 @@
         },
         {
           "step": "screenshot",
-          "arg": "harnesses",
+          "arg": "harnesses-lever",
           "ok": true,
-          "file": "test/evidence/harnesses/mobile-harnesses.png",
+          "file": "test/evidence/harnesses/mobile-harnesses-lever.png",
+          "ms": 63
+        },
+        {
+          "step": "goto",
+          "arg": "/harnesses?kind=scheduled-agent",
+          "ok": true,
+          "ms": 538
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "main table"
+          },
+          "ok": true,
+          "ms": 24
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "fleet-pulse.yml"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "goto",
+          "arg": "/harnesses?tab=repos",
+          "ok": true,
+          "ms": 556
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "main table"
+          },
+          "ok": true,
           "ms": 23
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Deploy the agent-context kit"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "harnesses-repos",
+          "ok": true,
+          "file": "test/evidence/harnesses/mobile-harnesses-repos.png",
+          "ms": 30
         },
         {
           "step": "goto",
           "arg": "/harnesses/health",
           "ok": true,
-          "ms": 534
+          "ms": 815
         },
         {
           "step": "expect",
@@ -156,29 +469,32 @@
         {
           "step": "wait",
           "arg": {
-            "selector": "main h2"
+            "selector": "main h1"
           },
           "ok": true,
-          "ms": 12
+          "ms": 24
         },
         {
           "step": "screenshot",
           "arg": "harness-health",
           "ok": true,
           "file": "test/evidence/harnesses/mobile-harness-health.png",
-          "ms": 12
+          "ms": 31
         }
       ],
       "console_errors": [],
       "screenshots": [
         "test/evidence/harnesses/mobile-harnesses.png",
+        "test/evidence/harnesses/mobile-harnesses-full.png",
+        "test/evidence/harnesses/mobile-harnesses-lever.png",
+        "test/evidence/harnesses/mobile-harnesses-repos.png",
         "test/evidence/harnesses/mobile-harness-health.png"
       ],
       "evals": {},
-      "final_url": "http://127.0.0.1:4320/harnesses/health/"
+      "final_url": "http://127.0.0.1:4321/harnesses/health/"
     }
   ],
   "ok": true,
-  "finished": "2026-10-12T15:56:45.074Z",
-  "base": "http://127.0.0.1:4320"
+  "finished": "2026-11-11T16:45:26.332Z",
+  "base": "http://127.0.0.1:4321"
 }
