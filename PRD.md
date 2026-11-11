@@ -145,6 +145,9 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-099](features/features.yml) | Per-repo functional spec manifest | planned | [`docs/prd/FUNCTIONAL-SPEC-LIBRARY.md`](docs/prd/FUNCTIONAL-SPEC-LIBRARY.md) | FR99 |
 | [HUB-100](features/features.yml) | Functional spec override ratification | planned | [`docs/prd/FUNCTIONAL-SPEC-LIBRARY.md`](docs/prd/FUNCTIONAL-SPEC-LIBRARY.md) | FR100 |
 | [HUB-101](features/features.yml) | Functional spec resolver, CI gate and docs parity | planned | [`docs/prd/FUNCTIONAL-SPEC-LIBRARY.md`](docs/prd/FUNCTIONAL-SPEC-LIBRARY.md) | FR101, FR102, FR103, NFR21 |
+| [HUB-102](features/features.yml) | Agentic loops history and statistics | planned | [`docs/prd/AGENTIC-LOOPS-DASHBOARD.md`](docs/prd/AGENTIC-LOOPS-DASHBOARD.md) | FR104, FR105 |
+| [HUB-103](features/features.yml) | Agentic loops dashboard | planned | [`docs/prd/AGENTIC-LOOPS-DASHBOARD.md`](docs/prd/AGENTIC-LOOPS-DASHBOARD.md) | FR106, FR107, FR108, NFR22, NFR23, NFR24 |
+| [HUB-104](features/features.yml) | Agentic loops dashboard as the Bash 365 foundation | planned | [`docs/prd/AGENTIC-LOOPS-DASHBOARD.md`](docs/prd/AGENTIC-LOOPS-DASHBOARD.md) | FR109, FR110, FR111, FR112 |
 
 **Requirement → feature trace**
 
@@ -273,6 +276,18 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR102 | HUB-101 |
 | FR103 | HUB-101 |
 | NFR21 | HUB-101 |
+| FR104 | HUB-102 |
+| FR105 | HUB-102 |
+| FR106 | HUB-103 |
+| FR107 | HUB-103 |
+| FR108 | HUB-103 |
+| NFR22 | HUB-103 |
+| NFR23 | HUB-103 |
+| NFR24 | HUB-103 |
+| FR109 | HUB-104 |
+| FR110 | HUB-104 |
+| FR111 | HUB-104 |
+| FR112 | HUB-104 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -370,6 +385,15 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR101: One fleet-level resolver must read each repo's manifest, load the matching library entries, and produce one resolved spec set per repo: core specs plus the framework-specific overlay for the repo's kinds, minus exclusions that are in force, with ratified override precedence applied last.
 - FR102: On every pull request, resolution must run and fail when a required spec in the resolved set lacks coverage or when the manifest names a spec id that is not in the library.
 - FR103: The docs site must render each repo's spec page from that same resolver output, so the page shows the set CI enforces, including coverage gaps and unknown ids.
+- FR104: Opening a loop on the dashboard must show the progress the source already has, the recent activity, and the history of earlier completed runs for that actor, each as a link to the underlying record. A history source that does not exist yet must be named as missing, and the row must still show what the console jobs, sessions and workflow runs already provide. The dashboard must not copy a transcript, a log body or a private repository into the row.
+- FR105: The dashboard must show counts by kind, source, status and flight, durations where start and finish exist, success and failure among completed runs, and idle and stale counts. A cost figure must appear only when the cost ledger or the live view already has one for that run, and a run with no figure must show no cost.
+- FR106: An operator must be able to open one dashboard and see every agent and harness at work, the repository it is on when the work names one, and a current status of working, idle, stale, failed, completed or unknown, with a link to the console page, job, session, workflow run, issue or pull request that already holds the detail.
+- FR107: The dashboard must show both populations and distinguish them. Routine and scheduled work covers Grok bot routines, JEV and fleet loops, console jobs and scheduled workflows. Live and ad-hoc work covers Claude Code sessions, cloud agents and console executions. A population with no source record must be listed and marked telemetry-missing.
+- FR108: The dashboard must distinguish in-flight work from completed work, and completed runs must stay visible as history after the next run starts.
+- FR109: This product must be the BASH Consulting showcase and the first end-to-end test of this build-out. The test includes the dashboard, the report of that walk, and the marketing that tells it. The report and the marketing are drafts a person reviews and publishes, in the brand voice A born-again solutions hero, born-again in the line, a play on Bash, the Bourne-again shell. That line is identity. It does not replace the dashboard's operational requirements. Agents must not auto-publish the drafts to GitHub, LinkedIn, the daily chronicle or lifehacker.dev.
+- FR110: This product must be the first example of harnessing the power of AI and of visualizing that power. It must be the operator's way to put their arms around AI capabilities that are available, powerful and omnipresent, by showing the agents and the frameworks in one picture of status, history and statistics.
+- FR111: This product must be the first and foundational application that Bash 365 is based on and evolves from. Later Bash 365 work starts from this picture of live and routine agentic loops. Adopting it on bash-365.com is a later change in that repository. This requirement does not edit that submodule and does not replace the Azure cost dashboard or the cloud phone offering.
+- FR112: This product must be the installation wizard and the creation of all the wizards, also known as the AI agents. The wizard presents the agents and loops that already exist as one installed picture. This requirement does not create an agent, write the agent inventory, or change a workflow or a setting. A later write that creates an agent waits until Amr merges the follow-up amendment agent-wizard-creation.
 
 **Non-functional**
 
@@ -394,6 +418,9 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - NFR19: A new agent-efficacy check must run read-only in shadow for at least 14 days, reporting contract gaps as warnings, before any gap can fail a gate; enforcement is switched on only by a gated change to _data/fleet.yml harness.efficacy.enforce, and agents registered before then keep a grace period.
 - NFR20: Every capability a person has at the terminal or on a console page must be reachable by an agent over MCP or the API, or carry a recorded reason why not; the gap is reported by a command, not found by a review.
 - NFR21: CI and the docs site must both call the one resolver and must not reimplement selection, exclusion or override precedence. A test must show that the document the gate asserts is the document the page renders.
+- NFR22: The dashboard must link the Harness Console sessions, health, cost and job views, the Loops, schedules and workflows pages, the agent inventory, the pipeline map, the activity log, the activity replay, the fleet graph and the agent news feed. It must not replace those stores or become a social feed. Turning it off must leave those surfaces working.
+- NFR23: A dashboard row, history line or public snapshot must contain no token, secret, credential or private-repository body. A cost figure that is an estimate must be labelled API-equivalent (estimate). The public Pages build must show a redacted sample or aggregate counts, never a live session body.
+- NFR24: Stale, failed, idle and unknown must be visible states. Missing telemetry must be shown as missing, with the absent source named. The dashboard must not invent a status, a duration or a cost when the source has none. A source that is down must be announced without hiding rows that other sources can still supply.
 
 ## 6. Success metrics (proposed — not defined in sources)
 

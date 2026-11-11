@@ -2117,3 +2117,86 @@
   source: manual
   created: 2026-11-10
   issue_url: null
+
+- id: FF-0052
+  title: One dashboard of every live and routine agentic loop
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P2
+  effort: L
+  category: feature
+  problem: Live and routine agentic work is split across console pages, ledgers and designs, so an operator
+    cannot see who is working, on which repo, whether it is in flight or completed, and what the counts
+    say. Amr also wants this picture to be the BASH Consulting showcase and the first end-to-end test
+    of the build-out, including its reporting and marketing, the first example of harnessing and visualizing
+    the power of AI, the way to put arms around agents and frameworks that are available, powerful and
+    omnipresent, the first application Bash 365 is based on and evolves from, and the installation wizard
+    and the creation of all the wizards, the AI agents. The BASH Consulting brand, voice and identity
+    add the line A born-again solutions hero, born-again in the line, a play on Bash, the Bourne-again
+    shell.
+  proposal: One read-only operations dashboard. Rows name the agent or harness, the repo, and a status
+    of working, idle, stale, failed, completed or unknown. Routine rows cover Grok bot routines, JEV and
+    fleet loops, console jobs and scheduled workflows. Live rows cover Claude Code, cloud agents and console
+    executions. In-flight work is distinguished from completed work. Opening a row shows progress, history
+    and activity by linking the record that already exists, plus counts, durations, success and failure,
+    idle and stale, and a cost only when the ledger already has one. Missing telemetry stays missing.
+    The same epic carries the BASH Consulting report and marketing, which a person publishes in the voice
+    A born-again solutions hero, the Bash 365 foundation, and the installation wizard that presents the
+    existing agents. The board is HUB-103, history and statistics are HUB-102, and the showcase, foundation
+    and wizard are HUB-104. See docs/prd/AGENTIC-LOOPS-DASHBOARD.md.
+  acceptance:
+  - An operator opens one dashboard and sees every agent and harness, the repo, and a status, with a link
+    to the existing console page, job, session or workflow run.
+  - Routine and scheduled loops are distinguished from live and ad-hoc sessions, and in-flight work from
+    completed work.
+  - Progress, history and activity cite the underlying record. Counts, durations, success and failure,
+    idle and stale are shown. Cost appears only when existing telemetry already has a figure, labelled
+    API-equivalent (estimate) when it is an estimate.
+  - A stale, failed or missing source is visible as that state. The dashboard does not invent a status
+    or a cost.
+  - The Harness Console, the pipeline map, /live, the activity log, the replay, the fleet graph and the
+    agent news feed stay the records they are. The dashboard links them.
+  - The product is the BASH Consulting showcase and the first end-to-end test, including a report and
+    marketing that a person reviews. The brand line is A born-again solutions hero, born-again in the
+    line, a play on Bash, the Bourne-again shell. Agents do not auto-publish.
+  - The product is the first example of harnessing and visualizing the power of AI, and the operator's
+    picture of agents and frameworks that are available, powerful and omnipresent.
+  - The product is the first and foundational application Bash 365 is based on and evolves from. bash-365.com
+    is not edited in the direction pull request.
+  - The product is the installation wizard and the creation of the wizards, the AI agents. The first wizard
+    view is read-only. No agent is created until Amr merges a follow-up amendment.
+  - HUB, FR, NFR and FF numbers are assigned at merge from fragments.
+  scope:
+    in:
+    - one operations dashboard of live and routine agentic loops
+    - status, progress, history, activity and basic statistics
+    - in-flight and completed
+    - BASH Consulting showcase, report and marketing as part of this epic
+    - brand line "A born-again solutions hero" (born-again; the shell is the Bourne-again shell)
+    - Bash 365 foundation
+    - installation wizard that presents the existing AI agents
+    out:
+    - implementing the page, a collector or a wizard in the direction pull request
+    - a social feed of posts and reactions
+    - replacing console sessions, health, cost, jobs, the pipeline map, /live, the replay or the fleet
+      graph
+    - agents auto-publishing the report or the marketing
+    - creating agents, or changing settings, secrets, branch protection or tags
+    - editing the bash-365.com submodule in this pull request
+  risks:
+  - A second store of runs would drift from jobs and workflows. The dashboard is a view, and the records
+    stay where they are.
+  - Filling a missing cloud-agent source with a healthy status would hide the gap. The population is listed
+    as telemetry-missing.
+  - The hub is public. A live session body on Pages would leak it. The snapshot is counts or a redacted
+    sample.
+  - Publishing the showcase from an agent would need an amendment this PRD does not propose. A person
+    publishes the draft.
+  - Creating an agent from the wizard is not a § 11 Projects edit. That write waits for the follow-up
+    amendment agent-wizard-creation.
+  - Open fragment pull requests that merge first move the dry-run HUB, FR, NFR and FF numbers. The slugs
+    do not move.
+  source: manual
+  created: 2026-11-10
+  issue_url: null

@@ -2314,3 +2314,84 @@ features:
     - FR102
     - FR103
     - NFR21
+  - id: HUB-102
+    title: Agentic loops history and statistics
+    description: Progress, history and activity for each agentic loop, plus counts, durations, success and
+      failure, idle and stale. A cost figure appears only when existing telemetry already has one. Design
+      only (docs/prd/AGENTIC-LOOPS-DASHBOARD.md). The board is HUB-103. Roadmap FF-0052.
+    implemented: false
+    status: planned
+    surface: ui
+    link: docs/prd/AGENTIC-LOOPS-DASHBOARD.md
+    docs: docs/prd/AGENTIC-LOOPS-DASHBOARD.md
+    tags:
+    - dashboard
+    - agents
+    - loops
+    - statistics
+    - history
+    date: 2026-11-10
+    tests:
+    - na: docs-only PRD; history and statistics land with the dashboard implementation
+    prd:
+    - FR104
+    - FR105
+  - id: HUB-103
+    title: Agentic loops dashboard
+    description: One operations dashboard of every agent and harness, the repo it is on, and its current
+      status. Routine and scheduled loops (Grok bot routines, JEV and fleet loops, console jobs, scheduled
+      workflows) are distinguished from live and ad-hoc sessions (Claude Code, cloud agents, console executions),
+      and in-flight work from completed work. The view links the Harness Console, the inventories and the
+      ledgers. It does not replace them. Design only (docs/prd/AGENTIC-LOOPS-DASHBOARD.md). History and
+      statistics are HUB-102. The BASH Consulting showcase, the brand line A born-again solutions hero,
+      the Bash 365 foundation and the agent installation wizard are HUB-104. Roadmap FF-0052.
+    implemented: false
+    status: planned
+    surface: ui
+    link: docs/prd/AGENTIC-LOOPS-DASHBOARD.md
+    docs: docs/prd/AGENTIC-LOOPS-DASHBOARD.md
+    tags:
+    - dashboard
+    - agents
+    - loops
+    - harness
+    - observability
+    date: 2026-11-10
+    tests:
+    - na: docs-only PRD; the console view lands in a later implementation PR
+    prd:
+    - FR106
+    - FR107
+    - FR108
+    - NFR22
+    - NFR23
+    - NFR24
+  - id: HUB-104
+    title: Agentic loops dashboard as the Bash 365 foundation
+    description: 'The same dashboard is the BASH Consulting showcase and the first end-to-end test of this
+      build-out, including the reporting and the marketing a person reviews. The brand, voice and identity
+      line is A born-again solutions hero: born-again in the line, a play on Bash, the Bourne-again shell.
+      It is the first example of harnessing the power of AI and of visualizing that power, the way an operator
+      puts their arms around agents and frameworks that are available, powerful and omnipresent. It is the
+      first and foundational application Bash 365 is based on and evolves from. It is the installation wizard
+      and the creation of all the wizards, also known as the AI agents. Design only (docs/prd/AGENTIC-LOOPS-DASHBOARD.md).
+      The board is HUB-103. Roadmap FF-0052.'
+    implemented: false
+    status: planned
+    surface: ui
+    link: docs/prd/AGENTIC-LOOPS-DASHBOARD.md
+    docs: docs/prd/AGENTIC-LOOPS-DASHBOARD.md
+    tags:
+    - dashboard
+    - bash-365
+    - showcase
+    - agents
+    - wizard
+    date: 2026-11-10
+    tests:
+    - na: docs-only PRD; the showcase drafts and the read-only wizard view land after the board
+    prd:
+    - FR109
+    - FR110
+    - FR111
+    - FR112
