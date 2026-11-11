@@ -15,27 +15,27 @@ contract:
     R5: its run records reach the reflector
     R6: a local entry point
 totals:
-  agents: 73
+  agents: 136
   by_category:
-    ci-agent-step: 62
+    ci-agent-step: 125
     local-loop-step: 5
     jev-tier: 3
     scheduled-local-job: 3
   by_kind:
-    ci-scheduled: 10
-    ci-event: 15
-    ci-mention: 37
+    ci-scheduled: 47
+    ci-event: 36
+    ci-mention: 42
     loop-step: 5
     jev-tier: 3
     local-job: 3
-  with_gaps: 66
+  with_gaps: 127
   gaps_by_rule:
-    R1: 55
-    R2: 66
+    R1: 115
+    R2: 127
     R3: 0
     R4: 2
     R5: 1
-    R6: 17
+    R6: 73
 kpis:
   accepted_per_usd:
     unit: accepted outcomes per USD, API-equivalent (estimate)
@@ -250,7 +250,7 @@ agents:
     per_run_usd: 20.0
     call_sites:
       claude.yml:claude: 20.0
-  model: null
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -265,7 +265,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:bamr87:fanout
   kind: ci-event
@@ -346,7 +345,7 @@ agents:
     per_run_usd: 10.0
     call_sites:
       fleet-verify.yml:verify: 10.0
-  model: sonnet
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: 0.1
     accepted_per_actions_min: 0.05
@@ -380,7 +379,7 @@ agents:
       issue-pipeline.yml:tier1: 40.0
       issue-pipeline.yml:tier2: 60.0
       issue-pipeline.yml:tier3: 60.0
-  model: opus
+  model: claude-opus-5-5
   kpis:
     accepted_per_usd: 0.05
     accepted_per_actions_min: 0.02
@@ -469,6 +468,35 @@ agents:
   first_seen: '2026-11-07'
   gaps:
   - R2:missing:cost_source,tool_errors
+- id: ci:README:aggregate-docs
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/README
+  where: .github/workflows/aggregate-docs.yaml
+  owner: bamr87
+  trigger: schedule Mon 03:00 UTC weekly; workflow_dispatch
+  switch: null
+  budget: null
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:model
+  - R1:switch
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
 - id: ci:README:claude
   kind: ci-mention
   category: ci-agent-step
@@ -525,6 +553,56 @@ agents:
   - R1:budget
   - R1:model
   - R2:missing:cost_source,tool_errors
+- id: ci:ai-seed:ci-cd
+  kind: ci-event
+  category: ci-agent-step
+  repo: bamr87/ai-seed
+  where: .github/workflows/ci-cd.yml
+  status: archived
+  owner: bamr87
+  trigger: pull_request; push
+  switch: null
+  budget: null
+  model: null
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps: []
+- id: ci:ai-seed:docs-build-deploy
+  kind: ci-event
+  category: ci-agent-step
+  repo: bamr87/ai-seed
+  where: .github/workflows/docs-build-deploy.yml
+  status: archived
+  owner: bamr87
+  trigger: push
+  switch: null
+  budget: null
+  model: null
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps: []
 - id: ci:ai-seed:seed-evolve
   kind: ci-event
   category: ci-agent-step
@@ -654,6 +732,176 @@ agents:
   local_entry: null
   first_seen: '2026-11-07'
   gaps: []
+- id: ci:ai-world-view.github.io:ai-content-review
+  kind: ci-event
+  category: ci-agent-step
+  repo: ai-world-view/ai-world-view.github.io
+  where: .github/workflows/ai-content-review.yml
+  owner: bamr87
+  trigger: pull_request; workflow_dispatch
+  switch: null
+  budget: null
+  model: claude-sonnet-5-5
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:switch
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:ai-world-view.github.io:claude
+  kind: ci-mention
+  category: ci-agent-step
+  repo: ai-world-view/ai-world-view.github.io
+  where: .github/workflows/claude.yml
+  owner: bamr87
+  trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
+  switch:
+    exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
+  budget: null
+  model: null
+  kpis:
+    accepted_per_usd: null
+    accepted_per_actions_min: null
+    time_to_outcome_h: 4
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry:
+    exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+- id: ci:ai-world-view.github.io:framework-pr-reviewer
+  kind: ci-event
+  category: ci-agent-step
+  repo: ai-world-view/ai-world-view.github.io
+  where: .github/workflows/framework-pr-reviewer.yml
+  owner: bamr87
+  trigger: pull_request; workflow_dispatch
+  switch: null
+  budget: null
+  model: claude-sonnet-5-5
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:switch
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:ai-world-view.github.io:grow-lineage
+  kind: ci-event
+  category: ci-agent-step
+  repo: ai-world-view/ai-world-view.github.io
+  where: .github/workflows/grow-lineage.yml
+  owner: bamr87
+  trigger: workflow_dispatch
+  switch: null
+  budget: null
+  model: null
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:model
+  - R1:switch
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:ai-world-view.github.io:plant-lineage
+  kind: ci-event
+  category: ci-agent-step
+  repo: ai-world-view/ai-world-view.github.io
+  where: .github/workflows/plant-lineage.yml
+  owner: bamr87
+  trigger: workflow_dispatch
+  switch: null
+  budget: null
+  model: null
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:model
+  - R1:switch
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:ai-world-view.github.io:secret-expiry-watch
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: ai-world-view/ai-world-view.github.io
+  where: .github/workflows/secret-expiry-watch.yml
+  owner: bamr87
+  trigger: schedule daily 13:10 UTC; workflow_dispatch
+  switch:
+    variable: SECRET_EXPIRY_WATCH_ENABLED
+  budget: null
+  model: claude-haiku-5-5
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
 - id: ci:amrchy:claude
   kind: ci-mention
   category: ci-agent-step
@@ -710,6 +958,236 @@ agents:
   - R1:budget
   - R1:model
   - R2:missing:cost_source,tool_errors
+- id: ci:bash-365-apex:claude
+  kind: ci-mention
+  category: ci-agent-step
+  repo: bash-365/bash-365-apex
+  where: .github/workflows/claude.yml
+  owner: bamr87
+  trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
+  switch:
+    exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
+  budget: null
+  model: null
+  kpis:
+    accepted_per_usd: null
+    accepted_per_actions_min: null
+    time_to_outcome_h: 4
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry:
+    exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+- id: ci:bash-365.com:claude
+  kind: ci-mention
+  category: ci-agent-step
+  repo: bash-365/bash-365.com
+  where: .github/workflows/claude.yml
+  owner: bamr87
+  trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
+  switch:
+    exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
+  budget: null
+  model: null
+  kpis:
+    accepted_per_usd: null
+    accepted_per_actions_min: null
+    time_to_outcome_h: 4
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry:
+    exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+- id: ci:bash-365.com:content-gardener
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bash-365/bash-365.com
+  where: .github/workflows/content-gardener.yml
+  owner: bamr87
+  trigger: schedule Mon 14:23 UTC weekly; workflow_dispatch
+  switch:
+    variable: CONTENT_GARDENER_ENABLED
+  budget: null
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:bash-365.com:content-loop
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bash-365/bash-365.com
+  where: .github/workflows/content-loop.yml
+  owner: bamr87
+  trigger: schedule daily 14:11 UTC; workflow_dispatch
+  switch:
+    variable: CONTENT_LOOP_ENABLED
+  budget: null
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:bash-365.com:content-review
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bash-365/bash-365.com
+  where: .github/workflows/content-review.yml
+  owner: bamr87
+  trigger: schedule Thu 14:37 UTC weekly; workflow_dispatch
+  switch:
+    variable: CONTENT_REVIEW_ENABLED
+  budget: null
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:bash-365.com:linkedin-revisit
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bash-365/bash-365.com
+  where: .github/workflows/linkedin-revisit.yml
+  owner: bamr87
+  trigger: schedule Wed 15:41 UTC weekly; workflow_dispatch
+  switch:
+    variable: LINKEDIN_REVISIT_ENABLED
+  budget: null
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:bash-365.com:linkedin-weekly
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bash-365/bash-365.com
+  where: .github/workflows/linkedin-weekly.yml
+  owner: bamr87
+  trigger: schedule Fri 15:23 UTC weekly; workflow_dispatch
+  switch:
+    variable: LINKEDIN_WEEKLY_ENABLED
+  budget: null
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:bash-365.com:preacher
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bash-365/bash-365.com
+  where: .github/workflows/preacher.yml
+  owner: bamr87
+  trigger: schedule Sat 14:42 UTC weekly; workflow_dispatch
+  switch:
+    variable: PREACHER_ENABLED
+  budget: null
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
 - id: ci:bashcrawl:claude
   kind: ci-mention
   category: ci-agent-step
@@ -762,6 +1240,34 @@ agents:
   local_entry:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
+  gaps:
+  - R1:budget
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+- id: ci:csv-vscoode:claude
+  kind: ci-mention
+  category: ci-agent-step
+  repo: bash-365/csv-vscoode
+  where: .github/workflows/claude.yml
+  owner: bamr87
+  trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
+  switch:
+    exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
+  budget: null
+  model: null
+  kpis:
+    accepted_per_usd: null
+    accepted_per_actions_min: null
+    time_to_outcome_h: 4
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry:
+    exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
+  first_seen: '2026-11-11'
   gaps:
   - R1:budget
   - R1:model
@@ -850,6 +1356,35 @@ agents:
   - R1:budget
   - R1:model
   - R2:missing:cost_source,tool_errors
+- id: ci:edgar-pipeline:evolve
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/edgar-pipeline
+  where: .github/workflows/evolve.yml
+  owner: bamr87
+  trigger: schedule Mon 06:17 UTC weekly; workflow_dispatch
+  switch:
+    variable: EVOLVE_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
 - id: ci:fleet-infra:claude
   kind: ci-mention
   category: ci-agent-step
@@ -878,6 +1413,35 @@ agents:
   - R1:budget
   - R1:model
   - R2:missing:cost_source,tool_errors
+- id: ci:fleet-infra:evolve
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/fleet-infra
+  where: .github/workflows/evolve.yml
+  owner: bamr87
+  trigger: schedule Mon 06:17 UTC weekly; workflow_dispatch
+  switch:
+    variable: EVOLVE_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
 - id: ci:fleet-mobile:claude
   kind: ci-mention
   category: ci-agent-step
@@ -906,6 +1470,35 @@ agents:
   - R1:budget
   - R1:model
   - R2:missing:cost_source,tool_errors
+- id: ci:fleet-mobile:evolve
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/fleet-mobile
+  where: .github/workflows/evolve.yml
+  owner: bamr87
+  trigger: schedule Mon 06:17 UTC weekly; workflow_dispatch
+  switch:
+    variable: EVOLVE_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
 - id: ci:fleet-observe:claude
   kind: ci-mention
   category: ci-agent-step
@@ -934,6 +1527,35 @@ agents:
   - R1:budget
   - R1:model
   - R2:missing:cost_source,tool_errors
+- id: ci:fleet-observe:evolve
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/fleet-observe
+  where: .github/workflows/evolve.yml
+  owner: bamr87
+  trigger: schedule Mon 06:17 UTC weekly; workflow_dispatch
+  switch:
+    variable: EVOLVE_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
 - id: ci:fredgar-ai:claude
   kind: ci-mention
   category: ci-agent-step
@@ -1390,6 +2012,35 @@ agents:
   - R1:model
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
+- id: ci:it-journey:agent-audit
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/it-journey
+  where: .github/workflows/agent-audit.yml
+  owner: bamr87
+  trigger: schedule Mon 15:10 UTC weekly; workflow_dispatch
+  switch:
+    variable: AGENT_AUDIT_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
 - id: ci:it-journey:claude
   kind: ci-mention
   category: ci-agent-step
@@ -1418,6 +2069,324 @@ agents:
   - R1:budget
   - R1:model
   - R2:missing:cost_source,tool_errors
+- id: ci:it-journey:cms-daily-loop
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/it-journey
+  where: .github/workflows/cms-daily-loop.yml
+  owner: bamr87
+  trigger: schedule daily 22:10 UTC; workflow_dispatch
+  switch: null
+  budget: null
+  model: claude-opus-5-5
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:switch
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:it-journey:content-factory
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/it-journey
+  where: .github/workflows/content-factory.yml
+  owner: bamr87
+  trigger: schedule daily 20:10 UTC; workflow_dispatch
+  switch:
+    variable: CONTENT_FACTORY_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:it-journey:content-review
+  kind: ci-event
+  category: ci-agent-step
+  repo: bamr87/it-journey
+  where: .github/workflows/content-review.yml
+  owner: bamr87
+  trigger: pull_request
+  switch:
+    variable: CONTENT_REVIEW_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:it-journey:issue-autopilot
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/it-journey
+  where: .github/workflows/issue-autopilot.yml
+  owner: bamr87
+  trigger: schedule daily 18:10 UTC; issues; workflow_dispatch
+  switch:
+    variable: ISSUE_AUTOPILOT_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:it-journey:link-checker
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/it-journey
+  where: .github/workflows/link-checker.yml
+  owner: bamr87
+  trigger: schedule Mon 06:00 UTC weekly; pull_request; workflow_dispatch
+  switch: null
+  budget: null
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:model
+  - R1:switch
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:it-journey:quest-fix
+  kind: ci-event
+  category: ci-agent-step
+  repo: bamr87/it-journey
+  where: .github/workflows/quest-fix.yml
+  owner: bamr87
+  trigger: workflow_call; workflow_dispatch
+  switch:
+    variable: QUEST_FIX_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:it-journey:quest-forge
+  kind: ci-event
+  category: ci-agent-step
+  repo: bamr87/it-journey
+  where: .github/workflows/quest-forge.yml
+  owner: bamr87
+  trigger: issue_comment; issues; workflow_dispatch
+  switch:
+    variable: QUEST_FORGE_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:it-journey:quest-idea-intake
+  kind: ci-event
+  category: ci-agent-step
+  repo: bamr87/it-journey
+  where: .github/workflows/quest-idea-intake.yml
+  owner: bamr87
+  trigger: issue_comment; issues; workflow_dispatch
+  switch:
+    variable: QUEST_IDEA_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:it-journey:quest-perfection
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/it-journey
+  where: .github/workflows/quest-perfection.yml
+  owner: bamr87
+  trigger: schedule daily 23:10 UTC; workflow_dispatch
+  switch:
+    variable: QUEST_PERFECTION_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:it-journey:quest-walkthrough
+  kind: ci-event
+  category: ci-agent-step
+  repo: bamr87/it-journey
+  where: .github/workflows/quest-walkthrough.yml
+  owner: bamr87
+  trigger: workflow_dispatch
+  switch:
+    variable: QUEST_WALKTHROUGH_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:it-journey:theme-scout
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/it-journey
+  where: .github/workflows/theme-scout.yml
+  owner: bamr87
+  trigger: schedule Tue 15:40 UTC weekly; workflow_dispatch
+  switch:
+    variable: THEME_SCOUT_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
 - id: ci:kvlite:claude
   kind: ci-mention
   category: ci-agent-step
@@ -1446,6 +2415,35 @@ agents:
   - R1:budget
   - R1:model
   - R2:missing:cost_source,tool_errors
+- id: ci:kvlite:evolve
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/kvlite
+  where: .github/workflows/evolve.yml
+  owner: bamr87
+  trigger: schedule Mon 06:17 UTC weekly; workflow_dispatch
+  switch:
+    variable: EVOLVE_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
 - id: ci:law-ai:claude
   kind: ci-mention
   category: ci-agent-step
@@ -1474,6 +2472,126 @@ agents:
   - R1:budget
   - R1:model
   - R2:missing:cost_source,tool_errors
+- id: ci:lifehacker.dev:agent-review
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/lifehacker.dev
+  where: .github/workflows/agent-review.yml
+  owner: bamr87
+  trigger: schedule day 1 14:10 UTC monthly; workflow_dispatch
+  switch:
+    variable: AGENT_REVIEW_ENABLED
+    loop: lifehacker.dev/agent-review
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:lifehacker.dev:auto-fix
+  kind: ci-event
+  category: ci-agent-step
+  repo: bamr87/lifehacker.dev
+  where: .github/workflows/auto-fix.yml
+  owner: bamr87
+  trigger: workflow_run
+  switch:
+    variable: AUTO_FIX_ENABLED
+    loop: lifehacker.dev/auto-fix
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:lifehacker.dev:content-factory
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/lifehacker.dev
+  where: .github/workflows/content-factory.yml
+  owner: bamr87
+  trigger: schedule daily 22:40 UTC; workflow_dispatch
+  switch:
+    variable: CONTENT_FACTORY_ENABLED
+    loop: lifehacker.dev/content-factory
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:lifehacker.dev:content-scout
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/lifehacker.dev
+  where: .github/workflows/content-scout.yml
+  owner: bamr87
+  trigger: schedule daily 21:10 UTC; workflow_dispatch
+  switch:
+    variable: CONTENT_SCOUT_ENABLED
+    loop: lifehacker.dev/content-scout
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
 - id: ci:lifehacker.dev:factory--issue-factory-1
   kind: ci-scheduled
   category: ci-agent-step
@@ -1532,6 +2650,185 @@ agents:
   - R1:budget
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
+- id: ci:lifehacker.dev:loop-tuner
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/lifehacker.dev
+  where: .github/workflows/loop-tuner.yml
+  owner: bamr87
+  trigger: schedule Mon 17:10 UTC weekly; workflow_dispatch
+  switch:
+    variable: LOOP_TUNER_ENABLED
+    loop: lifehacker.dev/loop-tuner
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:lifehacker.dev:pipeline
+  kind: ci-event
+  category: ci-agent-step
+  repo: bamr87/lifehacker.dev
+  where: .github/workflows/pipeline.yml
+  owner: bamr87
+  trigger: pull_request; push; workflow_dispatch
+  switch: null
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R1:switch
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:lifehacker.dev:quest-forge
+  kind: ci-event
+  category: ci-agent-step
+  repo: bamr87/lifehacker.dev
+  where: .github/workflows/quest-forge.yml
+  owner: bamr87
+  trigger: push; workflow_dispatch
+  switch:
+    variable: QUEST_FORGE_ENABLED
+    loop: lifehacker.dev/quest-forge
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:lifehacker.dev:theme-scout
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/lifehacker.dev
+  where: .github/workflows/theme-scout.yml
+  owner: bamr87
+  trigger: schedule Mon 17:40 UTC weekly; workflow_dispatch
+  switch:
+    variable: THEME_SCOUT_ENABLED
+    loop: lifehacker.dev/theme-scout
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:lifehacker.dev:weekly-epic
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/lifehacker.dev
+  where: .github/workflows/weekly-epic.yml
+  owner: bamr87
+  trigger: schedule Mon 19:40 UTC weekly; workflow_dispatch
+  switch:
+    variable: WEEKLY_EPIC_ENABLED
+    loop: lifehacker.dev/weekly-epic
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:lifehacker.dev:wire-scout
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/lifehacker.dev
+  where: .github/workflows/wire-scout.yml
+  owner: bamr87
+  trigger: schedule daily 21:40 UTC; workflow_dispatch
+  switch:
+    variable: WIRE_SCOUT_ENABLED
+    loop: lifehacker.dev/wire-scout
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
 - id: ci:netprobe:claude
   kind: ci-mention
   category: ci-agent-step
@@ -1560,6 +2857,35 @@ agents:
   - R1:budget
   - R1:model
   - R2:missing:cost_source,tool_errors
+- id: ci:netprobe:evolve
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/netprobe
+  where: .github/workflows/evolve.yml
+  owner: bamr87
+  trigger: schedule Mon 06:17 UTC weekly; workflow_dispatch
+  switch:
+    variable: EVOLVE_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
 - id: ci:ocrmd:claude
   kind: ci-mention
   category: ci-agent-step
@@ -1644,6 +2970,35 @@ agents:
   - R1:budget
   - R1:model
   - R2:missing:cost_source,tool_errors
+- id: ci:ragio-ai:evolve
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/ragio-ai
+  where: .github/workflows/evolve.yml
+  owner: bamr87
+  trigger: schedule Mon 06:17 UTC weekly; workflow_dispatch
+  switch:
+    variable: EVOLVE_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
 - id: ci:recon-engine:claude
   kind: ci-mention
   category: ci-agent-step
@@ -1728,6 +3083,35 @@ agents:
   - R1:budget
   - R1:model
   - R2:missing:cost_source,tool_errors
+- id: ci:schema-lang:evolve
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/schema-lang
+  where: .github/workflows/evolve.yml
+  owner: bamr87
+  trigger: schedule Mon 06:17 UTC weekly; workflow_dispatch
+  switch:
+    variable: EVOLVE_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
 - id: ci:scripts:claude
   kind: ci-mention
   category: ci-agent-step
@@ -1784,6 +3168,35 @@ agents:
   - R1:budget
   - R1:model
   - R2:missing:cost_source,tool_errors
+- id: ci:sec-lab:evolve
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/sec-lab
+  where: .github/workflows/evolve.yml
+  owner: bamr87
+  trigger: schedule Mon 06:17 UTC weekly; workflow_dispatch
+  switch:
+    variable: EVOLVE_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
 - id: ci:sensor-mesh:claude
   kind: ci-mention
   category: ci-agent-step
@@ -1812,6 +3225,35 @@ agents:
   - R1:budget
   - R1:model
   - R2:missing:cost_source,tool_errors
+- id: ci:sensor-mesh:evolve
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/sensor-mesh
+  where: .github/workflows/evolve.yml
+  owner: bamr87
+  trigger: schedule Mon 06:17 UTC weekly; workflow_dispatch
+  switch:
+    variable: EVOLVE_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
 - id: ci:vs-sonic-pi:claude
   kind: ci-mention
   category: ci-agent-step
@@ -1840,6 +3282,176 @@ agents:
   - R1:budget
   - R1:model
   - R2:missing:cost_source,tool_errors
+- id: ci:year-of-ai.github.io:ai-content-review
+  kind: ci-event
+  category: ci-agent-step
+  repo: year-of-ai/year-of-ai.github.io
+  where: .github/workflows/ai-content-review.yml
+  owner: bamr87
+  trigger: pull_request; workflow_dispatch
+  switch: null
+  budget: null
+  model: claude-sonnet-5-5
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:switch
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:year-of-ai.github.io:claude
+  kind: ci-mention
+  category: ci-agent-step
+  repo: year-of-ai/year-of-ai.github.io
+  where: .github/workflows/claude.yml
+  owner: bamr87
+  trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
+  switch:
+    exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
+  budget: null
+  model: null
+  kpis:
+    accepted_per_usd: null
+    accepted_per_actions_min: null
+    time_to_outcome_h: 4
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry:
+    exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+- id: ci:year-of-ai.github.io:framework-pr-reviewer
+  kind: ci-event
+  category: ci-agent-step
+  repo: year-of-ai/year-of-ai.github.io
+  where: .github/workflows/framework-pr-reviewer.yml
+  owner: bamr87
+  trigger: pull_request; workflow_dispatch
+  switch: null
+  budget: null
+  model: claude-sonnet-5-5
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:switch
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:year-of-ai.github.io:grow-lineage
+  kind: ci-event
+  category: ci-agent-step
+  repo: year-of-ai/year-of-ai.github.io
+  where: .github/workflows/grow-lineage.yml
+  owner: bamr87
+  trigger: workflow_dispatch
+  switch: null
+  budget: null
+  model: null
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:model
+  - R1:switch
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:year-of-ai.github.io:plant-lineage
+  kind: ci-event
+  category: ci-agent-step
+  repo: year-of-ai/year-of-ai.github.io
+  where: .github/workflows/plant-lineage.yml
+  owner: bamr87
+  trigger: workflow_dispatch
+  switch: null
+  budget: null
+  model: null
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:model
+  - R1:switch
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:year-of-ai.github.io:secret-expiry-watch
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: year-of-ai/year-of-ai.github.io
+  where: .github/workflows/secret-expiry-watch.yml
+  owner: bamr87
+  trigger: schedule daily 13:40 UTC; workflow_dispatch
+  switch: null
+  budget: null
+  model: claude-haiku-5-5
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:switch
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
 - id: ci:zer0-CMS:claude
   kind: ci-mention
   category: ci-agent-step
@@ -1896,6 +3508,35 @@ agents:
   - R1:budget
   - R1:model
   - R2:missing:cost_source,tool_errors
+- id: ci:zer0-id:evolve
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/zer0-id
+  where: .github/workflows/evolve.yml
+  owner: bamr87
+  trigger: schedule Mon 06:17 UTC weekly; workflow_dispatch
+  switch:
+    variable: EVOLVE_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
 - id: ci:zer0-kernel:claude
   kind: ci-mention
   category: ci-agent-step
@@ -1924,6 +3565,91 @@ agents:
   - R1:budget
   - R1:model
   - R2:missing:cost_source,tool_errors
+- id: ci:zer0-kernel:evolve
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/zer0-kernel
+  where: .github/workflows/evolve.yml
+  owner: bamr87
+  trigger: schedule Mon 06:17 UTC weekly; workflow_dispatch
+  switch:
+    variable: EVOLVE_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:zer0-mistakes:ai-content-review
+  kind: ci-event
+  category: ci-agent-step
+  repo: bamr87/zer0-mistakes
+  where: .github/workflows/ai-content-review.yml
+  owner: bamr87
+  trigger: pull_request; workflow_dispatch
+  switch: null
+  budget: null
+  model: claude-sonnet-5-5
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:switch
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:zer0-mistakes:ci-self-repair
+  kind: ci-event
+  category: ci-agent-step
+  repo: bamr87/zer0-mistakes
+  where: .github/workflows/ci-self-repair.yml
+  owner: bamr87
+  trigger: workflow_run
+  switch: null
+  budget: null
+  model: claude-sonnet-5-5
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:switch
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
 - id: ci:zer0-mistakes:claude
   kind: ci-mention
   category: ci-agent-step
@@ -1952,6 +3678,92 @@ agents:
   - R1:budget
   - R1:model
   - R2:missing:cost_source,tool_errors
+- id: ci:zer0-mistakes:issue-autopilot
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/zer0-mistakes
+  where: .github/workflows/issue-autopilot.yml
+  owner: bamr87
+  trigger: schedule Mon 20:40 UTC weekly; issues; workflow_dispatch
+  switch:
+    variable: ISSUE_AUTOPILOT_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:zer0-mistakes:ui-audit
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/zer0-mistakes
+  where: .github/workflows/ui-audit.yml
+  owner: bamr87
+  trigger: schedule Mon 19:10 UTC weekly; workflow_dispatch
+  switch: null
+  budget: null
+  model: claude-sonnet-5-5
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:budget
+  - R1:switch
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:zer0-mistakes:visual-evidence-autogen
+  kind: ci-event
+  category: ci-agent-step
+  repo: bamr87/zer0-mistakes
+  where: .github/workflows/visual-evidence-autogen.yml
+  owner: bamr87
+  trigger: pull_request
+  switch:
+    variable: VISUAL_EVIDENCE_AUTOGEN_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-11'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
 - id: ci:zpl-viewer:claude
   kind: ci-mention
   category: ci-agent-step
