@@ -367,7 +367,7 @@ jobs:
           # because `claude_args` is a literal; test_ai_budget.py asserts the
           # two agree and that the cap clears `usd_per_turn * max-turns`.
           claude_args: >-
-            --model opus
+            --model claude-opus-5-5
             --max-turns 250
             --max-budget-usd 40
             --allowedTools "Bash(gh:*),Bash(cat:*),Bash(ls:*),Bash(jq:*),Bash(sed:*),Bash(head:*),Bash(tail:*),Bash(tools/issue-evidence.sh:*),Read,Grep,Glob,Write"
@@ -641,7 +641,7 @@ jobs:
           # because `claude_args` is a literal; test_ai_budget.py asserts the
           # two agree and that the cap clears `usd_per_turn * max-turns`.
           claude_args: >-
-            --model opus
+            --model claude-opus-5-5
             --max-turns 400
             --max-budget-usd 60
             --allowedTools "Bash(gh:*),Bash(git:*),Bash(mkdir:*),Bash(cd:*),Bash(ls:*),Bash(cat:*),Bash(jq:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(python3:*),Bash(pip:*),Bash(pytest:*),Bash(bundle:*),Bash(ruby:*),Bash(go:*),Bash(cargo:*),Bash(make:*),Bash(shellcheck:*),Bash(docker:*),Bash(curl:*),Bash(tools/:*),Bash(./test/:*),Bash(test/:*),Bash(./scripts/:*),Bash(scripts/:*),Read,Grep,Glob,Edit,Write"
@@ -852,7 +852,7 @@ jobs:
           # because `claude_args` is a literal; test_ai_budget.py asserts the
           # two agree and that the cap clears `usd_per_turn * max-turns`.
           claude_args: >-
-            --model opus
+            --model claude-opus-5-5
             --max-turns 400
             --max-budget-usd 60
             --allowedTools "Bash(gh:*),Bash(git:*),Bash(mkdir:*),Bash(cd:*),Bash(ls:*),Bash(cat:*),Bash(jq:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(python3:*),Bash(pip:*),Bash(pytest:*),Bash(bundle:*),Bash(ruby:*),Bash(go:*),Bash(cargo:*),Bash(make:*),Bash(shellcheck:*),Bash(docker:*),Bash(curl:*),Bash(tools/:*),Bash(./test/:*),Bash(test/:*),Bash(./scripts/:*),Bash(scripts/:*),Read,Grep,Glob,Edit,Write"
