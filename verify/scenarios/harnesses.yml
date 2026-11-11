@@ -1,5 +1,5 @@
 id: harnesses
-feature: [HUB-005, "HUB-NEW:harness-standard"]
+feature: [HUB-005, "HUB-105"]
 title: "Harness inventory grades every AI workflow against the standard"
 description: "The /harnesses page lists every AI workflow in the fleet from _data/harness_registry.yml — its route to a model, its caps and its verdict against the harness standard — with the rebuild plan grouped by lever and the standard's controls; picking a lever filters the table; the Repos view keeps the per-repo baseline and the kit deploy; nothing scrolls sideways. /harnesses/health renders the trip wires and scorecard."
 viewports: [desktop, mobile]

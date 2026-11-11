@@ -148,13 +148,14 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-102](features/features.yml) | Agentic loops history and statistics | planned | [`docs/prd/AGENTIC-LOOPS-DASHBOARD.md`](docs/prd/AGENTIC-LOOPS-DASHBOARD.md) | FR104, FR105 |
 | [HUB-103](features/features.yml) | Agentic loops dashboard | planned | [`docs/prd/AGENTIC-LOOPS-DASHBOARD.md`](docs/prd/AGENTIC-LOOPS-DASHBOARD.md) | FR106, FR107, FR108, NFR22, NFR23, NFR24 |
 | [HUB-104](features/features.yml) | Agentic loops dashboard as the Bash 365 foundation | planned | [`docs/prd/AGENTIC-LOOPS-DASHBOARD.md`](docs/prd/AGENTIC-LOOPS-DASHBOARD.md) | FR109, FR110, FR111, FR112 |
+| [HUB-105](features/features.yml) | The harness standard: every AI workflow found by any route, graded, with the lever that rebuilds it | shipped | route `/harnesses` · [`docs/HARNESS-OPS.md`](docs/HARNESS-OPS.md) | FR113, FR5 |
 
 **Requirement → feature trace**
 
 | Requirement | Features |
 | --- | --- |
 | FR2 | HUB-001, HUB-008 |
-| FR5 | HUB-001, HUB-002, HUB-003, HUB-004, HUB-005, HUB-006, HUB-007, HUB-013, HUB-022, HUB-015, HUB-016, HUB-017, HUB-028, HUB-030, HUB-034, HUB-072, HUB-082 |
+| FR5 | HUB-001, HUB-002, HUB-003, HUB-004, HUB-005, HUB-006, HUB-007, HUB-013, HUB-022, HUB-015, HUB-016, HUB-017, HUB-028, HUB-030, HUB-034, HUB-072, HUB-082, HUB-105 |
 | FR4 | HUB-007, HUB-023 |
 | FR1 | HUB-008, HUB-018 |
 | FR6 | HUB-009, HUB-010, HUB-019, HUB-023, HUB-027, HUB-028, HUB-033 |
@@ -288,6 +289,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR110 | HUB-104 |
 | FR111 | HUB-104 |
 | FR112 | HUB-104 |
+| FR113 | HUB-105 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -394,6 +396,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR110: This product must be the first example of harnessing the power of AI and of visualizing that power. It must be the operator's way to put their arms around AI capabilities that are available, powerful and omnipresent, by showing the agents and the frameworks in one picture of status, history and statistics.
 - FR111: This product must be the first and foundational application that Bash 365 is based on and evolves from. Later Bash 365 work starts from this picture of live and routine agentic loops. Adopting it on bash-365.com is a later change in that repository. This requirement does not edit that submodule and does not replace the Azure cost dashboard or the cloud phone offering.
 - FR112: This product must be the installation wizard and the creation of all the wizards, also known as the AI agents. The wizard presents the agents and loops that already exist as one installed picture. This requirement does not create an agent, write the agent inventory, or change a workflow or a setting. A later write that creates an agent waits until Amr merges the follow-up amendment agent-wizard-creation.
+- FR113: The harness inventory must find every workflow that reaches a model, by any route, grade each one against the harness standard declared in _data/fleet.yml harnesses.standard, and name the lever that rebuilds each harness that falls short; the agent-context kit's mention handler must pass that standard.
 
 **Non-functional**
 
