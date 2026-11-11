@@ -1315,7 +1315,7 @@ jobs:
           claude_code_oauth_token: ${{{{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}}}
           anthropic_api_key: ${{{{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}}}
           claude_args: >-
-            --model sonnet
+            --model claude-sonnet-5-5
             --max-turns 40
             --max-budget-usd {budget}
             --allowedTools "Read,Grep,Glob"

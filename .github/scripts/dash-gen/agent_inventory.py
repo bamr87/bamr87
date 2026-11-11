@@ -99,7 +99,6 @@ OVERLAY_KEYS = {"owner", "reads", "model", "model_from", "budget", "budget_from"
                 "reflector_via", "local_entry", "note", "declare"}
 BUDGET_KEYS = ("per_run_usd", "monthly_usd")
 DECLARE_KEYS = {"kind", "where", "trigger", "runs", "pending"}
-CLAUDE_RUN_RX = re.compile(r"^\s*(?:-\s*)?uses:\s*\S*\.github/actions/claude-run\b", re.M)
 LABEL_RX = re.compile(r'^LABEL="com\.bamr87\.([a-z0-9-]+)"', re.M)
 HOURS_RX = re.compile(r"^HOURS=(\d+)", re.M)
 HOUR_RX = re.compile(r"^HOUR=(\d+)", re.M)
@@ -344,9 +343,12 @@ def _trigger(triggers: list[str], crons: list[str]) -> str:
 
 
 def hub_workflows(workflows_dir: Path, hub_nwo: str) -> list[dict]:
-    """Every AI workflow in the hub checkout: a claude-code-action step (the
-    harness registry's own test) or a claude-run step. Read from the tree, so a
-    pull request that adds one is caught before it merges."""
+    """Every AI workflow in the hub checkout, by the harness registry's own
+    test: any route to a model (a claude-code-action step, the claude-run
+    action, the ai-lane workflow, a bare `claude -p`, another provider's key).
+    One classifier for both inventories, so they cannot disagree about what an
+    agent is. Read from the tree, so a pull request that adds one is caught
+    before it merges."""
     out = []
     if not workflows_dir.is_dir():
         return out
@@ -354,14 +356,8 @@ def hub_workflows(workflows_dir: Path, hub_nwo: str) -> list[dict]:
         text = path.read_text(encoding="utf-8", errors="replace")
         rel = f".github/workflows/{path.name}"
         info = hr.classify_workflow(rel, text)
-        claude_run = bool(CLAUDE_RUN_RX.search(text))
-        if not (info["ai"] or claude_run):
+        if not info["ai"]:
             continue
-        if not info["ai"]:  # claude-run only: the same facts, read the same way
-            m = hr.MODEL_RX.search(text)
-            info["model"] = m.group(1) if m and "${{" not in m.group(1) else None
-            m = hr.MAX_BUDGET_RX.search(text)
-            info["max_budget_usd"] = float(m.group(1)) if m else None
         out.append({
             "repo": hub_nwo, "name": hub_nwo.split("/", 1)[-1], "path": rel,
             "triggers": info["triggers"], "crons": info["crons"], "kind": _ci_kind(info),

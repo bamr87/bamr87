@@ -54,9 +54,18 @@ export function HarnessWorkflows({ repo }: { repo: HarnessRepo }) {
       columns={[
         { key: 'kind', header: 'kind', render: (h) => <Text size="sm">{h.kind === 'mention-handler' ? '💬' : h.kind === 'scheduled-agent' ? '⏰' : '⚙️'} {h.kind}</Text> },
         { key: 'path', header: 'workflow', render: (h) => <External href={gh.workflow(repo.nwo, h.path)} size="sm">{h.path.replace('.github/workflows/', '')}</External> },
-        { key: 'model', header: 'model', render: (h) => <Text size="sm">{h.model ?? '—'}{h.max_turns ? ` / ${h.max_turns}t` : ''}</Text> },
-        { key: 'auth', header: 'auth', render: (h) => (/oauth/.test(h.auth ?? '') ? <Status tone="good">{h.auth}</Status> : <Status tone="crit">{h.auth || 'none'}</Status>) },
+        { key: 'route', header: 'route', render: (h) => <Text size="sm">{h.route ?? '—'}</Text> },
+        { key: 'model', header: 'model', render: (h) => <Text size="sm">{h.model ?? '—'}{h.max_turns ? ` / ${h.max_turns}t` : ''}{h.max_budget_usd != null ? ` / $${h.max_budget_usd}` : ''}</Text> },
+        { key: 'auth', header: 'auth', render: (h) => (/oauth|ordered/.test(h.auth ?? '') ? <Status tone="good">{h.auth}</Status> : <Status tone="crit">{h.auth || 'none'}</Status>) },
         { key: 'kit', header: 'kit', render: (h) => (h.kit_status === 'current' ? <Status tone="good">v{h.kit}</Status> : h.kit_status === 'upgradeable' ? <Status tone="warn">v{h.kit} ↑</Status> : <Text size="sm" c="dimmed">{h.kit_status ?? '—'}</Text>) },
+        {
+          key: 'std', header: 'standard', title: 'Controls met of those that bind this harness (fleet.yml harnesses.standard)', render: (h) => (
+            !h.standard ? <Text size="sm" c="dimmed">—</Text>
+              : h.standard.conformant ? <Status tone="good">{h.standard.met}/{h.standard.of}</Status>
+                : <Status tone="warn" title={`missing: ${h.standard.missing.join(', ')}`}>{h.standard.met}/{h.standard.of}</Status>
+          ),
+        },
+        { key: 'lever', header: 'lever', render: (h) => <Text size="sm" c={h.lever && h.lever !== 'none' ? undefined : 'dimmed'}>{h.lever === 'none' ? 'on standard' : h.lever ?? '—'}</Text> },
         { key: 'last', header: 'last run', render: (h) => <Conclusion value={h.last_conclusion} /> },
         { key: 'runs', header: '', render: (h) => <External href={gh.workflowRuns(repo.nwo, h.path)} size="xs">runs</External> },
       ]}

@@ -95,7 +95,7 @@ STATIC_ROUTES: dict[str, tuple[str, str]] = {
     "engagements": ("Engagements", "Every project as a client: estimates, actuals and leverage."),
     "github": ("GitHub", "Manage fleet repos' issues, runs and workflows."),
     "containers": ("Containers", "The fleet dev stack: ports, images and services."),
-    "harnesses": ("Harness inventory", "Per-repo AI harness deployment matrix."),
+    "harnesses": ("Harness inventory", "Every AI workflow in the fleet, graded against the harness standard."),
     "harnesses/health": ("Harness health", "Trip wires and the six-layer harness scorecard."),
     "schedules": ("Schedules", "Crons, caps and collisions across the fleet."),
     "loops": ("Loops", "The control-plane loops and their outputs."),

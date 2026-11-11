@@ -1,0 +1,23 @@
+id: HUB-NEW
+slug: harness-standard
+title: "The harness standard: every AI workflow found by any route, graded, with the lever that rebuilds it"
+description: "The harness inventory (dash-gen harnesses, _data/harness_registry.yml, /harnesses) finds every workflow that reaches a model, by any route: a claude-code-action step, the hub's claude-run action or ai-lane workflow, a bare claude -p, a vendored runner, or another provider's key. It used to know the first one only, which hid 56 of the fleet's 117 AI workflows, 63 agents from _data/agents.yml and a 13-way cron collision. Each harness is graded against the standard declared in _data/fleet.yml harnesses.standard: ten controls read from the workflow file, each traced to its rule (exact model, dollar and turn caps, kill switch, ordered credential, trusted-author gate, least privilege, timeout, off-the-hour cron, a fleet route), counted only where they can bind. A harness that falls short carries its lever: kit-upgrade, kit-adopt, lane-adopt, fix-controls, factory-recompile, hub-fix or retire. Whether a kit copy is upgradeable is the fan-out's own byte comparison, run at scan time, not the stamp. The console's Harness inventory page lists one row per harness with its route, caps, verdict and lever, the rebuild plan grouped by lever, and the controls with their miss counts; the per-repo baseline and the kit deploy stay on its Repos view. The agent-context kit's mention handler (0.6.0) is rebuilt to the standard and tested against it, and the hub's own copy is that kit rendered. harness-registry/v1 holds: the change is additive."
+implemented: true
+status: shipped
+surface: ui
+link: /harnesses
+docs: docs/HARNESS-OPS.md
+tags: [ dash, harness, standard, console ]
+date: 2026-11-11
+tests:
+  - .github/scripts/dash-gen/test_harness_registry.py
+  - .github/scripts/dash-gen/test_agent_inventory.py
+scenarios:
+  - verify/scenarios/harnesses.yml
+evidence:
+  - test/evidence/harnesses
+prd: ["FR-NEW:harness-standard", "FR5"]
+prd_new:
+  - key: harness-standard
+    kind: FR
+    text: "The harness inventory must find every workflow that reaches a model, by any route, grade each one against the harness standard declared in _data/fleet.yml harnesses.standard, and name the lever that rebuilds each harness that falls short; the agent-context kit's mention handler must pass that standard."

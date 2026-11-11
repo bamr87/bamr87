@@ -1,15 +1,36 @@
 id: harnesses
-feature: HUB-005
-title: "Harness inventory renders the deployment matrix"
-description: "The /harnesses page renders the inventory from _data/harness_registry.yml — the totals, the attention list and the per-repo table — without sideways scrolling; /harnesses/health renders the trip wires and scorecard."
+feature: [HUB-005, "HUB-NEW:harness-standard"]
+title: "Harness inventory grades every AI workflow against the standard"
+description: "The /harnesses page lists every AI workflow in the fleet from _data/harness_registry.yml — its route to a model, its caps and its verdict against the harness standard — with the rebuild plan grouped by lever and the standard's controls; picking a lever filters the table; the Repos view keeps the per-repo baseline and the kit deploy; nothing scrolls sideways. /harnesses/health renders the trip wires and scorecard."
 viewports: [desktop, mobile]
 ignore_console: ["Failed to load resource", "net::ERR_"]
 steps:
   - goto: /harnesses
   - expect: { status: 200 }
   - wait: { selector: "main table" }
+  - expect: { text: "Rebuild plan" }
+  - expect: { text: "On the standard" }
+  - expect: { text: "The standard" }
+  - expect: { text: "model-pinned" }
   - expect: { no_horizontal_scroll: true }
   - screenshot: harnesses
+  - screenshot: harnesses-full
+    full_page: true
+  - click: "main table button[aria-pressed]"
+  - expect: { url: "lever=" }
+  - expect: { visible: "main button:has-text('clear')" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: harnesses-lever
+    full_page: true
+  - goto: /harnesses?kind=scheduled-agent
+  - wait: { selector: "main table" }
+  - expect: { text: "fleet-pulse.yml" }
+  - expect: { no_horizontal_scroll: true }
+  - goto: /harnesses?tab=repos
+  - wait: { selector: "main table" }
+  - expect: { text: "Deploy the agent-context kit" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: harnesses-repos
   - goto: /harnesses/health
   - expect: { status: 200 }
   - wait: { selector: "main h1" }

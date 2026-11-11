@@ -385,7 +385,7 @@ jobs:
           # files in the tree. No git write verbs, no gh, no network beyond the
           # MCP — publishing the report is the workflow's job below.
           claude_args: >-
-            --model sonnet
+            --model claude-sonnet-5-5
             --max-turns ${{ inputs.max-turns }}
             --max-budget-usd 10
             --mcp-config verify/mcp.json

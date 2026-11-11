@@ -1206,9 +1206,93 @@ harnesses:
 
   # Inventory bounds (API cost + output size).
   inventory:
-    max_workflow_files: 40          # workflow files parsed per repo
+    max_workflow_files: 60          # workflow files parsed per repo; a repo with more is read up to
+                                    # here and flagged `inventory-truncated` (it-journey has 38)
     schedule_limit: 120             # rows in the fleet schedule calendar
   attention_max: 20                 # findings surfaced per run, strongest first
+
+  # The harness standard — what every AI workflow in the fleet is built to.
+  # The baseline above asks whether a repo HAS a harness; this asks whether
+  # each harness is built the way the constitution and the standing rules say.
+  # The inventory grades every harness against it and names the lever that
+  # rebuilds one that falls short (docs/HARNESS-OPS.md, "The harness standard").
+  #
+  # A ROUTE is how a workflow reaches a model. The three `standard: true`
+  # routes carry the fleet's guardrails; the others are hand-rolled and are
+  # rebuilt onto the reusable lane.
+  #
+  # A CONTROL is a fact the scan reads from the workflow file without running
+  # it. `applies` lists the harness kinds it binds; a control removed from this
+  # block is off. The detectors live in harness_registry.py (CONTROL_CHECKS);
+  # an id with no detector is ignored with a warning. Mention handlers are not
+  # held to `kill-switch` or `turn-cap`: they run only when a person asks, the
+  # same exemption `harness.efficacy.kinds.ci-mention` declares.
+  # Changing this block is a gated change (constitution § 12.3).
+  standard:
+    version: 1
+    # Block style on purpose: the console's config editor round-trips this file,
+    # and an aligned flow map (`{ standard: true,  title: … }`) is rewritten by
+    # that round trip, which turns a one-field edit elsewhere into a diff here.
+    routes:
+      claude-code-action:
+        standard: true
+        title: a claude-code-action step
+      ai-lane:
+        standard: true
+        title: the hub's reusable ai-lane.yml workflow
+      claude-run:
+        standard: true
+        title: the hub's claude-run composite action
+      claude-cli:
+        standard: false
+        title: "a bare `claude -p` in a run step"
+      ai-script:
+        standard: false
+        title: a vendored scripts/ai/run.sh
+      other-provider:
+        standard: false
+        title: another provider's API key
+    controls:
+      standard-route:
+        title: reaches the model through a fleet route
+        rule: "AGENTS.md: shared kits and reusable actions; templates/ai-runner"
+        applies: [mention-handler, scheduled-agent, event-agent]
+      model-pinned:
+        title: names an exact model from ai_models.allowed
+        rule: "constitution § 13.3, § 29.1"
+        applies: [mention-handler, scheduled-agent, event-agent]
+      budget-cap:
+        title: passes a per-run dollar ceiling (--max-budget-usd)
+        rule: "AGENTS.md standing rule; constitution § 29.1"
+        applies: [mention-handler, scheduled-agent, event-agent]
+      turn-cap:
+        title: passes a turn cap (--max-turns)
+        rule: "docs/HARNESS.md production readiness 7"
+        applies: [scheduled-agent, event-agent]
+      kill-switch:
+        title: checks a vars.*_ENABLED kill switch before doing work
+        rule: "constitution § 17.1"
+        applies: [scheduled-agent, event-agent]
+      auth-ordered:
+        title: takes its credential in the repo's CLAUDE_AUTH_ORDER
+        rule: "AGENTS.md standing rule; ai_auth in this file"
+        applies: [mention-handler, scheduled-agent, event-agent]
+      trusted-author:
+        title: gates a run a stranger can trigger on its author
+        rule: "bamr87/bamr87#514"
+        applies: [mention-handler, scheduled-agent, event-agent]
+      least-privilege:
+        title: declares top-level permissions, never write-all
+        rule: "bamr87/bamr87#514"
+        applies: [mention-handler, scheduled-agent, event-agent]
+      timeout:
+        title: bounds wall-clock time (timeout-minutes)
+        rule: "docs/HARNESS.md layer 3"
+        applies: [mention-handler, scheduled-agent, event-agent]
+      off-hour-cron:
+        title: no cron fires on the hour
+        rule: "AGENTS.md standing rule; docs/HARNESS-OPS.md schedule map"
+        applies: [scheduled-agent]
 
 # --------------------------------------------------------------------------- #
 # Observability — the THREE LOCAL PLANES and the one front door onto them.

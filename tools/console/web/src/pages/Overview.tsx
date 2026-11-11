@@ -16,6 +16,13 @@ import u from '../styles/utils.module.css';
 /** What acting on a finding means: an operation, or the page that owns the lever. */
 export function leverFor(a: Attention): { op?: string; params?: Record<string, unknown>; page?: string; label: string } | null {
   if (a.kind === 'coverage-gap' && /oauth/i.test(a.summary)) return { op: 'secrets-plan', label: 'Plan rotation' };
+  // A standard-gap finding is one lever's whole group: the kit upgrade is an
+  // operation, every other lever is worked from the rebuild plan.
+  if (a.kind === 'standard-gap') {
+    return a.lever === 'kit-upgrade'
+      ? { op: 'deploy-gaps', params: { upgrade: true }, label: 'Upgrade seeds (dry run)' }
+      : { page: `${to.harnesses()}?lever=${a.lever ?? ''}`, label: 'Open the rebuild plan' };
+  }
   switch (a.kind) {
     case 'coverage-gap': return { op: 'deploy-gaps', label: 'Deploy kit (dry run)' };
     case 'kit-drift':
