@@ -1,9 +1,9 @@
 kit: agent-context
-version: 0.5.0
+version: 0.6.0
 source: bamr87/bamr87 templates/agent-context/
 seeded-by: .github/workflows/fanout.yml (kit standardize or harness; artifacts agent-context, claude, claude-settings, claude-guardrails, claude-agent-auditor) via tools/fanout.sh
-files: CLAUDE.template.md, claude.yml, settings.template.json, quarantine.template.md, agent-auditor.template.md, archive/claude-0.1.0.yml, archive/claude-0.1.0-checkout-v7.yml, archive/claude-0.3.1.yml, archive/claude-0.4.0.yml
-updated: 2026-09-30
+files: CLAUDE.template.md, claude.yml, settings.template.json, quarantine.template.md, agent-auditor.template.md, archive/claude-0.1.0.yml, archive/claude-0.1.0-checkout-v7.yml, archive/claude-0.3.1.yml, archive/claude-0.4.0.yml, archive/claude-0.5.0.yml
+updated: 2026-11-11
 position-amendment: |
   The 0.3.0/0.4.0 position below — "hooks/skills/commands/agents never fan out
   by default; dedicated, explicitly-requested kit artifacts are the sanctioned
@@ -25,6 +25,26 @@ position-amendment: |
   and silently strand it from `--upgrade` — the exact failure the 0.3.1 entry
   below records. Amend the position; leave the stamp alone.
 changelog: |
+  0.6.0 — claude.yml is rebuilt to the harness standard (bamr87/bamr87
+  _data/fleet.yml `harnesses.standard`, docs/HARNESS-OPS.md). The 0.5.0 shape
+  failed three of its controls in every one of the 36 untouched fleet copies,
+  while the hub's own copy had been hand-edited to pass two of them and so no
+  longer matched the kit it was stamped with:
+  (1) a trusted-author gate — the job runs only when the @claude text was
+  written by an OWNER, MEMBER or COLLABORATOR, so a stranger's comment on a
+  public repo no longer starts a runner (bamr87/bamr87#514);
+  (2) an exact model — `--model claude-sonnet-5-5`, from `ai_models.allowed`,
+  instead of the action's default of the day (constitution § 13.3, § 29.1);
+  (3) a dollar ceiling — `--max-budget-usd 20`, the fleet's
+  `budget.call_sites` `claude.yml:claude` (a circuit breaker, not a budget);
+  (4) the claude-auth step is pinned at the hub's floating major (`@v2`), not
+  `@main`, so a merge in the hub no longer changes every repo's handler at
+  once (docs/WORKFLOW-VERSIONING.md).
+  The hub's own .github/workflows/claude.yml is now the rendered kit copy, and
+  test_harness_registry.py holds the two byte-identical and the template
+  conformant, so the kit cannot fall behind the standard it is graded on.
+  The outgoing shape is archived as archive/claude-0.5.0.yml BEFORE this edit,
+  so `fanout.sh --upgrade` reaches every untouched 0.5.0 copy.
   0.5.0 — claude.yml takes its Claude credential in the order the repo's
   CLAUDE_AUTH_ORDER variable names (ai_auth: in bamr87/bamr87 _data/fleet.yml,
   projected by `dash config auth sync --apply` and the weekly rotation's
