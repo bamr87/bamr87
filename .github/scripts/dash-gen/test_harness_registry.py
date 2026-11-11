@@ -20,6 +20,15 @@ so a wrong grade becomes a wrong PR or a false alarm):
     token-rotation's lane and must never become a deploy target;
   * throughput and budget checks compare against fleet.yml caps with the
     module defaults as fallback, and trends survive missing ledgers.
+  * a harness is anything that reaches a model, by ANY route — the inventory
+    once knew only the claude-code-action step and missed 56 of 117 workflows;
+  * the standard grades stored facts, so a reused scan regrades offline, a row
+    from before the facts existed is left ungraded, and a control that cannot
+    bind (no stranger can trigger it, a person starts it) is not counted;
+  * `upgradeable` is the fan-out's own byte comparison, not the stamp — a
+    stamped copy edited by hand is never offered to the upgrade lever;
+  * the kit's mention handler passes the standard it is graded on, and the
+    hub's own copy is that kit, byte for byte.
 
 Deliberately dependency-light — no network, no gh, no pytest. Needs only PyYAML:
 
@@ -607,6 +616,451 @@ def test_trends_price_actions_from_the_billing_meter_when_present():
     act["billing"] = {"error": "403 scope"}
     t = hr.build_trends({}, act, CFG)["actions_minutes"]
     assert "source" not in t and t["projected_monthly"] > 200000
+
+
+# --------------------------------------------------------------------------- #
+# routes — how a workflow reaches a model
+# --------------------------------------------------------------------------- #
+LANE_CALLER = """\
+# kit: ai-runner v0.2.0 — a caller of the fleet's reusable AI lane.
+name: evolve
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  lane:
+    uses: bamr87/bamr87/.github/workflows/ai-lane.yml@main
+    with:
+      lane: evolve
+      switch: EVOLVE_ENABLED     # repo VARIABLE; the lane idles until it is "true"
+      agent: builder
+      prompt: "Do one unit of work."
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+"""
+
+RUN_ACTION_WF = """\
+name: Quest forge
+on:
+  issue_comment:
+    types: [created]
+permissions:
+  contents: read
+jobs:
+  forge:
+    if: vars.QUEST_FORGE_ENABLED == 'true' && github.event.comment.author_association == 'OWNER'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: bamr87/bamr87/.github/actions/claude-run@main
+        with:
+          prompt: "Forge the quest."
+          model: claude-sonnet-5-5
+          max-turns: "40"
+          max-budget-usd: "6"
+"""
+
+CLI_WF = """\
+name: Content review
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: claude -p "review this" --model claude-sonnet-5-5 --max-turns 30
+"""
+
+OTHER_PROVIDER_WF = """\
+name: Link guardian
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+jobs:
+  links:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: python3 scripts/link_report.py
+"""
+
+PROSE_ONLY_WF = """\
+# This job used to call anthropics/claude-code-action@v1); it now only lints.
+# Run it by hand with: claude -p "lint"
+name: Lint
+on: [push]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - run: make lint
+"""
+
+STANDARD_LOOP = """\
+name: Doctor
+on:
+  schedule:
+    - cron: '37 5 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  doctor:
+    if: vars.DOCTOR_ENABLED != 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - id: claude-auth
+        uses: bamr87/bamr87/.github/actions/claude-auth@v2
+        with:
+          order: ${{ vars.CLAUDE_AUTH_ORDER }}
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
+          claude_args: >-
+            --model claude-opus-5-5
+            --max-turns 240
+            --max-budget-usd 40
+"""
+
+
+def graded(text: str, path: str = ".github/workflows/x.yml", cfg: dict | None = None,
+           repo: str = "alpha") -> dict:
+    """Classify a workflow and grade it, the way scan + finalize do."""
+    cfg = cfg or CFG
+    info = hr.classify_workflow(path, text)
+    assert info["ai"], "fixture is not a harness"
+    row = hr.harness_row(repo, info, text, "0.6.0", hr.kit_shapes("0.6.0", repo))
+    row["standard"] = hr.grade_harness(row, cfg)
+    return row
+
+
+def test_every_route_to_a_model_is_a_harness():
+    """The marker used to be the claude-code-action step alone. Each of these
+    spends on a model and each was invisible."""
+    for text, route in ((LANE_CALLER, "ai-lane"), (RUN_ACTION_WF, "claude-run"),
+                        (CLI_WF, "claude-cli"), (OTHER_PROVIDER_WF, "other-provider"),
+                        (MENTION_WF, "claude-code-action")):
+        info = hr.classify_workflow(".github/workflows/x.yml", text)
+        assert info["ai"] and info["route"] == route, (route, info["route"])
+        assert info["routes"] == [route]
+
+
+def test_a_workflow_that_only_mentions_an_action_is_not_a_harness():
+    """Routes are matched with comment lines removed: prose naming the action
+    counted as a harness, and recorded `v1);` as its ref."""
+    info = hr.classify_workflow(".github/workflows/lint.yml", PROSE_ONLY_WF)
+    assert info["ai"] is False and info["route"] is None
+    ref = hr.ACTION_REF_RX.search("uses: anthropics/claude-code-action@v1);")
+    assert ref.group(1) == "v1"
+
+
+def test_the_lane_supplies_what_its_caller_does_not_pass():
+    """An ai-lane caller names its switch as an input and passes no cap, model
+    or timeout: the lane carries them. Read from the lane's own file, so the
+    inventory cannot disagree with it."""
+    h = graded(LANE_CALLER)
+    assert h["switch"] == "EVOLVE_ENABLED"
+    assert h["max_budget_usd"] == hr.route_defaults()["ai-lane"]["max_budget_usd"]
+    assert h["model"] is None and h["model_source"] == "route"
+    assert h["auth"] == "ordered" and h["timeout"] is True
+    # everything but the turn cap, which the lane leaves to the CLI default
+    assert h["standard"]["missing"] == ["turn-cap"]
+
+
+def test_claude_run_reads_its_inputs():
+    h = graded(RUN_ACTION_WF)
+    assert h["route"] == "claude-run" and h["model"] == "claude-sonnet-5-5"
+    assert h["max_turns"] == 40 and h["max_budget_usd"] == 6.0
+    assert h["switch"] == "QUEST_FORGE_ENABLED" and h["author_gate"] is True
+    assert h["standard"]["conformant"], h["standard"]
+
+
+def test_a_hand_rolled_route_is_off_the_standard():
+    cli = graded(CLI_WF)
+    assert cli["auth"] == "oauth-first"
+    assert "standard-route" in cli["standard"]["missing"]
+    assert "budget-cap" in cli["standard"]["missing"]
+    # a pull_request trigger is not one a stranger's comment can fire
+    assert cli["author_gate"] is None
+    other = graded(OTHER_PROVIDER_WF)
+    assert other["auth"] == "api-key"
+    assert {"standard-route", "model-pinned", "off-hour-cron"} <= set(other["standard"]["missing"])
+    assert "auth-ordered" not in other["standard"]["missing"]  # not a Claude credential
+
+
+# --------------------------------------------------------------------------- #
+# the standard — controls, verdicts, levers
+# --------------------------------------------------------------------------- #
+def test_a_loop_built_to_the_standard_passes_every_control():
+    h = graded(STANDARD_LOOP)
+    st = h["standard"]
+    assert st["conformant"] and st["missing"] == [] and st["met"] == st["of"] == 9, st
+
+
+def test_an_alias_is_not_a_pinned_model():
+    """`--model opus` reads as a model, and moves when the alias does."""
+    assert hr.is_pinned("claude-opus-5-5", []) and not hr.is_pinned("opus", [])
+    allow = dict(CFG, allowed_models=["claude-opus-5-5", "claude-sonnet-5-5"])
+    assert hr.is_pinned("claude-opus-5-5", allow["allowed_models"])
+    assert not hr.is_pinned("claude-opus-4-1", allow["allowed_models"])  # exact, but not allowed
+    alias = graded(STANDARD_LOOP.replace("--model claude-opus-5-5", "--model opus"), cfg=allow)
+    assert alias["standard"]["missing"] == ["model-pinned"]
+
+
+def test_a_model_decided_at_run_time_is_not_graded():
+    """A planner or a caller hands it over; the file cannot say which."""
+    h = graded(STANDARD_LOOP.replace("--model claude-opus-5-5",
+                                     "--model ${{ needs.plan.outputs.model }}"))
+    assert h["model"] is None and h["model_source"] == "expression"
+    assert h["standard"]["conformant"] and h["standard"]["of"] == 8
+
+
+def test_controls_that_cannot_bind_are_not_counted():
+    # dispatch-only: a kill switch is bypassed by a manual run by design
+    manual = STANDARD_LOOP.replace("  schedule:\n    - cron: '37 5 * * *'\n", "") \
+                          .replace("    if: vars.DOCTOR_ENABLED != 'false'\n", "")
+    h = graded(manual)
+    assert h["kind"] == "event-agent" and h["switch"] is None
+    assert h["standard"]["conformant"], h["standard"]
+    # the same workflow on an event has a standing run to stop, so it needs one
+    evented = manual.replace("  workflow_dispatch:\n", "  push:\n")
+    assert graded(evented)["standard"]["missing"] == ["kill-switch"]
+    # a called workflow runs under its caller's permissions
+    called = manual.replace("  workflow_dispatch:\n", "  workflow_call:\n") \
+                   .replace("permissions:\n  contents: read\n", "")
+    assert "least-privilege" not in graded(called)["standard"]["missing"]
+    assert "least-privilege" in graded(evented.replace(
+        "permissions:\n  contents: read\n", ""))["standard"]["missing"]
+
+
+def test_a_mention_from_a_stranger_needs_an_author_gate():
+    h = graded(MENTION_WF, path=".github/workflows/claude.yml")
+    assert h["author_gate"] is False
+    assert "trusted-author" in h["standard"]["missing"]
+
+
+def test_the_contract_turns_controls_off_and_ignores_unknown_ones():
+    with tempfile.TemporaryDirectory() as tmp:
+        fleet = Path(tmp) / "fleet.yml"
+        fleet.write_text(yaml.safe_dump({
+            "hub": {"repo": "bamr87/bamr87", "owners": ["bamr87", "bash-365"]},
+            "ai_models": {"allowed": {"anthropic": ["claude-opus-5-5"]}},
+            "harnesses": {"standard": {"version": 2, "controls": {
+                "budget-cap": {"applies": ["scheduled-agent"]},
+                "no-such-control": {"applies": ["scheduled-agent"]},
+            }}},
+        }))
+        cfg = hr.load_config(fleet)
+    assert list(cfg["standard"]["controls"]) == ["budget-cap"]
+    assert cfg["standard"]["version"] == 2
+    assert cfg["standard"]["controls"]["budget-cap"]["title"]  # title kept from the defaults
+    assert cfg["owners"] == ["bamr87", "bash-365"]
+    assert cfg["allowed_models"] == ["claude-opus-5-5"]
+    bare = graded(SCHEDULED_WF, cfg=cfg)  # on the hour, an alias, no switch — none of it graded
+    assert bare["standard"] == {"conformant": True, "met": 1, "of": 1, "missing": []}
+
+
+def test_rows_from_before_the_standard_are_left_ungraded():
+    """A reused scan from before `route` was recorded has nothing to grade."""
+    old = harness_row()
+    assert hr.grade_harness(old, CFG) is None
+    assert hr.choose_lever(dict(old, standard=None), repo_row(), CFG) is None
+
+
+# --------------------------------------------------------------------------- #
+# the kit — what the fan-out will and will not replace
+# --------------------------------------------------------------------------- #
+def kit_version() -> str:
+    return hr.hub_kit_version()
+
+
+def test_the_kit_handler_passes_the_standard_it_is_graded_on():
+    """The 0.5.0 template failed three controls in every untouched copy. The
+    kit is graded like any other harness, against the real contract."""
+    cfg = hr.load_config(hr.FLEET_DEFAULT)
+    text = hr.KIT_DIR.joinpath("claude.yml").read_text().replace("__KIT_VERSION__", kit_version())
+    h = graded(text, path=hr.KIT_HANDLER_PATH, cfg=cfg)
+    assert h["kind"] == "mention-handler" and h["kit"] == kit_version()
+    assert h["standard"]["conformant"], f"kit template off the standard: {h['standard']}"
+    assert h["model"] in cfg["allowed_models"]
+
+
+def test_the_hubs_own_handler_is_the_kit_copy():
+    """It carried the kit's stamp and hand edits the kit did not have, so the
+    two drifted for months. One file, rendered."""
+    rendered = hr.KIT_DIR.joinpath("claude.yml").read_text().replace(
+        "__KIT_VERSION__", kit_version())
+    hub = (hr.REPO_ROOT / hr.KIT_HANDLER_PATH).read_text()
+    assert hub == rendered, "regenerate: sed 's/__KIT_VERSION__/<ver>/' templates/agent-context/claude.yml"
+
+
+def test_the_outgoing_kit_shape_is_archived():
+    """Version discipline: every earlier shape must be in archive/, or the
+    upgrade stops reaching the copies seeded from it."""
+    shapes = hr.kit_shapes(kit_version())
+    assert "current" in shapes.values()
+    assert "claude-0.5.0.yml" in shapes.values() and "claude-0.4.0.yml" in shapes.values()
+    assert len(shapes) == len(set(shapes.values()))  # no two shapes collapse
+
+
+def test_pristine_is_a_byte_comparison_not_the_stamp():
+    shapes = hr.kit_shapes(kit_version())
+    old_shape = next(text for text, label in shapes.items() if label == "claude-0.5.0.yml")
+    assert hr.kit_pristine(hr.KIT_HANDLER_PATH, old_shape, shapes) is True
+    assert hr.kit_pristine(hr.KIT_HANDLER_PATH, old_shape + "# mine\n", shapes) is False
+    # not the kit's artifact, or no kit to compare with: unknown, never a guess
+    assert hr.kit_pristine(".github/workflows/other.yml", old_shape, shapes) is None
+    assert hr.kit_pristine(hr.KIT_HANDLER_PATH, old_shape, {}) is None
+
+
+def test_upgradeable_means_the_fanout_will_replace_it():
+    assert hr.upgradeable({"kit_status": "upgradeable", "kit_pristine": True})
+    # stamped behind, but edited by hand: the fan-out leaves it alone for good
+    assert not hr.upgradeable({"kit_status": "upgradeable", "kit_pristine": False})
+    # a scan from before the byte comparison existed: the stamp is all there is
+    assert hr.upgradeable({"kit_status": "upgradeable"})
+    # an unstamped 0.1.0 seed never had a stamp, and is still a machine seed
+    assert hr.upgradeable({"kit_status": "unstamped", "kit_pristine": True})
+    assert not hr.upgradeable({"kit_status": "current", "kit_pristine": True})
+
+
+def test_an_edited_stamped_copy_is_not_a_fanout_target():
+    """bashcrawl: stamped 0.4.0, edited by hand. Its kit-drift finding named a
+    lever that could never close it."""
+    edited = harness_row(kit="0.4.0", kit_status="upgradeable", kit_pristine=False)
+    seed = harness_row(kit="0.4.0", kit_status="upgradeable", kit_pristine=True)
+    repos = [repo_row(name="edited", harnesses=[edited]), repo_row(name="seed", harnesses=[seed])]
+    out = hr.finalize(repos, CFG, "0.6.0", {}, {}, "reused", None, NOW)
+    assert out["totals"]["kit_upgradeable"] == 1
+    drift = [i["repo"] for i in out["attention"] if i["kind"] == "kit-drift"]
+    assert drift == ["seed"]
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "harness_registry.yml"
+        path.write_text(yaml.safe_dump(out))
+        assert hr.fanout_gaps(path) == ["seed"]
+
+
+def test_each_lever_is_the_action_that_rebuilds_the_harness():
+    def lever(text, path=".github/workflows/x.yml", repo=None, **row_kw):
+        h = graded(text, path=path)
+        h.update(row_kw)
+        return hr.choose_lever(h, repo or repo_row(), CFG)
+
+    assert lever(STANDARD_LOOP) == "none"
+    assert lever(STANDARD_LOOP, repo=repo_row(archived=True)) == "retire"
+    assert lever(STANDARD_LOOP, repo=repo_row(status="archived")) == "retire"
+    assert lever(SCHEDULED_WF) == "lane-adopt"                      # bespoke loop
+    assert lever(CLI_WF) == "lane-adopt"                            # hand-rolled route
+    assert lever(LANE_CALLER) == "fix-controls"                     # on a fleet route already
+    assert lever(FACTORY_LINE) == "factory-recompile"               # never edited by hand
+    assert lever(SCHEDULED_WF, repo=repo_row(name="bamr87", nwo=CFG["hub_nwo"])) == "hub-fix"
+    assert lever(MENTION_WF, path=".github/workflows/steward.yml") == "kit-adopt"
+    # the kit's own artifact: a machine seed is upgraded, an edited copy re-seeded
+    kit = hr.KIT_HANDLER_PATH
+    assert lever(MENTION_WF, path=kit, kit_status="upgradeable", kit_pristine=True) == "kit-upgrade"
+    assert lever(MENTION_WF, path=kit, kit_status="upgradeable", kit_pristine=False) == "kit-adopt"
+    assert set(hr.LEVERS) >= {"none", "retire", "kit-upgrade", "kit-adopt", "lane-adopt",
+                              "fix-controls", "factory-recompile", "hub-fix"}
+    assert all(spec["title"] and spec["action"] for spec in hr.LEVERS.values())
+
+
+# --------------------------------------------------------------------------- #
+# assembly — the catalog, ownership, retired repos, truncation
+# --------------------------------------------------------------------------- #
+NOW = dt.datetime(2026, 11, 11, 6, 0, tzinfo=dt.timezone.utc)
+
+
+def scanned(name: str, text: str, path: str = ".github/workflows/x.yml", **kw) -> dict:
+    info = hr.classify_workflow(path, text)
+    row = hr.harness_row(name, info, text, "0.6.0", hr.kit_shapes("0.6.0", name))
+    return repo_row(name=name, harnesses=[row], **kw)
+
+
+def test_the_catalog_indexes_live_harnesses_by_kind_route_and_lever():
+    repos = [
+        scanned("good", STANDARD_LOOP),
+        scanned("bespoke", SCHEDULED_WF),
+        scanned("lane", LANE_CALLER),
+        scanned("gone", SCHEDULED_WF, archived=True),
+    ]
+    out = hr.finalize(repos, CFG, "0.6.0", {}, {}, "live", "now", NOW)
+    cat = out["catalog"]
+    assert cat["harnesses"] == 3 and cat["graded"] == 3 and cat["conformant"] == 1
+    assert cat["retired"] == 1
+    assert cat["by_kind"]["scheduled-agent"] == {"harnesses": 3, "conformant": 1}
+    assert cat["by_route"] == {"claude-code-action": 2, "ai-lane": 1}
+    assert cat["by_lever"] == {"none": 1, "retire": 1, "lane-adopt": 1, "fix-controls": 1}
+    assert cat["missing_by_control"]["turn-cap"] == 1  # the lane caller
+    assert set(cat["levers"]) == set(hr.LEVERS)
+    # every row carries the id _data/agents.yml gives the same workflow
+    ids = {h["id"] for r in out["repos"] for h in r["harnesses"]}
+    assert ids == {"ci:good:x", "ci:bespoke:x", "ci:lane:x", "ci:gone:x"}
+    # the contract echoes the standard it graded against (additive: v1 holds)
+    assert out["schema"] == "harness-registry/v1"
+    assert set(out["contract"]["standard"]) == {"version", "allowed_models", "routes", "controls"}
+    t = out["totals"]
+    assert (t["harnesses_graded"], t["harnesses_conformant"], t["harnesses_retired"]) == (3, 1, 1)
+    # one finding per lever, not one per harness
+    gaps = [i for i in out["attention"] if i["kind"] == "standard-gap"]
+    assert len(gaps) == 3 and all(i.get("action") for i in gaps)
+
+
+def test_an_archived_repo_fires_nothing_and_counts_for_nothing():
+    """ai-seed: archived, five crons still in its files. They were counted as
+    scheduled agents and as throughput the fleet never used."""
+    live = scanned("live", STANDARD_LOOP)
+    dead = scanned("dead", SCHEDULED_WF, archived=True)
+    dead["harnesses"][0].update(last_conclusion="failure")
+    out = hr.finalize([live, dead], CFG, "0.6.0", {}, {}, "live", "now", NOW)
+    assert out["totals"]["ai_workflows"] == 1 and out["totals"]["scheduled_agents"] == 1
+    assert out["throughput"]["est_scheduled_ai_per_day"] == 1.0
+    by_repo = {r["repo"]: r for r in out["repos"]}
+    assert by_repo["dead"]["est_scheduled_ai_per_day"] == 0.0
+    assert by_repo["dead"]["harnesses"][0]["lever"] == "retire"
+    kinds = {(i["kind"], i.get("repo")) for i in out["attention"]}
+    assert ("harness-failing", "dead") not in kinds and ("switch-missing", "dead") not in kinds
+
+
+def test_ownership_is_the_fleets_owner_list_not_one_account():
+    """An organization the fleet owns was `external`, so its repos were never
+    scanned — bash-365.com's six content loops among them. The list is the one
+    tools/fanout.sh writes to."""
+    cfg = dict(CFG, owners=["bamr87", "bash-365"])
+    assert not hr.is_external("bash-365/bash-365.com", cfg)
+    assert hr.is_external("microsoft/skills", cfg)
+    assert not hr.is_external(None, cfg)
+    assert hr.is_external("bash-365/bash-365.com", CFG)  # no owner list: the hub's account only
+    # a reused scan taken under the old rule is re-stamped, and stays unscanned
+    stale = repo_row(name="bash-365.com", nwo="bash-365/bash-365.com", external=True, scanned=False)
+    out = hr.finalize([stale], cfg, "0.6.0", {}, {}, "reused", None, NOW)
+    row = out["repos"][0]
+    assert row["external"] is False and row["deployable"] is True
+    assert row["coverage"]["exempt"] is True  # unscanned is excused, not failed
+
+
+def test_a_truncated_repo_says_so():
+    """Workflow files past the cap were dropped without a trace."""
+    row = scanned("big", STANDARD_LOOP, workflows_total=60, workflows_listed=72,
+                  workflows_truncated=True)
+    out = hr.finalize([row], CFG, "0.6.0", {}, {}, "live", "now", NOW)
+    item = next(i for i in out["attention"] if i["kind"] == "inventory-truncated")
+    assert item["repo"] == "big" and "60 of 72" in item["summary"]
+    assert out["totals"]["repos_truncated"] == 1
+
 
 
 # --------------------------------------------------------------------------- #

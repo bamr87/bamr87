@@ -30,6 +30,16 @@ one place that answers, for ~40 repos at once:
              GITFACTORY` header + blueprint path/hash), and which scheduled
              agents are gated on a `vars.*_ENABLED` kill switch — the
              `gate` pattern that lets a line be disarmed without a commit.
+  STANDARD   every harness graded against the harness standard
+             (`harnesses.standard` in _data/fleet.yml): the ROUTE it reaches a
+             model by — a claude-code-action step, the hub's claude-run action
+             or ai-lane workflow, a bare `claude -p`, a vendored runner, or
+             another provider's key — and the controls the constitution asks
+             of it (pinned model, dollar and turn caps, kill switch, ordered
+             auth, trusted-author gate, least privilege, timeout, off-the-hour
+             cron). Each harness carries what it is missing and the LEVER that
+             rebuilds it: a kit upgrade, a kit re-seed, a move onto the
+             reusable lane, a blueprint recompile, a hub fix, or retirement.
 
 This file is a CONSUMED INTERFACE: GitFactory's Fleet Studio (gitorio
 specs/012-fleet-studio) reads the committed output as its fleet roster and
@@ -82,10 +92,53 @@ ROTATION_DEFAULT = REPO_ROOT / "_data" / "token_rotation.yml"
 OUT_DEFAULT = REPO_ROOT / "_data" / "harness_registry.yml"
 KIT_VERSION_FILE = REPO_ROOT / "templates" / "agent-context" / "VERSION"
 
+KIT_DIR = REPO_ROOT / "templates" / "agent-context"
+AI_LANE_FILE = REPO_ROOT / ".github" / "workflows" / "ai-lane.yml"
+CLAUDE_RUN_FILE = REPO_ROOT / ".github" / "actions" / "claude-run" / "action.yml"
+
 CLAUDE_ACTION_MARKER = "anthropics/claude-code-action"
-ACTION_REF_RX = re.compile(r"anthropics/claude-code-action@(\S+)")
+# The ref stops at the first character a ref cannot hold, so a workflow that
+# only NAMES the action in prose ("…claude-code-action@v1);") no longer records
+# the punctuation as its ref.
+ACTION_REF_RX = re.compile(r"anthropics/claude-code-action@([\w.\-/]+)")
 MODEL_RX = re.compile(r"--model\s+([\w.@-]+)")
 MAX_TURNS_RX = re.compile(r"--max-turns\s+(\d+)")
+# A ROUTE is how a workflow reaches a model. The inventory used to know one
+# (the claude-code-action step) and so missed every workflow built on the
+# hub's own claude-run action and ai-lane workflow, every bare `claude -p`,
+# and every other provider — 45 of the fleet's AI workflows on 2026-11-11.
+# Matched against the file with its comment lines removed, in this order; the
+# first hit names the harness, and all hits are kept in `routes`.
+AI_ROUTES: list[tuple[str, re.Pattern]] = [
+    ("claude-code-action", re.compile(r"uses:\s*['\"]?anthropics/claude-code-action@")),
+    ("ai-lane", re.compile(r"uses:\s*['\"]?\S*\.github/workflows/ai-lane\.ya?ml\b")),
+    ("claude-run", re.compile(r"uses:\s*['\"]?\S*\.github/actions/claude-run\b")),
+    ("claude-cli", re.compile(r"(?<![\w./-])claude\s+(?:-p|--print)\b")),
+    ("ai-script", re.compile(r"scripts/ai/run\.sh\b")),
+    ("other-provider", re.compile(
+        r"secrets\.(?:OPENAI_API_KEY|XAI_API_KEY|GROK_API_KEY|GEMINI_API_KEY|GOOGLE_API_KEY)\b")),
+]
+ROUTE_IDS = [rid for rid, _ in AI_ROUTES]
+# The two hub routes are called with inputs, not CLI flags.
+# A model handed over as an expression (`--model ${{ needs.plan.outputs.model }}`,
+# `model: ${{ inputs.model }}`) is decided at run time, by a planner or a
+# caller; the file cannot say which, so the standard does not grade it.
+MODEL_EXPR_RX = re.compile(r"(?:--model\s+|^\s*model:\s*['\"]?)\$\{\{", re.M)
+INPUT_MODEL_RX = re.compile(r"^\s*model:\s*['\"]?([\w.@-]+)['\"]?\s*(?:#.*)?$", re.M)
+INPUT_TURNS_RX = re.compile(r"^\s*max-turns:\s*['\"]?(\d+)", re.M)
+INPUT_SWITCH_RX = re.compile(r"^\s*switch:\s*['\"]?([A-Z][A-Z0-9_]*_ENABLED)\b", re.M)
+COMMENT_LINE_RX = re.compile(r"^[ \t]*#.*$", re.M)
+# "Who may start this run": an author_association test, or an explicit actor
+# comparison. Either keeps a stranger's comment from spending the credential.
+AUTHOR_GATE_RX = re.compile(
+    r"author_association|github\.(?:actor|triggering_actor)\s*[!=]=|"
+    r"github\.event\.(?:sender|comment\.user|issue\.user|review\.user|pull_request\.user)"
+    r"\.login\s*[!=]=")
+TIMEOUT_RX = re.compile(r"^\s*timeout-minutes:\s*\S", re.M)
+# Triggers a stranger can fire on a public repo.
+UNTRUSTED_TRIGGERS = {"issue_comment", "issues", "pull_request_review",
+                      "pull_request_review_comment", "pull_request_target", "discussion",
+                      "discussion_comment"}
 # The per-invocation dollar ceiling, as a `claude_args` flag or a claude-run
 # `max-budget-usd:` input. Recorded beside max_turns because turns bound
 # iterations, not spend (_data/fleet.yml `budget:`).
@@ -135,6 +188,104 @@ DEFAULT_INVENTORY = {
 }
 DEFAULT_ATTENTION_MAX = 20
 
+# The harness standard's fallbacks (the contract is `harnesses.standard` in
+# _data/fleet.yml). A control is a fact the scan can read from a workflow file
+# without running it; `applies` names the harness kinds it binds, and `rule` is
+# where the requirement comes from. The DETECTORS live here (CONTROL_CHECKS);
+# which controls bind which kinds is configuration.
+ALL_KINDS = ["mention-handler", "scheduled-agent", "event-agent"]
+DEFAULT_STANDARD = {
+    "version": 1,
+    "routes": {
+        "claude-code-action": {"standard": True, "title": "a claude-code-action step"},
+        "ai-lane": {"standard": True, "title": "the hub's reusable ai-lane.yml workflow"},
+        "claude-run": {"standard": True, "title": "the hub's claude-run composite action"},
+        "claude-cli": {"standard": False, "title": "a bare `claude -p` in a run step"},
+        "ai-script": {"standard": False, "title": "a vendored scripts/ai/run.sh"},
+        "other-provider": {"standard": False, "title": "another provider's API key"},
+    },
+    "controls": {
+        "standard-route": {
+            "title": "reaches the model through a fleet route",
+            "rule": "AGENTS.md: shared kits and reusable actions; templates/ai-runner",
+            "applies": list(ALL_KINDS)},
+        "model-pinned": {
+            "title": "names an exact model from ai_models.allowed",
+            "rule": "constitution § 13.3, § 29.1",
+            "applies": list(ALL_KINDS)},
+        "budget-cap": {
+            "title": "passes a per-run dollar ceiling (--max-budget-usd)",
+            "rule": "AGENTS.md standing rule; constitution § 29.1",
+            "applies": list(ALL_KINDS)},
+        "turn-cap": {
+            "title": "passes a turn cap (--max-turns)",
+            "rule": "docs/HARNESS.md production readiness 7",
+            "applies": ["scheduled-agent", "event-agent"]},
+        "kill-switch": {
+            "title": "checks a vars.*_ENABLED kill switch before doing work",
+            "rule": "constitution § 17.1",
+            "applies": ["scheduled-agent", "event-agent"]},
+        "auth-ordered": {
+            "title": "takes its credential in the repo's CLAUDE_AUTH_ORDER",
+            "rule": "AGENTS.md standing rule; _data/fleet.yml ai_auth",
+            "applies": list(ALL_KINDS)},
+        "trusted-author": {
+            "title": "gates a run a stranger can trigger on its author",
+            "rule": "bamr87/bamr87#514",
+            "applies": list(ALL_KINDS)},
+        "least-privilege": {
+            "title": "declares top-level permissions, never write-all",
+            "rule": "bamr87/bamr87#514",
+            "applies": list(ALL_KINDS)},
+        "timeout": {
+            "title": "bounds wall-clock time (timeout-minutes)",
+            "rule": "docs/HARNESS.md layer 3",
+            "applies": list(ALL_KINDS)},
+        "off-hour-cron": {
+            "title": "no cron fires on the hour",
+            "rule": "AGENTS.md standing rule; docs/HARNESS-OPS.md schedule map",
+            "applies": ["scheduled-agent"]},
+    },
+}
+
+# The lever that rebuilds a harness, in the order `choose_lever` tries them.
+# Every one is a pull request or a human decision; none is an auto-write.
+LEVERS = {
+    "none": {
+        "title": "On the standard",
+        "action": "nothing to do"},
+    "retire": {
+        "title": "Retire",
+        "action": "the repo is archived, so the workflow can never run: delete it when the "
+                  "repo is next unarchived, and stop counting it"},
+    "kit-upgrade": {
+        "title": "Upgrade from the kit",
+        "action": "dispatch fanout.yml (kit: harness) with upgrade=true, or `tools/dash "
+                  "harnesses deploy --gaps --upgrade` — a byte-identical machine seed is "
+                  "replaced by the current kit copy in one PR"},
+    "kit-adopt": {
+        "title": "Re-seed from the kit",
+        "action": "a hand-written or hand-modified mention handler: replace it with "
+                  "templates/agent-context/claude.yml in a PR in its own repo (the fan-out "
+                  "never overwrites a modified copy)"},
+    "lane-adopt": {
+        "title": "Rebuild on the reusable lane",
+        "action": "a bespoke agent workflow: rebuild it as a caller of the hub's ai-lane.yml "
+                  "(templates/ai-runner/ai-lane.template.yml), which carries the switch, the "
+                  "caps, the ordered credential and the timeout"},
+    "fix-controls": {
+        "title": "Add the missing controls",
+        "action": "already on a fleet route: add the inputs it does not pass yet (see "
+                  "`standard.missing`) in a PR in its own repo"},
+    "factory-recompile": {
+        "title": "Recompile the blueprint",
+        "action": "a GitFactory line: change the blueprint in the studio and recompile; the "
+                  "compiled workflow is never edited by hand"},
+    "hub-fix": {
+        "title": "Fix in the hub",
+        "action": "the hub's own workflow: a pull request in bamr87/bamr87"},
+}
+
 
 # --------------------------------------------------------------------------- #
 # config
@@ -150,11 +301,50 @@ def load_yaml(path: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def load_standard(raw) -> dict:
+    """The harness standard in force: `harnesses.standard` over the module
+    defaults. A control the contract does not list is OFF (that is how one is
+    retired); a control id with no detector here is ignored, loudly."""
+    raw = raw if isinstance(raw, dict) else {}
+    routes = {rid: dict(spec) for rid, spec in DEFAULT_STANDARD["routes"].items()}
+    for rid, spec in (raw.get("routes") or {}).items():
+        if rid in routes and isinstance(spec, dict):
+            routes[rid].update({k: spec[k] for k in ("standard", "title") if k in spec})
+    listed = raw.get("controls")
+    controls: dict = {}
+    if isinstance(listed, dict):
+        for cid, spec in listed.items():
+            if cid not in DEFAULT_STANDARD["controls"]:
+                sys.stderr.write(f"harnesses.standard: unknown control '{cid}' ignored "
+                                 "(no detector in harness_registry.py)\n")
+                continue
+            base = dict(DEFAULT_STANDARD["controls"][cid])
+            if isinstance(spec, dict):
+                base.update({k: spec[k] for k in ("title", "rule") if spec.get(k)})
+                if isinstance(spec.get("applies"), list):
+                    base["applies"] = [k for k in spec["applies"] if k in ALL_KINDS]
+            controls[cid] = base
+    else:
+        controls = {cid: dict(spec) for cid, spec in DEFAULT_STANDARD["controls"].items()}
+    return {"version": raw.get("version", DEFAULT_STANDARD["version"]),
+            "routes": routes, "controls": controls}
+
+
 def load_config(fleet_path: Path) -> dict:
     fleet = load_yaml(fleet_path)
     cfg = fleet.get("harnesses") or {}
+    hub = fleet.get("hub") or {}
+    hub_nwo = hub.get("repo") or "bamr87/bamr87"
+    # The account and organizations whose repos are the fleet's own — the same
+    # list tools/fanout.sh writes to. A repo outside it is an external mirror.
+    owners = [str(o) for o in (hub.get("owners") or []) if o] or [hub_nwo.split("/", 1)[0]]
+    allowed = (fleet.get("ai_models") or {}).get("allowed") or {}
+    models = sorted({str(m) for group in allowed.values() for m in (group or [])}
+                    if isinstance(allowed, dict) else [])
     return {
-        "hub_nwo": (fleet.get("hub") or {}).get("repo") or "bamr87/bamr87",
+        "hub_nwo": hub_nwo,
+        "owners": owners,
+        "allowed_models": models,
         "kit": cfg.get("kit", "agent-context"),
         "baseline": {**DEFAULT_BASELINE, **(cfg.get("baseline") or {})},
         "exempt": list(cfg.get("exempt") or []),
@@ -162,6 +352,7 @@ def load_config(fleet_path: Path) -> dict:
         "budget": {**DEFAULT_BUDGET, **(cfg.get("budget") or {})},
         "inventory": {**DEFAULT_INVENTORY, **(cfg.get("inventory") or {})},
         "attention_max": int(cfg.get("attention_max") or DEFAULT_ATTENTION_MAX),
+        "standard": load_standard(cfg.get("standard")),
     }
 
 
@@ -195,6 +386,96 @@ def kit_status(stamp: str | None, hub_version: str | None) -> str:
     if a == b:
         return "current"
     return "upgradeable" if a < b else "ahead"
+
+
+KIT_HANDLER_PATH = ".github/workflows/claude.yml"  # where the kit seeds its mention handler
+
+
+def kit_shapes(version: str | None, repo_name: str = "", kit_dir: Path = KIT_DIR) -> dict[str, str]:
+    """Every shape the kit has ever seeded its mention handler in, rendered the
+    way tools/fanout.sh renders it (render_kit_template): text -> which shape.
+
+    This is the fan-out's own `--upgrade` test, run at scan time. The stamp
+    says which version a copy CLAIMS; only a byte comparison says whether the
+    fan-out will replace it. A copy that carries a stamp but was edited by hand
+    read as `upgradeable` for months, and its kit-drift finding could never be
+    closed by the lever the finding named (bashcrawl, v0.4.0).
+    """
+    shapes: dict[str, str] = {}
+    if not version:
+        return shapes
+
+    def render(path: Path) -> str | None:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            return None
+        return (text.replace("__PROJECT_NAME__", repo_name)
+                    .replace("__KIT_VERSION__", version))
+
+    current = render(kit_dir / "claude.yml")
+    if current is not None:
+        shapes[current] = "current"
+    archive = kit_dir / "archive"
+    if archive.is_dir():
+        for cand in sorted(archive.glob("claude-*.yml")):
+            text = render(cand)
+            if text is not None:
+                shapes.setdefault(text, cand.name)
+    return shapes
+
+
+def kit_pristine(path: str, text: str, shapes: dict[str, str]) -> bool | None:
+    """True when the file is byte-identical to a shape the kit seeded (so the
+    fan-out may replace it), False when it has been edited, None when the file
+    is not the kit's artifact or the kit could not be read."""
+    if path != KIT_HANDLER_PATH or not shapes:
+        return None
+    return text in shapes
+
+
+def upgradeable(h: dict) -> bool:
+    """Would `fanout.sh --upgrade` replace this copy? A machine seed that is
+    not the current shape: behind by its stamp, or an unstamped 0.1.0 seed.
+    A scan from before `kit_pristine` existed falls back to the stamp alone."""
+    pristine = h.get("kit_pristine")
+    if pristine is False:
+        return False
+    if h.get("kit_status") == "upgradeable":
+        return True
+    return pristine is True and h.get("kit_status") == "unstamped"
+
+
+_ROUTE_DEFAULTS: dict | None = None
+
+
+def route_defaults() -> dict:
+    """What the hub's two routes supply when a caller passes nothing: the
+    dollar cap and the timeout, read from the files that define them so the
+    inventory can never disagree with the lane it grades."""
+    global _ROUTE_DEFAULTS
+    if _ROUTE_DEFAULTS is not None:
+        return _ROUTE_DEFAULTS
+    out: dict = {"ai-lane": {}, "claude-run": {}}
+
+    def number(value):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    lane = load_yaml(AI_LANE_FILE)
+    on = lane.get("on", lane.get(True)) if lane else None
+    inputs = ((on or {}).get("workflow_call") or {}).get("inputs") if isinstance(on, dict) else None
+    if isinstance(inputs, dict):
+        out["ai-lane"]["max_budget_usd"] = number((inputs.get("max-budget-usd") or {}).get("default"))
+        out["ai-lane"]["timeout"] = number((inputs.get("timeout-minutes") or {}).get("default")) is not None
+    action = load_yaml(CLAUDE_RUN_FILE)
+    inputs = action.get("inputs") if action else None
+    if isinstance(inputs, dict):
+        out["claude-run"]["max_budget_usd"] = number((inputs.get("max-budget-usd") or {}).get("default"))
+    _ROUTE_DEFAULTS = out
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -314,12 +595,18 @@ def classify_workflow(path: str, text: str) -> dict:
     facts (claude marker, crons) plus parse_error=True, because a fleet scan
     that dies on one repo's broken workflow reports nothing about the other 39.
     """
+    # Routes are matched on the file without its comment lines: a workflow that
+    # only mentions an action in a header is not a harness.
+    code = COMMENT_LINE_RX.sub("", text)
+    routes = [rid for rid, rx in AI_ROUTES if rx.search(code)]
     info: dict = {
         "path": path,
         "name": None,
         "triggers": [],
         "crons": [],
-        "ai": CLAUDE_ACTION_MARKER in text,
+        "ai": bool(routes),
+        "route": routes[0] if routes else None,
+        "routes": routes,
         "parse_error": False,
     }
     data = None
@@ -362,17 +649,29 @@ def classify_workflow(path: str, text: str) -> dict:
                            "hash": h.group(1) if h else None}
     else:
         info["factory"] = None
-    m = SWITCH_RX.search(text)
+    m = SWITCH_RX.search(code) or INPUT_SWITCH_RX.search(code)
     info["switch"] = m.group(1) if m else None
     if info["ai"]:
-        m = ACTION_REF_RX.search(text)
+        route = info["route"]
+        hub_route = route in ("ai-lane", "claude-run")
+        defaults = route_defaults().get(route) or {}
+        m = ACTION_REF_RX.search(code)
         info["action_ref"] = m.group(1) if m else None
-        has_oauth = "claude_code_oauth_token" in text
-        has_key = "anthropic_api_key" in text
         # `ordered` = the credential comes from the repo's CLAUDE_AUTH_ORDER
-        # (the claude-auth step, or claude-run reading it) — the order is then
-        # configuration in ai_auth:, not a property of the file.
-        ordered = "claude-auth@" in text or "CLAUDE_AUTH_ORDER" in text
+        # (the claude-auth step, or the hub runner reading it) — the order is
+        # then configuration in ai_auth:, not a property of the file.
+        if route == "claude-code-action":
+            has_oauth = "claude_code_oauth_token" in text
+            has_key = "anthropic_api_key" in text
+            ordered = "claude-auth@" in text or "CLAUDE_AUTH_ORDER" in text
+        elif hub_route:
+            has_oauth = has_key = ordered = True  # run.sh takes both, in the repo's order
+        elif route == "other-provider":
+            has_oauth, has_key, ordered = False, True, False
+        else:
+            has_oauth = "CLAUDE_CODE_OAUTH_TOKEN" in code
+            has_key = "ANTHROPIC_API_KEY" in code
+            ordered = "CLAUDE_AUTH_ORDER" in code or "AI_AUTH_ORDER" in code
         info["auth"] = (
             "ordered" if ordered and (has_oauth or has_key)
             else "oauth-first" if has_oauth and has_key
@@ -380,12 +679,17 @@ def classify_workflow(path: str, text: str) -> dict:
             else "api-key" if has_key
             else "none"
         )
-        m = MODEL_RX.search(text)
+        m = (INPUT_MODEL_RX.search(code) if hub_route else None) or MODEL_RX.search(code)
         info["model"] = m.group(1) if m else None
-        m = MAX_TURNS_RX.search(text)
+        # A hub route with no model named resolves one itself (the consumer's
+        # _data/ai.yml, else the runner's pinned fleet default); anything else
+        # with no model takes whatever its tool's default is that day.
+        info["model_source"] = ("literal" if m else "expression" if MODEL_EXPR_RX.search(code)
+                                else "route" if hub_route else "none")
+        m = MAX_TURNS_RX.search(code) or (INPUT_TURNS_RX.search(code) if hub_route else None)
         info["max_turns"] = int(m.group(1)) if m else None
-        m = MAX_BUDGET_RX.search(text)
-        info["max_budget_usd"] = float(m.group(1)) if m else None
+        m = MAX_BUDGET_RX.search(code)
+        info["max_budget_usd"] = float(m.group(1)) if m else defaults.get("max_budget_usd")
         m = KIT_STAMP_RX.search(text)
         info["kit"] = m.group(1) if m else None
         # A prose "@claude" in a header comment must not read as a handler —
@@ -400,7 +704,187 @@ def classify_workflow(path: str, text: str) -> dict:
             else "mention-handler" if info["mention_handler"]
             else "event-agent"
         )
+        # The facts the standard grades. `author_gate` is None when no trigger
+        # lets a stranger start the run, so there is nothing to gate.
+        open_triggers = UNTRUSTED_TRIGGERS & set(info["triggers"])
+        info["author_gate"] = bool(AUTHOR_GATE_RX.search(code)) if open_triggers else None
+        info["least_privilege"] = _least_privilege(data, code)
+        info["timeout"] = bool(TIMEOUT_RX.search(code)) or bool(defaults.get("timeout"))
     return info
+
+
+def _least_privilege(data, code: str) -> bool:
+    """A top-level `permissions:` block, and `write-all` nowhere."""
+    if isinstance(data, dict):
+        top = data.get("permissions")
+        if top is None or top == "write-all":
+            return False
+        jobs = data.get("jobs")
+        if isinstance(jobs, dict):
+            return not any(isinstance(j, dict) and j.get("permissions") == "write-all"
+                           for j in jobs.values())
+        return True
+    return bool(re.search(r"^permissions:", code, re.M)) and "write-all" not in code
+
+
+# --------------------------------------------------------------------------- #
+# the harness standard (facts -> verdict -> lever; pure)
+# --------------------------------------------------------------------------- #
+def harness_id(repo_name: str, path: str) -> str:
+    """The id _data/agents.yml gives the same workflow, so the two files join."""
+    return f"ci:{repo_name}:{Path(path).name.rsplit('.', 1)[0]}"
+
+
+def is_pinned(model, allowed: list[str]) -> bool:
+    """An exact model id, not an alias. With the allowlist in hand the model
+    must be on it; without it (no fleet.yml) an id that carries a version."""
+    if not model:
+        return False
+    if allowed:
+        return model in allowed
+    return bool(re.search(r"-\d", str(model)))
+
+
+def _fires_on_the_hour(cron: str) -> bool:
+    parsed = parse_cron(cron)
+    return parsed is None or 0 in parsed["minutes"]
+
+
+# One detector per control: True (met), False (missing), None (nothing here for
+# the control to bind — a workflow no stranger can trigger has no author gate
+# to check). Each reads only facts the scan stored, so a reused scan grades
+# the same way a live one does.
+def _started_by_hand(h: dict) -> bool:
+    """Only a person pressing a button, or a caller workflow, starts it. A
+    kill switch is bypassed by a manual dispatch by design (AGENTS.md), and a
+    called workflow is gated at its call site, so there is no standing run for
+    a switch to stop."""
+    triggers = set(h.get("triggers") or [])
+    return bool(triggers) and triggers <= {"workflow_dispatch", "workflow_call"}
+
+
+def _called_only(h: dict) -> bool:
+    """A reusable workflow with no trigger of its own: it runs under its
+    caller's permissions, which is where least privilege is declared."""
+    return set(h.get("triggers") or []) == {"workflow_call"}
+
+
+def _model_pinned(h: dict, cfg: dict):
+    if h.get("model"):
+        return is_pinned(h["model"], cfg["allowed_models"])
+    source = h.get("model_source")
+    if source == "expression":
+        return None  # decided at run time; not readable from the file
+    return source == "route"  # the hub runner resolves a pinned model itself
+
+
+CONTROL_CHECKS = {
+    "standard-route": lambda h, cfg: bool(
+        (cfg["standard"]["routes"].get(h.get("route")) or {}).get("standard")),
+    "model-pinned": _model_pinned,
+    "budget-cap": lambda h, cfg: h.get("max_budget_usd") is not None,
+    "turn-cap": lambda h, cfg: h.get("max_turns") is not None,
+    "kill-switch": lambda h, cfg: None if _started_by_hand(h) else bool(h.get("switch")),
+    "auth-ordered": lambda h, cfg: (
+        None if h.get("route") == "other-provider" else h.get("auth") == "ordered"),
+    "trusted-author": lambda h, cfg: h.get("author_gate"),
+    "least-privilege": lambda h, cfg: (
+        None if _called_only(h) else bool(h.get("least_privilege"))),
+    "timeout": lambda h, cfg: bool(h.get("timeout")),
+    "off-hour-cron": lambda h, cfg: (
+        not any(_fires_on_the_hour(c) for c in h["crons"]) if h.get("crons") else None),
+}
+
+
+def grade_harness(h: dict, cfg: dict) -> dict | None:
+    """One harness against the standard. None when the row predates the facts
+    the standard reads (a reused scan from before `route` was recorded): an
+    ungraded harness says so instead of failing controls nobody looked at."""
+    if not h.get("route"):
+        return None
+    met, missing = 0, []
+    for cid, spec in cfg["standard"]["controls"].items():
+        if h.get("kind") not in (spec.get("applies") or []):
+            continue
+        verdict = CONTROL_CHECKS[cid](h, cfg)
+        if verdict is None:
+            continue
+        if verdict:
+            met += 1
+        else:
+            missing.append(cid)
+    return {"conformant": not missing, "met": met, "of": met + len(missing), "missing": missing}
+
+
+def is_retired(repo: dict) -> bool:
+    """An archived repo's workflows never run: GitHub disables Actions on it."""
+    return bool(repo.get("archived")) or repo.get("status") == "archived"
+
+
+def choose_lever(h: dict, repo: dict, cfg: dict) -> str | None:
+    """How this harness is rebuilt onto the standard — the first that fits."""
+    if is_retired(repo):
+        return "retire"
+    verdict = h.get("standard")
+    if not verdict:
+        return None
+    ok = verdict["conformant"]
+    if h.get("factory"):
+        return "none" if ok else "factory-recompile"
+    if repo.get("nwo") == cfg["hub_nwo"]:
+        return "none" if ok else "hub-fix"
+    if h.get("path") == KIT_HANDLER_PATH and (h.get("kit") or h.get("kit_pristine")):
+        if upgradeable(h):
+            return "kit-upgrade"
+        if h.get("kit_pristine") is False:
+            return "none" if ok else "kit-adopt"
+        # the current shape, untouched: if it still misses a control the kit
+        # itself does, and the next kit release reaches it by upgrade
+        return "none" if ok else "kit-upgrade"
+    if ok:
+        return "none"
+    if h.get("kind") == "mention-handler":
+        return "kit-adopt"
+    if h.get("route") in ("ai-lane", "claude-run"):
+        return "fix-controls"
+    return "lane-adopt"
+
+
+def build_catalog(repos: list[dict], cfg: dict) -> dict:
+    """The organized view: every live harness counted by kind, route and lever,
+    and how many miss each control. Rows stay under `repos[].harnesses[]`; the
+    catalog is the index over them."""
+    live = [(r, h) for r in repos if not is_retired(r) for h in r.get("harnesses") or []]
+    graded = [(r, h) for r, h in live if h.get("standard")]
+    by_kind: dict = {}
+    for kind in ALL_KINDS:
+        rows = [h for _, h in live if h.get("kind") == kind]
+        by_kind[kind] = {
+            "harnesses": len(rows),
+            "conformant": sum(1 for h in rows if (h.get("standard") or {}).get("conformant")),
+        }
+    by_route = {rid: sum(1 for _, h in live if h.get("route") == rid) for rid in ROUTE_IDS}
+    by_lever = {lid: 0 for lid in LEVERS}
+    for r in repos:
+        for h in r.get("harnesses") or []:
+            if h.get("lever") in by_lever:
+                by_lever[h["lever"]] += 1
+    missing = {cid: 0 for cid in cfg["standard"]["controls"]}
+    for _, h in graded:
+        for cid in h["standard"]["missing"]:
+            if cid in missing:
+                missing[cid] += 1
+    return {
+        "harnesses": len(live),
+        "graded": len(graded),
+        "conformant": sum(1 for _, h in graded if h["standard"]["conformant"]),
+        "retired": sum(len(r.get("harnesses") or []) for r in repos if is_retired(r)),
+        "by_kind": by_kind,
+        "by_route": {rid: n for rid, n in by_route.items() if n},
+        "by_lever": {lid: n for lid, n in by_lever.items() if n},
+        "missing_by_control": missing,
+        "levers": {lid: dict(spec) for lid, spec in LEVERS.items()},
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -489,7 +973,11 @@ def evaluate_coverage(repo: dict, cfg: dict) -> None:
 
 
 def repo_schedule_load(repo: dict) -> float:
-    """Estimated cron-driven AI workflow runs/day for one repo."""
+    """Estimated cron-driven AI workflow runs/day for one repo. An archived
+    repo contributes nothing: its crons are still in the files, but GitHub
+    never fires them, and counting them spent throughput the fleet did not use."""
+    if is_retired(repo):
+        return 0.0
     parts = [cron_fires_per_day(cron) or 0.0
              for h in repo.get("harnesses") or []
              for cron in h.get("crons") or []]
@@ -512,6 +1000,8 @@ def build_throughput(repos: list[dict], cfg: dict, ai_usage: dict) -> dict:
     # an hourly agent is a per-repo/fleet cap problem, not an adjacency one.
     hour_load: dict[int, list[str]] = {}
     for r in repos:
+        if is_retired(r):
+            continue
         for h in r.get("harnesses") or []:
             for cron in h.get("crons") or []:
                 p = parse_cron(cron)
@@ -661,7 +1151,8 @@ def build_trends(ai_usage: dict, actions_usage: dict, cfg: dict) -> dict:
 # --------------------------------------------------------------------------- #
 # attention (ranked findings — observations with the lever named, never writes)
 # --------------------------------------------------------------------------- #
-def build_attention(repos: list[dict], throughput: dict, trends: dict, cfg: dict) -> list[dict]:
+def build_attention(repos: list[dict], throughput: dict, trends: dict, cfg: dict,
+                    catalog: dict | None = None) -> list[dict]:
     items: list[dict] = []
 
     def add(severity: int, kind: str, summary: str, action: str, repo: str | None = None):
@@ -701,7 +1192,33 @@ def build_attention(repos: list[dict], throughput: dict, trends: dict, cfg: dict
             f"{c['count']} AI crons share {c['utc_hour']} UTC: {', '.join(c['entries'][:6])}",
             "stagger the crons — the Claude loops share one OAuth account's rate limit")
 
+    # The rebuild plan, one finding per lever rather than one per harness: what
+    # the fleet's harnesses still miss against the standard, grouped by the
+    # action that fixes the group.
+    for lever, count in ((catalog or {}).get("by_lever") or {}).items():
+        if lever == "none" or not count:
+            continue
+        rows = [h for r in repos for h in r.get("harnesses") or [] if h.get("lever") == lever]
+        tally: dict[str, int] = {}
+        for h in rows:
+            for cid in (h.get("standard") or {}).get("missing") or []:
+                tally[cid] = tally.get(cid, 0) + 1
+        top = ", ".join(f"{cid} ({n})" for cid, n in
+                        sorted(tally.items(), key=lambda kv: (-kv[1], kv[0]))[:4])
+        what = (f"{count} harness(es) in archived repos still listed" if lever == "retire"
+                else f"{count} harness(es) off the standard — missing {top}" if top
+                else f"{count} harness(es) behind the current kit")
+        add(48 if lever != "retire" else 30, "standard-gap",
+            f"{LEVERS[lever]['title']}: {what}", LEVERS[lever]["action"])
+
     for r in repos:
+        if r.get("workflows_truncated"):
+            add(66, "inventory-truncated",
+                f"only {r.get('workflows_total')} of {r.get('workflows_listed')} workflow files were "
+                "read, so harnesses past the cap are not in this inventory",
+                "raise harnesses.inventory.max_workflow_files in _data/fleet.yml", repo=r["repo"])
+        if is_retired(r):
+            continue  # nothing in an archived repo runs, fails or drifts
         for h in r.get("harnesses") or []:
             if h.get("last_conclusion") == "failure" or "failing" in (h.get("flags") or []):
                 add(75, "harness-failing",
@@ -734,11 +1251,13 @@ def build_attention(repos: list[dict], throughput: dict, trends: dict, cfg: dict
         # smaller: everything still unreachable (external upstream, archived) is
         # already excused by evaluate_coverage and so has no gap to report. A
         # finding that cannot fire is worse than no finding, so it is gone.
-        upgradeable = [h["path"] for h in r.get("harnesses") or []
-                       if h.get("kit_status") == "upgradeable"]
-        if upgradeable:
+        # Only a copy the fan-out will actually replace: a stamped copy that
+        # was edited by hand is the kit-adopt lever's, not a drift the upgrade
+        # can close.
+        behind = [h["path"] for h in r.get("harnesses") or [] if upgradeable(h)]
+        if behind:
             add(40, "kit-drift",
-                f"machine-seeded harness behind the current kit: {', '.join(upgradeable)}",
+                f"machine-seeded harness behind the current kit: {', '.join(behind)}",
                 "dispatch fanout.yml (kit: harness) with upgrade=true (byte-identical seeds only)",
                 repo=r["repo"])
         # A scheduled agent is a standing commitment; without a repo-variable
@@ -769,7 +1288,7 @@ def scan_repo(gh, project: dict, cfg: dict, secret_states: dict[str, str],
         "nwo": nwo,
         "category": project.get("category"),
         "status": project.get("status"),
-        "external": bool(nwo) and not nwo.startswith("bamr87/"),
+        "external": is_external(nwo, cfg),
         # fanout.sh resolves a --target through .gitmodules, so a registry repo
         # with no submodule_path cannot be deployed to no matter what its
         # coverage says. Recorded here so the board and `--gaps` agree.
@@ -828,8 +1347,14 @@ def scan_repo(gh, project: dict, cfg: dict, secret_states: dict[str, str],
         listing = []
     if not isinstance(listing, list):
         listing = [listing]
-    files = [c for c in listing if c.name.endswith((".yml", ".yaml"))]
+    files = sorted((c for c in listing if c.name.endswith((".yml", ".yaml"))),
+                   key=lambda c: c.name)
+    # A repo with more workflow files than the cap is read only up to it, and
+    # says so: silently dropping the tail hid harnesses with no trace.
+    row["workflows_listed"] = len(files)
+    row["workflows_truncated"] = len(files) > cfg["inventory"]["max_workflow_files"]
     files = files[: cfg["inventory"]["max_workflow_files"]]
+    shapes = kit_shapes(hub_version, repo_name=name or "")
     for entry in files:
         try:
             text = repo.get_contents(entry.path).decoded_content.decode("utf-8", "replace")
@@ -847,25 +1372,51 @@ def scan_repo(gh, project: dict, cfg: dict, secret_states: dict[str, str],
                 "ai": info["ai"],
             })
         if info["ai"]:
-            row["harnesses"].append({
-                "workflow": info["name"],
-                "path": info["path"],
-                "kind": info["kind"],
-                "triggers": info["triggers"],
-                "crons": info["crons"],
-                "action_ref": info.get("action_ref"),
-                "auth": info.get("auth"),
-                "model": info.get("model"),
-                "max_turns": info.get("max_turns"),
-                "max_budget_usd": info.get("max_budget_usd"),
-                "kit": info.get("kit"),
-                "kit_status": kit_status(info.get("kit"), hub_version),
-                "mention_handler": bool(info.get("mention_handler")),
-                "switch": info.get("switch"),
-                "factory": info.get("factory"),
-            })
+            row["harnesses"].append(harness_row(name, info, text, hub_version, shapes))
     row["scanned"] = True
     return row
+
+
+def is_external(nwo: str | None, cfg: dict) -> bool:
+    """Not one of the fleet's own accounts (`hub.owners`): an upstream mirror
+    the hub reads about but never scans or writes to. The owners list is the
+    one tools/fanout.sh uses, so "external" means the same thing to the
+    inventory and to the lever it names."""
+    if not nwo:
+        return False
+    return nwo.split("/", 1)[0] not in (cfg.get("owners") or [cfg["hub_nwo"].split("/", 1)[0]])
+
+
+def harness_row(repo_name: str | None, info: dict, text: str, hub_version: str | None,
+                shapes: dict[str, str]) -> dict:
+    """One inventory row from a classified workflow. The first block is the
+    consumed interface (harness-registry/v1); everything after `factory` was
+    added with the standard and is what `grade_harness` reads."""
+    return {
+        "workflow": info["name"],
+        "path": info["path"],
+        "kind": info["kind"],
+        "triggers": info["triggers"],
+        "crons": info["crons"],
+        "action_ref": info.get("action_ref"),
+        "auth": info.get("auth"),
+        "model": info.get("model"),
+        "max_turns": info.get("max_turns"),
+        "max_budget_usd": info.get("max_budget_usd"),
+        "kit": info.get("kit"),
+        "kit_status": kit_status(info.get("kit"), hub_version),
+        "mention_handler": bool(info.get("mention_handler")),
+        "switch": info.get("switch"),
+        "factory": info.get("factory"),
+        "id": harness_id(repo_name or "", info["path"]),
+        "route": info.get("route"),
+        "routes": info.get("routes") or [],
+        "model_source": info.get("model_source"),
+        "kit_pristine": kit_pristine(info["path"], text, shapes),
+        "author_gate": info.get("author_gate"),
+        "least_privilege": bool(info.get("least_privilege")),
+        "timeout": bool(info.get("timeout")),
+    }
 
 
 def ensure_hub(registry: list[dict], cfg: dict) -> list[dict]:
@@ -907,12 +1458,23 @@ def finalize(repos: list[dict], cfg: dict, hub_version: str | None, ai_usage: di
     subs = submodule_names()
     for r in repos:
         r["submodule"] = r["repo"] in subs
+        # Ownership is a contract fact (hub.owners), so it is stamped in both
+        # modes too: a scan taken when only bamr87/ counted as the fleet's own
+        # must not keep calling an organization's repo an external mirror.
+        r["external"] = is_external(r.get("nwo"), cfg)
         r["deployable"] = is_deployable(r)
         r["est_scheduled_ai_per_day"] = repo_schedule_load(r)
         evaluate_coverage(r, cfg)
+        # The standard is graded here, in both modes, from the facts the scan
+        # stored — so retuning `harnesses.standard` regrades the fleet offline.
+        for h in r.get("harnesses") or []:
+            h.setdefault("id", harness_id(r.get("repo") or "", h.get("path") or ""))
+            h["standard"] = grade_harness(h, cfg)
+            h["lever"] = choose_lever(h, r, cfg)
     throughput = build_throughput(repos, cfg, ai_usage)
     trends = build_trends(ai_usage, actions_usage, cfg)
-    attention = build_attention(repos, throughput, trends, cfg)
+    catalog = build_catalog(repos, cfg)
+    attention = build_attention(repos, throughput, trends, cfg, catalog)
 
     calendar = []
     for r in repos:
@@ -924,7 +1486,9 @@ def finalize(repos: list[dict], cfg: dict, hub_version: str | None, ai_usage: di
     calendar = calendar[: cfg["inventory"]["schedule_limit"]]
 
     graded = [r for r in repos if not (r.get("coverage") or {}).get("exempt")]
-    all_harnesses = [h for r in repos for h in r.get("harnesses") or []]
+    # Live harnesses only: a workflow in an archived repo is listed (lever:
+    # retire) but is not an AI workflow the fleet runs.
+    all_harnesses = [h for r in repos if not is_retired(r) for h in r.get("harnesses") or []]
     totals = {
         "repos": len(repos),
         "repos_scanned": sum(1 for r in repos if r.get("scanned")),
@@ -936,13 +1500,18 @@ def finalize(repos: list[dict], cfg: dict, hub_version: str | None, ai_usage: di
         "est_scheduled_ai_per_day": throughput["est_scheduled_ai_per_day"],
         "baseline_ok": sum(1 for r in graded if (r.get("coverage") or {}).get("ok")),
         "baseline_gaps": sum(1 for r in graded if not (r.get("coverage") or {}).get("ok")),
-        "kit_upgradeable": sum(1 for h in all_harnesses if h.get("kit_status") == "upgradeable"),
+        "kit_upgradeable": sum(1 for h in all_harnesses if upgradeable(h)),
         "factory_repos": sum(1 for r in repos if r.get("factory")),
         "factory_lines": sum(1 for h in all_harnesses if h.get("factory")),
         "scheduled_switched": sum(1 for h in all_harnesses
                                   if h.get("kind") == "scheduled-agent" and h.get("switch")),
         "attention": len(attention),
+        "harnesses_graded": catalog["graded"],
+        "harnesses_conformant": catalog["conformant"],
+        "harnesses_retired": catalog["retired"],
+        "repos_truncated": sum(1 for r in repos if r.get("workflows_truncated")),
     }
+    standard = cfg["standard"]
     return {
         "schema": SCHEMA_MARKER,
         "generated_at": now.strftime("%Y-%m-%d %H:%M UTC"),
@@ -954,8 +1523,15 @@ def finalize(repos: list[dict], cfg: dict, hub_version: str | None, ai_usage: di
             "exempt": cfg["exempt"],
             "throughput": cfg["throughput"],
             "budget": cfg["budget"],
+            "standard": {
+                "version": standard["version"],
+                "allowed_models": cfg["allowed_models"],
+                "routes": standard["routes"],
+                "controls": standard["controls"],
+            },
         },
         "totals": totals,
+        "catalog": catalog,
         "trends": trends,
         "throughput": throughput,
         "attention": attention,
@@ -1013,10 +1589,8 @@ def gap_candidates(registry_path: Path) -> list[dict]:
     out = []
     for r in data.get("repos") or []:
         missing = set((r.get("coverage") or {}).get("missing") or [])
-        upgradeable = any(
-            h.get("kit_status") == "upgradeable" for h in r.get("harnesses") or []
-        )
-        if r.get("repo") and ((missing & {"mention-handler", "agent-context"}) or upgradeable):
+        behind = any(upgradeable(h) for h in r.get("harnesses") or [])
+        if r.get("repo") and ((missing & {"mention-handler", "agent-context"}) or behind):
             out.append(r)
     return out
 
@@ -1104,7 +1678,11 @@ def run(args: argparse.Namespace) -> int:
             f"{t['repos_with_ai']}/{t['repos_scanned']} repos (scan: {scan_mode}), "
             f"{t['scheduled_workflows']} crons, "
             f"~{t['est_scheduled_ai_per_day']}/day scheduled AI, "
+            f"{t['harnesses_conformant']}/{t['harnesses_graded']} on the standard, "
             f"{t['attention']} attention item(s)\n")
+        for lever, count in (out["catalog"]["by_lever"] or {}).items():
+            if lever != "none":
+                sys.stderr.write(f"  ↻ {lever}: {count}\n")
         for item in out["attention"][:5]:
             where = f" [{item['repo']}]" if item.get("repo") else ""
             sys.stderr.write(f"  ⚠ {item['kind']}{where}: {item['summary']}\n")
