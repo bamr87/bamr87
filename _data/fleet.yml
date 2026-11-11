@@ -1230,13 +1230,28 @@ harnesses:
   # Changing this block is a gated change (constitution § 12.3).
   standard:
     version: 1
+    # Block style on purpose: the console's config editor round-trips this file,
+    # and an aligned flow map (`{ standard: true,  title: … }`) is rewritten by
+    # that round trip, which turns a one-field edit elsewhere into a diff here.
     routes:
-      claude-code-action: { standard: true,  title: "a claude-code-action step" }
-      ai-lane:            { standard: true,  title: "the hub's reusable ai-lane.yml workflow" }
-      claude-run:         { standard: true,  title: "the hub's claude-run composite action" }
-      claude-cli:         { standard: false, title: "a bare `claude -p` in a run step" }
-      ai-script:          { standard: false, title: "a vendored scripts/ai/run.sh" }
-      other-provider:     { standard: false, title: "another provider's API key" }
+      claude-code-action:
+        standard: true
+        title: a claude-code-action step
+      ai-lane:
+        standard: true
+        title: the hub's reusable ai-lane.yml workflow
+      claude-run:
+        standard: true
+        title: the hub's claude-run composite action
+      claude-cli:
+        standard: false
+        title: "a bare `claude -p` in a run step"
+      ai-script:
+        standard: false
+        title: a vendored scripts/ai/run.sh
+      other-provider:
+        standard: false
+        title: another provider's API key
     controls:
       standard-route:
         title: reaches the model through a fleet route
