@@ -141,6 +141,10 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-095](features/features.yml) | Claude Code executes; Grok bots set direction only | planned | [`tools/claude_code_executes_lint.py`](tools/claude_code_executes_lint.py) · [`docs/amendments/0032-claude-code-executes.md`](docs/amendments/0032-claude-code-executes.md) | FR95 |
 | [HUB-096](features/features.yml) | The fleet graph: what the control plane manages and how it relates, as one model | partial | [`tools/fleetcore/graph.py`](tools/fleetcore/graph.py) · [`docs/FLEET-GRAPH.md`](docs/FLEET-GRAPH.md) | FR96, NFR20 |
 | [HUB-097](features/features.yml) | Outcome learning (shadow): what happened to each loop's output and where its next slots would pay | partial | [`tools/fleetcore/learn.py`](tools/fleetcore/learn.py) · [`docs/LEARNING.md`](docs/LEARNING.md) | FR97 |
+| [HUB-098](features/features.yml) | Shared functional specification library | planned | [`docs/prd/FUNCTIONAL-SPEC-LIBRARY.md`](docs/prd/FUNCTIONAL-SPEC-LIBRARY.md) | FR98 |
+| [HUB-099](features/features.yml) | Per-repo functional spec manifest | planned | [`docs/prd/FUNCTIONAL-SPEC-LIBRARY.md`](docs/prd/FUNCTIONAL-SPEC-LIBRARY.md) | FR99 |
+| [HUB-100](features/features.yml) | Functional spec override ratification | planned | [`docs/prd/FUNCTIONAL-SPEC-LIBRARY.md`](docs/prd/FUNCTIONAL-SPEC-LIBRARY.md) | FR100 |
+| [HUB-101](features/features.yml) | Functional spec resolver, CI gate and docs parity | planned | [`docs/prd/FUNCTIONAL-SPEC-LIBRARY.md`](docs/prd/FUNCTIONAL-SPEC-LIBRARY.md) | FR101, FR102, FR103, NFR21 |
 
 **Requirement → feature trace**
 
@@ -262,6 +266,13 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR96 | HUB-096 |
 | NFR20 | HUB-096 |
 | FR97 | HUB-097 |
+| FR98 | HUB-098 |
+| FR99 | HUB-099 |
+| FR100 | HUB-100 |
+| FR101 | HUB-101 |
+| FR102 | HUB-101 |
+| FR103 | HUB-101 |
+| NFR21 | HUB-101 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -353,6 +364,12 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR95: Software changes and Harness Console executions must be performed by Claude Code; Grok bots may only open direction-setting amendment PRs (constitution, amendments, changelog.d, and supporting feature/PRD/roadmap fragments in that PR), file issues/comments, and hand off implementation via Fleet issues or console jobs, with a warn-then-fail author check and an Amr OK required when Claude Code cannot run.
 - FR96: The product must answer, from the committed files alone, what depends on any workflow, action, data file, source or loop the hub manages, what that thing needs, and how any two are related, on the CLI, the API and MCP.
 - FR97: The product must record what became of each loop's output (landed, rejected, or left stale), estimate from it how likely each loop's next output is to land per repository, and show where the next slots would pay, in shadow until a gated change lets a loop act on it.
+- FR98: The hub must hold one central library of generic functional specifications, each with a stable FEAT-NNN id allocated at merge, each linked by a prd field to the PRD requirement it serves, stored in this monorepo and readable by every fleet repo, framework and application without vendoring a copy.
+- FR99: Every adopting repo must declare adoption in a root specs.json with a schema version, an array of adopted FEAT-NNN ids, an optional overrides object keyed by those ids for severity or scope narrowing, and an exclusions list for specs that do not apply.
+- FR100: An override that downgrades a required spec to advisory, or otherwise relaxes severity or applicable scope, must be proposed as an amendment-style record and must stay unapplied until the maintainer merges it. A change to a standard or a principle goes through a constitution amendment and is ratified only by that merge.
+- FR101: One fleet-level resolver must read each repo's manifest, load the matching library entries, and produce one resolved spec set per repo: core specs plus the framework-specific overlay for the repo's kinds, minus exclusions that are in force, with ratified override precedence applied last.
+- FR102: On every pull request, resolution must run and fail when a required spec in the resolved set lacks coverage or when the manifest names a spec id that is not in the library.
+- FR103: The docs site must render each repo's spec page from that same resolver output, so the page shows the set CI enforces, including coverage gaps and unknown ids.
 
 **Non-functional**
 
@@ -376,6 +393,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - NFR18: A scoped MCP write tool may add checks of its own: an allowlist, validation, a plan_id binding, caps, a wall clock and an audit line. It never widens what the console allows. It sends the console confirm=false, writes nothing to GitHub, reads or writes no secret, and records every call, whether it ran, was refused or failed, in an append-only, scrubbed audit. This refines NFR9's 'no enforcement of its own' for the scoped tools only.
 - NFR19: A new agent-efficacy check must run read-only in shadow for at least 14 days, reporting contract gaps as warnings, before any gap can fail a gate; enforcement is switched on only by a gated change to _data/fleet.yml harness.efficacy.enforce, and agents registered before then keep a grace period.
 - NFR20: Every capability a person has at the terminal or on a console page must be reachable by an agent over MCP or the API, or carry a recorded reason why not; the gap is reported by a command, not found by a review.
+- NFR21: CI and the docs site must both call the one resolver and must not reimplement selection, exclusion or override precedence. A test must show that the document the gate asserts is the document the page renders.
 
 ## 6. Success metrics (proposed — not defined in sources)
 

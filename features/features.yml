@@ -2233,3 +2233,84 @@ features:
     - tools/test_fleetcore_mcp.py
     prd:
     - FR97
+  - id: HUB-098
+    title: Shared functional specification library
+    description: A central library of generic functional specifications in the hub, each a FEAT-NNN id linked
+      to a PRD requirement, readable by every fleet repo, framework and application without a vendored copy.
+      Design only (docs/prd/FUNCTIONAL-SPEC-LIBRARY.md). Roadmap FF-0051.
+    implemented: false
+    status: planned
+    surface: infra
+    link: docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+    docs: docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+    tags:
+    - specs
+    - library
+    - governance
+    - prd
+    date: 2026-11-10
+    tests:
+    - na: docs-only PRD; the library, resolver and gate land in a later implementation PR
+    prd:
+    - FR98
+  - id: HUB-099
+    title: Per-repo functional spec manifest
+    description: 'A specs.json at each adopting repo''s root: schema version, adopted FEAT-NNN ids, optional
+      per-id overrides that narrow severity or scope, and an exclusions list for specs that do not apply.
+      Design only (docs/prd/FUNCTIONAL-SPEC-LIBRARY.md).'
+    implemented: false
+    status: planned
+    surface: infra
+    link: docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+    docs: docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+    tags:
+    - specs
+    - manifest
+    - governance
+    date: 2026-11-10
+    tests:
+    - na: docs-only PRD; the manifest schema lands with the resolver implementation
+    prd:
+    - FR99
+  - id: HUB-100
+    title: Functional spec override ratification
+    description: An override that downgrades a required spec to advisory, or otherwise relaxes severity
+      or scope, is an amendment-style record that stays unapplied until Amr merges it. Standard or principle
+      changes stay on the constitution amendment path. Design only (docs/prd/FUNCTIONAL-SPEC-LIBRARY.md).
+    implemented: false
+    status: planned
+    surface: infra
+    link: docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+    docs: docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+    tags:
+    - specs
+    - governance
+    - amendments
+    date: 2026-11-10
+    tests:
+    - na: docs-only PRD; ratification wiring lands after the follow-up amendment
+    prd:
+    - FR100
+  - id: HUB-101
+    title: Functional spec resolver, CI gate and docs parity
+    description: One resolver reads each repo's specs.json and the central library and emits one resolved
+      set (core plus framework overlay, minus exclusions, ratified overrides last). CI fails on an unknown
+      id or a required spec without coverage. The docs site renders that same output. Design only (docs/prd/FUNCTIONAL-SPEC-LIBRARY.md).
+    implemented: false
+    status: planned
+    surface: infra
+    link: docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+    docs: docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+    tags:
+    - specs
+    - ci
+    - docs
+    - resolver
+    date: 2026-11-10
+    tests:
+    - na: docs-only PRD; resolver tests land in the implementation PR
+    prd:
+    - FR101
+    - FR102
+    - FR103
+    - NFR21
