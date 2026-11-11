@@ -1,0 +1,1021 @@
+{
+ "_note": "GraphQL answers in the shape api.github.com/graphql returns for decision_index.py's three searches (pull requests, gate-labelled issues, repositories) and its enrichment by node id. The content is written for the tests; the token-like string in one title is a fake that the redaction test looks for.",
+ "prs": [
+  {
+   "__typename": "PullRequest",
+   "id": "PR_01",
+   "number": 825,
+   "title": "feat(harnesses): rebuild the harness inventory on a declared standard",
+   "url": "https://github.com/bamr87/bamr87/pull/825",
+   "createdAt": "2026-11-01T09:00:00Z",
+   "updatedAt": "2026-11-11T19:48:06Z",
+   "author": {
+    "login": "bamr87",
+    "__typename": "User"
+   },
+   "repository": {
+    "nameWithOwner": "bamr87/bamr87",
+    "isPrivate": false
+   },
+   "labels": {
+    "nodes": [
+     {
+      "name": "feature"
+     },
+     {
+      "name": "governance"
+     },
+     {
+      "name": "needs-amr"
+     }
+    ]
+   },
+   "isDraft": false,
+   "baseRefName": "main",
+   "headRefName": "feature/825"
+  },
+  {
+   "__typename": "PullRequest",
+   "id": "PR_02",
+   "number": 137,
+   "title": "docs(governance): propose amendment: agent merge of mergeable PRs",
+   "url": "https://github.com/bamr87/bashcrawl/pull/137",
+   "createdAt": "2026-11-01T09:00:00Z",
+   "updatedAt": "2026-11-10T12:00:00Z",
+   "author": {
+    "login": "bamr87",
+    "__typename": "User"
+   },
+   "repository": {
+    "nameWithOwner": "bamr87/bashcrawl",
+    "isPrivate": false
+   },
+   "labels": {
+    "nodes": []
+   },
+   "isDraft": false,
+   "baseRefName": "main",
+   "headRefName": "feature/137"
+  },
+  {
+   "__typename": "PullRequest",
+   "id": "PR_03",
+   "number": 809,
+   "title": "build(deps-dev): bump activesupport from 7.2.3.1 to 8.0.5.2",
+   "url": "https://github.com/bamr87/lifehacker.dev/pull/809",
+   "createdAt": "2026-11-01T09:00:00Z",
+   "updatedAt": "2026-11-10T12:00:00Z",
+   "author": {
+    "login": "dependabot",
+    "__typename": "Bot"
+   },
+   "repository": {
+    "nameWithOwner": "bamr87/lifehacker.dev",
+    "isPrivate": false
+   },
+   "labels": {
+    "nodes": [
+     {
+      "name": "dependencies"
+     },
+     {
+      "name": "ruby"
+     }
+    ]
+   },
+   "isDraft": false,
+   "baseRefName": "main",
+   "headRefName": "feature/809"
+  },
+  {
+   "__typename": "PullRequest",
+   "id": "PR_04",
+   "number": 38,
+   "title": "chore(deps): bump python from 3.14-slim to 3.15-slim in /docker",
+   "url": "https://github.com/bamr87/bashos/pull/38",
+   "createdAt": "2026-11-01T09:00:00Z",
+   "updatedAt": "2026-11-10T12:00:00Z",
+   "author": {
+    "login": "dependabot",
+    "__typename": "Bot"
+   },
+   "repository": {
+    "nameWithOwner": "bamr87/bashos",
+    "isPrivate": false
+   },
+   "labels": {
+    "nodes": [
+     {
+      "name": "dependencies"
+     }
+    ]
+   },
+   "isDraft": false,
+   "baseRefName": "main",
+   "headRefName": "feature/38"
+  },
+  {
+   "__typename": "PullRequest",
+   "id": "PR_05",
+   "number": 615,
+   "title": "chore(deps): bump nokogiri from 1.19.4 to 1.19.5 in /studio",
+   "url": "https://github.com/bamr87/zer0-mistakes/pull/615",
+   "createdAt": "2026-11-01T09:00:00Z",
+   "updatedAt": "2026-11-10T12:00:00Z",
+   "author": {
+    "login": "dependabot",
+    "__typename": "Bot"
+   },
+   "repository": {
+    "nameWithOwner": "bamr87/zer0-mistakes",
+    "isPrivate": false
+   },
+   "labels": {
+    "nodes": [
+     {
+      "name": "dependencies"
+     },
+     {
+      "name": "auto-merge"
+     }
+    ]
+   },
+   "isDraft": false,
+   "baseRefName": "main",
+   "headRefName": "feature/615"
+  },
+  {
+   "__typename": "PullRequest",
+   "id": "PR_06",
+   "number": 210,
+   "title": "chore(deps): bump the frontend-npm group in /frontend with 10 updates",
+   "url": "https://github.com/bamr87/law-ai/pull/210",
+   "createdAt": "2026-11-01T09:00:00Z",
+   "updatedAt": "2026-11-10T12:00:00Z",
+   "author": {
+    "login": "dependabot",
+    "__typename": "Bot"
+   },
+   "repository": {
+    "nameWithOwner": "bamr87/law-ai",
+    "isPrivate": false
+   },
+   "labels": {
+    "nodes": [
+     {
+      "name": "dependencies"
+     }
+    ]
+   },
+   "isDraft": false,
+   "baseRefName": "main",
+   "headRefName": "feature/210"
+  },
+  {
+   "__typename": "PullRequest",
+   "id": "PR_07",
+   "number": 5,
+   "title": "fix(compose): bind published ports to loopback",
+   "url": "https://github.com/bamr87/fleet-observe/pull/5",
+   "createdAt": "2026-11-01T09:00:00Z",
+   "updatedAt": "2026-11-10T12:00:00Z",
+   "author": {
+    "login": "bamr87",
+    "__typename": "User"
+   },
+   "repository": {
+    "nameWithOwner": "bamr87/fleet-observe",
+    "isPrivate": false
+   },
+   "labels": {
+    "nodes": []
+   },
+   "isDraft": true,
+   "baseRefName": "main",
+   "headRefName": "feature/5"
+  },
+  {
+   "__typename": "PullRequest",
+   "id": "PR_08",
+   "number": 28,
+   "title": "chore(evolve): AI improvement pass",
+   "url": "https://github.com/bamr87/scripts/pull/28",
+   "createdAt": "2026-11-01T09:00:00Z",
+   "updatedAt": "2026-11-10T12:00:00Z",
+   "author": {
+    "login": "bamr87",
+    "__typename": "User"
+   },
+   "repository": {
+    "nameWithOwner": "bamr87/scripts",
+    "isPrivate": false
+   },
+   "labels": {
+    "nodes": [
+     {
+      "name": "ai-evolution"
+     },
+     {
+      "name": "agent:hold"
+     }
+    ]
+   },
+   "isDraft": false,
+   "baseRefName": "main",
+   "headRefName": "feature/28"
+  },
+  {
+   "__typename": "PullRequest",
+   "id": "PR_09",
+   "number": 61,
+   "title": "docs(prd): plan README-010",
+   "url": "https://github.com/bamr87/README/pull/61",
+   "createdAt": "2026-11-01T09:00:00Z",
+   "updatedAt": "2026-11-10T12:00:00Z",
+   "author": {
+    "login": "bamr87",
+    "__typename": "User"
+   },
+   "repository": {
+    "nameWithOwner": "bamr87/README",
+    "isPrivate": false
+   },
+   "labels": {
+    "nodes": []
+   },
+   "isDraft": false,
+   "baseRefName": "main",
+   "headRefName": "feature/61"
+  },
+  {
+   "__typename": "PullRequest",
+   "id": "PR_10",
+   "number": 587,
+   "title": "fix(a11y): label and lay out GFM task-list checkboxes",
+   "url": "https://github.com/bamr87/zer0-mistakes/pull/587",
+   "createdAt": "2026-11-01T09:00:00Z",
+   "updatedAt": "2026-11-10T12:00:00Z",
+   "author": {
+    "login": "bamr87",
+    "__typename": "User"
+   },
+   "repository": {
+    "nameWithOwner": "bamr87/zer0-mistakes",
+    "isPrivate": false
+   },
+   "labels": {
+    "nodes": []
+   },
+   "isDraft": false,
+   "baseRefName": "main",
+   "headRefName": "feature/587"
+  },
+  {
+   "__typename": "PullRequest",
+   "id": "PR_11",
+   "number": 830,
+   "title": "chore(jev): record ratification of amendment 0033",
+   "url": "https://github.com/bamr87/bamr87/pull/830",
+   "createdAt": "2026-11-01T09:00:00Z",
+   "updatedAt": "2026-11-10T12:00:00Z",
+   "author": {
+    "login": "bamr87",
+    "__typename": "User"
+   },
+   "repository": {
+    "nameWithOwner": "bamr87/bamr87",
+    "isPrivate": false
+   },
+   "labels": {
+    "nodes": []
+   },
+   "isDraft": false,
+   "baseRefName": "main",
+   "headRefName": "chore/jev-ratify"
+  },
+  {
+   "__typename": "PullRequest",
+   "id": "PR_12",
+   "number": 831,
+   "title": "fix(ci): rotate ghp_abcdefghijklmnopqrstuvwxyz0123 out of the log",
+   "url": "https://github.com/bamr87/bamr87/pull/831",
+   "createdAt": "2026-11-01T09:00:00Z",
+   "updatedAt": "2026-11-10T12:00:00Z",
+   "author": {
+    "login": "bamr87",
+    "__typename": "User"
+   },
+   "repository": {
+    "nameWithOwner": "bamr87/bamr87",
+    "isPrivate": false
+   },
+   "labels": {
+    "nodes": []
+   },
+   "isDraft": false,
+   "baseRefName": "main",
+   "headRefName": "feature/831"
+  },
+  {
+   "__typename": "PullRequest",
+   "id": "PR_13",
+   "number": 3,
+   "title": "feat: a private change",
+   "url": "https://github.com/bash-365/private-lab/pull/3",
+   "createdAt": "2026-11-01T09:00:00Z",
+   "updatedAt": "2026-11-10T12:00:00Z",
+   "author": {
+    "login": "bamr87",
+    "__typename": "User"
+   },
+   "repository": {
+    "nameWithOwner": "bash-365/private-lab",
+    "isPrivate": true
+   },
+   "labels": {
+    "nodes": []
+   },
+   "isDraft": false,
+   "baseRefName": "main",
+   "headRefName": "feature/3"
+  },
+  {
+   "__typename": "PullRequest",
+   "id": "PR_14",
+   "number": 2,
+   "title": "chore: adopt the governance kit templates",
+   "url": "https://github.com/bamr87/recon-engine/pull/2",
+   "createdAt": "2026-11-01T09:00:00Z",
+   "updatedAt": "2026-11-10T12:00:00Z",
+   "author": {
+    "login": "bamr87",
+    "__typename": "User"
+   },
+   "repository": {
+    "nameWithOwner": "bamr87/recon-engine",
+    "isPrivate": false
+   },
+   "labels": {
+    "nodes": []
+   },
+   "isDraft": false,
+   "baseRefName": "main",
+   "headRefName": "feature/2"
+  },
+  {
+   "__typename": "PullRequest",
+   "id": "PR_15",
+   "number": 160,
+   "title": "docs(proposals): redesign gitorio as Harness Studio",
+   "url": "https://github.com/bamr87/gitorio/pull/160",
+   "createdAt": "2026-11-01T09:00:00Z",
+   "updatedAt": "2026-11-10T12:00:00Z",
+   "author": {
+    "login": "bamr87",
+    "__typename": "User"
+   },
+   "repository": {
+    "nameWithOwner": "bamr87/gitorio",
+    "isPrivate": false
+   },
+   "labels": {
+    "nodes": [
+     {
+      "name": "docs"
+     },
+     {
+      "name": "P3"
+     }
+    ]
+   },
+   "isDraft": false,
+   "baseRefName": "main",
+   "headRefName": "feature/160"
+  }
+ ],
+ "enrich": {
+  "PR_01": {
+   "id": "PR_01",
+   "mergeable": "MERGEABLE",
+   "mergeStateStatus": "CLEAN",
+   "reviewDecision": null,
+   "autoMergeRequest": null,
+   "files": {
+    "totalCount": 1,
+    "nodes": [
+     {
+      "path": "src/app.py"
+     }
+    ]
+   },
+   "commits": {
+    "nodes": [
+     {
+      "commit": {
+       "statusCheckRollup": {
+        "state": "SUCCESS"
+       }
+      }
+     }
+    ]
+   }
+  },
+  "PR_02": {
+   "id": "PR_02",
+   "mergeable": "MERGEABLE",
+   "mergeStateStatus": "BEHIND",
+   "reviewDecision": null,
+   "autoMergeRequest": null,
+   "files": {
+    "totalCount": 2,
+    "nodes": [
+     {
+      "path": "docs/amendments/proposed/agent-merge-review-gate.md"
+     },
+     {
+      "path": "docs/constitution.md"
+     }
+    ]
+   },
+   "commits": {
+    "nodes": [
+     {
+      "commit": {
+       "statusCheckRollup": {
+        "state": "SUCCESS"
+       }
+      }
+     }
+    ]
+   }
+  },
+  "PR_03": {
+   "id": "PR_03",
+   "mergeable": "MERGEABLE",
+   "mergeStateStatus": "CLEAN",
+   "reviewDecision": null,
+   "autoMergeRequest": null,
+   "files": {
+    "totalCount": 1,
+    "nodes": [
+     {
+      "path": "Gemfile"
+     }
+    ]
+   },
+   "commits": {
+    "nodes": [
+     {
+      "commit": {
+       "statusCheckRollup": {
+        "state": "SUCCESS"
+       }
+      }
+     }
+    ]
+   }
+  },
+  "PR_04": {
+   "id": "PR_04",
+   "mergeable": "MERGEABLE",
+   "mergeStateStatus": "UNSTABLE",
+   "reviewDecision": null,
+   "autoMergeRequest": null,
+   "files": {
+    "totalCount": 1,
+    "nodes": [
+     {
+      "path": "docker/Dockerfile"
+     }
+    ]
+   },
+   "commits": {
+    "nodes": [
+     {
+      "commit": {
+       "statusCheckRollup": {
+        "state": "FAILURE"
+       }
+      }
+     }
+    ]
+   }
+  },
+  "PR_05": {
+   "id": "PR_05",
+   "mergeable": "MERGEABLE",
+   "mergeStateStatus": "CLEAN",
+   "reviewDecision": null,
+   "autoMergeRequest": {
+    "enabledAt": "2026-11-10T00:00:00Z"
+   },
+   "files": {
+    "totalCount": 1,
+    "nodes": [
+     {
+      "path": "studio/Gemfile.lock"
+     }
+    ]
+   },
+   "commits": {
+    "nodes": [
+     {
+      "commit": {
+       "statusCheckRollup": {
+        "state": "SUCCESS"
+       }
+      }
+     }
+    ]
+   }
+  },
+  "PR_06": {
+   "id": "PR_06",
+   "mergeable": "MERGEABLE",
+   "mergeStateStatus": "CLEAN",
+   "reviewDecision": null,
+   "autoMergeRequest": null,
+   "files": {
+    "totalCount": 2,
+    "nodes": [
+     {
+      "path": "frontend/package.json"
+     },
+     {
+      "path": "frontend/package-lock.json"
+     }
+    ]
+   },
+   "commits": {
+    "nodes": [
+     {
+      "commit": {
+       "statusCheckRollup": {
+        "state": "SUCCESS"
+       }
+      }
+     }
+    ]
+   }
+  },
+  "PR_07": {
+   "id": "PR_07",
+   "mergeable": "MERGEABLE",
+   "mergeStateStatus": "DRAFT",
+   "reviewDecision": null,
+   "autoMergeRequest": null,
+   "files": {
+    "totalCount": 1,
+    "nodes": [
+     {
+      "path": "docker-compose.yml"
+     }
+    ]
+   },
+   "commits": {
+    "nodes": [
+     {
+      "commit": {
+       "statusCheckRollup": {
+        "state": "SUCCESS"
+       }
+      }
+     }
+    ]
+   }
+  },
+  "PR_08": {
+   "id": "PR_08",
+   "mergeable": "MERGEABLE",
+   "mergeStateStatus": "CLEAN",
+   "reviewDecision": null,
+   "autoMergeRequest": null,
+   "files": {
+    "totalCount": 1,
+    "nodes": [
+     {
+      "path": "src/app.py"
+     }
+    ]
+   },
+   "commits": {
+    "nodes": [
+     {
+      "commit": {
+       "statusCheckRollup": {
+        "state": "SUCCESS"
+       }
+      }
+     }
+    ]
+   }
+  },
+  "PR_09": {
+   "id": "PR_09",
+   "mergeable": "MERGEABLE",
+   "mergeStateStatus": "CLEAN",
+   "reviewDecision": "CHANGES_REQUESTED",
+   "autoMergeRequest": null,
+   "files": {
+    "totalCount": 1,
+    "nodes": [
+     {
+      "path": "PRD.md"
+     }
+    ]
+   },
+   "commits": {
+    "nodes": [
+     {
+      "commit": {
+       "statusCheckRollup": {
+        "state": "SUCCESS"
+       }
+      }
+     }
+    ]
+   }
+  },
+  "PR_10": {
+   "id": "PR_10",
+   "mergeable": "CONFLICTING",
+   "mergeStateStatus": "DIRTY",
+   "reviewDecision": null,
+   "autoMergeRequest": null,
+   "files": {
+    "totalCount": 1,
+    "nodes": [
+     {
+      "path": "src/app.py"
+     }
+    ]
+   },
+   "commits": {
+    "nodes": [
+     {
+      "commit": {
+       "statusCheckRollup": {
+        "state": "SUCCESS"
+       }
+      }
+     }
+    ]
+   }
+  },
+  "PR_11": {
+   "id": "PR_11",
+   "mergeable": "MERGEABLE",
+   "mergeStateStatus": "CLEAN",
+   "reviewDecision": null,
+   "autoMergeRequest": null,
+   "files": {
+    "totalCount": 2,
+    "nodes": [
+     {
+      "path": "docs/amendments/0033-example.md"
+     },
+     {
+      "path": "docs/amendments/README.md"
+     }
+    ]
+   },
+   "commits": {
+    "nodes": [
+     {
+      "commit": {
+       "statusCheckRollup": {
+        "state": "SUCCESS"
+       }
+      }
+     }
+    ]
+   }
+  },
+  "PR_12": {
+   "id": "PR_12",
+   "mergeable": "MERGEABLE",
+   "mergeStateStatus": "CLEAN",
+   "reviewDecision": null,
+   "autoMergeRequest": null,
+   "files": {
+    "totalCount": 1,
+    "nodes": [
+     {
+      "path": ".github/workflows/ci.yml"
+     }
+    ]
+   },
+   "commits": {
+    "nodes": [
+     {
+      "commit": {
+       "statusCheckRollup": null
+      }
+     }
+    ]
+   }
+  },
+  "PR_13": {
+   "id": "PR_13",
+   "mergeable": "MERGEABLE",
+   "mergeStateStatus": "CLEAN",
+   "reviewDecision": null,
+   "autoMergeRequest": null,
+   "files": {
+    "totalCount": 1,
+    "nodes": [
+     {
+      "path": "src/app.py"
+     }
+    ]
+   },
+   "commits": {
+    "nodes": [
+     {
+      "commit": {
+       "statusCheckRollup": {
+        "state": "SUCCESS"
+       }
+      }
+     }
+    ]
+   }
+  },
+  "PR_14": {
+   "id": "PR_14",
+   "mergeable": "MERGEABLE",
+   "mergeStateStatus": "CLEAN",
+   "reviewDecision": null,
+   "autoMergeRequest": null,
+   "files": {
+    "totalCount": 4,
+    "nodes": [
+     {
+      "path": "docs/adr/0000-template.md"
+     },
+     {
+      "path": "docs/amendments/README.md"
+     },
+     {
+      "path": "docs/amendments/0000-template.md"
+     },
+     {
+      "path": "README.md"
+     }
+    ]
+   },
+   "commits": {
+    "nodes": [
+     {
+      "commit": {
+       "statusCheckRollup": {
+        "state": "SUCCESS"
+       }
+      }
+     }
+    ]
+   }
+  },
+  "PR_15": {
+   "id": "PR_15",
+   "mergeable": "MERGEABLE",
+   "mergeStateStatus": "CLEAN",
+   "reviewDecision": "APPROVED",
+   "autoMergeRequest": null,
+   "files": {
+    "totalCount": 3,
+    "nodes": [
+     {
+      "path": "docs/amendments/0002-harness-studio-mission.md"
+     },
+     {
+      "path": "docs/constitution.md"
+     },
+     {
+      "path": "docs/adr/0004-studio.md"
+     }
+    ]
+   },
+   "commits": {
+    "nodes": [
+     {
+      "commit": {
+       "statusCheckRollup": {
+        "state": "SUCCESS"
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ "issues": [
+  {
+   "__typename": "Issue",
+   "id": "I_01",
+   "number": 565,
+   "title": "Decide bot identity for PR comments",
+   "url": "https://github.com/bamr87/bamr87/issues/565",
+   "createdAt": "2026-11-01T09:00:00Z",
+   "updatedAt": "2026-11-10T12:00:00Z",
+   "author": {
+    "login": "bamr87",
+    "__typename": "User"
+   },
+   "repository": {
+    "nameWithOwner": "bamr87/bamr87",
+    "isPrivate": false
+   },
+   "labels": {
+    "nodes": [
+     {
+      "name": "needs-amr"
+     },
+     {
+      "name": "P1"
+     }
+    ]
+   }
+  },
+  {
+   "__typename": "Issue",
+   "id": "I_02",
+   "number": 900,
+   "title": "Editorial charter: restructure the quests index",
+   "url": "https://github.com/bamr87/it-journey/issues/900",
+   "createdAt": "2026-11-01T09:00:00Z",
+   "updatedAt": "2026-11-10T12:00:00Z",
+   "author": {
+    "login": "bamr87",
+    "__typename": "User"
+   },
+   "repository": {
+    "nameWithOwner": "bamr87/it-journey",
+    "isPrivate": false
+   },
+   "labels": {
+    "nodes": [
+     {
+      "name": "needs-amr"
+     }
+    ]
+   }
+  }
+ ],
+ "repos": [
+  {
+   "nameWithOwner": "bamr87/bamr87",
+   "isPrivate": false,
+   "isFork": false,
+   "issues": {
+    "totalCount": 241
+   },
+   "pullRequests": {
+    "totalCount": 4
+   }
+  },
+  {
+   "nameWithOwner": "bamr87/zer0-mistakes",
+   "isPrivate": false,
+   "isFork": false,
+   "issues": {
+    "totalCount": 27
+   },
+   "pullRequests": {
+    "totalCount": 2
+   }
+  },
+  {
+   "nameWithOwner": "bamr87/it-journey",
+   "isPrivate": false,
+   "isFork": false,
+   "issues": {
+    "totalCount": 19
+   },
+   "pullRequests": {
+    "totalCount": 0
+   }
+  },
+  {
+   "nameWithOwner": "bash-365/private-lab",
+   "isPrivate": true,
+   "isFork": false,
+   "issues": {
+    "totalCount": 0
+   },
+   "pullRequests": {
+    "totalCount": 1
+   }
+  },
+  {
+   "nameWithOwner": "bamr87/quiet",
+   "isPrivate": false,
+   "isFork": true,
+   "issues": {
+    "totalCount": 0
+   },
+   "pullRequests": {
+    "totalCount": 0
+   }
+  },
+  {
+   "nameWithOwner": "bamr87/bashcrawl",
+   "isPrivate": false,
+   "isFork": false,
+   "issues": {
+    "totalCount": 3
+   },
+   "pullRequests": {
+    "totalCount": 1
+   }
+  },
+  {
+   "nameWithOwner": "bamr87/lifehacker.dev",
+   "isPrivate": false,
+   "isFork": false,
+   "issues": {
+    "totalCount": 3
+   },
+   "pullRequests": {
+    "totalCount": 1
+   }
+  },
+  {
+   "nameWithOwner": "bamr87/bashos",
+   "isPrivate": false,
+   "isFork": false,
+   "issues": {
+    "totalCount": 3
+   },
+   "pullRequests": {
+    "totalCount": 1
+   }
+  },
+  {
+   "nameWithOwner": "bamr87/law-ai",
+   "isPrivate": false,
+   "isFork": false,
+   "issues": {
+    "totalCount": 3
+   },
+   "pullRequests": {
+    "totalCount": 1
+   }
+  },
+  {
+   "nameWithOwner": "bamr87/fleet-observe",
+   "isPrivate": false,
+   "isFork": false,
+   "issues": {
+    "totalCount": 3
+   },
+   "pullRequests": {
+    "totalCount": 1
+   }
+  },
+  {
+   "nameWithOwner": "bamr87/scripts",
+   "isPrivate": false,
+   "isFork": false,
+   "issues": {
+    "totalCount": 3
+   },
+   "pullRequests": {
+    "totalCount": 1
+   }
+  },
+  {
+   "nameWithOwner": "bamr87/README",
+   "isPrivate": false,
+   "isFork": false,
+   "issues": {
+    "totalCount": 3
+   },
+   "pullRequests": {
+    "totalCount": 1
+   }
+  },
+  {
+   "nameWithOwner": "bamr87/recon-engine",
+   "isPrivate": false,
+   "isFork": false,
+   "issues": {
+    "totalCount": 3
+   },
+   "pullRequests": {
+    "totalCount": 1
+   }
+  },
+  {
+   "nameWithOwner": "bamr87/gitorio",
+   "isPrivate": false,
+   "isFork": false,
+   "issues": {
+    "totalCount": 3
+   },
+   "pullRequests": {
+    "totalCount": 1
+   }
+  }
+ ]
+}

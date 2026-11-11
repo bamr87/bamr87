@@ -341,6 +341,71 @@ class RefineTools(unittest.TestCase):
         self.assertTrue(d["log_truncated"])
 
 
+class DecisionQueueTool(unittest.TestCase):
+    """decision_queue is ONE call to /api/decisions; with no console it reads the same index in this process."""
+
+    DOC = {"schema": "decision-queue/v1", "status": "fresh", "complete": True, "source": "cache", "total": 1,
+           "counts": {"needs_amr": 1, "ratification": 0, "dependabot": 0, "ready_to_merge": 0},
+           "items": [{"key": "pr:bamr87/bamr87#1", "kind": "needs_amr", "why": ["labelled needs-amr"]}],
+           "warnings": [], "errors": []}
+
+    def test_one_get_with_the_filters_and_a_capped_budget(self):
+        fc = FakeConsole({"/api/decisions": self.DOC})
+        res, text = call(srv.build_server(fc), "decision_queue", {"kind": "needs_amr", "repo": "bamr87/bamr87",
+                                                                  "limit": 999, "refresh": "never", "budget_s": 600})
+        self.assertFalse(res.is_error, text)
+        self.assertEqual(payload(res, text)["items"][0]["key"], "pr:bamr87/bamr87#1")
+        self.assertEqual(fc.calls, [("GET", "/api/decisions", {"kind": "needs_amr", "repo": "bamr87/bamr87", "limit": 200,
+                                                               "refresh": "never", "budget": 15.0}, None)])
+        self.assertLess(srv.DECISION_BUDGET_MAX_S, fc.timeout, "the console's partial answer arrives before the client gives up")
+
+    def test_defaults_leave_the_budget_to_the_console(self):
+        fc = FakeConsole({"/api/decisions": self.DOC})
+        call(srv.build_server(fc), "decision_queue")
+        self.assertEqual(fc.calls, [("GET", "/api/decisions", {"limit": 30, "refresh": "auto"}, None)])
+
+    def test_a_bad_kind_never_reaches_the_console(self):
+        fc = FakeConsole({"/api/decisions": self.DOC})
+        res, _ = call(srv.build_server(fc), "decision_queue", {"kind": "everything"})
+        self.assertTrue(res.is_error)
+        self.assertEqual(fc.calls, [])
+
+    def test_a_console_refusal_is_a_tool_error_not_a_fallback(self):
+        fc = FakeConsole({"/api/decisions": ConsoleError("console GET /api/decisions -> 401: bad token", 401)})
+        with mock.patch.object(srv, "decision_local", side_effect=AssertionError("must not fall back")):
+            res, text = call(srv.build_server(fc), "decision_queue")
+        self.assertTrue(res.is_error)
+        self.assertIn("401", text)
+        self.assertNotIn("s3cret-token", text)
+
+    def test_with_no_console_the_same_module_answers_in_process(self):
+        seen = []
+        for err, why in ((ConsoleError("console unreachable at http://fake: refused"), "no console answered"),
+                         (ConsoleError("console GET /api/decisions -> 404: Not Found", 404), "no /api/decisions yet")):
+            fc = FakeConsole({"/api/decisions": err})
+            with mock.patch.object(srv, "decision_local", side_effect=lambda **kw: seen.append(kw) or dict(self.DOC)):
+                res, text = call(srv.build_server(fc), "decision_queue", {"kind": "dependabot", "budget_s": 4})
+            self.assertFalse(res.is_error, text)
+            d = payload(res, text)
+            self.assertEqual(d["status"], "fresh")
+            self.assertIn(why, d["via"])
+        self.assertEqual(seen, [{"kind": "dependabot", "repo": "", "limit": 30, "refresh": "auto", "budget_s": 4.0}] * 2)
+
+    def test_the_in_process_read_is_the_real_module_over_the_index_file(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.dict(os.environ, {"DASH_DECISIONS_INDEX": str(Path(tmp) / "index.json")}):
+            d = srv.decision_local(refresh="never", limit=5)        # no index, and `never` makes no GitHub call
+            self.assertEqual((d["schema"], d["status"], d["items"]), ("decision-queue/v1", "unavailable", []))
+            with self.assertRaises(ConsoleError):
+                srv.decision_local(kind="everything", refresh="never")
+
+    def test_it_is_listed_and_read_only(self):
+        tools = {t.name: t for t in anyio.run(srv.build_server(FakeConsole(), allow_writes=False, scopes="").list_tools)}
+        self.assertTrue(tools["decision_queue"].annotations.read_only_hint)
+        self.assertFalse(tools["decision_queue"].annotations.destructive_hint)
+        self.assertIn("decision_queue", srv.INSTRUCTIONS)
+
+
 class WriteTools(unittest.TestCase):
     def setUp(self):
         self.fc = FakeConsole({("POST", "/api/jobs"): {"id": "j9"}, ("POST", "/api/jobs/j9/cancel"): {"ok": True},

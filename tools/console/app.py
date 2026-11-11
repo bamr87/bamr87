@@ -47,6 +47,7 @@ from fastapi.responses import FileResponse, StreamingResponse, HTMLResponse, JSO
 from pydantic import BaseModel, Field
 
 import core
+import decision_index
 import github_link as ghl
 import site_docs
 import tui_bridge
@@ -963,6 +964,27 @@ def learn_view(loop: str = Query(default="", pattern=r"^[a-z0-9-]{0,40}$"), slot
     try:
         return flearn.view(core.REPO_ROOT, loop=loop, slots=slots, limit=limit)
     except flearn.ConfigError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/api/decisions", dependencies=[Depends(require_token)])
+def decisions(kind: str = Query(default="", pattern=r"^[a-z_]{0,20}$"),
+              repo: str = Query(default="", max_length=140),
+              limit: int = Query(default=50, ge=0, le=decision_index.MAX_LIMIT),
+              refresh: str = Query(default="auto", pattern=r"^[a-z]{1,10}$"),
+              budget: float = Query(default=0, ge=0, le=30)) -> dict:
+    """What waits on the maintainer across the fleet, in one call (decision_index;
+    docs/DECISION-INDEX.md): needs-amr items, pull requests awaiting ratification,
+    failing or major Dependabot pull requests and ready-to-merge pull requests,
+    from the local index. `refresh` is auto (read GitHub when the index is past
+    its TTL) · never · force; `budget` is the wall clock in seconds (0 = the
+    fleet.yml default), past which the answer is partial and says so. Read-only:
+    the document `tools/dash decisions --json` prints and the MCP's
+    decision_queue returns. Never part of the public snapshot."""
+    try:
+        return decision_index.queue(core.REPO_ROOT, kind=kind, repo=repo, limit=limit, refresh=refresh,
+                                    budget_s=budget or None, token=lambda: ghl.token_source()[1])
+    except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
 

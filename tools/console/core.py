@@ -1914,6 +1914,17 @@ OPS: dict[str, dict] = {
                        argv=lambda p: [DASH, "learn", "plan"], needs_token=False,
                        desc="The share of the next slots each repo would get (Thompson sampling, seeded by the date) "
                             "beside what the loop filed lately, and the replay test. Prints a plan; changes nothing. $0."),
+    "decisions": dict(title="Decision queue: what waits on Amr across the fleet", group="observe",
+                      argv=lambda p: [DASH, "decisions", "queue", "--repos"], needs_token=True,
+                      desc="needs-amr items, pull requests awaiting ratification, failing or major Dependabot pull "
+                           "requests and ready-to-merge pull requests, with the per-repo inventory, from the local "
+                           "index (docs/DECISION-INDEX.md). Reads GitHub only when the index is past its TTL, inside "
+                           "decisions.budget_s; a partial answer says so. Read-only, $0."),
+    "decisions-refresh": dict(title="Decision queue: read GitHub now", group="observe",
+                              argv=lambda p: [DASH, "decisions", "refresh"], needs_token=True,
+                              desc="Reads every open pull request and gate-labelled issue of the fleet again under "
+                                   "decisions.refresh_budget_s and rewrites the index; fails unless the read finished "
+                                   "clean, so a scheduled run cannot hide a stale index. Read-only, $0."),
     "workflow-new": dict(title="Scaffold a new workflow", group="plan", argv=_workflow_new, needs_token=False,
                          desc="Writes .github/workflows/<id>.yml from a template that passes every rule "
                               "(never overwrites) and prints the fleet.yml / README edits that go with it. "

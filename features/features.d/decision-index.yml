@@ -1,0 +1,24 @@
+id: HUB-NEW
+slug: decision-index
+title: "Decision index: what waits on the maintainer across the fleet, in one call"
+description: "tools/console/decision_index.py answers 'what does Amr need to decide?' for every repo of hub.owners in one call instead of a sweep of each repo: needs-amr items, pull requests that change a constitution, an amendment or an ADR, failing or major Dependabot pull requests and ready-to-merge pull requests, each with its reason, plus a per-repo inventory. Three GraphQL searches and parallel merge-state batches fill a local index (.fleet/decisions/index.json, gitignored, owner-only) that is served until decisions.ttl_s; a hard time budget returns a partial answer, and status says fresh, partial, stale, expired or unavailable with every failure named. One document on `tools/dash decisions`, /api/decisions and the MCP's decision_queue. Read-only, $0, no model, never published."
+implemented: true
+status: shipped
+surface: cli
+link: tools/console/decision_index.py
+docs: docs/DECISION-INDEX.md
+tags: [decisions, console, mcp, github, review-gate, ratification, dependabot, cache]
+date: 2026-11-11
+tests:
+  - tools/console/test_decision_index.py
+  - tools/console/test_console.py
+  - tools/console/test_mcp_layer.py
+  - tools/console/test_pages.py
+prd: ["FR-NEW:decision-index", "NFR-NEW:decision-index-budget", "FR26", "NFR20"]
+prd_new:
+  - key: decision-index
+    kind: FR
+    text: "The product must answer in one call, on the CLI, the console API and MCP, what waits on the maintainer across every repo of the hub's owners: issues and pull requests carrying the review-gate label, pull requests that change a constitution, an amendment or an ADR, Dependabot pull requests that fail or are a major bump, and pull requests that are ready to merge, each with the reason it is listed and a per-repo inventory of open pull requests, Dependabot pull requests and issues."
+  - key: decision-index-budget
+    kind: NFR
+    text: "The decision queue must answer inside a declared time budget from a local index that is refreshed when older than its TTL; when GitHub cannot be read in time or at all it must return what it has, state whether the answer is fresh, partial, stale, expired or unavailable, name each failure, never present old data as current, never write to GitHub and never publish or return a token or a private repo's items."

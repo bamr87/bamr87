@@ -208,6 +208,67 @@ def test_graph_and_learning_routes_serve_the_shared_views():
         assert argv[0] == core.DASH and not core.OPS[op].get("remote"), op
 
 
+def test_decisions_route_serves_the_queue_and_never_the_token():
+    """Over HTTP: /api/decisions is the document `tools/dash decisions --json`
+    prints, from the local index. A read of GitHub uses the console's own
+    identity inside the budget the request gave; the token never comes back;
+    a bad filter is refused; and the two operations are local reads."""
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+    import decision_index
+
+    pr = {"__typename": "PullRequest", "id": "PR_1", "number": 7, "title": "docs: amend the merge gate",
+          "url": "https://github.com/bamr87/bamr87/pull/7", "createdAt": "2026-11-01T00:00:00Z",
+          "updatedAt": "2026-11-02T00:00:00Z", "author": {"login": "bamr87", "__typename": "User"},
+          "repository": {"nameWithOwner": "bamr87/bamr87", "isPrivate": False},
+          "labels": {"nodes": [{"name": "needs-amr"}]}, "isDraft": False, "baseRefName": "main", "headRefName": "docs/x"}
+    seen = []
+
+    def github(query, variables, tok, timeout):
+        seen.append((tok, timeout))
+        if "nodes(ids" in query:
+            return 200, {}, {"data": {"nodes": [{"id": "PR_1", "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN",
+                                                 "reviewDecision": None, "autoMergeRequest": None,
+                                                 "files": {"totalCount": 1, "nodes": [{"path": "docs/constitution.md"}]},
+                                                 "commits": {"nodes": [{"commit": {"statusCheckRollup": {"state": "SUCCESS"}}}]}}]}}
+        rows = [pr] if "is:pr" in variables["q"] else []
+        count = "repositoryCount" if "type:REPOSITORY" in query else "issueCount"
+        return 200, {}, {"data": {"search": {count: len(rows), "pageInfo": {"hasNextPage": False, "endCursor": None},
+                                             "nodes": rows}}}
+
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    with tempfile.TemporaryDirectory() as tmp, \
+            mock.patch.dict(os.environ, {"DASH_DECISIONS_INDEX": str(Path(tmp) / "index.json")}), \
+            mock.patch.object(decision_index, "_http", github), \
+            mock.patch.object(console_app.ghl, "token_source", lambda: ("GH_TOKEN", "tok-from-the-console")):
+        empty = client.get("/api/decisions", params={"refresh": "never"}).json()       # no index, and no call
+        assert (empty["schema"], empty["status"], empty["items"], seen) == ("decision-queue/v1", "unavailable", [], [])
+        r = client.get("/api/decisions", params={"budget": 5})
+        doc = r.json()
+        assert r.status_code == 200 and doc["status"] == "fresh" and doc["source"] == "live", doc
+        assert doc["items"][0]["kinds"] == ["needs_amr", "ratification", "ready_to_merge"], doc["items"]
+        assert doc["counts"]["needs_amr"] == 1 and doc["budget_s"] == 5
+        assert len(seen) == 4 and {tok for tok, _ in seen} == {"tok-from-the-console"}
+        assert all(timeout <= 5 for _, timeout in seen), "every query is held inside the request's budget"
+        assert "tok-from-the-console" not in r.text and "tok-from-the-console" not in (Path(tmp) / "index.json").read_text()
+        cached = client.get("/api/decisions", params={"kind": "ratification", "repo": "bamr87/bamr87"}).json()
+        assert cached["source"] == "cache" and cached["matched"] == 1 and len(seen) == 4, "inside the TTL: no call"
+        assert client.get("/api/decisions", params={"kind": "everything"}).status_code == 400
+        assert client.get("/api/decisions", params={"refresh": "sometimes"}).status_code == 400
+        assert client.get("/api/decisions", params={"repo": "../etc"}).status_code == 400
+        for bad in ({"kind": "NOT-A-KIND"}, {"limit": 9999}, {"budget": 999}):
+            assert client.get("/api/decisions", params=bad).status_code == 422, bad
+    argv, remote = core.build_argv("decisions", {})                                            # the page can run them
+    assert argv == [core.DASH, "decisions", "queue", "--repos"] and remote is False
+    argv, remote = core.build_argv("decisions-refresh", {})
+    assert argv == [core.DASH, "decisions", "refresh"] and remote is False
+
+
 def test_a_dev_stack_op_names_one_project_from_the_port_registry():
     """The Apps page starts a project's stack. Only a compose-hosted project in
     _data/ports.yml: never the hub (`dash dev up hub` starts a second core that
