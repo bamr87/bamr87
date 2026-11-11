@@ -1,0 +1,33 @@
+# Purpose of the agentic loops dashboard: BASH Consulting showcase, Bash 365 foundation, and the agent wizard.
+# Numbered at merge: id stays HUB-NEW (amendment 0002).
+id: HUB-NEW
+slug: agentic-loops-foundation
+title: "Agentic loops dashboard as the Bash 365 foundation"
+description: "The same dashboard is the BASH Consulting showcase and the first end-to-end test of this build-out, including the reporting and the marketing a person reviews. The brand, voice and identity line is A born-again solutions hero: born-again in the line, a play on Bash, the Bourne-again shell. It is the first example of harnessing the power of AI and of visualizing that power, the way an operator puts their arms around agents and frameworks that are available, powerful and omnipresent. It is the first and foundational application Bash 365 is based on and evolves from. It is the installation wizard and the creation of all the wizards, also known as the AI agents. Design only (docs/prd/AGENTIC-LOOPS-DASHBOARD.md). The board is HUB-NEW:agentic-loops-dashboard. Roadmap FF-NEW:agentic-loops-dashboard."
+implemented: false
+status: planned
+surface: ui
+link: docs/prd/AGENTIC-LOOPS-DASHBOARD.md
+docs: docs/prd/AGENTIC-LOOPS-DASHBOARD.md
+tags: [dashboard, bash-365, showcase, agents, wizard]
+date: 2026-11-10
+tests:
+  - {na: "docs-only PRD; the showcase drafts and the read-only wizard view land after the board"}
+prd:
+  - "FR-NEW:bash-consulting-showcase"
+  - "FR-NEW:harness-ai-visualize"
+  - "FR-NEW:bash-365-foundation"
+  - "FR-NEW:agent-wizard-installation"
+prd_new:
+  - key: bash-consulting-showcase
+    kind: FR
+    text: "This product must be the BASH Consulting showcase and the first end-to-end test of this build-out. The test includes the dashboard, the report of that walk, and the marketing that tells it. The report and the marketing are drafts a person reviews and publishes, in the brand voice A born-again solutions hero, born-again in the line, a play on Bash, the Bourne-again shell. That line is identity. It does not replace the dashboard's operational requirements. Agents must not auto-publish the drafts to GitHub, LinkedIn, the daily chronicle or lifehacker.dev."
+  - key: harness-ai-visualize
+    kind: FR
+    text: "This product must be the first example of harnessing the power of AI and of visualizing that power. It must be the operator's way to put their arms around AI capabilities that are available, powerful and omnipresent, by showing the agents and the frameworks in one picture of status, history and statistics."
+  - key: bash-365-foundation
+    kind: FR
+    text: "This product must be the first and foundational application that Bash 365 is based on and evolves from. Later Bash 365 work starts from this picture of live and routine agentic loops. Adopting it on bash-365.com is a later change in that repository. This requirement does not edit that submodule and does not replace the Azure cost dashboard or the cloud phone offering."
+  - key: agent-wizard-installation
+    kind: FR
+    text: "This product must be the installation wizard and the creation of all the wizards, also known as the AI agents. The wizard presents the agents and loops that already exist as one installed picture. This requirement does not create an agent, write the agent inventory, or change a workflow or a setting. A later write that creates an agent waits until Amr merges the follow-up amendment agent-wizard-creation."
