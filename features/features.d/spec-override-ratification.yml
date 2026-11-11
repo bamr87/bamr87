@@ -1,0 +1,19 @@
+# Relaxing overrides stay unapplied until the maintainer merges an amendment-style record.
+id: HUB-NEW
+slug: spec-override-ratification
+title: "Functional spec override ratification"
+description: "An override that downgrades a required spec to advisory, or otherwise relaxes severity or scope, is an amendment-style record that stays unapplied until Amr merges it. Standard or principle changes stay on the constitution amendment path. Design only (docs/prd/FUNCTIONAL-SPEC-LIBRARY.md)."
+implemented: false
+status: planned
+surface: infra
+link: docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+docs: docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+tags: [specs, governance, amendments]
+date: 2026-11-10
+tests:
+  - {na: "docs-only PRD; ratification wiring lands after the follow-up amendment"}
+prd: ["FR-NEW:spec-override-ratification"]
+prd_new:
+  - key: spec-override-ratification
+    kind: FR
+    text: "An override that downgrades a required spec to advisory, or otherwise relaxes severity or applicable scope, must be proposed as an amendment-style record and must stay unapplied until the maintainer merges it. A change to a standard or a principle goes through a constitution amendment and is ratified only by that merge."

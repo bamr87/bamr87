@@ -1,0 +1,20 @@
+# Central library of generic functional specifications (FEAT-NNN).
+# Numbered at merge: id stays HUB-NEW (amendment 0002).
+id: HUB-NEW
+slug: functional-spec-library
+title: "Shared functional specification library"
+description: "A central library of generic functional specifications in the hub, each a FEAT-NNN id linked to a PRD requirement, readable by every fleet repo, framework and application without a vendored copy. Design only (docs/prd/FUNCTIONAL-SPEC-LIBRARY.md). Roadmap FF-NEW:functional-spec-library."
+implemented: false
+status: planned
+surface: infra
+link: docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+docs: docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+tags: [specs, library, governance, prd]
+date: 2026-11-10
+tests:
+  - {na: "docs-only PRD; the library, resolver and gate land in a later implementation PR"}
+prd: ["FR-NEW:functional-spec-library"]
+prd_new:
+  - key: functional-spec-library
+    kind: FR
+    text: "The hub must hold one central library of generic functional specifications, each with a stable FEAT-NNN id allocated at merge, each linked by a prd field to the PRD requirement it serves, stored in this monorepo and readable by every fleet repo, framework and application without vendoring a copy."
