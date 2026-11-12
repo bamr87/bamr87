@@ -323,6 +323,23 @@ def main() -> int:
     cands_cz = build(triage(), usage(dict(canary, waste_min=4.0)))
     check("…and when it records wasted minutes",
           len(cands_cz) == 1 and "cron-heavy" in cands_cz[0]["signals"])
+    # A loop behind its kill switch: every cron firing is a free `skipped` run,
+    # so 100% scheduled raises cron-heavy with no verdict to clear it
+    # (fleet-pm.yml, 7 skipped runs, 0.0 job-min).
+    off = dict(wf("bamr87/bamr87", "Fleet PM review", ".github/workflows/fleet-pm.yml",
+                  runs=7, flags=["cron-heavy"], avg=0.0, p95=0.0, waste=0.0,
+                  total=0.0, priority=0.0, dispatch_pct=0.0,
+                  events={"schedule": 7}),
+               sched_pct=100.0, success_rate_pct=None, effectiveness_pct=None,
+               success=0, failure=0, cancelled=0)
+    check("a switched-off cron (every run skipped, 0 min) is not queued on cron-heavy",
+          build(triage(), usage(off)) == [] and remediation.is_switched_off(off))
+    check("…but a cron that executed is not switched off",
+          not remediation.is_switched_off(dict(off, success=1, total_min=1.0)))
+    off_legacy = {k: v for k, v in off.items()
+                  if k not in ("success", "failure", "cancelled")}
+    check("…and a snapshot without verdict counts behaves as before",
+          len(build(triage(), usage(off_legacy))) == 1)
     # A snapshot from before `success_rate_pct` / `waste_min` reads as not green.
     bare = {k: v for k, v in canary.items()
             if k not in ("success_rate_pct", "waste_min")}
