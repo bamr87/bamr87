@@ -4,7 +4,7 @@
 Read tools wrap the console's GET routes (fleet, harness health and scorecard,
 live snapshot, sessions, jobs and logs, spend, the data lake's traces and
 workflow lines, observability, semantic code search, deep dive, work board,
-one work item, a work-board plan's preview).
+one work item, a work-board plan's preview, the fleet's decision queue).
 Write tools (run an allowlisted op, cancel a job, flip a workflow kill switch)
 are NOT registered unless HARNESS_MCP_ALLOW_WRITES=1, are annotated
 destructive, and every one also needs confirm=true per call; the console's own
@@ -56,7 +56,8 @@ VERSION = "0.2.0"
 INSTRUCTIONS = (
     "bamr87 Harness Console: the fleet's control plane. Start with console_overview, then drill in: "
     "fleet_status, harness_health, live_snapshot, claude_telemetry, jobs_list/job_log, spend_vs_budget, lake_runs, workflow_lines, "
-    "code_search, deep_dive. To reprioritize open work: work_board, work_item, then work_preview(plan) — it writes "
+    "code_search, deep_dive. What waits on the maintainer across every repo is ONE call: decision_queue (never a "
+    "sweep of each repo). To reprioritize open work: work_board, work_item, then work_preview(plan) — it writes "
     "nothing and returns a plan_id — then, only after the user approves that diff, work_apply(plan, plan_id, "
     "confirm=true). job_dispatch starts one allowlisted report op after the user approves it. Write tools exist only "
     "when the operator enabled them (console_overview says which); each needs confirm=true and you must ask the user "
@@ -84,6 +85,24 @@ BOARD_BLOCKS = ("schema", "generated_at", "preview", "lanes", "loops", "totals",
                 "priorities", "roadmap_statuses", "hints", "queue_path")
 BOARD_TITLE_CHARS = 140
 BOARD_FILTERS = ("lane", "repo", "kind", "stage", "priority")
+
+
+# ------------------------------------------------------------ decision queue
+# /api/decisions answers inside its own time budget; this stays under the
+# client's 20 s timeout, so the console's partial answer arrives instead of a
+# timeout that says nothing.
+DECISION_BUDGET_MAX_S = 15.0
+DECISION_LIMIT_MAX = 200
+
+
+def decision_local(**query: Any) -> dict:
+    """The decision queue read in this process: the module the console's route calls, over the same index
+    file, for when no console answers. It resolves a GitHub token as the console does and returns none."""
+    import decision_index  # tools/console is on the path (above)
+    try:
+        return decision_index.queue(ROOT, **query)
+    except ValueError as e:
+        raise ConsoleError(str(e)) from None
 
 
 def truthy(v: str | None) -> bool:
@@ -953,6 +972,36 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
         """The review queue: every local loop-run attempt whose dry-run preview has not been filed — what
         `loop-run` with run_id and apply would file after a person reads it (the console's confirm gate)."""
         return call(lambda: c.get("/api/refine").get("reviews") or [])
+
+    # ------------------------------------------------------ the decision queue
+    @mcp.tool(annotations=READ)
+    def decision_queue(kind: Literal["", "needs_amr", "ratification", "dependabot", "ready_to_merge"] = "",
+                       repo: str = "", limit: int = 30, refresh: Literal["auto", "never", "force"] = "auto",
+                       budget_s: float = 0) -> Any:
+        """What waits on Amr across the WHOLE fleet, in ONE call (docs/DECISION-INDEX.md) — use it instead of
+        listing each repo's issues and pull requests. Four kinds, in this order: needs_amr (the `needs-amr` gate
+        label, issues and PRs), ratification (a PR that changes a constitution, an amendment or an ADR),
+        dependabot (a Dependabot PR that fails, conflicts or is a major bump), ready_to_merge (not a draft, no
+        conflicts, checks and reviews pass). Every item says `why`; `counts` covers the whole queue whatever
+        `limit` is, and `repos` is the per-repo inventory. Filter with kind and repo (owner/name or a name).
+        Served from a local index: refresh is auto (read GitHub only when the index is past its TTL) · never
+        (the index as it is, instant, no GitHub call) · force. The answer returns inside budget_s (0 = the
+        default; at most 15): read `status` (fresh · partial · stale · expired · unavailable), `warnings`,
+        `errors` and `hint` before relying on it — a partial or stale answer says which part is old and why.
+        Read-only: it never merges, labels or comments."""
+        def run():
+            q = {"kind": kind, "repo": repo, "limit": max(0, min(int(limit), DECISION_LIMIT_MAX)), "refresh": refresh,
+                 "budget": max(0.0, min(float(budget_s or 0), DECISION_BUDGET_MAX_S)) or None}
+            try:
+                return c.get("/api/decisions", **q)
+            except ConsoleError as e:
+                if e.status not in (None, 404):
+                    raise
+                # No console, or one that predates the route: the same module reads the same index file here.
+                doc = decision_local(kind=kind, repo=repo, limit=q["limit"], refresh=refresh, budget_s=q["budget"])
+                why = "no console answered" if e.status is None else "this console has no /api/decisions yet"
+                return {**doc, "via": f"read in the MCP process ({why})"}
+        return call(run)
 
     # ------------------------------------------------------------- resources
     # ------------------------------------- the `fleet` server's tools (merged)

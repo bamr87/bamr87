@@ -544,6 +544,41 @@ pm:
     max_per_kind: 20
 
 # --------------------------------------------------------------------------- #
+# Decisions — the decision index (docs/DECISION-INDEX.md, `tools/dash decisions`,
+# /api/decisions, the MCP's decision_queue).
+#
+# "What does Amr need to decide?" answered in one call: every open pull request
+# and gate-labelled issue under `hub.owners`, read with a handful of GraphQL
+# queries instead of a sweep of each repo, kept in a local index
+# (.fleet/decisions/index.json, gitignored) and served from it until `ttl_s`.
+# Read-only; no schedule and no model. tools/console/decision_index.py carries
+# the same values as its fallback, and test_decision_index.py holds the two equal.
+# --------------------------------------------------------------------------- #
+decisions:
+  ttl_s: 600                # an index newer than this is served without a GitHub call
+  max_stale_s: 86400        # older than this the index is `expired`: still shown when GitHub cannot answer, as a lead
+  budget_s: 10              # the hard wall clock of one answer; past it the answer is partial and says so
+  refresh_budget_s: 60      # the same for `tools/dash decisions refresh`
+  scan_page: 100            # search page size; a 502 halves it
+  enrich_batch: 10          # pull requests per merge-state query (100 at once runs past GitHub's own 10 s)
+  concurrency: 8            # queries in flight at once
+  max_prs: 1000             # GitHub's search returns no more than this
+  min_rate_remaining: 200   # with fewer requests left on the token the merge-state queries are skipped
+  labels:
+    gate: [needs-amr]       # the review gate (constitution § 12.4); `jev:needs-human` and `human-review` are candidates
+    hold: ["agent:hold", blocked]   # a pull request carrying one is never offered as ready to merge
+  dependabot:
+    authors: [dependabot, "dependabot[bot]"]
+  ratification:
+    paths:                  # a pull request that changes one of these awaits ratification or acceptance (§ 8, § 12.3)
+      - '(^|/)docs/constitution\.md$'
+      - '(^|/)CONSTITUTION\.md$'
+      - '(^|/)docs/amendments/(proposed/[^/]+|(?!0000-)\d{4}-[^/]+)\.md$'
+      - '(^|/)docs/adr/(?!0000-)\d{4}-[^/]+\.md$'
+    title: '\b(amendment|constitution|ratif\w*)\b'   # stands in while a pull request's files are not read yet
+    skip_branches: [chore/jev-ratify]                # the ratification-record branch is automation's (§ 12.3)
+
+# --------------------------------------------------------------------------- #
 # Verification — the AGENT VERIFICATION standard's knobs (docs/VERIFICATION.md).
 #
 # Tests prove the code; verification proves the PRODUCT, by using it the way a

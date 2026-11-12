@@ -60,6 +60,8 @@ def test_the_snapshot_publishes_nothing_local():
         "something token-shaped is in the snapshot"
     # Credentials are a console's business: not even their presence is written.
     assert "auth" not in docs(), "the auth document must not be published"
+    # The decision index is read with the operator's token and can hold a private repo's titles.
+    assert "decisions" not in docs(), "the decision queue must not be published"
     assert docs()["capabilities"]["env_tokens"] == {} and docs()["capabilities"]["mode"] == "snapshot"
 
 
