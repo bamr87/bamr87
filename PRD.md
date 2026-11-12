@@ -151,6 +151,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-105](features/features.yml) | The harness standard: every AI workflow found by any route, graded, with the lever that rebuilds it | shipped | route `/harnesses` · [`docs/HARNESS-OPS.md`](docs/HARNESS-OPS.md) | FR113, FR5 |
 | [HUB-106](features/features.yml) | Decision index: what waits on the maintainer across the fleet, in one call | shipped | [`tools/console/decision_index.py`](tools/console/decision_index.py) · [`docs/DECISION-INDEX.md`](docs/DECISION-INDEX.md) | FR114, NFR25, FR26, NFR20 |
 | [HUB-107](features/features.yml) | Automatic credential rotation: started by a secret-scanning alert, a schedule or a failing credential, for the credentials the weekly loop does not reach | planned | [`docs/prd/CREDENTIAL-ROTATION.md`](docs/prd/CREDENTIAL-ROTATION.md) · [`docs/TOKEN-ROTATION.md`](docs/TOKEN-ROTATION.md) | FR115, FR116, FR117, FR118, NFR26, NFR27 |
+| [HUB-108](features/features.yml) | Red-main resolver: every red default branch found, resolved where fleet rules allow, and handed over where they do not (proposed) | planned | [`docs/prd/RED-MAIN-RESOLVER.md`](docs/prd/RED-MAIN-RESOLVER.md) | FR42, FR119, FR120, FR121, FR122, NFR28 |
+| [HUB-109](features/features.yml) | CI review loop: each failed run on a red default branch traced through its workflow, judged for selectivity, and answered with a minimal diff (proposed) | planned | [`docs/prd/RED-MAIN-RESOLVER.md`](docs/prd/RED-MAIN-RESOLVER.md) | FR123, NFR28 |
 
 **Requirement → feature trace**
 
@@ -208,7 +210,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR39 | HUB-044 |
 | FR40 | HUB-044 |
 | FR41 | HUB-044 |
-| FR42 | HUB-045 |
+| FR42 | HUB-045, HUB-108 |
 | FR43 | HUB-046 |
 | FR44 | HUB-047 |
 | FR45 | HUB-048, HUB-059 |
@@ -300,6 +302,12 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR118 | HUB-107 |
 | NFR26 | HUB-107 |
 | NFR27 | HUB-107 |
+| FR119 | HUB-108 |
+| FR120 | HUB-108 |
+| FR121 | HUB-108 |
+| FR122 | HUB-108 |
+| NFR28 | HUB-108, HUB-109 |
+| FR123 | HUB-109 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -412,6 +420,11 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR116: A GitHub secret-scanning alert for a covered credential (one whose alert type the token contract lists) must automatically start a rotation of the affected key instead of only flagging it; this is the key rotation protocol's first trigger, wired first for google_api_key alerts on bamr87/zer0-CMS (bamr87/bamr87#460). The alert must be detected by a secret_scanning_alert webhook delivery forwarded to the hub or by a scheduled poll of the secret-scanning alerts API that hides the secret, with the poll kept as the backstop. The rotation must contain first (revoke the affected key, or restrict it where the contract says so), then mint the replacement, update each consuming secret, verify the new credential and its consumers, resolve the alert as revoked and close the tracking issue. Where automation cannot perform a step (no provider API, no access, a secret that matches no key the owner controls, a consumer copy outside GitHub secrets) the rotation must still start by itself and hand that step to a person as an ordered, containment-first instruction that automation verifies before it performs the remaining steps, and automation must never resolve as revoked an alert whose key it did not revoke. A webhook delivery and a poll for one alert must produce one rotation, a failed step must leave the alert and the tracking issue open saying what is needed, and no step may print, log or store a secret value (acceptance criteria: docs/prd/CREDENTIAL-ROTATION.md § 7.1).
 - FR117: Beside the secret-scanning alert, the key rotation protocol must start a rotation of a declared credential on its schedule (maximum age, or its expiry less the lead) and on two more events read on the fleet's scheduled reads: a capability probe the provider rejects, or N consecutive consumer runs failing at authentication; a rate limit or spent usage window is never a trigger, an unreachable signal reads unknown instead of healthy, and one credential has at most one open rotation and one tracking issue.
 - FR118: A credential a provider can mint and revoke through an API must be rotated with no human step; a credential only a person can mint (a browser sign-in, a web form) must be rotated with one prepared step that states the command or link, the scopes, the expiry and where the value goes; in both cases the new credential must be verified by a capability probe and by its consumer running before the rotation is recorded as done and before the old credential is revoked.
+- FR119: The hub must detect every fleet repo whose default branch head is red in one batched GraphQL query of statusCheckRollup, on a schedule or on demand and never on a pull-request or push check, and must report a repo it could not read, a head with no checks and a head still pending as those states, never as green.
+- FR120: For each red default branch the hub must name the failing checks, the root cause with the log evidence it was read from, and the blocking pull request or issue, and classify the fix as merge, fix or settings; a cause it cannot establish must be reported as unclassified and never guessed.
+- FR121: The red-main resolver must act by itself only where fleet rules allow: merge the blocking pull request only when it is mergeable under constitution § 12, re-read against live state immediately before, with a merge commit and never with --admin, squash, rebase or a force-push, never one the review gate holds, and only in a repo that has ratified agent merge; mark a draft ready only when its checks pass and the pull request states that ready-for-review is intended; route every code fix to Claude Code as a handoff issue (§ 26); and never change a setting, a secret, branch protection, a tag or an external service.
+- FR122: Every red-main run must report what needs the maintainer with exact steps (what to change, where, the command and how to verify it), re-read each default branch after any resolution, and state its final state as green, red or pending, never inferring green from an action having succeeded.
+- FR123: For each failed run on a red default branch, and optionally a sample of failed pull-request runs, the hub must review the CI itself, read-only: trace the workflow at the run's commit through its triggers, conditions and matrix and through the reusable workflows, composite actions and scripts it calls; flag it as over-broad, under-selective, misconfigured or ok with file-and-line evidence; and propose the minimal fix as a diff suggestion in its output, routed to Claude Code for implementation (§ 26) and to the maintainer for anything that touches a setting or a secret. It must never edit a workflow, a script, a setting or a secret, and must never propose weakening a check to clear a failure it has not shown to be a non-issue.
 
 **Non-functional**
 
@@ -442,6 +455,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - NFR25: The decision queue must answer inside a declared time budget from a local index that is refreshed when older than its TTL; when GitHub cannot be read in time or at all it must return what it has, state whether the answer is fresh, partial, stale, expired or unavailable, name each failure, never present old data as current, never write to GitHub and never publish or return a token or a private repo's items.
 - NFR26: Every rotation must follow detection, containment, recovery and verification in that order: a leak contains the old credential (revoke or restrict) before anything else, any other trigger keeps it valid until the new one is proved in every consumer, values are written hub first, a malformed or under-scoped value is refused before any target is written, a leaked credential that was revoked is never restored, a consumer failing on a dead credential is paused only through the central switches map, and a step that fails leaves one tracking issue saying what is needed and never fails silently; the alert-started rotation runs unattended only while the maintainer has switched it on, and every other revocation or secret write outside the existing weekly propagation waits for the maintainer's confirm.
 - NFR27: Every rotation must be recorded in a committed, values-free ledger (credential name, scope, target, trigger and its evidence link, each step with its time and result, the actor, the outcome), and no secret value, fragment or hash of one may ever appear in a log, a ledger, an issue, a pull request, a commit, a command's arguments or a URL; a value travels only from an environment variable to a secret store's stdin, masked before first use.
+- NFR28: The red-main resolver and its CI review loop must be a dry run by default and apply only a plan that was shown and confirmed; every run must be bounded by a wall-clock budget, per-run action caps and a rate-limit floor below which it stops with a partial report; every action must write one append-only audit record with token values redacted; the loop must have a centrally managed kill switch and be off until switched on; and a failed, timed-out or ambiguous step must take the conservative branch, which writes nothing and is reported.
 
 ## 6. Success metrics (proposed — not defined in sources)
 

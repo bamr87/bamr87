@@ -2512,3 +2512,72 @@ features:
     - FR118
     - NFR26
     - NFR27
+  - id: HUB-108
+    title: 'Red-main resolver: every red default branch found, resolved where fleet rules allow, and handed
+      over where they do not (proposed)'
+    description: 'A harness command (proposed `tools/dash red-main`) and a daily read-only loop. One batched
+      GraphQL query of statusCheckRollup finds every fleet repo whose default branch is red. For each one
+      the resolver names the failing checks, the root cause with its log evidence and the blocking pull
+      request or issue, and classifies the fix as merge, fix or settings. It acts by itself only where the
+      constitution allows: it merges the blocking pull request when that is mergeable under § 12 and the
+      review gate does not hold it (merge commit only, never --admin, live state re-read first, only in
+      a repo that has ratified agent merge), marks a draft ready only when its checks pass and the pull
+      request says that is intended, and routes code fixes to Claude Code (§ 26). Settings, secrets, tag
+      cuts and external services such as PyPI are reported to the maintainer with exact steps and never
+      changed. Each default branch is re-read after a resolution and reported as green, red or pending.
+      Dry run by default, time and rate budgets, an audit record per action, a central kill switch. Design
+      only (docs/prd/RED-MAIN-RESOLVER.md); unattended merge from CI or the console waits for a follow-up
+      amendment. The review of the CI behind each failed run is HUB-109.'
+    implemented: false
+    status: planned
+    surface: cli
+    link: docs/prd/RED-MAIN-RESOLVER.md
+    docs: docs/prd/RED-MAIN-RESOLVER.md
+    tags:
+    - loops
+    - harness
+    - ci
+    - merge
+    - review-gate
+    date: 2026-11-11
+    tests:
+    - na: docs-only PRD; the command, the loop and their tests land in later implementation PRs
+    prd:
+    - FR42
+    - FR119
+    - FR120
+    - FR121
+    - FR122
+    - NFR28
+  - id: HUB-109
+    title: 'CI review loop: each failed run on a red default branch traced through its workflow, judged
+      for selectivity, and answered with a minimal diff (proposed)'
+    description: 'A read-only loop of the red-main resolver (proposed `tools/dash red-main ci-review`, HUB-108).
+      For each failed or cancelled run on a red default branch, and optionally a capped sample of failed
+      pull-request runs, it reads the failed step''s log, traces the workflow at the run''s own commit (triggers,
+      branches, paths, concurrency, job and step conditions, matrix) through every reusable workflow, composite
+      action and script the fleet owns, including bamr87/.github and the hub, and flags the CI as over-broad,
+      under-selective, misconfigured or ok, each with file-and-line evidence. For every flag but ok it proposes
+      the minimal fix as a diff suggestion in its output and routes it: to Claude Code as a handoff issue
+      (§ 26), as one kit issue when the same file sits in several repos, or to the maintainer when it touches
+      a setting, a secret, branch protection or a tag. It never edits a workflow, a script, a setting or
+      a secret, and never proposes weakening a check to clear a real failure. Time and rate budgets, an
+      audit record per finding, a central kill switch. Design only (docs/prd/RED-MAIN-RESOLVER.md § 20);
+      its first application to seven red default branches is § 20.8.'
+    implemented: false
+    status: planned
+    surface: cli
+    link: docs/prd/RED-MAIN-RESOLVER.md
+    docs: docs/prd/RED-MAIN-RESOLVER.md
+    tags:
+    - loops
+    - harness
+    - ci
+    - workflows
+    - review
+    date: 2026-11-11
+    tests:
+    - na: docs-only PRD; the subcommand, its rule table and their tests land in later implementation PRs
+    prd:
+    - FR123
+    - NFR28
