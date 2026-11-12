@@ -2,15 +2,15 @@
   "schema": "deep-dive/v1",
   "owner": "bamr87",
   "label": "deep-dive",
-  "refreshed_at": "2026-11-11T12:25:54Z",
+  "refreshed_at": "2026-11-12T12:26:38Z",
   "summary": {
-    "as_of": "2026-11-11",
+    "as_of": "2026-11-12",
     "cycle": 1,
     "cycle_start": "2026-10-30",
     "cycle_end": "2026-12-10",
     "cycle_days": 42,
     "total": 38,
-    "day": 13,
+    "day": 14,
     "processed": 6,
     "counts": {
       "pending": 32,
@@ -20,14 +20,6 @@
     },
     "progress": 0.1579,
     "today": {
-      "date": "2026-11-11",
-      "cycle": 1,
-      "day": 13,
-      "cycle_days": 42,
-      "kind": "scheduled",
-      "repo": "zpl-viewer"
-    },
-    "next": {
       "date": "2026-11-12",
       "cycle": 1,
       "day": 14,
@@ -35,11 +27,19 @@
       "kind": "scheduled",
       "repo": "law-ai"
     },
+    "next": {
+      "date": "2026-11-13",
+      "cycle": 1,
+      "day": 15,
+      "cycle_days": 42,
+      "kind": "scheduled",
+      "repo": ".github"
+    },
     "last": "README",
     "last_date": "2026-11-09",
     "avg_score": 38.7,
-    "open_issues": 34,
-    "open_prs": 2
+    "open_issues": 31,
+    "open_prs": 1
   },
   "repos": [
     {
@@ -102,7 +102,7 @@
         "https://github.com/bamr87/bamr87/pull/508",
         "https://github.com/bamr87/bamr87/pull/579"
       ],
-      "open_issues": 14,
+      "open_issues": 13,
       "open_prs": 0,
       "findings": "Cycle 1 day 2, final. Outcomes: Amr merged #508 (docs_index --lint fix) and #509 (governance-records-lint feature); issues #500-#505 filed (dead amendment links + FR45/HUB-049 #500, amendment status/\u00a7 13 ordering #501, NFR11 budget mismatch #502, ungated docs_index lint #503, console a11y #504, governance-records-lint #505). Previously known python-tests and v1/v2 tag items were already fixed. HUB-039 has no PRD requirement (warning).",
       "score": 78.0,
@@ -123,7 +123,7 @@
       "prs": [
         "https://github.com/bamr87/bamr87.github.io/pull/54"
       ],
-      "open_issues": 3,
+      "open_issues": 2,
       "open_prs": 0,
       "findings": "",
       "score": null,
@@ -155,8 +155,8 @@
         "https://github.com/bamr87/fredgar-ai/pull/115",
         "https://github.com/bamr87/fredgar-ai/pull/102"
       ],
-      "open_issues": 5,
-      "open_prs": 1,
+      "open_issues": 4,
+      "open_prs": 0,
       "findings": "Green: 308 pytest, ruff, migrations, reference, governance lint, eslint, tsc+vite build. Gaps: UPS-BE-10/11 missing (/healthz,/readyz,/version, readiness shape, no Dockerfile HEALTHCHECK) #107; empty except-pass in enrichment webdiscovery #108; AI_ANALYSIS_MODEL unvalidated #109; PRD drift on AI default #115. UPS-FE-12 ThemeToggle lacks auto mode (handed to Sites); public task-result endpoint handed to Fleet Ops. Features FREDGAR-010..013 (13F, alerts, FRED transforms/vintages, metric-vs-macro overlay) planned in #114. deep-dive label missing in repo.",
       "score": 7.5,
       "next_focus": "Land #107 health/version endpoints; re-check UPS-FE-12 after #101; statement views and 13F groundwork"
