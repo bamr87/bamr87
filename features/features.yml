@@ -2469,3 +2469,46 @@ features:
     - NFR25
     - FR26
     - NFR20
+  - id: HUB-107
+    title: 'Automatic credential rotation: started by a secret-scanning alert, a schedule or a failing credential,
+      for the credentials the weekly loop does not reach'
+    description: 'Backlog. Extends the fleet''s key rotation protocol (the token contract in _data/fleet.yml
+      tokens: and the weekly credential loop, docs/TOKEN-ROTATION.md) to credentials it cannot declare today:
+      a secret on one repository, an organization secret and a third-party provider key. Its first trigger
+      is a GitHub secret-scanning alert: an alert for a covered credential, starting with google_api_key
+      alerts on bamr87/zer0-CMS (bamr87/bamr87#460), automatically starts a rotation of the affected key
+      instead of only flagging it. The alert is detected by a secret_scanning_alert webhook delivery or
+      by a scheduled poll of the secret-scanning alerts API, and the rotation contains first (revoke or
+      restrict), then mints the replacement, updates the consuming secret, verifies, resolves the alert
+      as revoked and closes the tracking issue. Where automation cannot perform a step (no provider API,
+      no access, a key it cannot match, a copy outside GitHub secrets) the rotation still starts and that
+      step goes to a person as a prepared, containment-first instruction that automation verifies. A rotation
+      also starts on its schedule, on a rejected health probe, on consecutive consumer failures and on an
+      approaching expiry, automated where the provider has an API and assisted where only a person can mint.
+      First covered, by name: the zer0-CMS Google API key (bamr87/bamr87#460), the ai-world-view organization''s
+      CLAUDE_CODE_OAUTH_TOKEN (ai-world-view/ai-world-view.github.io#29) and bamr87/it-journey''s AUTO_PR_GITHUB_TOKEN
+      (bamr87/bamr87#761). Design only (docs/prd/CREDENTIAL-ROTATION.md): no workflow, tool, setting or
+      secret is changed. Direction: bamr87/bamr87#788. Roadmap FF-0053.'
+    implemented: false
+    status: planned
+    surface: infra
+    link: docs/prd/CREDENTIAL-ROTATION.md
+    docs: docs/TOKEN-ROTATION.md
+    tags:
+    - security
+    - tokens
+    - rotation
+    - secrets
+    - secret-scanning
+    - backlog
+    date: 2026-11-11
+    tests:
+    - na: docs-only backlog item; the contract additions, triggers and adapters land in later implementation
+        PRs
+    prd:
+    - FR115
+    - FR116
+    - FR117
+    - FR118
+    - NFR26
+    - NFR27
