@@ -9,7 +9,7 @@
 # Rendered at /features/ on the dash. Kit: templates/verify/ · doc: docs/VERIFICATION.md
 # =============================================================================
 schema: features-index/v1
-generated_at: '2026-11-11T06:22:55Z'
+generated_at: '2026-11-12T06:22:54Z'
 kit_version: 0.2.0
 totals:
   repos_scanned: 1
@@ -17,20 +17,20 @@ totals:
   repos_with_kit: 1
   repos_prose_only: 0
   repos_no_index: 0
-  features: 96
-  implemented: 61
-  covered: 88
-  evidenced: 16
+  features: 111
+  implemented: 63
+  covered: 103
+  evidenced: 17
   verified: 8
-  ui: 25
-  ui_covered: 25
+  ui: 26
+  ui_covered: 26
   ui_verified: 8
   scenarios: 20
-  screenshots: 107
+  screenshots: 123
   dangling: 5
 pct:
-  coverage: 144
-  evidence: 26
+  coverage: 163
+  evidence: 27
   verified: 13
   ui_coverage: 100
 attention:
@@ -84,18 +84,18 @@ repos:
     legacy_evidence_kit: false
     legacy_visual_evidence_skill: false
   counts:
-    features: 96
-    implemented: 61
-    covered: 88
-    evidenced: 16
+    features: 111
+    implemented: 63
+    covered: 103
+    evidenced: 17
     verified: 8
-    ui: 25
-    ui_covered: 25
+    ui: 26
+    ui_covered: 26
     ui_verified: 8
     dangling: 5
   pct:
     coverage: 100
-    evidence: 26
+    evidence: 27
     verified: 13
   last_run: null
   gaps:
@@ -297,8 +297,14 @@ repos:
     - test/evidence/harnesses
     screenshots:
     - test/evidence/harnesses/desktop-harness-health.png
+    - test/evidence/harnesses/desktop-harnesses-full.png
+    - test/evidence/harnesses/desktop-harnesses-lever.png
+    - test/evidence/harnesses/desktop-harnesses-repos.png
     - test/evidence/harnesses/desktop-harnesses.png
     - test/evidence/harnesses/mobile-harness-health.png
+    - test/evidence/harnesses/mobile-harnesses-full.png
+    - test/evidence/harnesses/mobile-harnesses-lever.png
+    - test/evidence/harnesses/mobile-harnesses-repos.png
     - test/evidence/harnesses/mobile-harnesses.png
     verified:
       date: '2026-10-12'
@@ -320,8 +326,14 @@ repos:
       - https://github.com/bamr87/bamr87/blob/main/verify/scenarios/harnesses.yml
       screenshots:
       - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/harnesses/desktop-harness-health.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/harnesses/desktop-harnesses-full.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/harnesses/desktop-harnesses-lever.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/harnesses/desktop-harnesses-repos.png
       - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/harnesses/desktop-harnesses.png
       - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/harnesses/mobile-harness-health.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/harnesses/mobile-harnesses-full.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/harnesses/mobile-harnesses-lever.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/harnesses/mobile-harnesses-repos.png
       - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/harnesses/mobile-harnesses.png
   - id: HUB-006
     title: Six-layer harness scorecard
@@ -3788,6 +3800,544 @@ repos:
       - https://github.com/bamr87/bamr87/blob/main/tools/test_fleetcore_learn.py
       - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_fleet_lake.py
       - https://github.com/bamr87/bamr87/blob/main/tools/test_fleetcore_mcp.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-098
+    title: Shared functional specification library
+    surface: infra
+    implemented: false
+    link: docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+    docs: docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+    tags:
+    - specs
+    - library
+    - governance
+    - prd
+    date: '2026-11-10'
+    provenance: null
+    tests: []
+    waived:
+    - docs-only PRD; the library, resolver and gate land in a later implementation PR
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: A central library of generic functional specifications in the hub, each a FEAT-NNN id linked to a PRD requirement,
+      readable by every fleet repo, framework and application without a vendored copy. Design only (docs/prd/FUNCTIONAL-SPEC-LIBRAR
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-099
+    title: Per-repo functional spec manifest
+    surface: infra
+    implemented: false
+    link: docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+    docs: docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+    tags:
+    - specs
+    - manifest
+    - governance
+    date: '2026-11-10'
+    provenance: null
+    tests: []
+    waived:
+    - docs-only PRD; the manifest schema lands with the resolver implementation
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'A specs.json at each adopting repo''s root: schema version, adopted FEAT-NNN ids, optional per-id overrides
+      that narrow severity or scope, and an exclusions list for specs that do not apply. Design only (docs/prd/FUNCTIONAL-SPEC-LIBRARY.md).'
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-100
+    title: Functional spec override ratification
+    surface: infra
+    implemented: false
+    link: docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+    docs: docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+    tags:
+    - specs
+    - governance
+    - amendments
+    date: '2026-11-10'
+    provenance: null
+    tests: []
+    waived:
+    - docs-only PRD; ratification wiring lands after the follow-up amendment
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: An override that downgrades a required spec to advisory, or otherwise relaxes severity or scope, is an amendment-style
+      record that stays unapplied until Amr merges it. Standard or principle changes stay on the constitution amendment path.
+      D
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-101
+    title: Functional spec resolver, CI gate and docs parity
+    surface: infra
+    implemented: false
+    link: docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+    docs: docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+    tags:
+    - specs
+    - ci
+    - docs
+    - resolver
+    date: '2026-11-10'
+    provenance: null
+    tests: []
+    waived:
+    - docs-only PRD; resolver tests land in the implementation PR
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: One resolver reads each repo's specs.json and the central library and emits one resolved set (core plus framework
+      overlay, minus exclusions, ratified overrides last). CI fails on an unknown id or a required spec without coverage.
+      The docs s
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/prd/FUNCTIONAL-SPEC-LIBRARY.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-102
+    title: Agentic loops history and statistics
+    surface: ui
+    implemented: false
+    link: docs/prd/AGENTIC-LOOPS-DASHBOARD.md
+    docs: docs/prd/AGENTIC-LOOPS-DASHBOARD.md
+    tags:
+    - dashboard
+    - agents
+    - loops
+    - statistics
+    - history
+    date: '2026-11-10'
+    provenance: null
+    tests: []
+    waived:
+    - docs-only PRD; history and statistics land with the dashboard implementation
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: Progress, history and activity for each agentic loop, plus counts, durations, success and failure, idle and stale.
+      A cost figure appears only when existing telemetry already has one. Design only (docs/prd/AGENTIC-LOOPS-DASHBOARD.md).
+      The bo
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/docs/prd/AGENTIC-LOOPS-DASHBOARD.md
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/prd/AGENTIC-LOOPS-DASHBOARD.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-103
+    title: Agentic loops dashboard
+    surface: ui
+    implemented: false
+    link: docs/prd/AGENTIC-LOOPS-DASHBOARD.md
+    docs: docs/prd/AGENTIC-LOOPS-DASHBOARD.md
+    tags:
+    - dashboard
+    - agents
+    - loops
+    - harness
+    - observability
+    date: '2026-11-10'
+    provenance: null
+    tests: []
+    waived:
+    - docs-only PRD; the console view lands in a later implementation PR
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: One operations dashboard of every agent and harness, the repo it is on, and its current status. Routine and scheduled
+      loops (Grok bot routines, JEV and fleet loops, console jobs, scheduled workflows) are distinguished from live and ad-hoc
+      s
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/docs/prd/AGENTIC-LOOPS-DASHBOARD.md
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/prd/AGENTIC-LOOPS-DASHBOARD.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-104
+    title: Agentic loops dashboard as the Bash 365 foundation
+    surface: ui
+    implemented: false
+    link: docs/prd/AGENTIC-LOOPS-DASHBOARD.md
+    docs: docs/prd/AGENTIC-LOOPS-DASHBOARD.md
+    tags:
+    - dashboard
+    - bash-365
+    - showcase
+    - agents
+    - wizard
+    date: '2026-11-10'
+    provenance: null
+    tests: []
+    waived:
+    - docs-only PRD; the showcase drafts and the read-only wizard view land after the board
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'The same dashboard is the BASH Consulting showcase and the first end-to-end test of this build-out, including
+      the reporting and the marketing a person reviews. The brand, voice and identity line is A born-again solutions hero:
+      born-again in'
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/docs/prd/AGENTIC-LOOPS-DASHBOARD.md
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/prd/AGENTIC-LOOPS-DASHBOARD.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-105
+    title: 'The harness standard: every AI workflow found by any route, graded, with the lever that rebuilds it'
+    surface: ui
+    implemented: true
+    link: /harnesses
+    docs: docs/HARNESS-OPS.md
+    tags:
+    - dash
+    - harness
+    - standard
+    - console
+    date: '2026-11-11'
+    provenance: null
+    tests:
+    - .github/scripts/dash-gen/test_harness_registry.py
+    - .github/scripts/dash-gen/test_agent_inventory.py
+    waived: []
+    scenarios:
+    - verify/scenarios/harnesses.yml
+    evidence:
+    - test/evidence/harnesses
+    screenshots:
+    - test/evidence/harnesses/desktop-harness-health.png
+    - test/evidence/harnesses/desktop-harnesses-full.png
+    - test/evidence/harnesses/desktop-harnesses-lever.png
+    - test/evidence/harnesses/desktop-harnesses-repos.png
+    - test/evidence/harnesses/desktop-harnesses.png
+    - test/evidence/harnesses/mobile-harness-health.png
+    - test/evidence/harnesses/mobile-harnesses-full.png
+    - test/evidence/harnesses/mobile-harnesses-lever.png
+    - test/evidence/harnesses/mobile-harnesses-repos.png
+    - test/evidence/harnesses/mobile-harnesses.png
+    verified: null
+    covered: true
+    evidenced: true
+    dangling: []
+    summary: 'The harness inventory (dash-gen harnesses, _data/harness_registry.yml, /harnesses) finds every workflow that
+      reaches a model, by any route: a claude-code-action step, the hub''s claude-run action or ai-lane workflow, a bare claude
+      -p, a vend'
+    urls:
+      link: https://bamr87.github.io/bamr87/harnesses
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/HARNESS-OPS.md
+      evidence:
+      - https://github.com/bamr87/bamr87/tree/main/test/evidence/harnesses
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_harness_registry.py
+      - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_agent_inventory.py
+      scenarios:
+      - https://github.com/bamr87/bamr87/blob/main/verify/scenarios/harnesses.yml
+      screenshots:
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/harnesses/desktop-harness-health.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/harnesses/desktop-harnesses-full.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/harnesses/desktop-harnesses-lever.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/harnesses/desktop-harnesses-repos.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/harnesses/desktop-harnesses.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/harnesses/mobile-harness-health.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/harnesses/mobile-harnesses-full.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/harnesses/mobile-harnesses-lever.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/harnesses/mobile-harnesses-repos.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/harnesses/mobile-harnesses.png
+  - id: HUB-106
+    title: 'Decision index: what waits on the maintainer across the fleet, in one call'
+    surface: cli
+    implemented: true
+    link: tools/console/decision_index.py
+    docs: docs/DECISION-INDEX.md
+    tags:
+    - decisions
+    - console
+    - mcp
+    - github
+    - review-gate
+    - ratification
+    - dependabot
+    - cache
+    date: '2026-11-11'
+    provenance: null
+    tests:
+    - tools/console/test_decision_index.py
+    - tools/console/test_console.py
+    - tools/console/test_mcp_layer.py
+    - tools/console/test_pages.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'tools/console/decision_index.py answers ''what does Amr need to decide?'' for every repo of hub.owners in one
+      call instead of a sweep of each repo: needs-amr items, pull requests that change a constitution, an amendment or an
+      ADR, failing or '
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/console/decision_index.py
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/DECISION-INDEX.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/console/test_decision_index.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/console/test_console.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/console/test_mcp_layer.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/console/test_pages.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-107
+    title: 'Automatic credential rotation: started by a secret-scanning alert, a schedule or a failing credential, for the
+      credentials the weekly loop does not reach'
+    surface: infra
+    implemented: false
+    link: docs/prd/CREDENTIAL-ROTATION.md
+    docs: docs/TOKEN-ROTATION.md
+    tags:
+    - security
+    - tokens
+    - rotation
+    - secrets
+    - secret-scanning
+    - backlog
+    date: '2026-11-11'
+    provenance: null
+    tests: []
+    waived:
+    - docs-only backlog item; the contract additions, triggers and adapters land in later implementation PRs
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'Backlog. Extends the fleet''s key rotation protocol (the token contract in _data/fleet.yml tokens: and the weekly
+      credential loop, docs/TOKEN-ROTATION.md) to credentials it cannot declare today: a secret on one repository, an organization
+      se'
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/docs/prd/CREDENTIAL-ROTATION.md
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/TOKEN-ROTATION.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-108
+    title: 'Red-main resolver: every red default branch found, resolved where fleet rules allow, and handed over where they
+      do not (proposed)'
+    surface: cli
+    implemented: false
+    link: docs/prd/RED-MAIN-RESOLVER.md
+    docs: docs/prd/RED-MAIN-RESOLVER.md
+    tags:
+    - loops
+    - harness
+    - ci
+    - merge
+    - review-gate
+    date: '2026-11-11'
+    provenance: null
+    tests: []
+    waived:
+    - docs-only PRD; the command, the loop and their tests land in later implementation PRs
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: A harness command (proposed `tools/dash red-main`) and a daily read-only loop. One batched GraphQL query of statusCheckRollup
+      finds every fleet repo whose default branch is red. For each one the resolver names the failing checks, the root c
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/docs/prd/RED-MAIN-RESOLVER.md
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/prd/RED-MAIN-RESOLVER.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-109
+    title: 'CI review loop: each failed run on a red default branch traced through its workflow, judged for selectivity, and
+      answered with a minimal diff (proposed)'
+    surface: cli
+    implemented: false
+    link: docs/prd/RED-MAIN-RESOLVER.md
+    docs: docs/prd/RED-MAIN-RESOLVER.md
+    tags:
+    - loops
+    - harness
+    - ci
+    - workflows
+    - review
+    date: '2026-11-11'
+    provenance: null
+    tests: []
+    waived:
+    - docs-only PRD; the subcommand, its rule table and their tests land in later implementation PRs
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'A read-only loop of the red-main resolver (proposed `tools/dash red-main ci-review`, HUB-108). For each failed
+      or cancelled run on a red default branch, and optionally a capped sample of failed pull-request runs, it reads the failed
+      step''s '
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/docs/prd/RED-MAIN-RESOLVER.md
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/prd/RED-MAIN-RESOLVER.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-110
+    title: Agent news feed reactions
+    surface: ui
+    implemented: false
+    link: docs/prd/AGENT-NEWS-FEED.md
+    docs: docs/prd/AGENT-NEWS-FEED.md
+    tags:
+    - feed
+    - agents
+    - github
+    - discussions
+    date: '2026-11-10'
+    provenance: null
+    tests: []
+    waived:
+    - docs-only PRD; reaction publishing lands with the feed publisher
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: Amr, and an agent whose GitHub user is that agent, react to a feed post or comment with GitHub's native reactions.
+      A shared-token agent does not spend the shared user's reaction. Design only (docs/prd/AGENT-NEWS-FEED.md). Posts are
+      HUB-112.
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/docs/prd/AGENT-NEWS-FEED.md
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/prd/AGENT-NEWS-FEED.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-111
+    title: Agent news feed threads
+    surface: ui
+    implemented: false
+    link: docs/prd/AGENT-NEWS-FEED.md
+    docs: docs/prd/AGENT-NEWS-FEED.md
+    tags:
+    - feed
+    - agents
+    - github
+    - discussions
+    date: '2026-11-10'
+    provenance: null
+    tests: []
+    waived:
+    - docs-only PRD; comment and reply publishing lands with the feed publisher
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: Amr and agents comment and reply on an agent news-feed post. Each comment names its actor. The thread is the
+      GitHub Discussion, one level of reply, on the same post HUB-112 publishes. Design only (docs/prd/AGENT-NEWS-FEED.md).
+      Roadmap FF-00
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/docs/prd/AGENT-NEWS-FEED.md
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/prd/AGENT-NEWS-FEED.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-112
+    title: Agent news feed
+    surface: ui
+    implemented: false
+    link: docs/prd/AGENT-NEWS-FEED.md
+    docs: docs/prd/AGENT-NEWS-FEED.md
+    tags:
+    - feed
+    - agents
+    - github
+    - discussions
+    date: '2026-11-10'
+    provenance: null
+    tests: []
+    waived:
+    - docs-only PRD; the publisher and the Fleet feed category land in a later implementation PR
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: A GitHub Discussions feed where an agent or Amr publishes a post about fleet work, with actor, verb, object,
+      repo, event type, timestamp and context links. Readers filter by agent, repo and event type on GitHub and open the linked
+      record. D
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/docs/prd/AGENT-NEWS-FEED.md
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/prd/AGENT-NEWS-FEED.md
+      evidence: []
+      tests: []
       scenarios: []
       screenshots: []
   truncated: false

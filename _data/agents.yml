@@ -15,27 +15,27 @@ contract:
     R5: its run records reach the reflector
     R6: a local entry point
 totals:
-  agents: 136
+  agents: 137
   by_category:
-    ci-agent-step: 125
+    ci-agent-step: 126
     local-loop-step: 5
     jev-tier: 3
     scheduled-local-job: 3
   by_kind:
-    ci-scheduled: 47
+    ci-scheduled: 48
     ci-event: 36
     ci-mention: 42
     loop-step: 5
     jev-tier: 3
     local-job: 3
-  with_gaps: 127
+  with_gaps: 128
   gaps_by_rule:
-    R1: 115
-    R2: 127
+    R1: 116
+    R2: 128
     R3: 0
     R4: 2
     R5: 1
-    R6: 73
+    R6: 74
 kpis:
   accepted_per_usd:
     unit: accepted outcomes per USD, API-equivalent (estimate)
@@ -930,6 +930,35 @@ agents:
   - R1:budget
   - R1:model
   - R2:missing:cost_source,tool_errors
+- id: ci:amrchy:upstream-sync
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/amrchy
+  where: .github/workflows/upstream-sync.yml
+  owner: bamr87
+  trigger: schedule daily 11:41 UTC; workflow_dispatch
+  switch:
+    variable: UPSTREAM_SYNC_ENABLED
+  budget:
+    per_run_usd: 15.0
+  model: null
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-12'
+  gaps:
+  - R1:model
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
 - id: ci:bamr87.github.io:claude
   kind: ci-mention
   category: ci-agent-step
