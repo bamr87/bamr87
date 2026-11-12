@@ -11,6 +11,8 @@
 #                so — where it is not reachable. Amendment 0003 rollout phase 1; issues #453, #473.
 # Usage:         python3 tools/projects_backfill.py inventory [--live] [--json]
 #                python3 tools/projects_backfill.py plan [--board] [--json] [--out FILE]
+#                    [--repos hub|registry] [--closed-since D] [--closed-before D] [--closed-only]
+#                    [--max-items N]
 #                python3 tools/projects_backfill.py apply FILE --confirm [--batch N]
 #                (or tools/dash projects <inventory|plan|apply> …)
 # Exit:          0 clean · 1 refused or failed · 2 usage
@@ -48,6 +50,13 @@ PLAN_SCHEMA = "projects-backfill-plan/v1"
 PAGE = 100
 MAX_PAGES = 20
 CLOSE_REASONS = ("completed", "not_planned")
+# A board plan must read the WHOLE project, or an item past the read cap looks absent and is
+# re-planned as an item.add (#453). The console keeps gp.MAX_ITEMS; the backfill reads this many.
+BACKFILL_MAX_ITEMS = 20000
+# The 2026-10-03 cleanup closed bot duplicates and spam as not_planned on that day; the backfill
+# never puts them on the board. The decisions file's board.exclude.closed_not_planned_on overrides.
+CLEANUP_DATES = ("2026-10-03",)
+DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 BOARD_FIELDS = ("Status", "Priority", "Area")
 STAGE_ORDER = ("hold", "done", "needs-amr", "in_pr", "blocked", "ready", "queued")
 GRAPHQL_BLOCKED = ("GraphQL is not available", "not available", "INSUFFICIENT_SCOPES", "read:project")
@@ -179,6 +188,10 @@ def validate_decisions(d: dict) -> list[str]:
         if p in parents:
             errs.append(f"sub_issues #{p}: listed twice")
         parents.add(p)
+    exclude = ((d.get("board") or {}).get("exclude") or {})
+    for day in exclude.get("closed_not_planned_on") or []:
+        if not DATE_RE.fullmatch(str(day)):
+            errs.append(f"board.exclude.closed_not_planned_on: {day!r} is not YYYY-MM-DD")
     return errs
 
 
@@ -489,15 +502,20 @@ def board_ops(board: Board, targets: list[dict], decisions: dict, framework: dic
 
 
 # --------------------------------------------------------------------------- targets
+def _item(repo: str, r: dict) -> dict:
+    """One REST issue / PR row in the shape derive_fields() and board_ops() read."""
+    return {"repo": repo, "number": int(r["number"]), "node_id": r.get("node_id"), "title": r.get("title", ""),
+            "state": r.get("state", "open"), "labels": [l["name"] for l in r.get("labels") or []],
+            "kind": "pr" if r.get("pull_request") else "issue", "draft": bool(r.get("draft")),
+            "closed_at": r.get("closed_at"), "state_reason": r.get("state_reason")}
+
+
 def open_items(gh: Gh, repo: str) -> list[dict]:
     """Every open issue and pull request of a repo, in the shape derive_fields() and board_ops() read."""
     out: list[dict] = []
     for page in range(1, MAX_PAGES + 1):
         rows = gh.get(f"repos/{repo}/issues", state="open", per_page=PAGE, page=page) or []
-        for r in rows:
-            out.append({"repo": repo, "number": int(r["number"]), "node_id": r.get("node_id"), "title": r.get("title", ""),
-                        "state": r.get("state", "open"), "labels": [l["name"] for l in r.get("labels") or []],
-                        "kind": "pr" if r.get("pull_request") else "issue", "draft": bool(r.get("draft"))})
+        out.extend(_item(repo, r) for r in rows)
         if len(rows) < PAGE:
             break
     drafts = {}
@@ -510,6 +528,75 @@ def open_items(gh: Gh, repo: str) -> list[dict]:
     for t in out:
         if t["kind"] == "pr":
             t["draft"] = drafts.get(t["number"], t["draft"])
+    return out
+
+
+def closed_items(gh: Gh, repo: str, since: str | None = None, before: str | None = None) -> list[dict]:
+    """Closed issues and PRs of a repo with `since <= closed_at < before` (YYYY-MM-DD, either open-ended).
+    REST's `since` filters on updated_at, a superset of closed_at (closing updates the item), so the
+    window is narrowed here on closed_at itself."""
+    params: dict[str, Any] = {"state": "closed", "per_page": PAGE}
+    if since:
+        params["since"] = f"{since}T00:00:00Z"
+    out: list[dict] = []
+    for page in range(1, MAX_PAGES + 1):
+        rows = gh.get(f"repos/{repo}/issues", page=page, **params) or []
+        for r in rows:
+            day = str(r.get("closed_at") or "")[:10]
+            if not day or (since and day < since) or (before and day >= before):
+                continue
+            out.append(_item(repo, r))
+        if len(rows) < PAGE:
+            break
+    return out
+
+
+def excluded(item: dict, decisions: dict) -> bool:
+    """True for an item the 2026-10-03 cleanup closed as not_planned (bot duplicates, spam)."""
+    days = ((decisions.get("board") or {}).get("exclude") or {}).get("closed_not_planned_on")
+    days = {str(d) for d in (days if days is not None else CLEANUP_DATES)}
+    return (item.get("state") == "closed" and item.get("state_reason") == "not_planned"
+            and str(item.get("closed_at") or "")[:10] in days)
+
+
+def target_repos(decisions: dict, which: str, registry: Callable[[], set[str]] = registry_repos) -> list[str]:
+    """`hub`: the decisions file's repo (the default, as before). `registry`: the hub plus every registry repo."""
+    if which == "registry":
+        return sorted(registry() | {decisions["repo"]})
+    return [decisions["repo"]]
+
+
+def board_targets(gh: Gh, repos: list[str], decisions: dict, *, include_open: bool = True,
+                  closed_since: str | None = None, closed_before: str | None = None) -> tuple[list[dict], dict]:
+    """Every board target across `repos`, minus the cleanup exclusion, and per-repo counts.
+    A repo the token cannot read is counted as an error, never a reason to stop the plan."""
+    targets: list[dict] = []
+    counts: dict[str, dict] = {}
+    want_closed = bool(closed_since or closed_before)
+    for repo in repos:
+        row = {"open": 0, "closed": 0, "excluded": 0}
+        try:
+            items = open_items(gh, repo) if include_open else []
+            row["open"] = len(items)
+            if want_closed:
+                closed = closed_items(gh, repo, closed_since, closed_before)
+                kept = [t for t in closed if not excluded(t, decisions)]
+                row["closed"], row["excluded"] = len(kept), len(closed) - len(kept)
+                items += kept
+        except GhError as e:
+            row["error"] = str(e)[:160]
+            items = []
+        counts[repo] = row
+        targets.extend(items)
+    return targets, counts
+
+
+def pr_links(board: Board) -> list[str]:
+    """`repo#pr closes repo#issue` for every PR on the project, for review alongside the plan (#453)."""
+    out = []
+    for (repo, n), it in sorted(board.items.items()):
+        if it.get("kind") == "pr":
+            out.extend(f"{repo}#{n} closes {c}" for c in it.get("closes") or [])
     return out
 
 
@@ -609,14 +696,25 @@ def cmd_plan(args) -> int:
     api = IssueApi(gh)
     ops = compile_issue_ops(decisions, lambda n: api.issue_id(repo, n))
     batches = plan_batches(ops, api.state, allow)
+    for flag in ("closed_since", "closed_before"):
+        val = getattr(args, flag, None)
+        if val and not DATE_RE.fullmatch(val):
+            raise ValueError(f"--{flag.replace('_', '-')} must be YYYY-MM-DD, got {val!r}")
+    max_items = int(getattr(args, "max_items", None) or BACKFILL_MAX_ITEMS)
     preview = {"schema": PLAN_SCHEMA, "generated_at": now_iso(), "repo": repo, "decisions": str(Path(args.decisions)),
-               "batches": batches, "board": {"status": "not requested"}}
+               "max_items": max_items, "batches": batches, "board": {"status": "not requested"}}
     if args.board:
         proj = decisions.get("project") or {}
-        board = Board(gh_for_projects(), proj.get("owner", "bamr87"), int(proj.get("number", 14)))
+        board = Board(gh_for_projects(), proj.get("owner", "bamr87"), int(proj.get("number", 14)), max_items=max_items)
         if board.load():
-            targets = open_items(gh, repo)
+            repos = target_repos(decisions, getattr(args, "repos", "hub") or "hub")
+            targets, counts = board_targets(gh, repos, decisions, include_open=not getattr(args, "closed_only", False),
+                                            closed_since=getattr(args, "closed_since", None),
+                                            closed_before=getattr(args, "closed_before", None))
             bops, notes = board_ops(board, targets, decisions, framework)
+            if len(board.items) >= max_items:
+                notes.append(f"the project holds at least {max_items} items, the read cap: raise --max-items or "
+                             "items past it look absent and are re-planned as adds")
             bbatches = plan_batches(bops, board.state, allow)
             for b in bbatches:
                 b["index"] = len(preview["batches"]) + b["index"]
@@ -624,6 +722,8 @@ def cmd_plan(args) -> int:
             preview["batches"].extend(bbatches)
             preview["board"] = {"status": "planned", "project": board.project["title"], "url": board.project.get("url"),
                                 "items_on_project": len(board.items), "targets": len(targets), "notes": notes,
+                                "repos": counts, "links": pr_links(board),
+                                "excluded": sum(r.get("excluded", 0) for r in counts.values()),
                                 "adds": sum(1 for o in bops if o["op"] == "item.add"),
                                 "field_sets": sum(1 for o in bops if o["op"] == "item.set_field")}
         else:
@@ -642,6 +742,12 @@ def cmd_plan(args) -> int:
             print("  " + describe(op, row))
     bd = preview["board"]
     print(f"\nboard: {bd.get('status')}" + (f" — {bd.get('reason')}" if bd.get("reason") else ""))
+    for r, c in (bd.get("repos") or {}).items():
+        print(f"  {r:<40} open {c['open']:>4}  closed {c['closed']:>5}  excluded {c['excluded']:>3}"
+              + (f"  error: {c['error']}" if c.get("error") else ""))
+    if bd.get("status") == "planned":
+        print(f"  {bd['adds']} add(s), {bd['field_sets']} field set(s), {bd['excluded']} excluded (cleanup), "
+              f"{len(bd.get('links') or [])} PR→issue link(s) in the preview")
     for note in bd.get("notes") or []:
         print(f"  note: {note}")
     total = sum(b["changes"] for b in preview["batches"])
@@ -715,6 +821,13 @@ def main(argv: list[str] | None = None) -> int:
     i.add_argument("--json", action="store_true")
     p = sub.add_parser("plan", help="compile the decisions, read the current state, preview before → after")
     p.add_argument("--board", action="store_true", help="also plan the Fleet project items (GraphQL)")
+    p.add_argument("--repos", choices=("hub", "registry"), default="hub",
+                   help="board targets: the decisions file's repo (default) or the hub plus every registry repo")
+    p.add_argument("--closed-since", metavar="YYYY-MM-DD", help="also target items closed on or after this day (Status Done)")
+    p.add_argument("--closed-before", metavar="YYYY-MM-DD", help="also target items closed before this day (Status Done)")
+    p.add_argument("--closed-only", action="store_true", help="with a closed window, skip the open items")
+    p.add_argument("--max-items", type=int, default=BACKFILL_MAX_ITEMS,
+                   help=f"project items to read for dedupe (default {BACKFILL_MAX_ITEMS}; the console reads {gp.MAX_ITEMS})")
     p.add_argument("--json", action="store_true")
     p.add_argument("--out", help="preview file (default .fleet/backfill/plan-<stamp>.json)")
     p.add_argument("--decisions", default=str(DECISIONS))
