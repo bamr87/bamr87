@@ -223,8 +223,19 @@ Parsing matters more than it looks. The same `.env` carries a `GITHUB_TOKEN` for
 
 The Harness Console exposes the same command on its **Auth** tab (_Rotate from `.env`_): it shows which contract secrets `.env` supplies (by name, never by value), previews the dry run, and runs `--apply` only after a confirm. `DASH_CONSOLE_AUTH=off` refuses the apply.
 
+## Proposed: rotation for the credentials this loop does not reach
+
+This loop keeps the hub's fleet-scoped secrets current in the hub owner's repositories, and it starts on a schedule. A secret on one repository, an organization secret and a third-party provider key are outside it, and so is any rotation an event should start. Three open incidents sit in that gap: the zer0-CMS Google API key ([#460](https://github.com/bamr87/bamr87/issues/460)), the ai-world-view organization's `CLAUDE_CODE_OAUTH_TOKEN` ([ai-world-view.github.io#29](https://github.com/ai-world-view/ai-world-view.github.io/issues/29)) and it-journey's `AUTO_PR_GITHUB_TOKEN` ([#761](https://github.com/bamr87/bamr87/issues/761)).
+
+[`docs/prd/CREDENTIAL-ROTATION.md`](prd/CREDENTIAL-ROTATION.md) proposes extending this protocol to them: contract scopes for a repository, an organization and a provider; triggers beyond age; automated rotation where a provider has an API and a prepared, verified human step where it does not; and the Design for Failure every rotation follows.
+
+The first trigger is a GitHub secret-scanning alert. An alert for a covered credential, starting with `google_api_key` alerts on zer0-CMS (#460), starts a rotation of the affected key instead of only flagging it: contain first (revoke or restrict), mint the replacement, update the consuming secret, verify, resolve the alert as `revoked` and close the tracking issue. The alert is found by a scheduled poll of the secret-scanning alerts API and by a `secret_scanning_alert` webhook, and a step automation cannot perform goes to a person as a prepared instruction. The other triggers are a rejected health probe, consecutive consumer failures and an approaching expiry.
+
+It is a backlog item (feature `HUB-NEW:credential-auto-rotation`, direction in [#788](https://github.com/bamr87/bamr87/issues/788)). Nothing on this page changes until it is implemented.
+
 ## See also
 
+- [`docs/prd/CREDENTIAL-ROTATION.md`](prd/CREDENTIAL-ROTATION.md) — the proposed extension: event triggers and the credentials outside the fleet-scoped set
 - [`docs/AI-INTEGRATION.md`](AI-INTEGRATION.md) — the AI layer's auth matrix and Claude call sites
 - [`.github/TOKENS.md`](../.github/TOKENS.md) — GitHub token precedence for CI
 - [`_data/fleet.yml`](../_data/fleet.yml) — the token contract itself
