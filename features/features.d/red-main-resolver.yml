@@ -1,0 +1,38 @@
+# The red-main resolver: a harness command and a loop for red default branches.
+# Numbered at merge: id stays HUB-NEW (amendment 0002).
+id: HUB-NEW
+slug: red-main-resolver
+title: "Red-main resolver: every red default branch found, resolved where fleet rules allow, and handed over where they do not (proposed)"
+description: "A harness command (proposed `tools/dash red-main`) and a daily read-only loop. One batched GraphQL query of statusCheckRollup finds every fleet repo whose default branch is red. For each one the resolver names the failing checks, the root cause with its log evidence and the blocking pull request or issue, and classifies the fix as merge, fix or settings. It acts by itself only where the constitution allows: it merges the blocking pull request when that is mergeable under § 12 and the review gate does not hold it (merge commit only, never --admin, live state re-read first, only in a repo that has ratified agent merge), marks a draft ready only when its checks pass and the pull request says that is intended, and routes code fixes to Claude Code (§ 26). Settings, secrets, tag cuts and external services such as PyPI are reported to the maintainer with exact steps and never changed. Each default branch is re-read after a resolution and reported as green, red or pending. Dry run by default, time and rate budgets, an audit record per action, a central kill switch. Design only (docs/prd/RED-MAIN-RESOLVER.md); unattended merge from CI or the console waits for a follow-up amendment. The review of the CI behind each failed run is HUB-NEW:red-main-workflow-review."
+implemented: false
+status: planned
+surface: cli
+link: docs/prd/RED-MAIN-RESOLVER.md
+docs: docs/prd/RED-MAIN-RESOLVER.md
+tags: [loops, harness, ci, merge, review-gate]
+date: 2026-11-11
+tests:
+  - {na: "docs-only PRD; the command, the loop and their tests land in later implementation PRs"}
+prd:
+  - "FR42"
+  - "FR-NEW:red-main-detect"
+  - "FR-NEW:red-main-classify"
+  - "FR-NEW:red-main-resolve"
+  - "FR-NEW:red-main-report"
+  - "NFR-NEW:red-main-guardrails"
+prd_new:
+  - key: red-main-detect
+    kind: FR
+    text: "The hub must detect every fleet repo whose default branch head is red in one batched GraphQL query of statusCheckRollup, on a schedule or on demand and never on a pull-request or push check, and must report a repo it could not read, a head with no checks and a head still pending as those states, never as green."
+  - key: red-main-classify
+    kind: FR
+    text: "For each red default branch the hub must name the failing checks, the root cause with the log evidence it was read from, and the blocking pull request or issue, and classify the fix as merge, fix or settings; a cause it cannot establish must be reported as unclassified and never guessed."
+  - key: red-main-resolve
+    kind: FR
+    text: "The red-main resolver must act by itself only where fleet rules allow: merge the blocking pull request only when it is mergeable under constitution § 12, re-read against live state immediately before, with a merge commit and never with --admin, squash, rebase or a force-push, never one the review gate holds, and only in a repo that has ratified agent merge; mark a draft ready only when its checks pass and the pull request states that ready-for-review is intended; route every code fix to Claude Code as a handoff issue (§ 26); and never change a setting, a secret, branch protection, a tag or an external service."
+  - key: red-main-report
+    kind: FR
+    text: "Every red-main run must report what needs the maintainer with exact steps (what to change, where, the command and how to verify it), re-read each default branch after any resolution, and state its final state as green, red or pending, never inferring green from an action having succeeded."
+  - key: red-main-guardrails
+    kind: NFR
+    text: "The red-main resolver and its CI review loop must be a dry run by default and apply only a plan that was shown and confirmed; every run must be bounded by a wall-clock budget, per-run action caps and a rate-limit floor below which it stops with a partial report; every action must write one append-only audit record with token values redacted; the loop must have a centrally managed kill switch and be off until switched on; and a failed, timed-out or ambiguous step must take the conservative branch, which writes nothing and is reported."
