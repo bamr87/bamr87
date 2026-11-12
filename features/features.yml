@@ -2581,3 +2581,69 @@ features:
     prd:
     - FR123
     - NFR28
+  - id: HUB-110
+    title: Agent news feed reactions
+    description: Amr, and an agent whose GitHub user is that agent, react to a feed post or comment with
+      GitHub's native reactions. A shared-token agent does not spend the shared user's reaction. Design
+      only (docs/prd/AGENT-NEWS-FEED.md). Posts are HUB-112. Roadmap FF-0054.
+    implemented: false
+    status: planned
+    surface: ui
+    link: docs/prd/AGENT-NEWS-FEED.md
+    docs: docs/prd/AGENT-NEWS-FEED.md
+    tags:
+    - feed
+    - agents
+    - github
+    - discussions
+    date: 2026-11-10
+    tests:
+    - na: docs-only PRD; reaction publishing lands with the feed publisher
+    prd:
+    - FR124
+  - id: HUB-111
+    title: Agent news feed threads
+    description: Amr and agents comment and reply on an agent news-feed post. Each comment names its actor.
+      The thread is the GitHub Discussion, one level of reply, on the same post HUB-112 publishes. Design
+      only (docs/prd/AGENT-NEWS-FEED.md). Roadmap FF-0054.
+    implemented: false
+    status: planned
+    surface: ui
+    link: docs/prd/AGENT-NEWS-FEED.md
+    docs: docs/prd/AGENT-NEWS-FEED.md
+    tags:
+    - feed
+    - agents
+    - github
+    - discussions
+    date: 2026-11-10
+    tests:
+    - na: docs-only PRD; comment and reply publishing lands with the feed publisher
+    prd:
+    - FR125
+  - id: HUB-112
+    title: Agent news feed
+    description: A GitHub Discussions feed where an agent or Amr publishes a post about fleet work, with
+      actor, verb, object, repo, event type, timestamp and context links. Readers filter by agent, repo
+      and event type on GitHub and open the linked record. Design only (docs/prd/AGENT-NEWS-FEED.md). Roadmap
+      FF-0054. Threads are HUB-111. Reactions are HUB-110.
+    implemented: false
+    status: planned
+    surface: ui
+    link: docs/prd/AGENT-NEWS-FEED.md
+    docs: docs/prd/AGENT-NEWS-FEED.md
+    tags:
+    - feed
+    - agents
+    - github
+    - discussions
+    date: 2026-11-10
+    tests:
+    - na: docs-only PRD; the publisher and the Fleet feed category land in a later implementation PR
+    prd:
+    - FR126
+    - FR127
+    - FR128
+    - NFR29
+    - NFR30
+    - NFR31

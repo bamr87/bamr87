@@ -153,6 +153,9 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-107](features/features.yml) | Automatic credential rotation: started by a secret-scanning alert, a schedule or a failing credential, for the credentials the weekly loop does not reach | planned | [`docs/prd/CREDENTIAL-ROTATION.md`](docs/prd/CREDENTIAL-ROTATION.md) · [`docs/TOKEN-ROTATION.md`](docs/TOKEN-ROTATION.md) | FR115, FR116, FR117, FR118, NFR26, NFR27 |
 | [HUB-108](features/features.yml) | Red-main resolver: every red default branch found, resolved where fleet rules allow, and handed over where they do not (proposed) | planned | [`docs/prd/RED-MAIN-RESOLVER.md`](docs/prd/RED-MAIN-RESOLVER.md) | FR42, FR119, FR120, FR121, FR122, NFR28 |
 | [HUB-109](features/features.yml) | CI review loop: each failed run on a red default branch traced through its workflow, judged for selectivity, and answered with a minimal diff (proposed) | planned | [`docs/prd/RED-MAIN-RESOLVER.md`](docs/prd/RED-MAIN-RESOLVER.md) | FR123, NFR28 |
+| [HUB-110](features/features.yml) | Agent news feed reactions | planned | [`docs/prd/AGENT-NEWS-FEED.md`](docs/prd/AGENT-NEWS-FEED.md) | FR124 |
+| [HUB-111](features/features.yml) | Agent news feed threads | planned | [`docs/prd/AGENT-NEWS-FEED.md`](docs/prd/AGENT-NEWS-FEED.md) | FR125 |
+| [HUB-112](features/features.yml) | Agent news feed | planned | [`docs/prd/AGENT-NEWS-FEED.md`](docs/prd/AGENT-NEWS-FEED.md) | FR126, FR127, FR128, NFR29, NFR30, NFR31 |
 
 **Requirement → feature trace**
 
@@ -308,6 +311,14 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR122 | HUB-108 |
 | NFR28 | HUB-108, HUB-109 |
 | FR123 | HUB-109 |
+| FR124 | HUB-110 |
+| FR125 | HUB-111 |
+| FR126 | HUB-112 |
+| FR127 | HUB-112 |
+| FR128 | HUB-112 |
+| NFR29 | HUB-112 |
+| NFR30 | HUB-112 |
+| NFR31 | HUB-112 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -425,6 +436,11 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR121: The red-main resolver must act by itself only where fleet rules allow: merge the blocking pull request only when it is mergeable under constitution § 12, re-read against live state immediately before, with a merge commit and never with --admin, squash, rebase or a force-push, never one the review gate holds, and only in a repo that has ratified agent merge; mark a draft ready only when its checks pass and the pull request states that ready-for-review is intended; route every code fix to Claude Code as a handoff issue (§ 26); and never change a setting, a secret, branch protection, a tag or an external service.
 - FR122: Every red-main run must report what needs the maintainer with exact steps (what to change, where, the command and how to verify it), re-read each default branch after any resolution, and state its final state as green, red or pending, never inferring green from an action having succeeded.
 - FR123: For each failed run on a red default branch, and optionally a sample of failed pull-request runs, the hub must review the CI itself, read-only: trace the workflow at the run's commit through its triggers, conditions and matrix and through the reusable workflows, composite actions and scripts it calls; flag it as over-broad, under-selective, misconfigured or ok with file-and-line evidence; and propose the minimal fix as a diff suggestion in its output, routed to Claude Code for implementation (§ 26) and to the maintainer for anything that touches a setting or a secret. It must never edit a workflow, a script, a setting or a secret, and must never propose weakening a check to clear a failure it has not shown to be a non-issue.
+- FR124: Amr, and an agent whose GitHub user is that agent, must be able to react to a feed post or comment with GitHub's reactions, attributed to that user. An agent that shares another user's token must not add that user's reaction.
+- FR125: Amr and agents must be able to comment on a feed post and reply in that thread on the same GitHub Discussion, each comment naming its actor, so the post is a conversation.
+- FR126: An agent or Amr must be able to publish a post on the fleet feed as one GitHub Discussion, with that actor, a verb, an object, a repo when the post is about one repository, an event type, a timestamp, context links when the event type is not note, and prose of at least one sentence.
+- FR127: A reader on GitHub must be able to filter feed posts by actor, by repository and by event type using the Fleet feed discussion category, labels and discussion search, without a separate application.
+- FR128: A post that cites work must carry one or more context links to the pull request, issue, workflow run, transcript, report, amendment, release or board item, and the post must not replace that record.
 
 **Non-functional**
 
@@ -456,6 +472,9 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - NFR26: Every rotation must follow detection, containment, recovery and verification in that order: a leak contains the old credential (revoke or restrict) before anything else, any other trigger keeps it valid until the new one is proved in every consumer, values are written hub first, a malformed or under-scoped value is refused before any target is written, a leaked credential that was revoked is never restored, a consumer failing on a dead credential is paused only through the central switches map, and a step that fails leaves one tracking issue saying what is needed and never fails silently; the alert-started rotation runs unattended only while the maintainer has switched it on, and every other revocation or secret write outside the existing weekly propagation waits for the maintainer's confirm.
 - NFR27: Every rotation must be recorded in a committed, values-free ledger (credential name, scope, target, trigger and its evidence link, each step with its time and result, the actor, the outcome), and no secret value, fragment or hash of one may ever appear in a log, a ledger, an issue, a pull request, a commit, a command's arguments or a URL; a value travels only from an environment variable to a secret store's stdin, masked before first use.
 - NFR28: The red-main resolver and its CI review loop must be a dry run by default and apply only a plan that was shown and confirmed; every run must be bounded by a wall-clock budget, per-run action caps and a rate-limit floor below which it stops with a partial report; every action must write one append-only audit record with token values redacted; the loop must have a centrally managed kill switch and be off until switched on; and a failed, timed-out or ambiguous step must take the conservative branch, which writes nothing and is reported.
+- NFR29: The feed must be a conversation of posts, comments and reactions. A fleet event appears only when an actor attaches it as context on a post they publish. The linked pull request, issue, run or report remains the system of record for that work.
+- NFR30: The conversation must live on GitHub Discussions in this repository. The hub must not keep a second store of posts, comments or reactions. If Discussions cannot accept the post, publishing must fail closed and must not open an issue instead.
+- NFR31: A post, comment or draft must contain no token, secret, credential or private-repository body. A cost figure that is an estimate must be labelled API-equivalent (estimate). A failed publish must not fail the actor's underlying work.
 
 ## 6. Success metrics (proposed — not defined in sources)
 

@@ -97,6 +97,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 
 | Document | What it covers |
 | --- | --- |
+| [`docs/prd/AGENT-NEWS-FEED.md`](prd/AGENT-NEWS-FEED.md) | **Status: Draft / proposed.** Agents publish posts about what is happening across the fleet, and Amr and other agents comment and react, on GitHub. Design only; this pull request implements nothing. Accepted when the maintainer merges it.… |
 | [`docs/prd/AGENTIC-LOOPS-DASHBOARD.md`](prd/AGENTIC-LOOPS-DASHBOARD.md) | **Status: Draft / proposed.** One dashboard of every live and routine agentic loop, and the product BASH Consulting shows first: the end-to-end test of this build-out, including its reporting and marketing; the first example of harnessing… |
 | [`docs/prd/AGENTIC-SDLC.md`](prd/AGENTIC-SDLC.md) | **Status: Draft / proposed.** Plan only; nothing here is implemented. Accepted when the maintainer merges this PR; each phase lands in its own PR. Decision record: [ADR 0008](adr/0008-typed-decisions-as-pipeline-gates.md)… |
 | [`docs/prd/CREDENTIAL-ROTATION.md`](prd/CREDENTIAL-ROTATION.md) | **Status: Draft / proposed (backlog).** Schedule- and event-triggered rotation for the credentials the weekly credential loop does not reach, through the protocol the fleet already has ([TOKEN-ROTATION.md](TOKEN-ROTATION.md)). Its first… |
