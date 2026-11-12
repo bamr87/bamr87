@@ -2434,3 +2434,38 @@ features:
     prd:
     - FR113
     - FR5
+  - id: HUB-106
+    title: 'Decision index: what waits on the maintainer across the fleet, in one call'
+    description: 'tools/console/decision_index.py answers ''what does Amr need to decide?'' for every repo
+      of hub.owners in one call instead of a sweep of each repo: needs-amr items, pull requests that change
+      a constitution, an amendment or an ADR, failing or major Dependabot pull requests and ready-to-merge
+      pull requests, each with its reason, plus a per-repo inventory. Three GraphQL searches and parallel
+      merge-state batches fill a local index (.fleet/decisions/index.json, gitignored, owner-only) that
+      is served until decisions.ttl_s; a hard time budget returns a partial answer, and status says fresh,
+      partial, stale, expired or unavailable with every failure named. One document on `tools/dash decisions`,
+      /api/decisions and the MCP''s decision_queue. Read-only, $0, no model, never published.'
+    implemented: true
+    status: shipped
+    surface: cli
+    link: tools/console/decision_index.py
+    docs: docs/DECISION-INDEX.md
+    tags:
+    - decisions
+    - console
+    - mcp
+    - github
+    - review-gate
+    - ratification
+    - dependabot
+    - cache
+    date: 2026-11-11
+    tests:
+    - tools/console/test_decision_index.py
+    - tools/console/test_console.py
+    - tools/console/test_mcp_layer.py
+    - tools/console/test_pages.py
+    prd:
+    - FR114
+    - NFR25
+    - FR26
+    - NFR20

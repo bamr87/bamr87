@@ -149,6 +149,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-103](features/features.yml) | Agentic loops dashboard | planned | [`docs/prd/AGENTIC-LOOPS-DASHBOARD.md`](docs/prd/AGENTIC-LOOPS-DASHBOARD.md) | FR106, FR107, FR108, NFR22, NFR23, NFR24 |
 | [HUB-104](features/features.yml) | Agentic loops dashboard as the Bash 365 foundation | planned | [`docs/prd/AGENTIC-LOOPS-DASHBOARD.md`](docs/prd/AGENTIC-LOOPS-DASHBOARD.md) | FR109, FR110, FR111, FR112 |
 | [HUB-105](features/features.yml) | The harness standard: every AI workflow found by any route, graded, with the lever that rebuilds it | shipped | route `/harnesses` · [`docs/HARNESS-OPS.md`](docs/HARNESS-OPS.md) | FR113, FR5 |
+| [HUB-106](features/features.yml) | Decision index: what waits on the maintainer across the fleet, in one call | shipped | [`tools/console/decision_index.py`](tools/console/decision_index.py) · [`docs/DECISION-INDEX.md`](docs/DECISION-INDEX.md) | FR114, NFR25, FR26, NFR20 |
 
 **Requirement → feature trace**
 
@@ -185,7 +186,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR24 | HUB-029 |
 | FR25 | HUB-029 |
 | NFR8 | HUB-029, HUB-066 |
-| FR26 | HUB-031, HUB-072, HUB-073, HUB-082, HUB-088, HUB-090 |
+| FR26 | HUB-031, HUB-072, HUB-073, HUB-082, HUB-088, HUB-090, HUB-106 |
 | NFR9 | HUB-031, HUB-072, HUB-073, HUB-082, HUB-088, HUB-090 |
 | FR27 | HUB-032 |
 | NFR10 | HUB-032 |
@@ -268,7 +269,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR94 | HUB-093 |
 | FR95 | HUB-095 |
 | FR96 | HUB-096 |
-| NFR20 | HUB-096 |
+| NFR20 | HUB-096, HUB-106 |
 | FR97 | HUB-097 |
 | FR98 | HUB-098 |
 | FR99 | HUB-099 |
@@ -290,6 +291,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR111 | HUB-104 |
 | FR112 | HUB-104 |
 | FR113 | HUB-105 |
+| FR114 | HUB-106 |
+| NFR25 | HUB-106 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -397,6 +400,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR111: This product must be the first and foundational application that Bash 365 is based on and evolves from. Later Bash 365 work starts from this picture of live and routine agentic loops. Adopting it on bash-365.com is a later change in that repository. This requirement does not edit that submodule and does not replace the Azure cost dashboard or the cloud phone offering.
 - FR112: This product must be the installation wizard and the creation of all the wizards, also known as the AI agents. The wizard presents the agents and loops that already exist as one installed picture. This requirement does not create an agent, write the agent inventory, or change a workflow or a setting. A later write that creates an agent waits until Amr merges the follow-up amendment agent-wizard-creation.
 - FR113: The harness inventory must find every workflow that reaches a model, by any route, grade each one against the harness standard declared in _data/fleet.yml harnesses.standard, and name the lever that rebuilds each harness that falls short; the agent-context kit's mention handler must pass that standard.
+- FR114: The product must answer in one call, on the CLI, the console API and MCP, what waits on the maintainer across every repo of the hub's owners: issues and pull requests carrying the review-gate label, pull requests that change a constitution, an amendment or an ADR, Dependabot pull requests that fail or are a major bump, and pull requests that are ready to merge, each with the reason it is listed and a per-repo inventory of open pull requests, Dependabot pull requests and issues.
 
 **Non-functional**
 
@@ -424,6 +428,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - NFR22: The dashboard must link the Harness Console sessions, health, cost and job views, the Loops, schedules and workflows pages, the agent inventory, the pipeline map, the activity log, the activity replay, the fleet graph and the agent news feed. It must not replace those stores or become a social feed. Turning it off must leave those surfaces working.
 - NFR23: A dashboard row, history line or public snapshot must contain no token, secret, credential or private-repository body. A cost figure that is an estimate must be labelled API-equivalent (estimate). The public Pages build must show a redacted sample or aggregate counts, never a live session body.
 - NFR24: Stale, failed, idle and unknown must be visible states. Missing telemetry must be shown as missing, with the absent source named. The dashboard must not invent a status, a duration or a cost when the source has none. A source that is down must be announced without hiding rows that other sources can still supply.
+- NFR25: The decision queue must answer inside a declared time budget from a local index that is refreshed when older than its TTL; when GitHub cannot be read in time or at all it must return what it has, state whether the answer is fresh, partial, stale, expired or unavailable, name each failure, never present old data as current, never write to GitHub and never publish or return a token or a private repo's items.
 
 ## 6. Success metrics (proposed — not defined in sources)
 

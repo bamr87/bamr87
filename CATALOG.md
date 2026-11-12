@@ -411,6 +411,7 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`CONTENT-ATLAS.md`](docs/CONTENT-ATLAS.md) | Content observability and editorial direction for the fleet's content sites, and the committed editorial plan in `_data/editorial.yml`. |
 | [`DAILY-ANALYSIS.md`](docs/DAILY-ANALYSIS.md) | The daily fleet loop (`fleet-pulse.yml`): gather every signal, rank the failing and expensive workflows into one queue, and let the doctor open the fixes. |
 | [`DASH.md`](docs/DASH.md) | The dash architecture — the registry as the source of truth, the surfaces, monitoring, the drift gates and the self-evolution loop. |
+| [`DECISION-INDEX.md`](docs/DECISION-INDEX.md) | What waits on the maintainer across the whole fleet, answered in one call from a local index: `needs-amr` items, pull requests awaiting ratification, failing or major De… |
 | [`DEEP-DIVE.md`](docs/DEEP-DIVE.md) | One bamr87 repo a day, every repo once per 42-day cycle: the ledger (`_data/deep-dive.yml`), its tool (`tools/deep_dive.py`), the daily refresh, the `/deep-dive` dashboa… |
 | [`DEPENDENCIES.md`](docs/DEPENDENCIES.md) | The always-latest dependency policy: no exact pins, no ceilings, no committed lockfiles, and the few sanctioned exceptions. |
 | [`DESIGN-HARMONIZATION.md`](docs/DESIGN-HARMONIZATION.md) | How the fleet's front-ends move to one shell, layout and design language: inventory, shared tokens and shell, a warn-then-fail check, and fan-out PRs. |
