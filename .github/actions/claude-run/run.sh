@@ -235,6 +235,7 @@ claude_failure_reason() {
 claude_failure_class() {
   case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
     *max_budget*|*"max budget"*) echo budget ;;
+    *max_turns*|*"max turns"*|*"maximum number of turns"*) echo turns ;;
     *"usage limit"*|*rate_limit*|*"too many requests"*|*429*) echo quota ;;
     *authentication*|*unauthorized*|*"invalid api key"*|*invalid_api_key*|*expired*|*revoked*|*"/login"*|*401*|*403*) echo auth ;;
     *overloaded*|*529*|*503*|*502*) echo transient ;;
@@ -322,6 +323,16 @@ if [ "${AI_FORCE_API:-0}" != "1" ] && command -v claude >/dev/null 2>&1; then
         # spend somewhere else. Fail the step with the reason.
         echo "[ai] --max-budget-usd ${max_budget:-?} reached$via — stopping (no retry, no API fallback)." >&2
         [ "${GITHUB_ACTIONS:-}" = "true" ] && echo "::error::AI step hit its dollar cap (--max-budget-usd ${max_budget:-?}; a client-side estimate, a throughput ceiling under OAuth) — the work is truncated."
+        exit 1 ;;
+      turns)
+        # The turn cap bound. The same kind of event as the dollar cap: the
+        # agent did its turns and was cut off, so there is no credential to
+        # retry and nothing for the single-shot API fallback to finish. Until
+        # kit 0.3.0 this fell through to that fallback, and where a consumer
+        # ships one the step ended GREEN on one completion while the agent's
+        # work was truncated. Fail the step with the reason.
+        echo "[ai] --max-turns ${max_turns:-?} reached$via — stopping (no retry, no API fallback)." >&2
+        [ "${GITHUB_ACTIONS:-}" = "true" ] && echo "::error::AI step hit its turn cap (--max-turns ${max_turns:-?}) — the work is truncated. If the lane needs more turns, raise the turn cap and the dollar cap together."
         exit 1 ;;
       auth|quota)
         if [ -n "$next_method" ]; then

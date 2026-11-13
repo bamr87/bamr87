@@ -850,6 +850,34 @@ jobs:
     assert hr.classify_workflow(".github/workflows/review.yml", wired)["auth"] == "ordered"
 
 
+def test_another_commands_turn_flag_is_not_the_lanes_turn_cap():
+    """A claude-run step takes its cap as the `max-turns:` input. it-journey's
+    quest lanes run an engine with its own `--max-turns 40` beside a claude-run
+    step that passes none, and that flag passed `turn-cap` for them."""
+    lane = """\
+name: quest
+on: { workflow_dispatch: {} }
+permissions: { contents: read }
+jobs:
+  walk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - run: python3 scripts/agentic_validate.py --mode execute --max-turns 40
+      - uses: bamr87/bamr87/.github/actions/claude-run@main
+        with:
+          prompt: walk the quest
+"""
+    info = hr.classify_workflow(".github/workflows/quest.yml", lane)
+    assert info["route"] == "claude-run" and info["max_turns"] is None
+    capped = lane.replace("          prompt: walk the quest\n",
+                          "          prompt: walk the quest\n          max-turns: \"30\"\n")
+    assert hr.classify_workflow(".github/workflows/quest.yml", capped)["max_turns"] == 30
+    # a direct CLI call still reads its own flag
+    cli = "on: push\njobs:\n  a:\n    runs-on: x\n    steps:\n      - run: claude -p hi --max-turns 12\n"
+    assert hr.classify_workflow(".github/workflows/cli.yml", cli)["max_turns"] == 12
+
+
 def test_the_lane_supplies_what_its_caller_does_not_pass():
     """An ai-lane caller names its switch as an input and passes no cap, model
     or timeout: the lane carries them. Read from the lane's own file, so the

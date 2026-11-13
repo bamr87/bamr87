@@ -693,7 +693,11 @@ def classify_workflow(path: str, text: str) -> dict:
         # with no model takes whatever its tool's default is that day.
         info["model_source"] = ("literal" if m else "expression" if MODEL_EXPR_RX.search(code)
                                 else "route" if hub_route else "none")
-        m = MAX_TURNS_RX.search(code) or (INPUT_TURNS_RX.search(code) if hub_route else None)
+        # A hub route takes its turn cap as the `max-turns:` input. A
+        # `--max-turns` flag elsewhere in such a file belongs to another
+        # command and caps nothing the model step does: three it-journey lanes
+        # passed `turn-cap` on their quest engine's own `--max-turns 40`.
+        m = INPUT_TURNS_RX.search(code) if hub_route else MAX_TURNS_RX.search(code)
         info["max_turns"] = int(m.group(1)) if m else None
         turns_at_run_time = not m and bool(TURNS_EXPR_RX.search(code))
         m = MAX_BUDGET_RX.search(code)

@@ -293,6 +293,36 @@ else
 fi
 rm -rf "$kit" "$budgetstub" "$outf" "$errf"
 
+# 15-16. A TURN-CAP STOP is the same kind of event: the agent used its turns and
+#    was cut off. It must fail the step and never reach the single-shot API
+#    fallback, which would end the step GREEN on one completion while the
+#    agent's work is truncated (it did, until kit 0.3.0).
+turnstub="$(mktemp -d)"
+cat > "$turnstub/claude" <<'STUB'
+#!/usr/bin/env bash
+printf '{"type":"result","subtype":"error_max_turns","is_error":true,"num_turns":60,"total_cost_usd":4.10,"usage":{"input_tokens":9,"output_tokens":9}}'
+exit 1
+STUB
+chmod +x "$turnstub/claude"
+kit="$(mktemp -d)"; mkdir -p "$kit/scripts/ai"
+cp "$SUT" "$kit/scripts/ai/run.sh"
+printf 'print "API FALLBACK"\n' > "$kit/scripts/ai/api_call.rb"
+outf="$(mktemp)"; errf="$(mktemp)"
+env -i PATH="${turnstub}:/usr/local/bin:/usr/bin:/bin" HOME="${HOME:-/root}" AI_USAGE_DIR="$(mktemp -d)" \
+  AI_AUTH_ORDER=oauth,api_key CLAUDE_CODE_OAUTH_TOKEN=o ANTHROPIC_API_KEY=k \
+  bash "$kit/scripts/ai/run.sh" --prompt "hello" --max-turns 60 >"$outf" 2>"$errf"; rc=$?
+if [ "$rc" = 1 ] && grep -qF "max-turns 60 reached" "$errf" && ! grep -qF "retrying with" "$errf"; then
+  echo "PASS: a turn-cap stop exits 1 and does not retry with the next credential"; pass=$((pass + 1))
+else
+  echo "FAIL: turn-cap stop: exit $rc; stderr=$(head -c 300 "$errf")"; fail=$((fail + 1))
+fi
+if ! grep -qF "API FALLBACK" "$outf"; then
+  echo "PASS: a turn-cap stop never reaches the API fallback"; pass=$((pass + 1))
+else
+  echo "FAIL: turn-cap stop reached the API fallback"; fail=$((fail + 1))
+fi
+rm -rf "$kit" "$turnstub" "$outf" "$errf"
+
 # 14. Model resolution: --model > AI_MODEL > the consumer's _data/ai.yml > the
 # fleet default. An EMPTY `model:` in ai.yml is the fleet default — the kit seeds
 # `model: ""` with that comment — and used to reach the CLI as `--model ""`.

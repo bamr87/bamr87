@@ -13,8 +13,17 @@ changelog: |
   turn cap, so every lane made from it was one control short, and twelve
   lanes kept its example cron (`17 6 * * 1`) and so shared Monday 06:17 UTC.
   A caller is a file the repo holds and fills in, so existing lanes change by
-  a PR in their own repo, not by a fan-out. The runtime is unchanged. Test:
-  test_harness_registry.py holds a filled template on the standard.
+  a PR in their own repo, not by a fan-out. Test: test_harness_registry.py
+  holds a filled template on the standard.
+  The runtime changes in one place: a TURN-CAP STOP is final, like a dollar-cap
+  stop. run.sh classified only the dollar cap as a circuit breaker, so
+  `error_max_turns` fell through to the single-shot API fallback, and where a
+  consumer ships one (it-journey, zer0-mistakes) the step ended GREEN on one
+  completion while the agent's work was cut off. It now exits 1 with the
+  reason and an ::error:: naming --max-turns. Consumed by reference (@main),
+  so every lane gets this on merge: a lane that was hitting its turn cap and
+  passing turns red, which is the point. Contract: tests/contract.sh cases
+  15-16 (29 cases in all).
   0.2.1 — an empty `model:` in the consumer's _data/ai.yml is the fleet default.
   The kit seeds `model: ""` with the comment "Empty = fleet default", and the
   resolver returned that empty string (`"" || default` is "" in Ruby), so the

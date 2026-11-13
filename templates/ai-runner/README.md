@@ -32,6 +32,8 @@ Canonical environment (no repo prefix, so nothing is repo-specific): `CLAUDE_COD
 | `0` | The call ran, **or** nothing was attempted (no `claude` on PATH and no API key — the documented no-op, so a human running a skill locally without credentials degrades gracefully) |
 | `1` | The call was attempted and failed with no usable fallback. The reason (auth rejected, quota exhausted, model unavailable) is printed and raised as a `::error::` annotation. Before the kit, this case exited 0 and the lane learned of it a step later as a generic "no PR was opened" |
 
+A circuit breaker that binds is a failure too, and never reaches the fallback: a run stopped by its dollar cap (`--max-budget-usd`) or its turn cap (`--max-turns`) exits `1` with the cap named, because the agent's work is cut off and a single completion cannot finish it. Until kit 0.3.0 a turn-cap stop fell through to the API fallback and could end the step green.
+
 ## Not expressible as the reusable lane
 
 Keep your own workflow and reference only the action for: matrices computed by a planning job (call the lane once per item from the caller, as it-journey's `quest-fix-loop.yml` already does), multi-job pipelines with artifact hand-offs, lanes that check out ANOTHER repository, and several model passes in one job.
