@@ -2,15 +2,15 @@
   "schema": "deep-dive/v1",
   "owner": "bamr87",
   "label": "deep-dive",
-  "refreshed_at": "2026-11-12T12:26:38Z",
+  "refreshed_at": "2026-11-13T12:25:41Z",
   "summary": {
-    "as_of": "2026-11-12",
+    "as_of": "2026-11-13",
     "cycle": 1,
     "cycle_start": "2026-10-30",
     "cycle_end": "2026-12-10",
     "cycle_days": 42,
     "total": 38,
-    "day": 14,
+    "day": 15,
     "processed": 6,
     "counts": {
       "pending": 32,
@@ -20,14 +20,6 @@
     },
     "progress": 0.1579,
     "today": {
-      "date": "2026-11-12",
-      "cycle": 1,
-      "day": 14,
-      "cycle_days": 42,
-      "kind": "scheduled",
-      "repo": "law-ai"
-    },
-    "next": {
       "date": "2026-11-13",
       "cycle": 1,
       "day": 15,
@@ -35,11 +27,19 @@
       "kind": "scheduled",
       "repo": ".github"
     },
+    "next": {
+      "date": "2026-11-14",
+      "cycle": 1,
+      "day": 16,
+      "cycle_days": 42,
+      "kind": "scheduled",
+      "repo": "lifehacker.dev"
+    },
     "last": "README",
     "last_date": "2026-11-09",
     "avg_score": 38.7,
-    "open_issues": 31,
-    "open_prs": 1
+    "open_issues": 48,
+    "open_prs": 4
   },
   "repos": [
     {
@@ -348,10 +348,32 @@
       "status": "pending",
       "last_processed": null,
       "cycle": 1,
-      "issues": [],
-      "prs": [],
-      "open_issues": 0,
-      "open_prs": 0,
+      "issues": [
+        "https://github.com/bamr87/law-ai/issues/242",
+        "https://github.com/bamr87/law-ai/issues/241",
+        "https://github.com/bamr87/law-ai/issues/240",
+        "https://github.com/bamr87/law-ai/issues/239",
+        "https://github.com/bamr87/law-ai/issues/238",
+        "https://github.com/bamr87/law-ai/issues/232",
+        "https://github.com/bamr87/law-ai/issues/231",
+        "https://github.com/bamr87/law-ai/issues/230",
+        "https://github.com/bamr87/law-ai/issues/229",
+        "https://github.com/bamr87/law-ai/issues/228",
+        "https://github.com/bamr87/law-ai/issues/227",
+        "https://github.com/bamr87/law-ai/issues/226",
+        "https://github.com/bamr87/law-ai/issues/225",
+        "https://github.com/bamr87/law-ai/issues/224",
+        "https://github.com/bamr87/law-ai/issues/223",
+        "https://github.com/bamr87/law-ai/issues/222",
+        "https://github.com/bamr87/law-ai/issues/221"
+      ],
+      "prs": [
+        "https://github.com/bamr87/law-ai/pull/235",
+        "https://github.com/bamr87/law-ai/pull/234",
+        "https://github.com/bamr87/law-ai/pull/233"
+      ],
+      "open_issues": 17,
+      "open_prs": 3,
       "findings": "",
       "score": null,
       "next_focus": ""
