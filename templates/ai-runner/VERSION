@@ -23,7 +23,14 @@ changelog: |
   reason and an ::error:: naming --max-turns. Consumed by reference (@main),
   so every lane gets this on merge: a lane that was hitting its turn cap and
   passing turns red, which is the point. Contract: tests/contract.sh cases
-  15-16 (29 cases in all).
+  15-16.
+  And one input is new: `permission-mode` (claude-run, ai-lane.yml, run.sh
+  --permission-mode / AI_PERMISSION_MODE): acceptEdits (the default, and what
+  the runner always passed), default, or plan. A read-only reviewer moved from
+  a bare `claude -p` onto claude-run was handed acceptEdits, which approves
+  file edits its tool allowlist never granted; `permission-mode: default`
+  keeps the allowlist as the whole grant. Any other mode is refused before the
+  CLI runs. Contract: case 7b (33 cases in all).
   0.2.1 — an empty `model:` in the consumer's _data/ai.yml is the fleet default.
   The kit seeds `model: ""` with the comment "Empty = fleet default", and the
   resolver returned that empty string (`"" || default` is "" in Ruby), so the

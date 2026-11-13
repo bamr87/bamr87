@@ -7,4 +7,5 @@
 
 ### Changed
 
+- `claude-run` and `ai-lane.yml` take a `permission-mode` input: `acceptEdits` (the default, and what the runner always passed), `default` or `plan`. A read-only reviewer on `claude-run` can keep its tool allowlist as the whole grant; any other mode is refused before the CLI runs.
 - `ai-runner` kit 0.3.0: the lane caller template passes a turn cap with a dollar cap sized to it (`max-turns: "120"`, `max-budget-usd: "20"`) and its cron is a placeholder (`__CRON__`). A lane copied from the 0.2.x template was one control short of the harness standard, and twelve lanes kept its example cron.
