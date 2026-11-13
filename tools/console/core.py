@@ -104,7 +104,7 @@ TOKEN_ENV = ["FLEET_TOKEN", "GH_TOKEN", "GITHUB_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN
 # a hand-kept copy of them had drifted and refused every input of
 # issue-pipeline, token-rotation, reconcile-registry and update-submodules.
 DISPATCH_WORKFLOWS = ("fanout", "fleet-pulse", "issue-pipeline", "token-rotation", "repo-evolution", "repo-scout",
-                      "build-dash", "reconcile-registry", "update-submodules", "backlog-fanout")
+                      "weekly-closeout", "weekly-gather", "weekly-finalize", "build-dash", "reconcile-registry", "update-submodules", "backlog-fanout")
 
 
 # --------------------------------------------------------------------------- #
@@ -234,6 +234,15 @@ LOOPS = [
     {"id": "repo_scout", "title": "Repo scout — daily issue proposals", "workflow": "repo-scout",
      "schedule_key": "repo_scout", "doc": "docs/SCOUT.md",
      "outputs": [], "local_ops": ["scout", "refine-plan"]},
+    {"id": "weekly_closeout", "title": "Weekly close-out — Friday cleanup of open work", "workflow": "weekly-closeout",
+     "schedule_key": "weekly_closeout", "doc": "docs/WEEKLY-CLOSEOUT.md",
+     "outputs": [], "local_ops": ["triage", "decisions-refresh"]},
+    {"id": "weekly_gather", "title": "Weekly gather — Saturday draft of next week's plan", "workflow": "weekly-gather",
+     "schedule_key": "weekly_gather", "doc": "docs/WEEKLY-CLOSEOUT.md",
+     "outputs": [], "local_ops": ["decisions"]},
+    {"id": "weekly_finalize", "title": "Weekly finalize — Sunday week-ahead brief", "workflow": "weekly-finalize",
+     "schedule_key": "weekly_finalize", "doc": "docs/WEEKLY-CLOSEOUT.md",
+     "outputs": [], "local_ops": ["decisions"]},
     {"id": "harness_fanout", "title": "Harness fan-out — mass deploy / update", "workflow": "fanout",
      "schedule_key": None, "doc": "docs/HARNESS-OPS.md",
      "outputs": [], "local_ops": ["gaps", "deploy-gaps"]},
@@ -2494,6 +2503,9 @@ CONFIG_SECTIONS: list[dict] = [
          ("rotate_tokens", "weekly credential rotation"),
          ("repo_evolution", "weekly proactive per-repo improvement pass"),
          ("repo_scout", "daily proactive issue proposals — a sample of repos a day"),
+         ("weekly_closeout", "Friday 13:17 Denver — close out open PRs, branches and clones"),
+         ("weekly_gather", "Saturday 10:17 Denver — draft next week's plan"),
+         ("weekly_finalize", "Sunday 16:17 Denver — week-ahead brief"),
      )}},
     {"key": "remediation", "title": "Remediation — the doctor's guardrails", "doc": "docs/DAILY-ANALYSIS.md",
      "blurb": "Blast radius and eligibility of the daily auto-fix loop. Raising max_candidates "
