@@ -224,6 +224,9 @@ class Validation(unittest.TestCase):
         json.dumps(odd).encode("utf-8")
         self.assertEqual(odd["accepted"], [])
 
+    def test_notes_with_a_stray_control_character_are_cleaned_not_lost(self):
+        self.assertEqual(self.check(notes="two items\x07 look\x1b[0m alike")["notes"], "two items look [0m alike")
+
     def test_notes_that_mention_or_mark_up_are_dropped_whole(self):
         for notes in ("ping @claude to fix it", "see <!-- hidden -->", "![x](y)"):
             self.assertEqual(self.check(notes=notes)["notes"], "", notes)

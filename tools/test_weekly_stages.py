@@ -611,6 +611,23 @@ class Auto(Hub):
     def test_it_runs_what_is_due_in_order(self):
         self.assertEqual(self.go("2026-11-14T11:00:00")[1], ["close", "prepare"])
 
+    def test_a_run_is_judged_by_its_local_time_not_its_utc_digits(self):
+        """West of Greenwich a run's UTC clock reads later than the wall: Friday 16:00 in Denver is 23:00
+        UTC. Read without its zone, an afternoon run would look like it came after the 22:37 slot."""
+        old = os.environ.get("TZ")
+
+        def restore():
+            if old is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = old
+            time.tzset()
+        self.addCleanup(restore)
+        os.environ["TZ"] = "America/Denver"
+        time.tzset()
+        self.record("close", local("2026-11-13T16:00:00"))
+        self.assertEqual(self.go("2026-11-13T23:00:00")[1], ["close"])
+
     def test_a_stage_that_already_ran_this_weekend_is_not_repeated(self):
         self.record("close", local("2026-11-13T22:40:00"))
         self.assertEqual(self.go("2026-11-14T11:00:00")[1], ["prepare"])
@@ -869,6 +886,15 @@ class Confirm(Hub):
         record = json.loads((folder / "confirm.json").read_text())
         self.assertEqual((record["pr"], isinstance(record["wip"], dict)), (None, True))
         self.assertFalse(list(folder.glob("confirm.json.tmp")))
+
+    def test_finished_board_batches_are_on_record_before_the_pr_is_tried(self):
+        folder = self.close_run()
+        with mock.patch.object(core, "next_batches", return_value=[0]), \
+                mock.patch.object(core, "apply_board", return_value=[{"index": 0, "ok": True, "note": "batch 0 applied"}]), \
+                mock.patch.object(core, "open_weekly_pr", side_effect=RuntimeError("GitHub went away")):
+            with self.assertRaises(RuntimeError):
+                self.confirm(apply=True)
+        self.assertEqual(json.loads((folder / "confirm.json").read_text())["batches"], [0])
 
     def test_a_record_that_cannot_be_trusted_starts_again_and_says_so(self):
         folder = self.close_run()
