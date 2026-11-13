@@ -73,6 +73,7 @@ import math
 import os
 import re
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 
 try:
@@ -1017,6 +1018,63 @@ def repo_schedule_load(repo: dict) -> float:
     return round(math.fsum(parts), 3)
 
 
+WEEK_ORDER = (1, 2, 3, 4, 5, 6, 0)  # Monday first; DAY_NAMES is cron's Sunday-first
+
+
+def cron_weekdays(p: dict) -> set[int]:
+    """The weekdays (0 = Sunday) a parsed cron can fire on. A day-of-month
+    restriction can land on any weekday, and cron ORs the two fields when both
+    are restricted, so only a pure day-of-week restriction narrows the set."""
+    if p["dow_restricted"] and not p["dom_restricted"]:
+        return set(p["dows"])
+    return set(range(7))
+
+
+def hour_collision(hour: int, load: list[tuple[str, set[int], set[int]]], cap: int) -> dict | None:
+    """One UTC hour's AI crons against the per-hour cap, counted PER WEEKDAY.
+
+    Crons contend only when they fire in the same hour of the same day: five
+    weekly lanes at 14:xx on five different days never meet, and counting them
+    together reported collisions that did not exist. `count` is the most that
+    can fire in this hour on one day, `days` the weekdays over the cap, and
+    `entries` the crons of the worst day.
+
+    `utc_hour` names the hour BUCKET ("06:00" is 06:00 to 06:59), which is all
+    the cap is about. `same_minute` lists the exact minutes two or more of the
+    entries share, because "13 crons in the 06 hour" and "12 crons at 06:17"
+    are different problems and the first wording hid the second."""
+    per_day = {d: [e for e in load if d in e[1]] for d in WEEK_ORDER}
+    worst_day = max(WEEK_ORDER, key=lambda d: len(per_day[d]))  # first of the ties
+    worst = per_day[worst_day]
+    if len(worst) <= cap:
+        return None
+    minutes: dict[int, int] = {}
+    for _, _, mins in worst:
+        for m in mins:
+            minutes[m] = minutes.get(m, 0) + 1
+    return {
+        "utc_hour": f"{hour:02d}:00",
+        "count": len(worst),
+        "entries": sorted(e[0] for e in worst),
+        "days": [DAY_NAMES[d] for d in WEEK_ORDER if len(per_day[d]) > cap],
+        "same_minute": [{"at": f"{hour:02d}:{m:02d}", "count": n}
+                        for m, n in sorted(minutes.items()) if n > 1],
+    }
+
+
+def collision_summary(c: dict) -> str:
+    """The sentence the attention list and the console show for one collision."""
+    days = c.get("days") or []
+    when = "every day" if len(days) == 7 else "on " + ", ".join(days) if days else ""
+    text = f"{c['count']} AI crons fire in the {c['utc_hour'][:2]} UTC hour"
+    if when:
+        text += f" {when}"
+    same = c.get("same_minute") or []
+    if same:
+        text += "; " + ", ".join(f"{s['count']} at exactly {s['at']}" for s in same)
+    return text
+
+
 def build_throughput(repos: list[dict], cfg: dict, ai_usage: dict) -> dict:
     caps = cfg["throughput"]
     # fsum, not sum: the per-repo estimates are floats whose plain left-to-right
@@ -1031,7 +1089,7 @@ def build_throughput(repos: list[dict], cfg: dict, ai_usage: dict) -> dict:
     ]
     # UTC-hour adjacency: only single-shot AI crons (fixed hour set) count —
     # an hourly agent is a per-repo/fleet cap problem, not an adjacency one.
-    hour_load: dict[int, list[str]] = {}
+    hour_load: dict[int, list[tuple[str, set[int], set[int]]]] = {}
     for r in repos:
         if is_dormant(r):
             continue
@@ -1041,12 +1099,10 @@ def build_throughput(repos: list[dict], cfg: dict, ai_usage: dict) -> dict:
                 if p is None or len(p["hours"]) > 3:
                     continue
                 for hour in p["hours"]:
-                    hour_load.setdefault(hour, []).append(f"{r['repo']}:{h['workflow']}")
-    collisions = [
-        {"utc_hour": f"{hour:02d}:00", "count": len(entries), "entries": sorted(entries)}
-        for hour, entries in sorted(hour_load.items())
-        if len(entries) > caps["max_ai_crons_per_utc_hour"]
-    ]
+                    hour_load.setdefault(hour, []).append(
+                        (f"{r['repo']}:{h['workflow']}", cron_weekdays(p), p["minutes"]))
+    collisions = [c for hour, load in sorted(hour_load.items())
+                  if (c := hour_collision(hour, load, caps["max_ai_crons_per_utc_hour"]))]
     observed = None
     totals = ai_usage.get("totals") or {}
     window = ai_usage.get("window_days")
@@ -1225,8 +1281,9 @@ def build_attention(repos: list[dict], throughput: dict, trends: dict, cfg: dict
             "retune that repo's agent crons", repo=v["repo"])
     for c in throughput.get("hour_collisions") or []:
         add(70, "schedule-collision",
-            f"{c['count']} AI crons share {c['utc_hour']} UTC: {', '.join(c['entries'][:6])}",
-            "stagger the crons — the Claude loops share one OAuth account's rate limit")
+            f"{collision_summary(c)}: {', '.join(c['entries'][:6])}",
+            "stagger the crons across hours or days — the Claude loops share one OAuth "
+            "account's rate limit; a lane whose switch is off still wakes to check it")
 
     # The rebuild plan, one finding per lever rather than one per harness: what
     # the fleet's harnesses still miss against the standard, grouped by the
@@ -1630,19 +1687,27 @@ def is_deployable(row: dict) -> bool:
     return bool(row.get("nwo")) and not row.get("external") and not is_retired(row)
 
 
-def gap_candidates(registry_path: Path) -> list[dict]:
-    """Every repo whose coverage the KIT could close, deployable or not."""
+def gap_candidates(registry_path: Path, exempt: Iterable[str] = ()) -> list[dict]:
+    """Every repo whose coverage the KIT could close, deployable or not.
+
+    `exempt` is the LIVE `harnesses.exempt` list. The snapshot's `coverage` was
+    computed when the repo was scanned, so without it an exemption added since
+    would not keep a `--gaps` fan-out away until the next scan — and keeping the
+    fan-out away is what an exemption is for. An exempt repo is never offered a
+    seed; a pristine machine seed it already holds is still upgraded."""
     data = load_yaml(registry_path)
+    excused = set(exempt)
     out = []
     for r in data.get("repos") or []:
-        missing = set((r.get("coverage") or {}).get("missing") or [])
+        missing = set() if r.get("repo") in excused else set((r.get("coverage") or {}).get("missing") or [])
         behind = any(upgradeable(h) for h in r.get("harnesses") or [])
         if r.get("repo") and ((missing & {"mention-handler", "agent-context"}) or behind):
             out.append(r)
     return out
 
 
-def fanout_gaps(registry_path: Path, projects_path: Path | None = None) -> list[str]:
+def fanout_gaps(registry_path: Path, projects_path: Path | None = None,
+                exempt: Iterable[str] = ()) -> list[str]:
     """Repo names the fan-out can actually help: a kit-deployable baseline gap
     (mention handler / agent context) or an upgradeable machine seed. Secret
     gaps are token-rotation's lane and are deliberately not deploy targets.
@@ -1655,7 +1720,7 @@ def fanout_gaps(registry_path: Path, projects_path: Path | None = None) -> list[
     real targets; what stays excluded is what the engine still refuses —
     external upstreams and archived repos — which surface as a
     `gap-not-deployable` attention item instead."""
-    return [r["repo"] for r in gap_candidates(registry_path) if is_deployable(r)]
+    return [r["repo"] for r in gap_candidates(registry_path, exempt) if is_deployable(r)]
 
 
 # --------------------------------------------------------------------------- #
@@ -1664,7 +1729,7 @@ def fanout_gaps(registry_path: Path, projects_path: Path | None = None) -> list[
 def run(args: argparse.Namespace) -> int:
     out_path = Path(args.out)
     if args.gaps:
-        gaps = fanout_gaps(out_path)
+        gaps = fanout_gaps(out_path, exempt=load_config(Path(args.fleet))["exempt"])
         if not out_path.exists():
             sys.stderr.write(
                 f"harnesses: no committed inventory at {out_path} — run "

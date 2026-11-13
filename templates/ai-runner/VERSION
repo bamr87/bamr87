@@ -1,10 +1,20 @@
 kit: ai-runner
-version: 0.2.1
+version: 0.3.0
 source: "bamr87/bamr87 templates/ai-runner/ (runtime: .github/actions/claude-run/ + .github/workflows/ai-lane.yml)"
 seeded-by: "consumed BY REFERENCE (uses: bamr87/bamr87/.github/actions/claude-run@main, or the reusable .github/workflows/ai-lane.yml@main); not fanned out by tools/fanout.sh"
-files: ai-lane.template.yml, tests/contract.sh, archive/ai-lane-0.1.0.yml
-updated: 2026-11-10
+files: ai-lane.template.yml, tests/contract.sh, archive/ai-lane-0.1.0.yml, archive/ai-lane-0.2.1.yml
+updated: 2026-11-13
 changelog: |
+  0.3.0 — a lane copied from the template is born on the harness standard
+  (_data/fleet.yml `harnesses.standard`). The caller template now passes a
+  turn cap and a matching dollar cap (`max-turns: "120"`, `max-budget-usd:
+  "20"`, the hub evolution loop's own sizing for the same job), and its cron
+  is a placeholder (`__CRON__`) instead of an example. The 0.2.x shape had no
+  turn cap, so every lane made from it was one control short, and twelve
+  lanes kept its example cron (`17 6 * * 1`) and so shared Monday 06:17 UTC.
+  A caller is a file the repo holds and fills in, so existing lanes change by
+  a PR in their own repo, not by a fan-out. The runtime is unchanged. Test:
+  test_harness_registry.py holds a filled template on the standard.
   0.2.1 — an empty `model:` in the consumer's _data/ai.yml is the fleet default.
   The kit seeds `model: ""` with the comment "Empty = fleet default", and the
   resolver returned that empty string (`"" || default` is "" in Ruby), so the

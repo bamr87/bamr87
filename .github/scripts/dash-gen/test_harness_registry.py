@@ -38,6 +38,7 @@ Deliberately dependency-light — no network, no gh, no pytest. Needs only PyYAM
 from __future__ import annotations
 
 import datetime as dt
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -444,6 +445,57 @@ def test_throughput_caps_and_hour_collisions():
     assert len(tp["hour_collisions"]) == 1
     coll = tp["hour_collisions"][0]
     assert coll["utc_hour"] == "06:00" and coll["count"] == 4
+    # daily crons meet every day, and all four share the minute
+    assert coll["days"] == ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    assert coll["same_minute"] == [{"at": "06:00", "count": 4}]
+    assert hr.collision_summary(coll) == "4 AI crons fire in the 06 UTC hour every day; 4 at exactly 06:00"
+
+
+def _cron_repos(crons: dict[str, str]) -> list[dict]:
+    return [repo_row(name=name,
+                     harnesses=[harness_row(workflow="loop", kind="scheduled-agent",
+                                            crons=[cron], mention_handler=False)])
+            for name, cron in crons.items()]
+
+
+def test_crons_on_different_weekdays_do_not_collide():
+    """Five lanes in the 14:00 hour on five different days never meet. Counting
+    the hour without the day reported '5 AI crons share 14:00 UTC' for
+    bash-365.com on 2026-11-11, a collision that did not exist."""
+    repos = _cron_repos({"daily": "11 14 * * *", "mon": "23 14 * * 1", "thu": "37 14 * * 4",
+                         "sat": "42 14 * * 6", "wed": "41 14 * * 3"})
+    tp = hr.build_throughput(repos, CFG, {})
+    assert tp["hour_collisions"] == []          # at most 2 on any one day, cap 3
+
+
+def test_collision_names_the_day_and_the_shared_minute():
+    """The 2026-11-11 finding read '13 AI crons share 06:00 UTC'. Twelve of them
+    were evolve lanes at Monday 06:17 and the thirteenth a link checker at
+    Monday 06:00: one hour bucket, two different minutes, one weekday."""
+    crons = {f"lane{i:02d}": "17 6 * * 1" for i in range(12)}
+    crons["links"] = "0 6 * * 1"
+    crons["tuesday"] = "30 6 * * 2"             # same hour, another day: not part of it
+    tp = hr.build_throughput(_cron_repos(crons), CFG, {})
+    [coll] = tp["hour_collisions"]
+    assert coll["utc_hour"] == "06:00" and coll["count"] == 13
+    assert coll["days"] == ["Mon"]
+    assert "tuesday:loop" not in coll["entries"] and len(coll["entries"]) == 13
+    assert coll["same_minute"] == [{"at": "06:17", "count": 12}]
+    summary = hr.collision_summary(coll)
+    assert summary == "13 AI crons fire in the 06 UTC hour on Mon; 12 at exactly 06:17"
+    assert "share 06:00" not in summary
+
+
+def test_day_of_month_cron_can_meet_any_weekday():
+    """A monthly cron lands on whatever weekday the month gives it, so it counts
+    toward every day; with both fields restricted cron ORs them."""
+    assert hr.cron_weekdays(hr.parse_cron("10 14 1 * *")) == set(range(7))
+    assert hr.cron_weekdays(hr.parse_cron("10 14 1 * 1")) == set(range(7))
+    assert hr.cron_weekdays(hr.parse_cron("10 14 * * 1-5")) == {1, 2, 3, 4, 5}
+    repos = _cron_repos({"monthly": "10 14 1 * *", "a": "20 14 * * 2", "b": "30 14 * * 2",
+                         "c": "40 14 * * 2"})
+    [coll] = hr.build_throughput(repos, CFG, {})["hour_collisions"]
+    assert coll["days"] == ["Tue"] and coll["count"] == 4 and coll["same_minute"] == []
 
 
 # --------------------------------------------------------------------------- #
@@ -917,6 +969,26 @@ def test_the_kit_handler_passes_the_standard_it_is_graded_on():
     assert h["model"] in cfg["allowed_models"]
 
 
+def test_a_filled_lane_template_is_born_on_the_standard():
+    """The ai-runner caller template is how a new lane is made. Its 0.2.x shape
+    carried no turn cap, so every lane copied from it was one control short,
+    and an example cron, which twelve lanes kept and so shared (2026-11-11)."""
+    cfg = hr.load_config(hr.FLEET_DEFAULT)
+    template = hr.REPO_ROOT.joinpath("templates", "ai-runner", "ai-lane.template.yml").read_text()
+    crons = re.findall(r"^\s*-\s*cron:\s*(.+?)\s*$", template, re.M)
+    assert crons == ['"__CRON__"'], f"the template must not ship a cron a copy can keep: {crons}"
+    filled = (template.replace("__KIT_VERSION__", "0.0.0").replace("__LANE__", "evolve")
+              .replace("__SWITCH__", "EVOLVE").replace("__AGENT__", "builder")
+              .replace("__PROJECT_NAME__", "demo").replace("__CRON__", "23 9 * * 3"))
+    assert "__" not in re.sub(r"(?m)^\s*#.*$", "", filled), "an unfilled placeholder is left"
+    h = graded(filled, path=".github/workflows/evolve.yml", cfg=cfg)
+    assert h["kind"] == "scheduled-agent" and h["route"] == "ai-lane"
+    assert h["standard"]["conformant"], f"lane template off the standard: {h['standard']}"
+    # the two breakers are sized together: the dollar cap clears usd_per_turn x turns
+    fleet = yaml.safe_load(hr.FLEET_DEFAULT.read_text())
+    assert h["max_budget_usd"] >= fleet["budget"]["usd_per_turn"] * h["max_turns"]
+
+
 def test_the_hubs_own_handler_is_the_kit_copy():
     """It carried the kit's stamp and hand edits the kit did not have, so the
     two drifted for months. One file, rendered."""
@@ -970,6 +1042,27 @@ def test_an_edited_stamped_copy_is_not_a_fanout_target():
         path = Path(tmp) / "harness_registry.yml"
         path.write_text(yaml.safe_dump(out))
         assert hr.fanout_gaps(path) == ["seed"]
+
+
+def test_an_exemption_keeps_the_fanout_away_before_the_next_scan():
+    """`harnesses.exempt` is read live by `--gaps`. The snapshot's coverage is
+    as old as its scan: lifehacker.dev's automation was shut down on 2026-11-05,
+    and a `--gaps` fan-out would still have seeded a handler into it because the
+    committed snapshot said its mention handler was missing. An exempt repo is
+    never offered a seed; a pristine machine seed it already holds still
+    upgrades."""
+    no_handler = repo_row(name="shut-down", harnesses=[])
+    no_handler["coverage"] = {"exempt": False, "ok": False, "missing": ["mention-handler"]}
+    seed = repo_row(name="exempt-with-seed",
+                    harnesses=[harness_row(kit="0.4.0", kit_status="upgradeable", kit_pristine=True)])
+    seed["coverage"] = {"exempt": False, "ok": True, "missing": []}
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "harness_registry.yml"
+        path.write_text(yaml.safe_dump({"repos": [no_handler, seed]}))
+        assert hr.fanout_gaps(path) == ["shut-down", "exempt-with-seed"]
+        assert hr.fanout_gaps(path, exempt=["shut-down", "exempt-with-seed"]) == ["exempt-with-seed"]
+    # the live hub config names the repo the rule was written for
+    assert "lifehacker.dev" in hr.load_config(hr.FLEET_DEFAULT)["exempt"]
 
 
 def test_each_lever_is_the_action_that_rebuilds_the_harness():

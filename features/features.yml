@@ -104,8 +104,10 @@ features:
       - .github/scripts/dash-gen/test_harness_registry.py
     scenarios:
       - verify/scenarios/harnesses.yml
+      - verify/scenarios/schedules.yml
     evidence:
       - test/evidence/harnesses
+      - test/evidence/schedules
     verified:
       date: 2026-10-12
       by: agent
