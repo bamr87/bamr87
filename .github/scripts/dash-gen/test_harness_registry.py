@@ -820,6 +820,36 @@ def test_a_workflow_that_only_mentions_an_action_is_not_a_harness():
     assert ref.group(1) == "v1"
 
 
+def test_a_comment_about_the_ordered_credential_is_not_the_ordered_credential():
+    """The credential wiring is read from the code. The auth facts were still
+    read from the whole file, so a header that mentioned `claude-auth@` or
+    CLAUDE_AUTH_ORDER (a note saying why the repo does NOT use it, in githubai's
+    case) would have passed `auth-ordered` for a hand-wired OAuth-first step."""
+    hand_wired = """\
+name: review
+# This repo keeps OAuth-first by hand; it does not call
+# bamr87/bamr87/.github/actions/claude-auth@v2 or read CLAUDE_AUTH_ORDER.
+on: { pull_request: {} }
+permissions: { contents: read }
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
+          claude_args: "--model claude-sonnet-5-5 --max-turns 20 --max-budget-usd 10"
+"""
+    info = hr.classify_workflow(".github/workflows/review.yml", hand_wired)
+    assert info["auth"] == "oauth-first"
+    wired = hand_wired.replace(
+        "    steps:\n",
+        "    steps:\n      - id: claude-auth\n        uses: bamr87/bamr87/.github/actions/claude-auth@v2\n")
+    assert hr.classify_workflow(".github/workflows/review.yml", wired)["auth"] == "ordered"
+
+
 def test_the_lane_supplies_what_its_caller_does_not_pass():
     """An ai-lane caller names its switch as an input and passes no cap, model
     or timeout: the lane carries them. Read from the lane's own file, so the

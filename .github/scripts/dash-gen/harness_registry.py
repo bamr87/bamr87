@@ -665,10 +665,12 @@ def classify_workflow(path: str, text: str) -> dict:
         # `ordered` = the credential comes from the repo's CLAUDE_AUTH_ORDER
         # (the claude-auth step, or the hub runner reading it) — the order is
         # then configuration in ai_auth:, not a property of the file.
+        # Read from the code, not the comments: a header that explains the
+        # ordered credential is not a workflow that uses it.
         if route == "claude-code-action":
-            has_oauth = "claude_code_oauth_token" in text
-            has_key = "anthropic_api_key" in text
-            ordered = "claude-auth@" in text or "CLAUDE_AUTH_ORDER" in text
+            has_oauth = "claude_code_oauth_token" in code
+            has_key = "anthropic_api_key" in code
+            ordered = "claude-auth@" in code or "CLAUDE_AUTH_ORDER" in code
         elif hub_route:
             has_oauth = has_key = ordered = True  # run.sh takes both, in the repo's order
         elif route == "other-provider":
