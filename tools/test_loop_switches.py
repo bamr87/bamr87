@@ -76,7 +76,7 @@ class LoopSwitchesTests(unittest.TestCase):
                     # an ai-lane caller gates through the lane's `switch` input: the reusable
                     # lane reads vars[inputs.switch] (and a dispatch bypasses it), so the
                     # caller names the variable instead of spelling `vars.<NAME>`
-                    self.assertRegex(text, rf"^\s*switch:\s*{name}\s*(#.*)?$", "ai-lane caller's switch input")
+                    self.assertRegex(text, rf"(?m)^\s*switch:\s*{name}\s*(#.*)?$", "ai-lane caller's switch input")
                     lane = (WORKFLOWS / "ai-lane.yml").read_text()
                     self.assertIn("vars[inputs.switch]", lane)
                 else:
