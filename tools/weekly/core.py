@@ -1,24 +1,23 @@
 #!/usr/bin/env python3
 # ============================================================================
-# File:          tools/weekly.py
-# Description:   The weekly routine (docs/WEEKLY.md): regroup, recap and save the state of the
-#                whole workspace. A Friday run is local only: it takes inventory of the hub and
-#                every submodule (branches, worktrees, stashes, uncommitted work, live sessions),
-#                proves what is merged, saves everything else to the local archive, refreshes to
-#                main and removes what is proven safe (after the report-only runs), runs the PM
-#                review, ranks next week's work and drafts the week's chronicles and retro. Every
-#                external write waits for `confirm --apply`, the maintainer's yes: `wip/` pushes,
-#                Fleet project ops through the § 11 service, and one weekly pull request.
-# Usage:         python3 tools/weekly.py run [--scheduled | --apply] [--offline] [--no-plan]
-#                python3 tools/weekly.py inventory [--json] [--offline]
-#                python3 tools/weekly.py confirm [--apply] [--keep-drafts] [--publish SLUG]…
-#                python3 tools/weekly.py status
-#                (or tools/dash weekly <run|inventory|confirm|status> …)
+# File:          tools/weekly/core.py
+# Description:   The weekly routine's Friday core and its confirm (docs/WEEKLY.md): regroup, recap
+#                and save the state of the whole workspace. A Friday run is local only: it takes
+#                inventory of the hub and every submodule (branches, worktrees, stashes, uncommitted
+#                work, live sessions), proves what is merged, saves everything else to the local
+#                archive, refreshes to main and removes what is proven safe (after the report-only
+#                runs), runs the PM review, ranks next week's work, gives every open pull request
+#                and issue a disposition (closeout.py), lets the close-out agent rule on the stale
+#                ones (harness.py) and drafts the week's chronicles and retro. Every external write
+#                waits for `confirm --apply`, the maintainer's yes: `wip/` pushes, Fleet project ops
+#                through the § 11 service, and one weekly pull request.
+# Usage:         python3 -m tools.weekly <close|prepare|plan|auto|confirm|status|inventory|brief> …
+#                (tools/dash weekly …; the command line is tools/weekly/cli.py)
 # Exit:          0 clean · 1 failed · 2 usage · 3 switched off
-# Never:         merges, deletes a remote ref, or pushes outside `wip/` and the weekly PR branch.
-#                A Friday run makes no GitHub write at all. Nothing unmerged, uncommitted or in
-#                use is ever removed, and uncommitted work is never pushed (constitution § 10.5,
-#                § 10.6, § 11, § 13.6, § 23).
+# Never:         merges, closes, deletes a remote ref, or pushes outside `wip/` and the weekly PR
+#                branch. A scheduled run makes no GitHub write at all. Nothing unmerged, uncommitted
+#                or in use is ever removed, and uncommitted work is never pushed (constitution
+#                § 10.5, § 10.6, § 11, § 12, § 13.6, § 23).
 # ============================================================================
 from __future__ import annotations
 
@@ -39,9 +38,10 @@ from typing import Any, Callable, Iterable
 
 import yaml
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / ".github" / "scripts" / "dash-gen"))
+sys.path.append(str(ROOT / "tools"))  # pm_review; appended, so nothing here shadows the standard library
 
 from tools.jev.headless import SECRET_RE  # noqa: E402  (the one secret pattern; never a copy)
 
@@ -86,7 +86,16 @@ DEFAULTS: dict = {
         "noise": r"^(chore\((data|jev|submodules?|deps)\)|Merge (branch|remote)|.*\[skip ci\])",
     },
     "history_weeks": 12,
+    # launchd weekdays: 0 and 7 are Sunday. Local time, off the hour (AGENTS.md). Sunday's slot is
+    # before 19:07 MST, when the week's first UTC cron (Monday 02:07, token rotation) fires.
+    "schedule": {
+        "close": {"weekday": 5, "hour": 22, "minute": 37},
+        "prepare": {"weekday": 6, "hour": 10, "minute": 37},
+        "plan": {"weekday": 0, "hour": 16, "minute": 37},
+        "catch_up_hours": 18,
+    },
 }
+STAGES = ("close", "prepare", "plan")
 
 
 # ---- plumbing --------------------------------------------------------------------------------
@@ -747,8 +756,11 @@ def lane_of(item: dict, pr: dict | None, status: str, labels: set[str]) -> str:
     return "finish"
 
 
-def rank(model: dict, queue: dict, cfg: dict, held: Iterable[str], now: datetime) -> dict:
-    """Every open item ranked by rules alone. Deterministic: the same input gives the same plan."""
+def rank(model: dict, queue: dict, cfg: dict, held: Iterable[str], now: datetime,
+         boost: dict[str, tuple[int, str]] | None = None) -> dict:
+    """Every open item ranked by rules alone. Deterministic: the same input gives the same plan.
+    `boost` maps an `owner/repo#N` ref to (points, reason): how Sunday lifts what the week's direction
+    issue handed off, without a second ranking."""
     p = cfg["plan"]
     board = {(i.get("repo"), i.get("number")): i.get("fields") or {} for i in (model.get("board") or {}).get("items") or []}
     pins = {k: n for n, k in enumerate(queue.get("order") or [])}
@@ -780,6 +792,10 @@ def rank(model: dict, queue: dict, cfg: dict, held: Iterable[str], now: datetime
             if key in pins:
                 score += p["pin_score"] - pins[key]
                 reasons.insert(0, "pinned")
+            lift = (boost or {}).get(f"{item.get('repo')}#{number}")
+            if lift:
+                score += lift[0]
+                reasons.insert(0, lift[1])
             if lane == "finish":
                 reasons.append("ready for your review")
             elif lane == "unblock":
@@ -908,16 +924,39 @@ def draft_posts(root: Path) -> list[str]:
 # ---- the run ---------------------------------------------------------------------------------
 
 def run_dirs(state_dir: Path) -> list[Path]:
-    return sorted((p for p in state_dir.glob("*-W*") if (p / "run.json").exists()), key=lambda p: p.name)
+    """Every run folder whose record reads. A truncated `run.json` (a run killed mid-write) is skipped,
+    so one bad file cannot stop `status`, `confirm` and the dispatcher."""
+    out = []
+    for path in sorted(state_dir.glob("*-W*"), key=lambda p: p.name):
+        try:
+            if isinstance(json.loads((path / "run.json").read_text()), dict):
+                out.append(path)
+        except (OSError, ValueError):
+            continue
+    return out
 
 
 def read_run(path: Path) -> dict:
     return json.loads((path / "run.json").read_text())
 
 
+def stage_of(rec: dict) -> str:
+    return rec.get("stage") or "close"
+
+
+def latest(state_dir: Path, stage: str) -> tuple[Path, dict] | None:
+    """The newest run of one stage, with its record."""
+    for path in reversed(run_dirs(state_dir)):
+        rec = read_run(path)
+        if stage_of(rec) == stage:
+            return path, rec
+    return None
+
+
 def scheduled_count(state_dir: Path) -> int:
+    """Clean scheduled close-outs so far: what the report-only rule counts."""
     runs = [read_run(p) for p in run_dirs(state_dir)]
-    return sum(1 for r in runs if r.get("scheduled") and r.get("finished") and not r.get("errors"))
+    return sum(1 for r in runs if stage_of(r) == "close" and r.get("scheduled") and r.get("finished") and not r.get("errors"))
 
 
 def decide_mode(args: argparse.Namespace, state_dir: Path, cfg: dict) -> str:
@@ -977,7 +1016,10 @@ def console_stale(root: Path) -> bool:
 
 
 def cmd_run(args: argparse.Namespace, root: Path, state_dir: Path, archive: Path, live: dict | None = None,
-            prs_for: Callable = gh_prs, now: datetime | None = None) -> int:
+            prs_for: Callable = gh_prs, now: datetime | None = None, read_index: Callable | None = None,
+            session: Callable | None = None, runner: Callable | None = None) -> int:
+    """Friday's stage: close the week. `read_index`, `session` and `runner` stand in for the decision
+    index, the close-out agent's model call and the close-out's `gh` reads in tests."""
     fleet = load_fleet(root)
     cfg = load_config(fleet)
     moment = now or now_utc()
@@ -993,7 +1035,7 @@ def cmd_run(args: argparse.Namespace, root: Path, state_dir: Path, archive: Path
         folder = state_dir / run_id
         folder.mkdir(parents=True)
         folder.chmod(0o700)
-        record: dict = {"schema": RUN_SCHEMA, "id": run_id, "week": week, "mode": mode, "scheduled": bool(args.scheduled),
+        record: dict = {"schema": RUN_SCHEMA, "id": run_id, "stage": "close", "week": week, "mode": mode, "scheduled": bool(args.scheduled),
                         "started": moment.isoformat(), "finished": None, "errors": [],
                         "scheduled_number": scheduled_count(state_dir) + 1}
         in_use = live if live is not None else live_state()
@@ -1033,6 +1075,36 @@ def cmd_run(args: argparse.Namespace, root: Path, state_dir: Path, archive: Path
                 plan = rank(model, doc, cfg, held, moment)
                 record["pinned"] = list(doc.get("order") or [])
                 backlog = backlog_summary(review, model)
+        closed, agent, extra = None, None, []
+        if not args.no_plan:
+            from tools.weekly import closeout, harness
+            print("weekly: closing out open pull requests and issues")
+            try:  # a tidy may already have run: whatever goes wrong here, the run still writes its record
+                index, classify, gate_cfg, note = (read_index or closeout.read_index)(root, args.offline)
+                closed = closeout.build(index, model, fleet, moment, classify, gate_cfg)
+                closed["note"] = note
+                closed["gate_labels"] = (gate_cfg or {}).get("labels") or {"gate": ["needs-amr"], "hold": ["agent:hold", "blocked"]}
+                if not args.offline:
+                    closeout.gate_scan(closed, fleet, {"labels": closed["gate_labels"]}, **({"runner": runner} if runner else {}))
+                (folder / "closeout.json").write_text(json.dumps(closed, indent=1) + "\n")
+                lists = closeout.list_files(closed, folder / "lists")
+                extra += closeout.render(closed, lists)
+                if not closed["sources"]["index"] and not closed["sources"]["model"]:
+                    record["errors"].append(f"close-out: no open pull request or issue could be read ({note})")
+                if (args.scheduled or getattr(args, "agent", False)) and not args.offline:
+                    print("weekly: the close-out agent is reading the stale items")
+                    agent = harness.review(folder, closed, week, run_id, fleet, scheduled=bool(args.scheduled), session=session)
+                    extra += harness.render(agent, closed["rows"])
+                brief = folder / "grok-brief.md"
+                brief.write_text(harness.grok_brief("close", week, fleet))
+                extra += ["### The Grok half", "", f"The direction close-out is a Grok bot's: its brief is `{brief}` "
+                          f"(`tools/dash weekly brief close`), and it answers on the issue `{harness.grok_config(fleet)['issue_title'].format(week=week)}`.", ""]
+                record["closeout"] = {"counts": closed["counts"], "open": closed["open"], "sources": closed["sources"],
+                                      "note": note, "lists": lists}
+            except Exception as exc:  # noqa: BLE001  (reported, never swallowed: the run ends with an error)
+                record["errors"].append(f"close-out: {type(exc).__name__}: {str(exc)[:200]}")
+                extra += ["## Close-out", "", f"The close-out failed and is not in this report: {type(exc).__name__}: {str(exc)[:200]}.", ""]
+            record["agent"] = agent  # kept even when a later step failed: a session that ran is on the record
         print("weekly: drafting the chronicles and the retro")
         hidden = [r.get("repo") for r in (model or {}).get("repos") or [] if r.get("private")]
         days = activity(inv, moment - timedelta(days=7), moment, cfg["chronicle"]["noise"], hidden)
@@ -1056,12 +1128,12 @@ def cmd_run(args: argparse.Namespace, root: Path, state_dir: Path, archive: Path
                       open_keys=sorted(r["key"] for r in all_open(model)) if model else [],
                       finished=now_utc().isoformat())
         (folder / "run.json").write_text(json.dumps(record, indent=1, default=str) + "\n")
-        report = render_report(record, inv, cfg)
+        report = render_report(record, inv, cfg, extra)
         (folder / "report.md").write_text(report)
         print(report)
         print(f"\nfiles: {folder}")
         if args.scheduled:
-            notify(f"Weekly review ready: {week}", f"{state['local_only']} branches to save. tools/dash weekly confirm")
+            notify(f"Week closed out: going into {week}", f"{state['local_only']} branches to save. tools/dash weekly confirm")
         return 1 if record["errors"] else 0
 
 
@@ -1081,23 +1153,37 @@ def notify(title: str, text: str) -> None:
 
 # ---- the report ------------------------------------------------------------------------------
 
-def render_report(rec: dict, inv: list[dict], cfg: dict) -> str:
+def render_report(rec: dict, inv: list[dict], cfg: dict, extra: list[str] | None = None) -> str:
     s, b, wip = rec["state"], rec.get("backlog") or {}, rec.get("wip") or []
     plan, removal, done = rec.get("plan"), rec["removal"], rec.get("done")
     blocked = [w for w in wip if w.get("blocked")]
     mode_line = {"preview": "Preview: no repo was changed.",
                  "report-only": f"Report-only run, number {rec.get('scheduled_number', 1)} of {cfg['report_only_runs']}: no repo was changed.",
                  "active": "Active run: refreshed to main and tidied."}[rec["mode"]]
-    lines = [f"# Weekly review: going into {rec['week']}", "", f"> {mode_line} Everything below was also saved to `{rec['archive']}`.", ""]
+    lines = [f"# Week closed out: going into {rec['week']}", "", f"> {mode_line} Everything below was also saved to `{rec['archive']}`.", ""]
     if rec["errors"]:
         lines += ["## Problems", "", *[f"- {e}" for e in rec["errors"]], ""]
     lines += ["## Waiting for you", "", "`tools/dash weekly confirm` shows the detail; `--apply` is your yes.", "",
               f"- Push {len(wip) - len(blocked)} branches to `{cfg['wip_prefix']}/` ({sum(w['commits'] for w in wip if not w.get('blocked'))} commits).",
               f"- Apply {b.get('board_ops', 0)} Fleet project ops, {cfg['confirm']['board_batches']} batches at a time.",
               f"- Open the weekly PR: {len(rec.get('posts') or [])} posts, the plan and the state snapshot."]
+    co = rec.get("closeout")
+    if co:
+        ready, mine = co["counts"]["merge"]["pr"], co["counts"]["amr"]["pr"] + co["counts"]["ratify"]["pr"]
+        lines += ["", "Not part of confirm, because the routine never merges or closes:", "",
+                  f"- {ready} pull requests are ready to merge" + (f": `{co['lists']['merge']}`." if co.get("lists", {}).get("merge") else "."),
+                  f"- {mine} pull requests wait on you (the review gate, ratification, a repo rule)."]
+        proposed = sum(x["action"] == "close" for x in (rec.get("agent") or {}).get("accepted") or [])
+        stale = co["counts"]["stale"]["pr"] + co["counts"]["stale"]["issue"]
+        if stale:
+            lines.append(f"- {stale} stale items" + (f", {proposed} of which the close-out agent proposes closing." if proposed else "."))
     if blocked:
         lines += ["", "Held back because they look like they hold a secret:", ""]
         lines += [f"- {w['repo']} `{w['branch']}`: {'; '.join(w['blocked'][:3])}" for w in blocked]
+    if extra:
+        lines += ["", *extra]
+        while lines and lines[-1] == "":
+            lines.pop()
     verb = "Removed" if done else "Would remove"
     trees = done["worktrees"] if done else [t["worktree"] for t in removal["worktrees"]]
     branches = done["branches"] if done else [f"{b_['repo']}:{b_['branch']}" for b_ in removal["branches"]]
@@ -1265,11 +1351,18 @@ def weekly_pr_files(root: Path, rec: dict, folder: Path, cfg: dict, keep_drafts:
     return files
 
 
+def weekly_branch(rec: dict) -> str:
+    return f"chore/weekly-{rec['week'].lower()}-{rec['id'].split('-', 1)[0].lower()}"
+
+
+def text_sha(text: str) -> str:
+    return hashlib.sha1(text.encode()).hexdigest()
+
+
 def open_weekly_pr(root: Path, rec: dict, files: dict[str, str], cfg: dict) -> str:
     """Commit on a detached throwaway worktree and push a branch unique to this run, without force. No
     local branch is made or deleted, so nothing of the maintainer's can be overwritten."""
-    stamp = rec["id"].split("-", 1)[0].lower()
-    branch = f"chore/weekly-{rec['week'].lower()}-{stamp}"
+    branch = weekly_branch(rec)
     ref = f"refs/heads/{branch}"
     who = cfg["commit"]
     title = f"chore(weekly): recap and plan going into {rec['week']}"
@@ -1308,18 +1401,143 @@ def open_weekly_pr(root: Path, rec: dict, files: dict[str, str], cfg: dict) -> s
     return existing.stdout.strip() or f"failed: {pr.stderr.strip()[:200]}"
 
 
+def branch_shas(root: Path, branch: str, rels: Iterable[str]) -> dict[str, str]:
+    """The hash of each file as the weekly PR branch holds it on the remote now. Recorded right after
+    the pull request opens, so "as the routine pushed it" is read from what was pushed, never assumed
+    from what this run would have pushed: an earlier confirm may have pushed the branch and then
+    failed to open the pull request."""
+    held = "refs/weekly/pr-head"
+    if not yes(root, "fetch", "-q", "origin", f"+refs/heads/{branch}:{held}"):
+        return {}
+    try:
+        out = {}
+        for rel in rels:
+            shown = git(root, "show", f"{held}:{rel}")
+            if shown.returncode == 0:
+                out[rel] = text_sha(shown.stdout)
+        return out
+    finally:
+        git(root, "update-ref", "-d", held)
+
+
+def update_weekly_branch(root: Path, url: str, branch: str, files: dict[str, str], pushed: dict[str, str],
+                         cfg: dict, week: str) -> str:
+    """Sunday's plan lands after Friday's confirm opened the weekly PR: add one commit to the routine's
+    own branch with the plan files that changed. A file is replaced only while it is still exactly as
+    this routine pushed it, so an edit made on the branch is never reverted; a plan file the branch
+    does not have yet is added; and the push is a plain one on top of what is there, never forced.
+    Says what it did; a branch that is gone or a PR that is no longer open is left alone."""
+    state = run(["gh", "pr", "view", url, "--json", "state", "--jq", ".state"], timeout=30)
+    if state.returncode != 0 or state.stdout.strip() != "OPEN":
+        return "no longer open, nothing added"
+    ref, held = f"refs/heads/{branch}", "refs/weekly/pr-head"
+    if not yes(root, "fetch", "-q", "origin", f"+{ref}:{held}"):
+        return "its branch is gone, nothing added"
+    try:
+        changed, kept = {}, []
+        for rel, text in files.items():
+            shown = git(root, "show", f"{held}:{rel}")
+            if shown.returncode != 0:
+                changed[rel] = text       # the branch has no such file: nobody can have edited it
+                continue
+            was = pushed.get(rel)
+            if was is None:
+                # Not one this routine pushed (Friday had no plan to put in it). It is there because main
+                # has it: untouched on the branch if it still equals what the branch started from.
+                fork = out(root, "merge-base", held, "origin/main")
+                origin = git(root, "show", f"{fork}:{rel}") if fork else None
+                was = text_sha(origin.stdout) if origin is not None and origin.returncode == 0 else None
+            if was is None or text_sha(shown.stdout) != was:
+                kept.append(rel)
+            elif shown.stdout != text:
+                changed[rel] = text
+        note = f"; left {', '.join(kept)} as edited on the branch" if kept else ""
+        if not changed:
+            return "unchanged" + note
+        who = cfg["commit"]
+        with tempfile.TemporaryDirectory(prefix="weekly-pr-") as tmp:
+            tree = Path(tmp) / "hub"
+            added = git(root, "worktree", "add", "-q", "--detach", str(tree), held, timeout=180)
+            if added.returncode != 0:
+                return f"failed: {added.stderr.strip()[:200]}"
+            try:
+                for rel, text in changed.items():
+                    (tree / rel).parent.mkdir(parents=True, exist_ok=True)
+                    (tree / rel).write_text(text)
+                git(tree, "add", "--", *changed)
+                made = git(tree, "-c", f"user.name={who['name']}", "-c", f"user.email={who['email']}", "commit", "-q", "-m",
+                           f"chore(weekly): the plan for {week} as it stands now")
+                if made.returncode != 0:
+                    return f"failed: {(made.stderr or made.stdout).strip()[:200]}"
+                pushed_now = git(tree, "push", "-q", "origin", f"HEAD:{ref}", timeout=180)
+                if pushed_now.returncode != 0:
+                    return f"failed: {pushed_now.stderr.strip()[:200]}"
+            finally:
+                git(root, "worktree", "remove", "--force", str(tree))
+        pushed.update({rel: text_sha(text) for rel, text in changed.items()})
+        return f"updated {', '.join(sorted(changed))}" + note
+    finally:
+        git(root, "update-ref", "-d", held)
+
+
+def load_progress(state_file: Path) -> tuple[dict, str | None]:
+    """What an earlier confirm of this run already did, and a note when the file could not be trusted.
+    A missing file is a fresh start. So is one that is truncated, not an object, or holds a key of the
+    wrong type: every write here checks GitHub or the remote again before it acts, so starting fresh
+    repeats nothing, and that is safer than crashing every later confirm."""
+    fresh = {"batches": [], "wip": {}, "pr": None, "pr_files": {}, "board_plan": None}
+    if not state_file.exists():
+        return fresh, None
+    try:
+        doc = json.loads(state_file.read_text())
+    except (OSError, ValueError):
+        return fresh, f"{state_file.name} could not be read; starting its record again"
+    if not isinstance(doc, dict):
+        return fresh, f"{state_file.name} is not a record; starting it again"
+    out, reset = dict(fresh), []
+    for key, default in fresh.items():
+        value = doc.get(key, default)
+        if default is None:
+            ok = value is None or isinstance(value, str)
+        else:
+            ok = isinstance(value, type(default))
+        if key == "batches":
+            ok = ok and all(isinstance(n, int) and not isinstance(n, bool) for n in value)
+        if ok:
+            out[key] = value
+        else:
+            reset.append(key)
+    return out, (f"{state_file.name}: {', '.join(reset)} could not be read and start again" if reset else None)
+
+
+def save_progress(state_file: Path, progress: dict) -> None:
+    """Whole or not at all: a confirm killed mid-write leaves the previous record, never half of one."""
+    tmp = state_file.with_name(state_file.name + ".tmp")
+    tmp.write_text(json.dumps(progress, indent=1) + "\n")
+    os.replace(tmp, state_file)
+
+
 def cmd_confirm(args: argparse.Namespace, root: Path, state_dir: Path, now: datetime | None = None) -> int:
+    """Every external write of the weekend, shown first and made only with `--apply`: the `wip/` pushes,
+    the Fleet project ops and the weekly PR. It reads Friday's close-out, and Sunday's plan when that
+    is newer, so one yes on Monday covers all three days; run earlier, it applies what exists and a
+    later run adds the rest. It never merges and never closes: what the close-out calls ready or stale
+    is a list in the report."""
     cfg = load_config(load_fleet(root))
-    rows = run_dirs(state_dir)
-    if not rows:
-        print("weekly: no run to confirm yet", file=sys.stderr)
+    found = latest(state_dir, "close")
+    if not found:
+        print("weekly: no close-out run to confirm yet (tools/dash weekly close)", file=sys.stderr)
         return 1
-    folder = rows[-1]
-    rec = read_run(folder)
+    folder, rec = found
     age = ((now or now_utc()) - datetime.fromisoformat(rec["started"])).days
     if age > int(cfg["confirm"]["max_age_days"]):
         print(f"weekly: refused, run {rec['id']} is {age} days old; run it again", file=sys.stderr)
         return 1
+    planned = latest(state_dir, "plan")
+    plan_run = None
+    if planned and planned[1].get("week") == rec["week"] and planned[1].get("plan") and planned[1]["started"] > rec["started"]:
+        plan_run = planned[1]
+        rec = {**rec, "plan": plan_run["plan"], "pinned": plan_run.get("pinned"), "open_keys": plan_run.get("open_keys")}
     for w in rec.get("wip") or []:
         unscanned = any(hit.startswith("(") or hit.endswith("(could not be read)") for hit in w.get("blocked") or [])
         if f"{w['repo']}:{w['branch']}" in args.allow and not unscanned:
@@ -1327,8 +1545,12 @@ def cmd_confirm(args: argparse.Namespace, root: Path, state_dir: Path, now: date
     wip = [w for w in rec.get("wip") or [] if not w.get("blocked")]
     held = [w for w in rec.get("wip") or [] if w.get("blocked")]
     state_file = folder / "confirm.json"
-    progress = json.loads(state_file.read_text()) if state_file.exists() else {"batches": [], "wip": {}, "pr": None}
+    progress, note = load_progress(state_file)
     plan_file = root / ".fleet" / "pm" / "board-plan.json"
+    board_plan = hashlib.sha1(plan_file.read_bytes()).hexdigest()[:12] if plan_file.exists() else None
+    if progress["board_plan"] not in (None, board_plan):
+        progress["batches"] = []  # the PM review ran again: its batches are new, and an op already applied is a no-op (§ 11.5)
+    progress["board_plan"] = board_plan
     git(root, "fetch", "-q", "origin", "main")
     batches = next_batches(plan_file, progress["batches"], int(cfg["confirm"]["board_batches"]))
     try:
@@ -1336,7 +1558,10 @@ def cmd_confirm(args: argparse.Namespace, root: Path, state_dir: Path, now: date
     except GitError as exc:
         print(f"weekly: refused, origin/main could not be read: {exc}", file=sys.stderr)
         return 1
-    print(f"Run {rec['id']} ({rec['mode']}).\n\nPush to {cfg['wip_prefix']}/: {len(wip)} branches")
+    print(f"Run {rec['id']} ({rec['mode']})" + (f", with the plan from {plan_run['id']}" if plan_run else "") + ".")
+    if note:
+        print(f"Note: {note}.")
+    print(f"\nPush to {cfg['wip_prefix']}/: {len(wip)} branches")
     for w in wip:
         print(f"  {w['repo']} {w['branch']} ({w['commits']} commits)")
     for w in held:
@@ -1346,10 +1571,25 @@ def cmd_confirm(args: argparse.Namespace, root: Path, state_dir: Path, now: date
     print(f"\nFleet project: batches {batches or 'none left'} of {plan_file}\n\nWeekly PR: {len(files)} files")
     for rel in sorted(files):
         print(f"  {rel}")
+    co = rec.get("closeout") or {}
+    if co:
+        print(f"\nNot done here: {co['counts']['merge']['pr']} pull requests are ready to merge and "
+              f"{co['counts']['stale']['pr'] + co['counts']['stale']['issue']} items are stale. The routine never merges or closes; "
+              "the lists are in the report.")
     print(f"\nRead first: {folder / 'report.md'} and {folder / 'posts'}/")
     if not args.apply:
         print("\nDry run: nothing was pushed, applied or opened. `--apply` is your yes.")
         return 0
+    print("\nApplying.")
+    with lock(state_dir):  # a stage must not start, nor a second confirm, while this one writes
+        return _apply_confirm(root, rec, cfg, state_file, progress, plan_file, batches, files, wip, plan_run)
+
+
+def _apply_confirm(root: Path, rec: dict, cfg: dict, state_file: Path, progress: dict, plan_file: Path,
+                   batches: list[int], files: dict[str, str], wip: list[dict], plan_run: dict | None) -> int:
+    """The writes of `confirm --apply`, in the order the dry run listed them. Progress is saved after
+    every part, so a failure half-way leaves a record of what was done and the next confirm does not
+    repeat it."""
     failed = 0
     for w in wip:
         key = f"{w['repo']}:{w['branch']}"
@@ -1359,20 +1599,32 @@ def cmd_confirm(args: argparse.Namespace, root: Path, state_dir: Path, now: date
         progress["wip"][key] = result
         failed += result.startswith(("failed", "refused"))
         print(f"{key}: {result}")
+    save_progress(state_file, progress)
     for row in apply_board(root, batches):
         print(row["note"])
         if row["ok"]:
             progress["batches"].append(row["index"])
         else:
             failed += 1
+    save_progress(state_file, progress)
+    plan_files = {rel: text for rel, text in files.items() if rel in (QUEUE, SNAPSHOT)}
     if not progress["pr"]:
         result = open_weekly_pr(root, rec, files, cfg)
         print(f"Weekly PR: {result}")
         if result.startswith("failed"):
             failed += 1
-        else:
+        elif not result.startswith("skipped"):
             progress["pr"] = result
-    state_file.write_text(json.dumps(progress, indent=1) + "\n")
+            progress["pr_files"] = branch_shas(root, weekly_branch(rec), files)  # what the branch holds, not what this run built
+            save_progress(state_file, progress)
+    if progress["pr"]:
+        note = update_weekly_branch(root, progress["pr"], weekly_branch(rec), plan_files, progress["pr_files"], cfg, rec["week"])
+        if note != "unchanged":
+            print(f"Weekly PR: {progress['pr']} ({note})")
+        if note.startswith(("no longer open", "its branch is gone")) and plan_run:
+            print(f"  Sunday's plan ({plan_run['id']}) is not in it: the weekly PR was merged or closed before the plan was built.")
+        failed += note.startswith("failed")
+    save_progress(state_file, progress)
     left = next_batches(plan_file, progress["batches"], 10 ** 6)
     if left:
         print(f"{len(left)} board batches left (200 ops an hour): run confirm --apply again after the hour.")
@@ -1384,11 +1636,22 @@ def cmd_status(state_dir: Path) -> int:
     if not rows:
         print("weekly: no runs yet")
         return 0
-    rec = read_run(rows[-1])
-    s = rec.get("state") or {}
-    print(f"{rec['id']}: {rec['mode']}, {s.get('on_main', 0)}/{s.get('repos', 0)} repos on main, "
-          f"{s.get('local_only', 0)} local-only branches, {s.get('uncommitted', 0)} with uncommitted work")
-    print(f"report: {rows[-1] / 'report.md'}")
+    for stage in STAGES:
+        found = latest(state_dir, stage)
+        if not found:
+            print(f"{stage}: no run yet")
+            continue
+        path, rec = found
+        if stage == "close":
+            st, co = rec.get("state") or {}, rec.get("closeout") or {}
+            line = (f"{st.get('on_main', 0)}/{st.get('repos', 0)} repos on main, {st.get('local_only', 0)} local-only branches, "
+                    f"{st.get('uncommitted', 0)} with uncommitted work")
+            if co:
+                line += f", {co['open']['pr']} open PRs ({co['counts']['merge']['pr']} ready to merge)"
+        else:
+            line = rec.get("headline") or ""
+        print(f"{stage}: {rec['id']} ({rec['mode']}) {line}".rstrip())
+        print(f"  report: {path / 'report.md'}")
     return 0
 
 
@@ -1405,42 +1668,3 @@ def cmd_inventory(args: argparse.Namespace, root: Path) -> int:
     for w in wip_candidates(inv):
         print(f"local-only: {w['repo']} {w['branch']} ({w['commits']} commits)")
     return 0
-
-
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__ or "the weekly routine (docs/WEEKLY.md)")
-    parser.add_argument("--root", default=str(ROOT), help="the hub checkout to work on")
-    parser.add_argument("--state-dir", default=None, help="run folders (default: <root>/.fleet/weekly)")
-    parser.add_argument("--archive", default=None, help="the archive (default: fleet.yml weekly.archive_dir)")
-    sub = parser.add_subparsers(dest="cmd", required=True)
-    r = sub.add_parser("run", help="the routine; bare it is a preview that changes no repo")
-    how = r.add_mutually_exclusive_group()
-    how.add_argument("--scheduled", action="store_true", help="the LaunchAgent's mode: honours the switch and report-only runs")
-    how.add_argument("--apply", action="store_true", help="refresh and tidy now, typed by the maintainer")
-    r.add_argument("--offline", action="store_true", help="no fetch and no GitHub reads")
-    r.add_argument("--no-plan", action="store_true", help="skip the PM review and the ranking")
-    i = sub.add_parser("inventory", help="read-only: what the routine sees")
-    i.add_argument("--json", action="store_true")
-    i.add_argument("--offline", action="store_true")
-    c = sub.add_parser("confirm", help="show the external writes; --apply is the maintainer's yes")
-    c.add_argument("--apply", action="store_true")
-    c.add_argument("--keep-drafts", action="store_true", help="land the week's posts as drafts")
-    c.add_argument("--publish", action="append", default=[], metavar="FILE", help="also publish an older draft in pages/posts/")
-    c.add_argument("--allow", action="append", default=[], metavar="REPO:BRANCH", help="push one held branch, after reading what the scan found")
-    sub.add_parser("status", help="the latest run's headline")
-    args = parser.parse_args(argv)
-    root = Path(args.root).resolve()
-    state_dir = Path(args.state_dir).resolve() if args.state_dir else root / ".fleet" / "weekly"
-    if args.cmd == "status":
-        return cmd_status(state_dir)
-    if args.cmd == "inventory":
-        return cmd_inventory(args, root)
-    if args.cmd == "confirm":
-        return cmd_confirm(args, root, state_dir)
-    # absolute: every git call runs with -C in a repo, so a relative path would land inside each one
-    archive = expand(args.archive or load_config(load_fleet(root))["archive_dir"]).resolve()
-    return cmd_run(args, root, state_dir, archive)
-
-
-if __name__ == "__main__":
-    sys.exit(main())

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline tests for tools/weekly.py, on real throwaway git repositories (a bare origin and a clone),
+"""Offline tests for tools/weekly/core.py, on real throwaway git repositories (a bare origin and a clone),
 because what this tool must never get wrong is git's behaviour. Run: python3 tools/test_weekly.py
 """
 from __future__ import annotations
@@ -16,8 +16,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import weekly  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from tools.weekly import cli, core as weekly  # noqa: E402
 
 NOW = datetime(2026, 11, 13, 5, 37, tzinfo=timezone.utc)
 LATER = datetime.now(timezone.utc) + timedelta(days=2)
@@ -1029,7 +1029,7 @@ class Paths(EndToEnd):
         self.addCleanup(os.chdir, cwd)
         os.chdir(self.tmp)
         with mock.patch.object(weekly, "live_state", return_value=NOBODY), mock.patch("builtins.print"):
-            code = weekly.main(["--root", str(self.repo), "--state-dir", "st", "--archive", "rel-archive", "run", "--offline", "--no-plan"])
+            code = cli.main(["--root", str(self.repo), "--state-dir", "st", "--archive", "rel-archive", "close", "--offline", "--no-plan"])
         self.assertEqual(code, 0)
         self.assertTrue(list((self.tmp / "rel-archive").rglob("hub.bundle")))
         self.assertFalse(list(self.repo.parent.glob("repo/rel-archive")))

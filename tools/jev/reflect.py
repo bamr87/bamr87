@@ -88,6 +88,7 @@ STAMP_RX = re.compile(r"\d{8}T\d{6}Z")
 #: the AI ledger's `loop`/`step` for a reflector attempt: `budget.loops` counts
 #: every local row with a `loop`, so the reflector spends inside that month
 LEDGER_LOOP, LEDGER_STEP = "harness-refinement", "reflect-incidents"
+LEDGER_SOURCE = "jev refine reflect"
 #: the session's whole grant: read the evidence, nothing else (no Bash, no Write)
 TOOLS = ("Read", "Glob", "Grep")
 CANDIDATE_KEYS = ("loop", "step", "domain", "item", "cue", "lesson", "evidence", "confidence", "source_ref")
@@ -669,11 +670,12 @@ def render_preview(record: Mapping, verdicts: Sequence[Verdict], *, library_rel:
 # --------------------------------------------------------------------------- #
 # the session
 # --------------------------------------------------------------------------- #
-def _unledgered(attempt_id: str, run_id: str, item: str, cost: float, source: str) -> None:
+def _unledgered(attempt_id: str, run_id: str, item: str, cost: float, source: str,
+                loop: str = LEDGER_LOOP, step: str = LEDGER_STEP) -> None:
     """The engine's durable charge for an attempt ai-run left no ledger row for
     (loop.budget_position counts it), in the loop runner's own file."""
     from . import loop as engine
-    line = {"timestamp": _iso(), "origin": "local", "loop": LEDGER_LOOP, "step": LEDGER_STEP, "run_id": run_id,
+    line = {"timestamp": _iso(), "origin": "local", "loop": loop, "step": step, "run_id": run_id,
             "attempt_id": attempt_id, "item": item, "cost_usd": round(float(cost), 6), "cost_source": source}
     fd = os.open(engine.unledgered_path(), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
     with os.fdopen(fd, "a", encoding="utf-8") as fh:
@@ -681,13 +683,13 @@ def _unledgered(attempt_id: str, run_id: str, item: str, cost: float, source: st
 
 
 def ai_run_argv(sdir: Path, ws: Path, tmp: Path, *, spec: ReflectSpec, flags: list[str], attempt_id: str,
-                run_id: str, item: str, host, fleet: Mapping, claude: str) -> list[str]:
+                run_id: str, item: str, host, fleet: Mapping, claude: str, source: str = LEDGER_SOURCE) -> list[str]:
     from . import loop as engine
     argv = ["ai-run", "--stream", "--isolate", "--isolate-tmp", str(tmp), "--timeout", str(spec.timeout_minutes * 60),
             "--repo", hub_repo(dict(fleet)), "--cwd", str(ws), "--prompt-file", str(sdir / "prompt.txt"),
             "--trace", str(sdir / "trace.jsonl"), "--result-file", str(sdir / "result.json"),
             "--outcome-file", str(sdir / "outcome.json"), "--usage-limit", "skip",
-            "--source", "jev refine reflect", "--claude-bin", claude, "--ledger", str(engine.ledger_path()),
+            "--source", source, "--claude-bin", claude, "--ledger", str(engine.ledger_path()),
             "--max-budget-usd", f"{spec.resolved.max_budget_usd:g}", *engine.auth_pin(host.auth)]
     for k, v in {"origin": "local", "run_id": run_id, "attempt_id": attempt_id, "loop": spec.loop, "step": spec.step,
                  "item": item, "tier": "t1"}.items():
@@ -696,11 +698,14 @@ def ai_run_argv(sdir: Path, ws: Path, tmp: Path, *, spec: ReflectSpec, flags: li
 
 
 def run_session(rec: Path, evidence: Path, *, spec: ReflectSpec, posture: headless.Posture, host, fleet: Mapping,
-                run_id: str, item: str) -> dict:
+                run_id: str, item: str, source: str = LEDGER_SOURCE) -> dict:
     """ONE model invocation through `tools/dash-gen ai-run --isolate`, then the
     posture checks before any output is read. The working directory is a copy
     of the evidence under the work root, destroyed afterwards; the session
-    record (prompt, settings, trace, result, outcome) stays in `rec/session/`."""
+    record (prompt, settings, trace, result, outcome) stays in `rec/session/`.
+    `source` and the spec's loop and step label the ledger row, so another
+    one-session consumer (the weekly close-out, tools/weekly/harness.py) runs
+    under the same posture with its own name on what it spent."""
     from . import loop as engine
     from . import workspace as wsp
     sdir = rec / "session"
@@ -718,7 +723,7 @@ def run_session(rec: Path, evidence: Path, *, spec: ReflectSpec, posture: headle
         flags = headless.claude_flags(spec, posture, settings_path=sdir / "settings.json", session_id=attempt_id,
                                       debug_path=sdir / "debug.log")
         argv = ai_run_argv(sdir, ws, tmp, spec=spec, flags=flags, attempt_id=attempt_id, run_id=run_id, item=item,
-                           host=host, fleet=fleet, claude=host.claude or "claude")
+                           host=host, fleet=fleet, claude=host.claude or "claude", source=source)
         _write_json(sdir / "argv.json", argv)
         try:
             res = engine.relay_dash_gen(argv, env=engine.ai_run_env(host.auth),
@@ -727,17 +732,17 @@ def run_session(rec: Path, evidence: Path, *, spec: ReflectSpec, posture: headle
             said = _read_json(sdir / "outcome.json")
             if not said or said.get("ledger_error"):
                 _unledgered(attempt_id, run_id, item, float(said.get("cost_usd") or cap) if said else cap,
-                            str(said.get("cost_source") or "estimated"))
+                            str(said.get("cost_source") or "estimated"), spec.loop, spec.step)
             raise
         outcome = _read_json(sdir / "outcome.json")
         flags_out: list[str] = []
         if not outcome:
             outcome = {"kind": "unparseable", "cost_usd": cap, "cost_source": "estimated",
                        "detail": f"ai-run exited {res.code} without an outcome: {res.err.strip()[-200:]}"}
-            _unledgered(attempt_id, run_id, item, cap, "estimated")
+            _unledgered(attempt_id, run_id, item, cap, "estimated", spec.loop, spec.step)
         elif outcome.get("ledger_error"):
             _unledgered(attempt_id, run_id, item, float(outcome.get("cost_usd") or 0.0),
-                        str(outcome.get("cost_source") or "reported"))
+                        str(outcome.get("cost_source") or "reported"), spec.loop, spec.step)
             flags_out.append(f"this attempt is not in the AI ledger: {outcome['ledger_error']}")
         debug = headless.posture_lines(headless.reduce_debug_log(sdir / "debug.log"), outcome)
         (sdir / "debug-sandbox.txt").write_text("\n".join(debug) + "\n", encoding="utf-8")

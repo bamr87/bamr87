@@ -1,18 +1,21 @@
 id: HUB-NEW
 slug: weekly-routine
-title: "The weekly routine: save everything, get back to main, recap the week and plan the next"
-description: "tools/weekly.py and `tools/dash weekly`. Every Friday night a LaunchAgent takes inventory of the hub and every submodule, proves what is merged, saves everything else to a local archive, refreshes to main and removes what is proven safe, ranks the open work and drafts the week's chronicles and retro. Every external write waits for one confirm, and one weekly pull request records the state and publishes the writing."
+title: "The weekly routine: Friday closes the week, Saturday checks next week's schedule can run, Sunday plans it"
+description: "tools/weekly/ and `tools/dash weekly`, run by one LaunchAgent with three local slots. Friday (`close`) takes inventory of the hub and every submodule, proves what is merged, saves everything else to a local archive, refreshes to main and removes what is proven safe, gives every open pull request and issue in the fleet one disposition (a merge candidate is read from live GitHub against the § 12.3 review gate), has one capped, sandboxed, read-only Claude Code session propose what to do with the stale ones, and drafts the week's chronicles and retro. Saturday (`prepare`) checks every activity scheduled for the coming week: when it fires, its switch, its last result, the credential ledgers, the month's AI spend against its ceilings, the freshness of the data the agents read, and this Mac's own jobs. Sunday (`plan`) ranks the open work with what the Grok bots handed off lifted in, lays the week out day by day and writes the Monday brief. A scheduled stage makes no GitHub write: `confirm --apply` is the maintainer's yes for the `wip/` pushes, the Fleet project ops and one weekly pull request. The routine lists what is ready to merge and what is stale; it never merges or closes. The direction half is the Grok bots' (constitution § 26): a standing brief a stage and one issue a week that the two halves pass work through."
 implemented: true
 status: shipped
 surface: cli
-link: tools/weekly.py
+link: tools/weekly/cli.py
 docs: docs/WEEKLY.md
-tags: [ routine, backup, planning, chronicle ]
-date: 2026-11-06
+tags: [ routine, backup, planning, chronicle, close-out, schedule, grok ]
+date: 2026-11-13
 tests:
   - tools/test_weekly.py
+  - tools/test_weekly_dispositions.py
+  - tools/test_weekly_harness.py
+  - tools/test_weekly_stages.py
 prd: ["FR-NEW:weekly-routine"]
 prd_new:
   - key: weekly-routine
     kind: FR
-    text: "The hub must, once a week and without help, save all work that exists only on the maintainer's machine, return the workspace to main without removing anything unmerged or in use, and prepare the week's recap and next week's plan, with every external write held for one confirmation."
+    text: "The hub must, every weekend and without help, close the week (save all work that exists only on the maintainer's machine, return the workspace to main without removing anything unmerged or in use, and give every open pull request and issue one disposition), check that each activity scheduled for the coming week can run, and prepare the week's recap, plan and brief, with execution by Claude Code, direction by the Grok bots, and every external write held for the maintainer's confirmation."

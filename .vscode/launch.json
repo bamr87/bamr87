@@ -760,24 +760,51 @@
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "4-generate", "order": 20 }
     },
-    // The routine PM review (docs/PM.md): read-only on GitHub. `review` writes
-    // only .fleet/pm/; applying its plan is `tools/dash projects apply`, typed.
+    // The weekly routine (docs/WEEKLY.md), one stage a day. Each of these reads
+    // and reports: `close` saves to the local archive and changes no repo,
+    // `confirm` is a dry run. The one external write is `confirm --apply`, typed.
     {
-      "name": "🗓️ Weekly routine: preview (changes no repo)",
+      "name": "🗓️ Weekly: close out the week (Friday; preview, changes no repo)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "tools/dash weekly run",
+      "command": "tools/dash weekly close",
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "5-loops", "order": 40 }
     },
     {
-      "name": "🗓️ Weekly routine: what confirm would do (dry run)",
+      "name": "🗓️ Weekly: prepare (Saturday; can next week's schedule run)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash weekly prepare",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 41 }
+    },
+    {
+      "name": "🗓️ Weekly: plan (Sunday; the week ahead and the Monday brief)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash weekly plan",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 42 }
+    },
+    {
+      "name": "🗓️ Weekly: what confirm would do (dry run)",
       "type": "node-terminal",
       "request": "launch",
       "command": "tools/dash weekly confirm",
       "cwd": "${workspaceFolder}",
-      "presentation": { "group": "5-loops", "order": 41 }
+      "presentation": { "group": "5-loops", "order": 43 }
     },
+    {
+      "name": "🗓️ Weekly: the latest run of each stage",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash weekly",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 44 }
+    },
+    // The routine PM review (docs/PM.md): read-only on GitHub. `review` writes
+    // only .fleet/pm/; applying its plan is `tools/dash projects apply`, typed.
     {
       "name": "🧭 PM review: project, roadmap and release alignment (read-only)",
       "type": "node-terminal",
