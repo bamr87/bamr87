@@ -474,6 +474,71 @@ agent_fill:
   max_turns: 25
 
 # --------------------------------------------------------------------------- #
+# The weekly routine (docs/WEEKLY.md, tools/weekly/, `tools/dash weekly`).
+#
+# Three stages, one a day. Friday CLOSES the week: everything that exists only
+# on this Mac is saved, the checkouts return to main, and every open pull
+# request and issue in the fleet gets one disposition. Saturday PREPARES: can
+# each activity scheduled for next week run. Sunday PLANS: the ranked plan, the
+# week day by day and the Monday brief. ONE LaunchAgent runs them
+# (tools/install-weekly.sh), not a workflow: the work Friday saves exists only
+# on this Mac, so `schedule` is LOCAL time (launchd weekdays: 0 and 7 are
+# Sunday) and is not in `schedule:` above. A scheduled stage makes no GitHub
+# write; `tools/dash weekly confirm --apply` is the maintainer's yes for all
+# three (wip/ pushes, Fleet project ops, the weekly PR). It never merges or
+# closes: what is ready or stale is a list for a person.
+#
+# The work is split by constitution § 26. Claude Code executes: the stages, and
+# `agent`, ONE capped read-only session over Friday's stale items, inside
+# budget.loops, whose proposals nothing applies but the maintainer. Grok bots
+# direct: `grok` names the issue they write the week's direction on and the
+# label on what they hand off; their briefs are tools/weekly/briefs/grok-*.md.
+# --------------------------------------------------------------------------- #
+weekly:
+  enabled: true
+  schedule:
+    close: {weekday: 5, hour: 22, minute: 37}     # Friday night
+    prepare: {weekday: 6, hour: 10, minute: 37}   # Saturday morning
+    plan: {weekday: 0, hour: 16, minute: 37}      # Sunday, before the week's first cron (Monday 02:07 UTC)
+    catch_up_hours: 18          # a stage missed while the Mac slept still runs this long after Sunday's slot
+  report_only_runs: 2           # the first scheduled Fridays remove nothing: they report what they would
+  # siblings: ["~/bamr87-*"]    # folders beside the hub to account for (the default); `tidy` removes the dead worktrees among them
+  wip_prefix: wip/mac
+  archive_dir: ~/bamr87-archive/weekly
+  plan:
+    capacity:
+      decide: 5
+      finish: 5
+      unblock: 3
+      do: 5
+  closeout:
+    stale_days: 30              # an issue, or a pull request that cannot merge, untouched this long is stale
+    draft_stale_days: 14        # a draft untouched this long is stale
+    never_merge:                # repos whose own constitution keeps every merge with the maintainer: never listed as ready
+      - bamr87/lifehacker.dev
+    # gate_paths: []            # ADDS to the gated paths in tools/weekly/closeout.py; it can never remove one
+    repo_gate_paths:            # a repo's own content gate (§ 12.3): paths that hold a pull request there
+      bamr87/it-journey:
+        - '(^|/)pages/_quests/'
+        - '(^|/)_data/(quests|navigation)/'
+  agent:                        # the close-out agent: one session a Friday; dollars are API-equivalent (estimate)
+    enabled: true
+    model: claude-sonnet-5-5    # an exact id in ai_models.allowed (§ 13.3). Equal to harness_refinement.model
+    max_turns: 40               # and .max_turns on purpose: its posture is then the reflector's, so
+                                # `tools/dash refine reflect doctor --live --yes` arms both
+    usd: 2                      # the session's cap: 5 Fridays x $2 = $10 a month at most, inside budget.loops
+    timeout_minutes: 15
+    max_items: 60               # stale items one session rules on
+  grok:
+    issue_repo: bamr87/bamr87
+    issue_title: "Week {week} — close-out and plan"   # the week's one issue: the console's weekly lanes
+    issue_label: weekly-closeout              # (PR #841) and the Grok bots write on it too, each under its own heading
+    handoff_label: executor:claude-code       # on what a Grok bot hands off (§ 26.7)
+    authors: []                               # logins whose words on the issue count as direction, beside the repo's
+                                              # owner and GitHub's own OWNER / MEMBER / COLLABORATOR mark: a Grok
+                                              # bot's account goes here once it is known (_data/agent_roles.yml)
+
+# --------------------------------------------------------------------------- #
 # Repo scout — the daily proactive ISSUE loop (repo-scout.yml, docs/SCOUT.md).
 # Where repo-evolution writes code (a weekly draft PR in opted-in repos), the
 # scout writes TICKETS: it visits `sample` repositories a day in a fixed
@@ -1098,6 +1163,13 @@ harness:
       switch: {config: harness_refinement.enabled, uninstall: tools/install-harness-review.sh --uninstall}
       run_record: ai-ledger
       local_entry: tools/dash refine reflect
+    local:weekly:
+      reads: [github-live, registry, work-queue, actions-usage, harness-registry, token-rotation]
+      model_from: weekly.agent.model
+      budget_from: {per_run_usd: weekly.agent.usd, monthly_usd: budget.loops.monthly_usd}
+      switch: {config: weekly.enabled, uninstall: tools/install-weekly.sh --uninstall}
+      run_record: ai-ledger
+      local_entry: tools/dash weekly close
 
 # --------------------------------------------------------------------------- #
 # Harness refinement — JEV capability three: recursive harness refinement after
@@ -2393,6 +2465,20 @@ switches:
       cron: 7 2 * * 1
       note: gated by fleet config, not a repo variable
       flip: set `rotation.enabled` in _data/fleet.yml by PR
+    hub/weekly:
+      repo: bamr87/bamr87
+      workflow: tools/weekly/cli.py
+      group: hub-maintenance
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: fleet_config
+        name: weekly.enabled
+      default: 'on'
+      state: 'on'
+      verified: false
+      note: one local LaunchAgent (tools/install-weekly.sh), not a workflow; its three slots are weekly.schedule, local time
+      flip: set `weekly.enabled` in _data/fleet.yml by PR
     hub/backlog-fanout:
       repo: bamr87/bamr87
       workflow: .github/workflows/backlog-fanout.yml
