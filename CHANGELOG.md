@@ -39,6 +39,9 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - Claude Code slash commands that run the harness and its loops one stage at a time: `/harness:status`, `:inventory`, `:health`, `:decisions`, `:graph`, `:gates`, `:refine`, `:learn`, `:lake`; `/loops:list` and one command per loop of the console's loops table (`:pulse`, `:issues`, `:conflicts`, `:pm`, `:credentials`, `:evolution`, `:scout`, `:fanout`, `:upkeep`), each taking the stage first (`plan`, `rehearse`, `run`, `show`, `publish`, `ci`); and `/console:ops`, `:run`, `:jobs`. A stage that writes to GitHub or spends Claude budget asks first.
 - `tools/dash ops` (`list`, `show`, `run`, `loops`, `jobs`): the Harness Console's operation allowlist from a terminal, with the console's validation and confirm gate; a run joins the running console's job list and locks when that console serves the same checkout. The slash commands run every stage through it.
 - Console operations `agents`, `pm`, `conflicts`, `conflicts-resolve` and `evidence`, the `jev_conflicts` and `fleet_pm` loops on the Loops page, `jev-conflicts` and `fleet-pm` in the dispatch list, and a select for a parameter with fixed choices.
+- `tools/dash weekly` (`tools/weekly/`): the weekly routine, one stage a day from one LaunchAgent (`tools/install-weekly.sh`). `close` (Friday) saves everything that exists only on the Mac, refreshes to main, gives every open pull request and issue one disposition, and has one capped Claude Code session propose what to do with the stale ones. `prepare` (Saturday) checks that each activity scheduled for next week can run. `plan` (Sunday) builds the plan, the week day by day and the Monday brief. `confirm --apply` is the only external write (`wip/` pushes, Fleet project ops, the weekly PR); the routine lists what is ready to merge and what is stale, and never merges or closes. `tidy [--apply]` accounts for the folders beside the hub (`~/bamr87-*`) and removes the worktrees among them proven safe, keeping their branches. `brief <stage>` prints the Grok bot's half. See [docs/WEEKLY.md](docs/WEEKLY.md).
+- `_data/fleet.yml` `weekly:` (the three slots, the close-out's rules, the agent's model and $2 cap inside `budget.loops`, the week's issue, the handoff label and who may write direction on it), and `harness.agents.local:weekly`.
+- `/weekly` in Claude Code: run a stage as a preview and walk through it.
 
 ### Changed
 
@@ -54,6 +57,7 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - The harness surface check and the catalog read a `.claude/commands/` subdirectory as a namespace (`loops/scout.md` is `/loops:scout`).
 - `claude-run` and `ai-lane.yml` take a `permission-mode` input: `acceptEdits` (the default, and what the runner always passed), `default` or `plan`. A read-only reviewer on `claude-run` can keep its tool allowlist as the whole grant; any other mode is refused before the CLI runs.
 - `ai-runner` kit 0.3.0: the lane caller template passes a turn cap with a dollar cap sized to it (`max-turns: "120"`, `max-budget-usd: "20"`) and its cron is a placeholder (`__CRON__`). A lane copied from the 0.2.x template was one control short of the harness standard, and twelve lanes kept its example cron.
+- `tools/jev/reflect.py` `run_session` takes the ledger row's `source`, and an unledgered charge carries the caller's loop and step, so another one-session consumer runs under the reflector's posture with its own name on what it spent. The reflector's own rows are unchanged.
 
 ### Fixed
 
