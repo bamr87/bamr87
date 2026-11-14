@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-14
+
+Every change to the versioned interface since 2.0.0 is additive or relaxes a failure, so this is a minor release and the floating `v2` moves to it. `standard-ci.yml` gains three optional inputs whose empty defaults keep the old behaviour; `release-please.yml` gains `strict-pr-creation` (default `false`) and now warns, instead of failing, on the one PR-creation denial a caller cannot fix (#406), and its internal `release-please-action` moves from v4 to v5, whose only breaking change is the Node 24 runtime GitHub-hosted runners provide; `spec-gate.yml` and `pr-review.yml` are new, so `@v2` callers of either stop failing to resolve. Files that ride on the tag without the compatibility promise move too: `claude-run@v2` gains the explicit `@latest` CLI install that Node 20 runners need and the empty-model fix, and `fleet-verify.yml` fails an app that is configured but does not start.
+
 ### Added
 
 - `spec-gate.yml`: a reusable spec gate, the CI half of the spec-driven kit (`templates/spec-driven/` 0.2.0, `docs/SPEC-DRIVEN.md`). It checks out the kit beside the caller (sparse, at `hub-ref`, default `main`) and runs `spec_validator.py --root .` (with `--strict` by default) and `backlog_lint.py --root .` against the caller's `specs/` and `BACKLOG.md`, so a repo vendors nothing. New interface, additive: inputs `strict` (default `true`), `backlog-lint-base` (default `HEAD^1`), `stale-report` (default `false`), `stale-days` (default `60`), `file-issue` (default `false`; the caller declares `issues: write`), `issue-label`, `issue-title`, `hub-ref`, `python-version`; output `stale`. UPS-WORK-07 accepts a `uses:` of it as the spec-gate job. Minor: `v2` moves on release.
@@ -101,6 +105,7 @@ The first tagged baseline: the interface exactly as it stood on `main` when the 
 - `fleet-conformance.yml`: the reusable UPS conformance gate, with inputs `kinds`, `tier`, `gate` (default `false`, advisory), `hub-ref` (default `main`) and `python-version`, and the `ups-conformance` report artifact.
 - `tools/conformance.py` 0.1.0 and `_data/specs.yml` (UPS 1.0, status draft): the checker and rows `fleet-conformance.yml` runs.
 
-[Unreleased]: https://github.com/bamr87/bamr87/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/bamr87/bamr87/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/bamr87/bamr87/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/bamr87/bamr87/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/bamr87/bamr87/releases/tag/v1.0.0
