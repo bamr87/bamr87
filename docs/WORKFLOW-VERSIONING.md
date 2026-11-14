@@ -47,7 +47,7 @@ jobs:
 
 `fleet-conformance.yml` checks out the spec and checker separately, at `hub-ref` (default `main`). A caller that pins the workflow but not `hub-ref` still gets the checker from `main`, so pass the same ref to both.
 
-Migrating the existing `@main` callers to `@v1` is a separate, later change (one fan-out through `templates/standard-ci/` and `templates/conformance/`); this page only makes the tags available.
+The kits seed callers at the floating major: `templates/standard-ci/` and `templates/sdlc/` (`release-please.yml`) since `v2.0.0`, and `templates/conformance/` (0.2.0) and `templates/verify/` (0.3.0) since `v2.1.0`, each passing `hub-ref: v2` so the tooling it checks out is the same version. A repo still on an `@main` caller moves with `tools/fanout.sh --kit standardize --artifacts conformance --upgrade` (or `--kit verify --upgrade`), which repins only an untouched machine seed.
 
 ## What each bump promises
 

@@ -85,7 +85,7 @@ The in-repo Universal Project Standard gate (spec: [`specs/CONFORMANCE.md`](../s
 
 | File | Purpose |
 | --- | --- |
-| `conformance.yml` | caller → `fleet-conformance.yml@main` (`__DEFAULT_BRANCH__` substituted); inputs `kinds`, `tier`, `gate`, `hub-ref` |
+| `conformance.yml` | caller → `fleet-conformance.yml@v2` with `hub-ref: v2` (`__DEFAULT_BRANCH__` substituted); inputs `kinds`, `tier`, `gate`, `hub-ref` |
 | `VERSION` | Kit provenance + changelog |
 
 ## `feedback/`
