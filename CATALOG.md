@@ -134,6 +134,7 @@ Where each spec row was lifted from — go here for a proven implementation, not
 | [`standards.yml`](_data/standards.yml) | Standardization tier baselines consumed by `dash audit` | required |
 | [`templates.yml`](_data/templates.yml) | Catalog of seedable template kits | — |
 | [`token_rotation.yml`](_data/token_rotation.yml) | Committed weekly credential-rotation ledger — per-repo secret AGES and outcomes for the fleet's Claude/CI tokens, plus the canonical repo variables and their values (gen… | generated |
+| [`weekly_plan.yml`](_data/weekly_plan.yml) | The weekly routine's public record (`weekly-plan/v1`, tools/weekly/): the week's recap, the workspace's state in counts, the backlog, the plan and 12 weeks of history; w… | generated |
 | [`work_queue.yml`](_data/work_queue.yml) | The human's order and priority overrides (`work-queue/v1`) — written by the console's Work board, read by the issue pipeline and repo-evolution (docs/WORK-BOARD.md) | — |
 
 ## 5. Tools and the `dash` CLI
@@ -177,6 +178,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`install-conflict-sweep.sh`](tools/install-conflict-sweep.sh) | Installs the `com.bamr87.conflict-sweep` LaunchAgent (macOS), which runs `tools/dash conflicts sweep --scheduled` every few hours, so merge conflicts resolve in a local… |
 | [`install-harness-review.sh`](tools/install-harness-review.sh) | Installs the `com.bamr87.harness-review` LaunchAgent (macOS): daily, off the hour, it imports this machine's Claude Code sessions into the lake (`dash-gen lake sessions… |
 | [`install-prose-hook.sh`](tools/install-prose-hook.sh) | Installs a **global** git `pre-commit` hook (`~/.git-hooks`, `core.hooksPath`) that runs `unwrap-prose.py` over the staged markdown and restages it, so a commit is born… |
+| [`install-weekly.sh`](tools/install-weekly.sh) | Installs the weekly routine's LaunchAgent (`com.bamr87.weekly`: Friday, Saturday and Sunday slots from `weekly.schedule`, each running `tools/dash weekly auto --schedule… |
 | [`install-workspace-sync.sh`](tools/install-workspace-sync.sh) | Installs the `com.bamr87.workspace-sync` LaunchAgent (macOS) that runs `update-submodules.sh --no-commit --no-push` daily and at login, keeping the local clone on `main`… |
 | [`issue-evidence.sh`](tools/issue-evidence.sh) | Builds one issue's **evidence bundle** in an isolated virtual environment — fresh clone, own toolchain (`venv`/`node_modules`/`vendor/bundle`), the project's own lint/te… |
 | [`macos-register-nerd-fonts.swift`](tools/macos-register-nerd-fonts.swift) | One-shot CoreText helper for `setup-terminal.sh` — registers the MesloLGS Nerd Font `.ttf`s with the user's font registry so Terminal.app can see them without a logout/l… |
@@ -249,6 +251,10 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_tui_fleet.py`](tools/test_tui_fleet.py) | Fixture tests for tools/fleetcore/fleet.py + host.py — the data layer the terminal dash and the console share. |
 | [`test_unwrap_prose.py`](tools/test_unwrap_prose.py) | Fixture tests for `unwrap-prose.py` — structure untouched, list items joined without leaving their list, idempotence (run by `run-all-tests.sh`) |
 | [`test_vscode_launch.py`](tools/test_vscode_launch.py) | The editor-is-a-front-door gate (constitution § 20, [`.vscode/README.md`](../.vscode/README.md)): the four `.vscode/` files parse, every `preLaunchTask`, `dependsOn`, co… |
+| [`test_weekly.py`](tools/test_weekly.py) | Offline tests for tools/weekly/core.py, on real throwaway git repositories (a bare origin and a clone), because what this tool must never get wrong is git's behaviour. |
+| [`test_weekly_dispositions.py`](tools/test_weekly_dispositions.py) | Offline tests for tools/weekly/closeout.py: the disposition rules and the live review gate. |
+| [`test_weekly_harness.py`](tools/test_weekly_harness.py) | Offline tests for tools/weekly/harness.py: the Grok briefs and the direction issue, and the close-out agent's evidence, validation and refusals. |
+| [`test_weekly_stages.py`](tools/test_weekly_stages.py) | Offline tests for the weekend's other stages: Saturday's preflight (tools/weekly/prepare.py), Sunday's plan (tools/weekly/agenda.py), the dispatcher and command line (to… |
 | [`test_work_contract.py`](tools/test_work_contract.py) | Consistency tests for specs/WORK.contract.yml against the generated _data/specs.yml. |
 | [`unpin-deps.sh`](tools/unpin-deps.sh) | Converts one repo to the fleet's **always-latest** dependency policy — strips exact pins, deletes + gitignores lockfiles, adapts CI installs (idempotent; the `deps-lates… |
 | [`unwrap-prose.py`](tools/unwrap-prose.py) | Liquid-safe one-paragraph-per-line unwrapper for markdown prose and list items (`--check`/`--diff`/`--write`); vendored into the fleet by the prose kit |
@@ -334,6 +340,7 @@ Indexed by [`.claude/README.md`](.claude/README.md). Skills and commands are Cla
 | [`/adopt-schema`](.claude/commands/adopt-schema.md) | Adopt the Pyramid Schema in one submodule (seed kit + PR) |
 | [`/future-features`](.claude/commands/future-features.md) | Turn an idea into a full feature spec and place it on the right repo's roadmap (_data/roadmap.yml) |
 | [`/register-project`](.claude/commands/register-project.md) | Add or reconcile a project in the dash registry |
+| [`/weekly`](.claude/commands/weekly.md) | Run a stage of the weekly routine (close on Friday, prepare on Saturday, plan on Sunday) and walk through what it found |
 | [`/console:jobs`](.claude/commands/console/jobs.md) | The running Harness Console's jobs — the recent ones from the page, the terminal dash, MCP and slash commands, or follow one to its end ($0, read-only) |
 | [`/console:ops`](.claude/commands/console/ops.md) | The Harness Console's operation allowlist — every operation by group with its parameters and gates, one operation in full, or the loops table ($0) |
 | [`/console:run`](.claude/commands/console/run.md) | Run any operation from the Harness Console's allowlist with the console's own validation and confirm gate — explains first, asks before a GitHub write or Claude spend |
@@ -473,6 +480,7 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`UX-HARNESS.md`](docs/UX-HARNESS.md) | Continuous UI/UX audit for the fleet: the `ux-audit` kit's computational gate and the hub's critique loop. |
 | [`VERIFICATION.md`](docs/VERIFICATION.md) | The agent verification standard — feature index, user scenarios, evidence bundles, the `fleet-verify.yml` gate and the fleet coverage index. |
 | [`VISUAL-EVIDENCE.md`](docs/VISUAL-EVIDENCE.md) | Status: **proposed** (constitution § 24, amendment `visual-evidence`; epic [#678](https://github.com/bamr87/bamr87/issues/678), backlog [#679](https://github.com/bamr87/… |
+| [`WEEKLY.md`](docs/WEEKLY.md) | Friday closes the week, Saturday checks that next week's schedule can run, Sunday plans it. |
 | [`WORK-BOARD.md`](docs/WORK-BOARD.md) | Every open issue, pull request, roadmap spec, spec package and backlog item in one place, in the order the loops will take it, with drag and drop to reorder, move and re… |
 | [`WORKFLOW-ATLAS.md`](docs/WORKFLOW-ATLAS.md) | The hub's own GitHub Actions read as one model: what each workflow and composite action does, the standards they are held to, why their runs fail, what can be retired, a… |
 | [`WORKFLOW-OPTIMIZATION.md`](docs/WORKFLOW-OPTIMIZATION.md) | The fleet-wide GitHub Actions audit of 2026-09 and the record of what changed because of it. |

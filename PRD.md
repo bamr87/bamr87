@@ -157,6 +157,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-111](features/features.yml) | Agent news feed threads | planned | [`docs/prd/AGENT-NEWS-FEED.md`](docs/prd/AGENT-NEWS-FEED.md) | FR125 |
 | [HUB-112](features/features.yml) | Agent news feed | planned | [`docs/prd/AGENT-NEWS-FEED.md`](docs/prd/AGENT-NEWS-FEED.md) | FR126, FR127, FR128, NFR29, NFR30, NFR31 |
 | [HUB-113](features/features.yml) | Run the harness and its loops one stage at a time from Claude Code: /harness, /loops and /console slash commands over the console's operation allowlist | shipped | [`tools/console/ops_cli.py`](tools/console/ops_cli.py) · [`.claude/README.md`](.claude/README.md) | FR129, FR65, FR63 |
+| [HUB-114](features/features.yml) | The weekly routine: Friday closes the week, Saturday checks next week's schedule can run, Sunday plans it | shipped | [`tools/weekly/cli.py`](tools/weekly/cli.py) · [`docs/WEEKLY.md`](docs/WEEKLY.md) | FR130 |
 
 **Requirement → feature trace**
 
@@ -321,6 +322,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | NFR30 | HUB-112 |
 | NFR31 | HUB-112 |
 | FR129 | HUB-113 |
+| FR130 | HUB-114 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -444,6 +446,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR127: A reader on GitHub must be able to filter feed posts by actor, by repository and by event type using the Fleet feed discussion category, labels and discussion search, without a separate application.
 - FR128: A post that cites work must carry one or more context links to the pull request, issue, workflow run, transcript, report, amendment, release or board item, and the post must not replace that record.
 - FR129: The product must let an operator run any part of the harness, and any stage of any loop on the Harness Console's loops page, from a Claude Code session through slash commands that run the console's own allowlisted operations with the console's validation and confirm gate, never a second implementation; a stage that writes to GitHub or spends Claude budget must ask first.
+- FR130: The hub must, every weekend and without help, close the week (save all work that exists only on the maintainer's machine, return the workspace to main without removing anything unmerged or in use, and give every open pull request and issue one disposition), check that each activity scheduled for the coming week can run, and prepare the week's recap, plan and brief, with execution by Claude Code, direction by the Grok bots, and every external write held for the maintainer's confirmation.
 
 **Non-functional**
 
