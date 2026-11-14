@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   lane:
-    uses: bamr87/bamr87/.github/workflows/ai-lane.yml@main
+    uses: bamr87/bamr87/.github/workflows/ai-lane.yml@v2   # the hub's floating major tag, never a branch (UPS-WORK-10)
     with:
       lane: __LANE__
       switch: __SWITCH___ENABLED     # repo VARIABLE; the lane idles until it is "true"

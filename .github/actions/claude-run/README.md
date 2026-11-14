@@ -3,7 +3,7 @@
 The fleet's universal AI step — kit `ai-runner`, **source of truth for every AI lane in the fleet**. Consume it by reference:
 
 ```yaml
-- uses: bamr87/bamr87/.github/actions/claude-run@main
+- uses: bamr87/bamr87/.github/actions/claude-run@v2
   with:
     agent: grow                       # .claude/agents/grow.md in the CONSUMER repo
     prompt: "Produce ONE piece from the backlog, verify it, open ONE PR, write its URL to pr-result.txt."

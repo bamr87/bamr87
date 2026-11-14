@@ -24,7 +24,7 @@ name: ai-lane
 #   jobs:
 #     grow:
 #       permissions: { contents: write, pull-requests: write }
-#       uses: bamr87/bamr87/.github/workflows/ai-lane.yml@main
+#       uses: bamr87/bamr87/.github/workflows/ai-lane.yml@v2
 #       with:
 #         lane: content-factory
 #         switch: CONTENT_FACTORY_ENABLED
