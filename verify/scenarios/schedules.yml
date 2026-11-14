@@ -1,0 +1,17 @@
+id: schedules
+feature: [HUB-005]
+title: "Schedule map counts AI cron collisions per weekday and names the shared minute"
+description: "The /schedules page reads the fleet's crons and the throughput caps from _data/harness_registry.yml. An hour is a collision only when more AI crons than the cap can fire in it on ONE day; the banner names the hour, the weekdays, and the exact minute the crons share, never the top of the hour. Nothing scrolls sideways."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_"]
+steps:
+  - goto: /schedules
+  - expect: { status: 200 }
+  - wait: { selector: "main table" }
+  - expect: { text: "UTC-hour collisions" }
+  - expect: { text: "AI crons by UTC hour" }
+  - expect: { text: "on one day" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: schedules
+  - screenshot: schedules-full
+    full_page: true
