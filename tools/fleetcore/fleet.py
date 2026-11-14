@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import yaml
+from . import yamlio
 
 CATEGORIES = ("docs", "full-stack-ai", "dev-tools", "dash")
 STATUSES = ("active", "maintenance", "experiment", "archived")
@@ -157,8 +157,7 @@ class Snapshot:
 def load_yaml(path: Path) -> Any:
     if not path.is_file():
         return None
-    with path.open(encoding="utf-8") as fh:
-        return yaml.safe_load(fh)
+    return yamlio.load(path)
 
 
 def _checked_out(root: Path, sub: str | None) -> bool:

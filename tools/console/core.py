@@ -68,6 +68,9 @@ TOOLS = REPO_ROOT / "tools"
 DASH = str(TOOLS / "dash")
 DASH_GEN = str(TOOLS / "dash-gen")
 DASH_GEN_DIR = REPO_ROOT / ".github" / "scripts" / "dash-gen"
+if str(TOOLS) not in sys.path:  # tools/fleetcore, the core every surface shares
+    sys.path.insert(0, str(TOOLS))
+from fleetcore import yamlio  # noqa: E402
 JOB_DIR = Path(os.environ.get("DASH_CONSOLE_JOBS") or (Path(tempfile.gettempdir()) / "dash-console"))
 # The local data lake (dash-gen lake) and the Phoenix trace store it exports
 # to — the other two services of the local stack (docs/HARNESS-OPS.md).
@@ -112,13 +115,19 @@ DISPATCH_WORKFLOWS = ("fanout", "fleet-pulse", "issue-pipeline", "token-rotation
 # yaml + time helpers
 # --------------------------------------------------------------------------- #
 def load_yaml(path: Path):
-    if not path.exists():
-        return None
+    """A committed signal, parsed once per version of the file (fleetcore.yamlio):
+    a request reads the same ten files the last one did. Absent or unreadable is None."""
     try:
-        with path.open() as fh:
-            return yaml.safe_load(fh)
+        return yamlio.load(path)
     except (yaml.YAMLError, OSError):
         return None
+
+
+def _dash_gen_on_path() -> None:
+    """dash-gen's modules are imported by bare name. Once: these helpers run on
+    every request, and an insert per call grew sys.path without bound."""
+    if str(DASH_GEN_DIR) not in sys.path:
+        sys.path.insert(0, str(DASH_GEN_DIR))
 
 
 def parse_stamp(value) -> dt.datetime | None:
@@ -207,7 +216,7 @@ def git_info() -> dict:
 def describe_cron(cron: str) -> str:
     """Reuse dash-gen's cron helpers when importable (same repo, same math)."""
     try:
-        sys.path.insert(0, str(DASH_GEN_DIR))
+        _dash_gen_on_path()
         import harness_registry  # noqa: WPS433
         return harness_registry.describe_cron(cron)
     except Exception:
@@ -481,7 +490,7 @@ def capabilities() -> dict:
 # LAKE — the local data lake + trace export, read through dash-gen's module
 # --------------------------------------------------------------------------- #
 def _lake_module():
-    sys.path.insert(0, str(DASH_GEN_DIR))
+    _dash_gen_on_path()
     import fleet_lake  # noqa: WPS433
     return fleet_lake
 
@@ -501,13 +510,13 @@ def lake_status(probe: bool = True) -> dict:
 # OBSERVABILITY — the three local planes, read through dash-gen's module
 # --------------------------------------------------------------------------- #
 def _observe_module():
-    sys.path.insert(0, str(DASH_GEN_DIR))
+    _dash_gen_on_path()
     import fleet_observe  # noqa: WPS433
     return fleet_observe
 
 
 def _index_module():
-    sys.path.insert(0, str(DASH_GEN_DIR))
+    _dash_gen_on_path()
     import fleet_index  # noqa: WPS433
     return fleet_index
 
@@ -647,19 +656,27 @@ def frame_src() -> list[str]:
 
     A missing origin here is not an error anyone sees: the browser refuses the
     frame and writes one line to a console nobody has open.
+
+    The console asks on every response (its Content-Security-Policy names
+    these), so fleet.yml is re-read only when it changed, as
+    fleetcore.apps.target_origins re-reads the two registries.
     """
+    def build() -> list[str]:
+        contract = observe.load_contract()
+        portal = contract.get("portal") or {}
+        urls = list(portal.get("frame_src") or [])
+        for url in ((contract.get("logs") or {}).get("kibana"),
+                    (contract.get("metrics") or {}).get("grafana"),
+                    (contract.get("traces") or {}).get("endpoint")):
+            if url and url not in urls:
+                urls.append(url)
+        return urls
+
     try:
-        contract = _observe_module().load_contract()
+        observe = _observe_module()
+        return list(yamlio.cached("console.frame_src", (observe.FLEET_DEFAULT,), build))
     except Exception:
         return []
-    portal = contract.get("portal") or {}
-    urls = list(portal.get("frame_src") or [])
-    for url in ((contract.get("logs") or {}).get("kibana"),
-                (contract.get("metrics") or {}).get("grafana"),
-                (contract.get("traces") or {}).get("endpoint")):
-        if url and url not in urls:
-            urls.append(url)
-    return urls
 
 
 def lake_runs(limit: int = 50) -> list[dict]:
@@ -778,7 +795,7 @@ def _rel(path: Path) -> str:
 
 
 def _content_module():
-    sys.path.insert(0, str(DASH_GEN_DIR))
+    _dash_gen_on_path()
     import content_atlas  # noqa: WPS433
     return content_atlas
 
@@ -874,7 +891,7 @@ def content_brief(site: str) -> dict:
 # checkout (also in the public snapshot), run health from the lake (local).
 # --------------------------------------------------------------------------- #
 def _atlas_module():
-    sys.path.insert(0, str(DASH_GEN_DIR))
+    _dash_gen_on_path()
     import workflow_atlas  # noqa: WPS433
     return workflow_atlas
 
@@ -968,7 +985,7 @@ _WORK_LOCK = threading.Lock()
 
 
 def _work_module():
-    sys.path.insert(0, str(DASH_GEN_DIR))
+    _dash_gen_on_path()
     import work_board  # noqa: WPS433
     return work_board
 

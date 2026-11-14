@@ -31,6 +31,8 @@ from urllib.parse import urljoin, urlsplit
 
 import yaml
 
+from . import yamlio
+
 HUB = Path(__file__).resolve().parents[2]
 SCHEMA = "fleet-launcher/v1"
 # A frontend the portal can show in a frame: something a browser renders.
@@ -47,7 +49,7 @@ DEFAULT_VIEWPORTS = {"desktop": {"width": 1280, "height": 800}, "tablet": {"widt
 
 def _load(path: Path):
     try:
-        return yaml.safe_load(path.read_text(encoding="utf-8"))
+        return yamlio.load(path)
     except (OSError, yaml.YAMLError):
         return None
 
