@@ -238,4 +238,6 @@ tools/dash secrets rotate --apply         # credentials now instead of Monday
 python3 .github/scripts/dash-gen/test_harness_registry.py   # the invariants
 ```
 
+From a Claude Code session the same card is three namespaces of slash commands, each a front door onto the console's operation allowlist through `tools/dash ops`: `/harness:` observes and gates the harness (`status`, `inventory`, `health`, `decisions`, `graph`, `gates`, `refine`, `learn`, `lake`), `/loops:` runs one stage of one loop (`/loops:scout rehearse kvlite`, `/loops:conflicts resolve <owner/repo#n>`, `/loops:pulse ci`), and `/console:` reaches any operation. A stage that writes to GitHub or spends Claude budget asks first, exactly where the console does ([.claude/README.md](../.claude/README.md#slash-commands-the-harness-and-its-loops-one-stage-at-a-time)).
+
 Dispatch surface: `fanout.yml` (kit `harness`) (`target: gaps|all|<name>`, `artifacts`, `dry_run`, `upgrade`). Daily refresh: `fleet-pulse.yml` → publish → `/harnesses/` after the 08:37 `build-dash` run. Fixture tests for the lake and the exporter: `python3 .github/scripts/dash-gen/test_fleet_lake.py`. Thresholds: `_data/fleet.yml` `harnesses:` — tune them the way the trip wires are tuned: a cap that is always breached is noise, prune or raise it deliberately.

@@ -63,6 +63,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash projects [inventory|plan|apply]${c_off} the issue-triage + Fleet-board backfill pass (constitution § 10/§ 11): \`inventory\` counts open work per repo; \`plan [--board]\` compiles _data/projects_backfill.yml into § 11 ops and previews before → after with plan ids (GraphQL for the board, skipped where unreachable); \`apply FILE --confirm\` writes through the service, only with HARNESS_PROJECTS_WRITES=1 (docs/PROJECTS-FRAMEWORK.md § 3b)
   ${c_bold}dash pm [review|plan|roadmap|releases|status]${c_off} the routine PM review (docs/PM.md), read-only: \`review\` reads every open issue and PR of the registry repos, their pull-request state, recent comments, releases and the Fleet project, and reports what is out of line with the project, the roadmap and each release train; \`plan\` prints the Fleet project ops as before → after (applied by \`dash projects apply\`, § 11); \`roadmap [--write]\` the status edits for _data/roadmap.yml (working tree only); \`releases\` the release train; \`status\` the committed snapshot's headline
   ${c_bold}dash decisions [queue|refresh|status] [--kind K] [--repo R] [--json]${c_off} the DECISION QUEUE in one call — what waits on Amr across the fleet: \`needs-amr\` items, amendment / constitution / ADR pull requests awaiting ratification, failing or major Dependabot pull requests and ready-to-merge pull requests, from a local index (.fleet/decisions/, served until its TTL) read with a handful of GraphQL queries instead of a sweep of each repo; a hard time budget returns a partial answer that says so; \`refresh\` reads GitHub now, \`status\` shows the index without a call; read-only, \$0, no model (docs/DECISION-INDEX.md)
+  ${c_bold}dash ops [list|show|run|jobs]${c_off} the Harness Console's operation ALLOWLIST from a terminal — \`list [--group G]\`, \`show <op>\`, \`run <op> [key=value…] [--confirm] [--explain] [--here|--console]\` (same validation and confirm gate as the console; joins the running console's job list when it serves this checkout), \`jobs [id]\`; what the /harness:*, /loops:* and /console:* slash commands run (.claude/README.md)
   ${c_bold}dash conflicts [scan|triage|resolve|sweep|budget]${c_off} resolve merge conflicts in a local session: \`sweep\` runs every conflicting PR up the tiers, script first, then a capped model; never merges (docs/JEV.md)
   ${c_bold}dash ledger${c_off}            accrue engagement actuals + variance from usage evidence (/engagements/ portal)
   ${c_bold}dash lake [sync|sessions|review|status|export]${c_off} the local data lake — \`sync\` extracts GitHub runs/jobs/steps/logs/issues/workflows/.factory into .dash-lake/fleet.sqlite; \`sessions\` extracts this machine's Claude Code transcripts; \`review\` analyzes BOTH planes offline; \`status\` reports it; \`export [--local] [--dry-run]\` ships OpenInference traces to Phoenix (:6006; docs/HARNESS-OPS.md)
@@ -87,7 +88,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash new <name> [args]${c_off}  scaffold a new project and register it
   ${c_bold}dash adopt-release <repo>${c_off} scaffold the release-please pipeline (--all for active repos)
   ${c_bold}dash protect <repo>${c_off}    require the CI gate on a repo's default branch (--all)
-  ${c_bold}dash evolve${c_off}            how to evolve the monorepo itself (the local /evolve loop; the CI pass was retired)
+  ${c_bold}dash evolve${c_off}            how to evolve the monorepo itself (the local /loops:evolution hub loop; the CI pass was retired)
   ${c_bold}dash evolve --repo <name>${c_off}  run the repo-evolution loop on one opted-in submodule now (draft PR in its own repo)
   ${c_bold}dash evolve --all${c_off}      run the weekly repo-evolution loop on every auto_evolve submodule now
   ${c_bold}dash scout [plan|--repo <name>|--all]${c_off} the daily repo-scout loop — \`plan\` shows today's sample and briefs locally; \`--repo\`/\`--all\` dispatch repo-scout.yml (issues in the repos' own trackers; -f dry_run=true to rehearse)
@@ -433,7 +434,7 @@ cmd_evolve() {
       gh workflow run repo-evolution.yml -f "target=all" "$@"
       ;;
     *)
-      echo "The hub evolves through the local /evolve loop (Claude Code), the issue" >&2
+      echo "The hub evolves through /loops:evolution hub (Claude Code), the issue" >&2
       echo "pipeline (filed hub issues) and the fleet doctor (failing workflows)." >&2
       echo "For the fleet: dash evolve --repo <name> | --all" >&2
       return 2
@@ -696,6 +697,12 @@ cmd_pm() { "$PY" "${TOOLS}/pm_review.py" "${@:-review}"; }
 # prints the queue. The console's /api/decisions and the MCP's decision_queue
 # call the same module and serve the same index file.
 cmd_decisions() { "$PY" "${TOOLS}/console/decision_index.py" "$@"; }
+# The console's operation ALLOWLIST from a terminal (tools/console/ops_cli.py): the
+# same ops, validation and confirm gate as the Operations page, the TUI and MCP.
+# A run joins the running console (its job list, its locks) when that console
+# serves this checkout, else runs here. The Claude Code slash commands under
+# .claude/commands/ (/harness:*, /loops:*, /console:*) all go through it.
+cmd_ops() { "$PY" "${TOOLS}/console/ops_cli.py" "$@"; }
 cmd_ledger() { "${TOOLS}/dash-gen" ledger "$@"; }
 # The local data lake + trace export (local stack; docs/HARNESS-OPS.md).
 # Two EXTRACT commands, one for each plane Claude runs in, then one analysis:
@@ -984,6 +991,7 @@ main() {
     projects) cmd_projects "$@" ;;
     pm)      cmd_pm "$@" ;;
     decisions) cmd_decisions "$@" ;;
+    ops)     cmd_ops "$@" ;;
     ledger)  cmd_ledger "$@" ;;
     lake)    cmd_lake "$@" ;;
     dev)     cmd_dev "$@" ;;
