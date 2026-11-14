@@ -22,11 +22,14 @@ from __future__ import annotations
 import datetime as dt
 import json
 import re
+import sys
 from pathlib import Path
 
-import yaml
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT / "tools") not in sys.path:  # tools/fleetcore, the core every surface shares
+    sys.path.insert(0, str(REPO_ROOT / "tools"))
+from fleetcore import yamlio  # noqa: E402
+
 DATA = REPO_ROOT / "_data"
 PAGES = REPO_ROOT / "pages"
 
@@ -59,8 +62,7 @@ PUBLIC_DATA = {
 def _load(path: Path):
     if not path.is_file():
         return None
-    text = path.read_text(encoding="utf-8")
-    return json.loads(text) if path.suffix == ".json" else yaml.safe_load(text)
+    return json.loads(path.read_text(encoding="utf-8")) if path.suffix == ".json" else yamlio.load(path)
 
 
 def _plain(value):
@@ -79,7 +81,7 @@ def _split(path: Path) -> tuple[dict, str]:
     m = _FRONT_RX.match(text)
     if not m:
         return {}, text
-    front = yaml.safe_load(m.group(1)) or {}
+    front = yamlio.parse(m.group(1)) or {}
     return (front if isinstance(front, dict) else {}), m.group(2).lstrip("\n")
 
 

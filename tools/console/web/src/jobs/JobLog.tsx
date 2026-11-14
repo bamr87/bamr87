@@ -1,7 +1,8 @@
 // A job's log, tailed live. Follows the tail only while the reader is already
 // at the bottom, so a streaming job never yanks the view away from what you
 // scrolled back to. A job that SUCCEEDS refreshes every console document: its
-// output is new data in the working tree.
+// output is new data in the working tree. Once, and only when its end is news
+// to this tab; opening the log of a job that ended earlier refreshes nothing.
 import { useEffect, useRef, useState } from 'react';
 import { Box } from '@mantine/core';
 import { useQueryClient } from '@tanstack/react-query';
@@ -11,6 +12,16 @@ import { ansiToHtml, type AnsiRole } from '../lib/ansi';
 import classes from './JobLog.module.css';
 
 const role = (r: AnsiRole) => classes[r] ?? '';
+
+// The jobs whose end is news here: started from this tab, or seen running by a
+// tail. The first tail to see one end takes it out, so a job open in the
+// drawer and on its page still refreshes the documents once.
+const awaited = new Set<string>();
+
+/** A job this tab just started (runOp). It may end before its log is first read. */
+export function expectJob(id: string): void {
+  awaited.add(id);
+}
 
 export function useJobTail(jobId: string | null) {
   const qc = useQueryClient();
@@ -35,9 +46,10 @@ export function useJobTail(jobId: string | null) {
         setTail(t);
         if (t.done) {
           void qc.invalidateQueries({ queryKey: ['jobs'] });
-          if (t.job.status === 'succeeded') void qc.invalidateQueries();
+          if (awaited.delete(jobId) && t.job.status === 'succeeded') void qc.invalidateQueries();
           return;
         }
+        awaited.add(jobId);
       } catch (e) {
         if (!stopped) setError((e as Error).message);
         return;
