@@ -657,6 +657,14 @@
       "presentation": { "group": "4-generate", "order": 8 }
     },
     {
+      "name": "🎛️ Console operations: the allowlist + the loops table (tools/dash ops, what the slash commands run)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash ops list && tools/dash ops loops",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 8 }
+    },
+    {
       "name": "🎯 Outcome learning: status + plan (shadow, from the lake)",
       "type": "node-terminal",
       "request": "launch",
@@ -1649,7 +1657,7 @@
       "id": "verifyScenario",
       "description": "Scenario id (verify/scenarios/)",
       "type": "pickString",
-      "options": ["home", "dashboard", "connect", "engagements", "features", "harnesses", "monitor", "roadmap", "triage", "work", "workflows", "loop-run", "refine", "apps", "desktop", "repo-app", "desktop-pages", "console-shell", "console-nav", "desktop-context-menu"],
+      "options": ["home", "dashboard", "connect", "engagements", "features", "harnesses", "schedules", "monitor", "roadmap", "triage", "work", "workflows", "loop-run", "refine", "apps", "desktop", "repo-app", "desktop-pages", "console-shell", "console-nav", "desktop-context-menu"],
       "default": "home"
     },
     {

@@ -849,6 +849,7 @@ COMMAND_EXEMPT = {
     "up": "starts this machine's containers", "down": "stops this machine's containers",
     "protect": "changes branch protection, which § 11.2 keeps off every surface",
     "new": "scaffolds a new project interactively", "sync": "moves submodule pointers in this checkout",
+    "ops": "runs the console's operations from a terminal: it is that surface (tools/console/ops_cli.py)",
 }
 
 
