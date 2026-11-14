@@ -2,15 +2,15 @@
   "schema": "deep-dive/v1",
   "owner": "bamr87",
   "label": "deep-dive",
-  "refreshed_at": "2026-11-13T12:25:41Z",
+  "refreshed_at": "2026-11-14T12:23:05Z",
   "summary": {
-    "as_of": "2026-11-13",
+    "as_of": "2026-11-14",
     "cycle": 1,
     "cycle_start": "2026-10-30",
     "cycle_end": "2026-12-10",
     "cycle_days": 42,
     "total": 38,
-    "day": 15,
+    "day": 16,
     "processed": 8,
     "counts": {
       "pending": 30,
@@ -20,14 +20,6 @@
     },
     "progress": 0.2105,
     "today": {
-      "date": "2026-11-13",
-      "cycle": 1,
-      "day": 15,
-      "cycle_days": 42,
-      "kind": "scheduled",
-      "repo": ".github"
-    },
-    "next": {
       "date": "2026-11-14",
       "cycle": 1,
       "day": 16,
@@ -35,11 +27,19 @@
       "kind": "scheduled",
       "repo": "lifehacker.dev"
     },
+    "next": {
+      "date": "2026-11-15",
+      "cycle": 1,
+      "day": 17,
+      "cycle_days": 42,
+      "kind": "scheduled",
+      "repo": "gitorio"
+    },
     "last": ".github",
     "last_date": "2026-11-13",
     "avg_score": 45.0,
-    "open_issues": 48,
-    "open_prs": 4
+    "open_issues": 59,
+    "open_prs": 6
   },
   "repos": [
     {
@@ -402,8 +402,8 @@
         "https://github.com/bamr87/.github/pull/23",
         "https://github.com/bamr87/.github/pull/24"
       ],
-      "open_issues": 0,
-      "open_prs": 0,
+      "open_issues": 11,
+      "open_prs": 2,
       "findings": "Governance docs conform (AGENTS/PRD/catalog/constitution; governance_lint ok) and actionlint is clean, but publish.yml splices inputs.tag/version into run blocks (zizmor template-injection) and templates secrets into guards; GHCR pushes on any Dockerfile, multi-arch without QEMU, latest on pre-releases; detect-stack@main defeats @v1 pinning; actions 1-3 majors stale, no Dependabot, no timeouts/concurrency; nothing runs actionlint here; starter template scaffolds @main and the D3-deprecated release-please; constitution s7 gates are kit defaults; private vuln reporting off and main unprotected (needs Amr).",
       "score": 62.0,
       "next_focus": "Verify #11/#12/#14 landed and v1 moved; check zer0-mistakes and zer0-CMS moved off @main; confirm #20 job.workflow_sha works from a private caller; re-run zizmor."
