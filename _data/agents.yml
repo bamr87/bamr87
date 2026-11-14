@@ -15,27 +15,27 @@ contract:
     R5: its run records reach the reflector
     R6: a local entry point
 totals:
-  agents: 137
+  agents: 140
   by_category:
-    ci-agent-step: 126
+    ci-agent-step: 129
     local-loop-step: 5
     jev-tier: 3
     scheduled-local-job: 3
   by_kind:
-    ci-scheduled: 48
+    ci-scheduled: 51
     ci-event: 36
     ci-mention: 42
     loop-step: 5
     jev-tier: 3
     local-job: 3
-  with_gaps: 128
+  with_gaps: 131
   gaps_by_rule:
     R1: 116
-    R2: 128
+    R2: 131
     R3: 0
     R4: 2
     R5: 1
-    R6: 74
+    R6: 77
 kpis:
   accepted_per_usd:
     unit: accepted outcomes per USD, API-equivalent (estimate)
@@ -468,6 +468,93 @@ agents:
   first_seen: '2026-11-07'
   gaps:
   - R2:missing:cost_source,tool_errors
+- id: ci:bamr87:weekly-closeout
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/bamr87
+  where: .github/workflows/weekly-closeout.yml
+  owner: bamr87
+  trigger: schedule Fri 20:17 UTC weekly; workflow_dispatch
+  switch:
+    variable: WEEKLY_CLOSEOUT_ENABLED
+    loop: hub/weekly-closeout
+  budget:
+    per_run_usd: 20.0
+  model: claude-opus-5-5
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-13'
+  gaps:
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:bamr87:weekly-finalize
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/bamr87
+  where: .github/workflows/weekly-finalize.yml
+  owner: bamr87
+  trigger: schedule Sun 23:17 UTC weekly; workflow_dispatch
+  switch:
+    variable: WEEKLY_FINALIZE_ENABLED
+    loop: hub/weekly-finalize
+  budget:
+    per_run_usd: 10.0
+  model: claude-sonnet-5-5
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-13'
+  gaps:
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
+- id: ci:bamr87:weekly-gather
+  kind: ci-scheduled
+  category: ci-agent-step
+  repo: bamr87/bamr87
+  where: .github/workflows/weekly-gather.yml
+  owner: bamr87
+  trigger: schedule Sat 17:17 UTC weekly; workflow_dispatch
+  switch:
+    variable: WEEKLY_GATHER_ENABLED
+    loop: hub/weekly-gather
+  budget:
+    per_run_usd: 10.0
+  model: claude-sonnet-5-5
+  kpis:
+    accepted_per_usd: 0.05
+    accepted_per_actions_min: 0.02
+    time_to_outcome_h: 72
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: null
+  first_seen: '2026-11-13'
+  gaps:
+  - R2:missing:cost_source,tool_errors
+  - R6:no-local-entry
 - id: ci:README:aggregate-docs
   kind: ci-scheduled
   category: ci-agent-step

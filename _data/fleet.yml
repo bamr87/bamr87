@@ -171,6 +171,11 @@ schedule:
                                   # the daily chain's lanes; gated by vars.JEV_CONFLICTS_ENABLED.
   scorecard_sweep: "17 6 * * 0"   # weekly read-only OpenSSF Scorecard sweep → conformance.yml security:
                                   # (docs/SECURITY-POSTURE.md); gated by vars.SCORECARD_SWEEP_ENABLED.
+  weekly_closeout: "17 20 * * 5"  # Friday 13:17 America/Denver (MST, UTC-7): close out open PRs, branches, clones
+                                  # (docs/WEEKLY-CLOSEOUT.md); off until vars.WEEKLY_CLOSEOUT_ENABLED is 'true'.
+                                  # UTC hours 17, 20 and 23 carry no other AI cron.
+  weekly_gather: "17 17 * * 6"    # Saturday 10:17 Denver: draft next week's plan; vars.WEEKLY_GATHER_ENABLED
+  weekly_finalize: "17 23 * * 0"  # Sunday 16:17 Denver: week-ahead brief; vars.WEEKLY_FINALIZE_ENABLED
 
 # --------------------------------------------------------------------------- #
 # Remediation — the auto-fix loop's guardrails.
@@ -2362,6 +2367,54 @@ switches:
       cron: 37 4 * * *
       dispatch_bypasses: true
       note: also gated by scout.enabled in this file
+    hub/weekly-closeout:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/weekly-closeout.yml
+      group: hub-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: WEEKLY_CLOSEOUT_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set WEEKLY_CLOSEOUT_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
+      cron: 17 20 * * 5
+      dispatch_bypasses: true
+    hub/weekly-finalize:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/weekly-finalize.yml
+      group: hub-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: WEEKLY_FINALIZE_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set WEEKLY_FINALIZE_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
+      cron: 17 23 * * 0
+      dispatch_bypasses: true
+    hub/weekly-gather:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/weekly-gather.yml
+      group: hub-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: WEEKLY_GATHER_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set WEEKLY_GATHER_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
+      cron: 17 17 * * 6
+      dispatch_bypasses: true
     hub/scorecard-sweep:
       repo: bamr87/bamr87
       workflow: .github/workflows/scorecard-sweep.yml
