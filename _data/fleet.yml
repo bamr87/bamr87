@@ -1284,8 +1284,14 @@ harnesses:
     require_mention_handler: true   # a claude-code-action workflow answering @claude
     require_agent_context: true     # CLAUDE.md / AGENTS.md / copilot-instructions / .cursorrules
     require_oauth_secret: true      # CLAUDE_CODE_OAUTH_TOKEN per the rotation ledger
-  exempt: [".github"]              # repo names excused from the baseline — bamr87/.github holds the
-                                    # org defaults + workflow-templates; nobody @claude's it
+  # Repo names excused from the baseline: no coverage gap is reported for them
+  # and a `gaps` fan-out never seeds them. The AI workflows they already carry
+  # are still listed and graded. The reasons live up here, not beside the
+  # entries, because the console's editor replaces the list as a whole:
+  #   .github         the org defaults + workflow-templates; nobody @claude's it
+  #   lifehacker.dev  automation shut down for good on 2026-11-05 (the central zer0-CMS
+  #                   system replaced it): a fan-out must not seed a new handler into it
+  exempt: [".github", "lifehacker.dev"]
 
   # Throughput — how much SCHEDULED (cron-driven) agent work the fleet may
   # standing-commit to, independent of what mention/PR traffic adds on top.

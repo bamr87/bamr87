@@ -509,4 +509,8 @@ board:
       content: [content]
       data: [lake, ledger, telemetry, snapshot]
     default: platform
+  # Closed items never put on the board: the 2026-10-03 cleanup closed bot duplicates and
+  # spam as not_planned that day (#453). `plan --closed-since/--closed-before` drops them.
+  exclude:
+    closed_not_planned_on: ["2026-10-03"]
 applied: []

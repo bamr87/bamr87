@@ -1,10 +1,36 @@
 kit: ai-runner
-version: 0.2.1
+version: 0.3.0
 source: "bamr87/bamr87 templates/ai-runner/ (runtime: .github/actions/claude-run/ + .github/workflows/ai-lane.yml)"
 seeded-by: "consumed BY REFERENCE (uses: bamr87/bamr87/.github/actions/claude-run@main, or the reusable .github/workflows/ai-lane.yml@main); not fanned out by tools/fanout.sh"
-files: ai-lane.template.yml, tests/contract.sh, archive/ai-lane-0.1.0.yml
-updated: 2026-11-10
+files: ai-lane.template.yml, tests/contract.sh, archive/ai-lane-0.1.0.yml, archive/ai-lane-0.2.1.yml
+updated: 2026-11-13
 changelog: |
+  0.3.0 — a lane copied from the template is born on the harness standard
+  (_data/fleet.yml `harnesses.standard`). The caller template now passes a
+  turn cap and a matching dollar cap (`max-turns: "120"`, `max-budget-usd:
+  "20"`, the hub evolution loop's own sizing for the same job), and its cron
+  is a placeholder (`__CRON__`) instead of an example. The 0.2.x shape had no
+  turn cap, so every lane made from it was one control short, and twelve
+  lanes kept its example cron (`17 6 * * 1`) and so shared Monday 06:17 UTC.
+  A caller is a file the repo holds and fills in, so existing lanes change by
+  a PR in their own repo, not by a fan-out. Test: test_harness_registry.py
+  holds a filled template on the standard.
+  The runtime changes in one place: a TURN-CAP STOP is final, like a dollar-cap
+  stop. run.sh classified only the dollar cap as a circuit breaker, so
+  `error_max_turns` fell through to the single-shot API fallback, and where a
+  consumer ships one (it-journey, zer0-mistakes) the step ended GREEN on one
+  completion while the agent's work was cut off. It now exits 1 with the
+  reason and an ::error:: naming --max-turns. Consumed by reference (@main),
+  so every lane gets this on merge: a lane that was hitting its turn cap and
+  passing turns red, which is the point. Contract: tests/contract.sh cases
+  15-16.
+  And one input is new: `permission-mode` (claude-run, ai-lane.yml, run.sh
+  --permission-mode / AI_PERMISSION_MODE): acceptEdits (the default, and what
+  the runner always passed), default, or plan. A read-only reviewer moved from
+  a bare `claude -p` onto claude-run was handed acceptEdits, which approves
+  file edits its tool allowlist never granted; `permission-mode: default`
+  keeps the allowlist as the whole grant. Any other mode is refused before the
+  CLI runs. Contract: case 7b (33 cases in all).
   0.2.1 — an empty `model:` in the consumer's _data/ai.yml is the fleet default.
   The kit seeds `model: ""` with the comment "Empty = fleet default", and the
   resolver returned that empty string (`"" || default` is "" in Ruby), so the

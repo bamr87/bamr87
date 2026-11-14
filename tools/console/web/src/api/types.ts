@@ -107,7 +107,14 @@ export interface Throughput {
   cap_per_repo?: number | null;
   cap_per_utc_hour?: number | null;
   repos_over_cap?: { repo: string; est_per_day: number }[];
-  hour_collisions?: { utc_hour: string; count: number; entries: string[] }[];
+  /** One per UTC hour where more AI crons than the cap can fire on ONE day.
+   *  `utc_hour` names the hour bucket ("06:00" is 06:00–06:59), `count` and
+   *  `entries` are the worst day's, `days` the weekdays over the cap, and
+   *  `same_minute` the exact minutes two or more of the entries share. */
+  hour_collisions?: {
+    utc_hour: string; count: number; entries: string[];
+    days?: string[]; same_minute?: { at: string; count: number }[];
+  }[];
 }
 
 export interface HarnessControl {
@@ -258,6 +265,8 @@ export interface Op {
   unavailable?: string | null;
   /** loop-run only: the agent steps the form offers. */
   agent_steps?: AgentStep[];
+  /** A parameter with a fixed set of values (pm's view, conflicts' action): the form offers a select. */
+  choices?: Record<string, string[]>;
 }
 
 export interface Job {

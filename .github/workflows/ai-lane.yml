@@ -85,6 +85,10 @@ on:
         description: "Dollar ceiling per run (--max-budget-usd); default = hub _data/fleet.yml budget.call_sites['ai-lane.yml:run']"
         type: string
         default: "10"
+      permission-mode:
+        description: "Claude Code --permission-mode: acceptEdits (default; a lane that writes), default (the tools allowlist is the whole grant; a reviewer that must not write) or plan (read only)"
+        type: string
+        default: "acceptEdits"
       out:
         description: "Write the agent's result text to this file instead of stdout"
         type: string
@@ -269,6 +273,7 @@ jobs:
           model: ${{ inputs.model }}
           max-turns: ${{ inputs.max-turns }}
           max-budget-usd: ${{ inputs.max-budget-usd }}
+          permission-mode: ${{ inputs.permission-mode }}
 
       - name: Post-run
         if: inputs.post-run != ''
