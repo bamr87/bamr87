@@ -271,8 +271,8 @@ repos:
 - day: 14
   repo: law-ai
   scheduled: '2026-11-12'
-  status: pending
-  last_processed: null
+  status: done
+  last_processed: '2026-11-12'
   cycle: 1
   issues:
   - https://github.com/bamr87/law-ai/issues/242
@@ -298,9 +298,10 @@ repos:
   - https://github.com/bamr87/law-ai/pull/233
   open_issues: 17
   open_prs: 3
-  findings: ''
-  score: null
-  next_focus: ''
+  findings: 'Cycle 1 day 14 (owner pass by Law AI Lead). UPS conformance 53/71 automated checks pass, 9 MUST failing (most already tracked: /version #208, README link #212, SECURITY.md/issue forms #213, spec-gate #217, fleet-dod/lockfiles BL-20261026-04); governance_lint ok. New: prod accepts default SECRET_KEY (signs JWTs and the LSAT shuffle HMAC) and ALLOWED_HOSTS=* (#221); lsat-static WCAG 2.5.3 nav label-in-name and other axe findings (#222, nav fixed in draft #235); views not in the URL so #article permalinks open Overview (#223); question card shows section twice because type==section for all 211 items (#224); Makefile Playwright 1.63 vs lock 1.64.1 (#225); lawmode defaults to OpenAI gpt-4o against constitution section 1 and has no CI (#226, needs Amr); no code scanning on a public repo (#227); catalog misses shipped surfaces, PRD section 5 has no requirement ids (#228). Feature requests #229-#232 planned as LAWAI-018..021 in draft #234; docs drift and BACKLOG mirror in draft #233.
+    Dependabot: 2 medium (minimatch).'
+  score: 66.0
+  next_focus: 'Amr: lawmode revive/fold/retire (#226); CodeQL default setup vs workflow (#227); land #219 then fix the Makefile tag (#225). Agents: SECRET_KEY/ALLOWED_HOSTS deploy checks (#221), URL-routed views (#223), remaining a11y items (#222), catalog entries for shipped surfaces (#228).'
 - day: 15
   repo: .github
   scheduled: '2026-11-13'
