@@ -193,6 +193,30 @@ if grep -qF -- "--max-budget-usd 4" "$outf"; then
 else
   echo "FAIL: AI_MAX_BUDGET_USD not passed: $(head -c 200 "$outf")"; fail=$((fail + 1))
 fi
+# 7b. The permission mode: acceptEdits unless the caller narrows it, and a mode
+#    outside the short list is refused before the CLI is ever called.
+perm_case() {  # <name> <extra args...> ; reads PERM_WANT / PERM_ENV
+  local name="$1"; shift
+  env -i PATH="${argstub}:/usr/local/bin:/usr/bin:/bin" HOME="${HOME:-/root}" AI_USAGE_DIR="$(mktemp -d)" CLAUDE_CODE_OAUTH_TOKEN="stub-token" \
+    ${PERM_ENV:+AI_PERMISSION_MODE="$PERM_ENV"} bash "$SUT" --prompt "hello" "$@" >"$outf" 2>/dev/null
+  if grep -qF -- "--permission-mode ${PERM_WANT} " "$outf"; then
+    echo "PASS: permission mode: $name"; pass=$((pass + 1))
+  else
+    echo "FAIL: permission mode: $name — $(head -c 200 "$outf")"; fail=$((fail + 1))
+  fi
+}
+PERM_WANT=acceptEdits PERM_ENV="" perm_case "acceptEdits when the caller says nothing"
+PERM_WANT=default PERM_ENV="" perm_case "--permission-mode default reaches the CLI" --permission-mode default
+PERM_WANT=plan PERM_ENV=plan perm_case "AI_PERMISSION_MODE reaches the CLI"
+errf="$(mktemp)"
+env -i PATH="${argstub}:/usr/local/bin:/usr/bin:/bin" HOME="${HOME:-/root}" AI_USAGE_DIR="$(mktemp -d)" CLAUDE_CODE_OAUTH_TOKEN="stub-token" \
+  bash "$SUT" --prompt "hello" --permission-mode bypassPermissions >"$outf" 2>"$errf"; rc=$?
+if [ "$rc" = 1 ] && ! grep -qF "ARGS:" "$outf" && grep -qF "is not allowed" "$errf"; then
+  echo "PASS: permission mode: a mode that skips permission checks is refused and nothing runs"; pass=$((pass + 1))
+else
+  echo "FAIL: permission mode: bypassPermissions was not refused (exit $rc): $(head -c 200 "$outf")"; fail=$((fail + 1))
+fi
+rm -f "$errf"
 rm -rf "$argstub" "$outf"
 
 # 8-12. AI_AUTH_ORDER — the per-repo credential order (ai_auth: in the hub's
@@ -292,6 +316,36 @@ else
   echo "FAIL: budget abort reached the API fallback"; fail=$((fail + 1))
 fi
 rm -rf "$kit" "$budgetstub" "$outf" "$errf"
+
+# 15-16. A TURN-CAP STOP is the same kind of event: the agent used its turns and
+#    was cut off. It must fail the step and never reach the single-shot API
+#    fallback, which would end the step GREEN on one completion while the
+#    agent's work is truncated (it did, until kit 0.3.0).
+turnstub="$(mktemp -d)"
+cat > "$turnstub/claude" <<'STUB'
+#!/usr/bin/env bash
+printf '{"type":"result","subtype":"error_max_turns","is_error":true,"num_turns":60,"total_cost_usd":4.10,"usage":{"input_tokens":9,"output_tokens":9}}'
+exit 1
+STUB
+chmod +x "$turnstub/claude"
+kit="$(mktemp -d)"; mkdir -p "$kit/scripts/ai"
+cp "$SUT" "$kit/scripts/ai/run.sh"
+printf 'print "API FALLBACK"\n' > "$kit/scripts/ai/api_call.rb"
+outf="$(mktemp)"; errf="$(mktemp)"
+env -i PATH="${turnstub}:/usr/local/bin:/usr/bin:/bin" HOME="${HOME:-/root}" AI_USAGE_DIR="$(mktemp -d)" \
+  AI_AUTH_ORDER=oauth,api_key CLAUDE_CODE_OAUTH_TOKEN=o ANTHROPIC_API_KEY=k \
+  bash "$kit/scripts/ai/run.sh" --prompt "hello" --max-turns 60 >"$outf" 2>"$errf"; rc=$?
+if [ "$rc" = 1 ] && grep -qF "max-turns 60 reached" "$errf" && ! grep -qF "retrying with" "$errf"; then
+  echo "PASS: a turn-cap stop exits 1 and does not retry with the next credential"; pass=$((pass + 1))
+else
+  echo "FAIL: turn-cap stop: exit $rc; stderr=$(head -c 300 "$errf")"; fail=$((fail + 1))
+fi
+if ! grep -qF "API FALLBACK" "$outf"; then
+  echo "PASS: a turn-cap stop never reaches the API fallback"; pass=$((pass + 1))
+else
+  echo "FAIL: turn-cap stop reached the API fallback"; fail=$((fail + 1))
+fi
+rm -rf "$kit" "$turnstub" "$outf" "$errf"
 
 # 14. Model resolution: --model > AI_MODEL > the consumer's _data/ai.yml > the
 # fleet default. An EMPTY `model:` in ai.yml is the fleet default — the kit seeds
