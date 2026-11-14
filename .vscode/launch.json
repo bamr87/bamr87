@@ -796,6 +796,14 @@
       "presentation": { "group": "5-loops", "order": 43 }
     },
     {
+      "name": "🗓️ Weekly: the folders beside the hub (preview, removes nothing)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash weekly tidy",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 45 }
+    },
+    {
       "name": "🗓️ Weekly: the latest run of each stage",
       "type": "node-terminal",
       "request": "launch",

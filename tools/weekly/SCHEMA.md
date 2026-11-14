@@ -21,8 +21,8 @@ coverage: listed
 | `README.md` | file | What each module does and how the stages hand off | required |
 | `__init__.py` | file | Package marker | required |
 | `__main__.py` | file | `python3 -m tools.weekly` | required |
-| `cli.py` | file | The command line: `close`, `prepare`, `plan`, `auto` (the LaunchAgent's catch-up dispatcher), `confirm`, `status`, `inventory`, `brief` | required |
-| `core.py` | file | Friday's core (inventory, merge proof, save, refresh and tidy, ranking, chronicles and retro) and `confirm` | required |
+| `cli.py` | file | The command line: `close`, `prepare`, `plan`, `auto` (the LaunchAgent's catch-up dispatcher), `confirm`, `tidy`, `status`, `inventory`, `brief` | required |
+| `core.py` | file | Friday's core (inventory, merge proof, save, refresh and tidy, the folders beside the hub, ranking, chronicles and retro), `confirm` and `tidy` | required |
 | `closeout.py` | file | Friday: one disposition for every open pull request and issue, and the live review-gate scan; read-only | required |
 | `prepare.py` | file | Saturday: next week's scheduled activities, when each fires and whether it can run (switches, last results, credentials, budgets, source freshness, this Mac) | required |
 | `agenda.py` | file | Sunday: the handoff boost, the week day by day and the Monday brief | required |

@@ -7,12 +7,15 @@
 #                and the Monday brief; agenda.py). `auto` is what the LaunchAgent calls: it runs
 #                every stage that is due this weekend and has not run, in order, so a Mac that was
 #                asleep on Friday night still closes the week before it prepares the next.
-#                `confirm` is the maintainer's yes for every external write of all three.
+#                `confirm` is the maintainer's yes for every external write of all three. `tidy` is
+#                Friday's folder clean-up on its own: the folders beside the hub, and with `--apply`
+#                the worktrees among them that are proven safe.
 # Usage:         python3 -m tools.weekly close [--scheduled | --apply] [--agent] [--offline] [--no-plan]
 #                python3 -m tools.weekly prepare [--scheduled] [--offline]
 #                python3 -m tools.weekly plan [--scheduled] [--offline]
 #                python3 -m tools.weekly auto --scheduled
 #                python3 -m tools.weekly confirm [--apply] [--keep-drafts] [--publish FILE]… [--allow REPO:BRANCH]…
+#                python3 -m tools.weekly tidy [--apply] [--path GLOB]… [--branches]
 #                python3 -m tools.weekly status | inventory [--json] | brief <close|prepare|plan>
 #                (or tools/dash weekly …)
 # Exit:          0 clean · 1 failed · 2 usage · 3 switched off
@@ -295,6 +298,11 @@ def main(argv: list[str] | None = None) -> int:
         s.add_argument("--offline", action="store_true", help="no GitHub reads")
     a = sub.add_parser("auto", help="run every stage that is due this weekend and has not run (the LaunchAgent's entry)")
     a.add_argument("--scheduled", action="store_true", required=True, help="auto only runs scheduled stages")
+    td = sub.add_parser("tidy", help="the folders beside the hub: what each is, and with --apply remove the worktrees proven safe")
+    td.add_argument("--apply", action="store_true", help="save, then remove the dead worktrees in scope (their branches stay)")
+    td.add_argument("--path", action="append", default=[], metavar="GLOB", help="scope (default: weekly.siblings, e.g. ~/bamr87-*)")
+    td.add_argument("--branches", action="store_true", help="also remove merged branches no surviving worktree holds")
+    td.add_argument("--offline", action="store_true", help="no fetch and no GitHub reads")
     i = sub.add_parser("inventory", help="read-only: what the close-out sees on this machine")
     i.add_argument("--json", action="store_true")
     i.add_argument("--offline", action="store_true")
@@ -326,6 +334,8 @@ def main(argv: list[str] | None = None) -> int:
     archive = core.expand(args.archive or core.load_config(core.load_fleet(root))["archive_dir"]).resolve()
     if args.cmd == "auto":
         return cmd_auto(args, root, state_dir, archive)
+    if args.cmd == "tidy":
+        return core.cmd_tidy(args, root, state_dir, archive)
     return core.cmd_run(args, root, state_dir, archive)
 
 

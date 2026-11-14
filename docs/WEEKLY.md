@@ -38,6 +38,8 @@ tools/dash weekly prepare                  # Saturday: can next week's schedule 
 tools/dash weekly plan                     # Sunday: the plan, the week day by day, the Monday brief
 tools/dash weekly confirm                  # dry run: every external write it would make
 tools/dash weekly confirm --apply          # the maintainer's yes: wip/ pushes, board ops, the weekly PR
+tools/dash weekly tidy                     # the folders beside the hub (~/bamr87-*): what each is, what is removable
+tools/dash weekly tidy --apply             # save, then remove the worktrees among them proven safe (branches stay)
 tools/dash weekly brief close              # the Grok bot's brief for a stage: close, prepare or plan
 tools/dash weekly inventory                # read-only: what the close-out sees on this machine
 tools/install-weekly.sh --print-plist      # show the LaunchAgent; running it bare installs it
@@ -130,6 +132,15 @@ A branch name that matches a merged PR proves nothing: a branch reused after its
 | `unknown` | A check could not be read | No |
 
 Every removal is checked again at that moment, without `--force`, and a repo whose save did not verify removes nothing. Every check fails closed: if git fails behind a guard, the thing is kept, and if the routine cannot read what is in use, it removes nothing at all.
+
+### Folders beside the hub
+
+Work made for one task piles up next to the hub as `~/bamr87-<task>` folders: worktrees an agent made for a pull request, a clone, a folder whose worktree was pruned. Every Friday report lists each one in a table with what it is, its size, its state and what happens next, and the [`~/bamr87-archive`](#saving-work) the routine saves into is never one of them. The globs are `weekly.siblings` (by default the hub's own name with a suffix, beside it).
+
+- A worktree git knows is classified as above, and only a `dead` one is removed: by Friday's active run, or now with `tools/dash weekly tidy --apply`.
+- A folder git does not know (an orphaned worktree, a separate clone, a plain folder) is reported and never removed: nothing proves it safe. Check it, then move it into the archive by hand.
+
+`tidy` is that one part of Friday on its own: the same inventory, the same save to the archive and the same checks at the moment of removal, scoped to the folders (`--path GLOB` for another scope), with no refresh, no PM review and nothing on GitHub. A removed worktree keeps its branch; `--branches` also removes merged branches no surviving worktree holds. On 2026-11-13 it found 25 folders and 2.3 GB, removed 18 dead worktrees and kept their 18 branches, and left 7: two with uncommitted changes, one with 39 initialized submodules, two touched that day and two in use.
 
 ### Saving work
 

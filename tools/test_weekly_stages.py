@@ -1094,6 +1094,99 @@ class Installer(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
 
 
+class Siblings(base.Repo):
+    """The folders beside the hub (tmp/repo-*), and the tidy that removes only what is proven safe."""
+
+    def setUp(self):
+        super().setUp()
+        self.archive = self.tmp / "repo-archive" / "weekly"
+        (self.repo / "_data").mkdir()
+        (self.repo / "_data" / "fleet.yml").write_text(json.dumps({"weekly": {"archive_dir": str(self.archive)}}))
+        base.commit(self.repo, "_data/fleet.yml", (self.repo / "_data" / "fleet.yml").read_text(), "config")
+        base.g(self.repo, "push", "-q", "origin", "main")
+        base.g(self.repo, "worktree", "add", "-q", "-b", "dead-work", str(self.tmp / "repo-dead"))
+        base.g(self.repo, "worktree", "add", "-q", "-b", "dirty-work", str(self.tmp / "repo-dirty"))
+        (self.tmp / "repo-dirty" / "wip.txt").write_text("not committed\n")
+        base.g(self.repo, "worktree", "add", "-q", "-b", "busy-work", str(self.tmp / "repo-busy"))
+        subprocess.run(["git", "clone", "-q", str(self.origin), str(self.tmp / "repo-clone")], check=True, env=base.ENV, capture_output=True)
+        base.commit(self.tmp / "repo-clone", "mine.txt", "unpushed\n", "work only here")
+        (self.tmp / "repo-orphan").mkdir()
+        (self.tmp / "repo-orphan" / ".git").write_text("gitdir: /nonexistent/worktrees/gone\n")
+        (self.tmp / "repo-notes").mkdir()
+        (self.tmp / "repo-notes" / "todo.md").write_text("x\n")
+        self.archive.mkdir(parents=True)
+        base.g(self.repo, "worktree", "add", "-q", "-b", "elsewhere-work", str(self.tmp / "other" / "wt"))
+        self.busy = {**base.NOBODY, "paths": [base.weekly.real(self.tmp / "repo-busy")]}
+        self.state = self.tmp / "state"
+
+    def tidy(self, apply=False, path=(), branches=False):
+        args = argparse.Namespace(apply=apply, path=list(path), branches=branches, offline=True)
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            code = core.cmd_tidy(args, self.repo, self.state, self.archive, live=self.busy, prs_for=lambda _: [], now=base.LATER)
+        return code, out.getvalue(), core.latest(self.state, "tidy")[1]
+
+    def test_every_folder_is_accounted_for_and_the_archive_is_not_one_of_them(self):
+        code, out, rec = self.tidy()
+        got = {r["name"]: (r["kind"], r["state"], r["removable"]) for r in rec["siblings"]}
+        self.assertEqual(got, {"repo-dead": ("worktree", "dead", True), "repo-dirty": ("worktree", "dirty", False),
+                               "repo-busy": ("worktree", "live", False), "repo-clone": ("clone", "clone", False),
+                               "repo-orphan": ("worktree", "orphan", False), "repo-notes": ("folder", "folder", False)})
+        clone = next(r for r in rec["siblings"] if r["name"] == "repo-clone")
+        self.assertIn("1 commit(s) on no remote", clone["why"])
+        self.assertIn("## Folders beside the hub", out)
+        self.assertEqual((code, rec["stage"], rec["mode"]), (0, "tidy", "preview"))
+
+    def test_a_preview_removes_nothing(self):
+        before = base.g(self.repo, "worktree", "list")
+        self.tidy()
+        self.assertEqual(base.g(self.repo, "worktree", "list"), before)
+        self.assertTrue((self.tmp / "repo-dead").exists())
+        self.assertEqual(list(self.archive.iterdir()), [])                     # and saves nothing
+
+    def test_apply_removes_only_the_dead_worktree_in_scope_and_keeps_its_branch(self):
+        code, out, rec = self.tidy(apply=True)
+        self.assertEqual(code, 0, out)
+        self.assertFalse((self.tmp / "repo-dead").exists())
+        self.assertTrue(base.g(self.repo, "rev-parse", "--verify", "-q", "refs/heads/dead-work"))
+        for kept in ("repo-dirty", "repo-busy", "repo-clone", "repo-orphan", "repo-notes", "repo-archive", "other/wt"):
+            self.assertTrue((self.tmp / kept).exists(), kept)
+        self.assertEqual((self.tmp / "repo-dirty" / "wip.txt").read_text(), "not committed\n")
+        self.assertTrue(list(self.archive.rglob("*.bundle")) or list(self.archive.rglob("refs/*.txt")))
+        self.assertEqual(rec["mode"], "applied")
+        self.assertIn("| removed |", out)
+
+    def test_another_scope_reaches_only_what_it_names(self):
+        self.tidy(apply=True, path=[str(self.tmp / "other" / "*")])
+        self.assertFalse((self.tmp / "other" / "wt").exists())
+        self.assertTrue((self.tmp / "repo-dead").exists())
+
+    def test_branches_go_only_when_asked_and_only_if_merged(self):
+        base.g(self.repo, "branch", "merged-already")
+        self.tidy(apply=True)
+        self.assertEqual(base.g(self.repo, "branch", "--list", "merged-already"), "merged-already")
+        self.tidy(apply=True, branches=True)
+        self.assertEqual(base.g(self.repo, "branch", "--list", "merged-already"), "")
+        self.assertTrue(base.g(self.repo, "rev-parse", "--verify", "-q", "refs/heads/dirty-work"))   # held by a surviving worktree
+
+    def test_a_tidy_is_not_a_close_out(self):
+        self.tidy(apply=True)
+        self.assertIsNone(core.latest(self.state, "close"))
+        self.assertEqual(core.scheduled_count(self.state), 0)
+
+    def test_fridays_report_lists_the_folders_too(self):
+        args = argparse.Namespace(scheduled=False, apply=False, offline=True, no_plan=True)
+        with mock.patch.object(core, "notify"), contextlib.redirect_stdout(io.StringIO()) as out:
+            core.cmd_run(args, self.repo, self.state, self.archive, live=self.busy, prs_for=lambda _: [], now=base.LATER)
+        self.assertIn("## Folders beside the hub", out.getvalue())
+        self.assertIn("6 folders", out.getvalue())
+        self.assertEqual(len(core.latest(self.state, "close")[1]["siblings"]), 6)
+
+    def test_scope_matching_sees_through_symlinked_parents(self):
+        self.assertTrue(core.in_scope(str(self.tmp / "repo-dead"), [str(self.tmp / "repo-*")]))
+        self.assertTrue(core.in_scope(base.weekly.real(self.tmp / "repo-dead"), [str(self.tmp / "repo-*")]))
+        self.assertFalse(core.in_scope(str(self.tmp / "other" / "wt"), [str(self.tmp / "repo-*")]))
+
+
 class Packaging(unittest.TestCase):
     def test_no_source_file_holds_an_invisible_separator(self):
         """A line or paragraph separator pasted into source splits a line for some tools and not others."""

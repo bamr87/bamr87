@@ -8,6 +8,7 @@ tools/dash weekly close              # Friday, as a preview: saves locally, repo
 tools/dash weekly prepare            # Saturday: can next week's scheduled activities run
 tools/dash weekly plan               # Sunday: the plan, the week day by day, the Monday brief
 tools/dash weekly confirm            # dry run of every external write; --apply is the maintainer's yes
+tools/dash weekly tidy               # the folders beside the hub; --apply removes the worktrees proven safe
 tools/dash weekly brief close        # the Grok bot's brief for a stage (close | prepare | plan)
 python3 tools/test_weekly.py         # and test_weekly_dispositions.py, test_weekly_harness.py, test_weekly_stages.py
 ```
@@ -15,7 +16,7 @@ python3 tools/test_weekly.py         # and test_weekly_dispositions.py, test_wee
 | Module | Stage | What it does |
 | --- | --- | --- |
 | [`cli.py`](cli.py) | all | The command line. `auto --scheduled` is what the LaunchAgent calls: it runs every stage that is due this weekend and has not run, in order, so a slot missed while the Mac slept is made up at the next one. |
-| [`core.py`](core.py) | Friday | Inventory of the hub and every submodule, proof of what is merged, the local save, refresh and tidy behind the report-only runs, the ranking, the chronicles and the retro. Also `confirm`. |
+| [`core.py`](core.py) | Friday | Inventory of the hub and every submodule, proof of what is merged, the local save, refresh and tidy behind the report-only runs, the folders beside the hub, the ranking, the chronicles and the retro. Also `confirm`, and `tidy`: the folder clean-up on its own. |
 | [`closeout.py`](closeout.py) | Friday | One disposition for every open pull request and issue, from the decision index and the PM review. It reads each merge candidate from live GitHub once, so "ready to merge" means the review gate (constitution § 12.3) has been read, not only that GitHub shows green. It is a list: the module holds no call that writes. |
 | [`prepare.py`](prepare.py) | Saturday | Every workflow scheduled for the coming week, when it fires, and whether it can run: its switch, its last result, the credential ledgers, the month's AI spend against its ceilings, the freshness of the data the agents read, and this Mac's own jobs. |
 | [`agenda.py`](agenda.py) | Sunday | Lifts what the Grok half handed off into the ranking, lays the week out day by day and writes the Monday brief. |

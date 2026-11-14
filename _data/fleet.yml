@@ -502,6 +502,7 @@ weekly:
     plan: {weekday: 0, hour: 16, minute: 37}      # Sunday, before the week's first cron (Monday 02:07 UTC)
     catch_up_hours: 18          # a stage missed while the Mac slept still runs this long after Sunday's slot
   report_only_runs: 2           # the first scheduled Fridays remove nothing: they report what they would
+  # siblings: ["~/bamr87-*"]    # folders beside the hub to account for (the default); `tidy` removes the dead worktrees among them
   wip_prefix: wip/mac
   archive_dir: ~/bamr87-archive/weekly
   plan:

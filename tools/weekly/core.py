@@ -66,6 +66,9 @@ DEFAULTS: dict = {
     "worktree_idle_hours": 24,
     "snapshot_max_mb": 50,
     "foreign_roots": ["~/.local/share/kilo"],
+    # Folders beside the hub that the routine accounts for, as globs. None is the hub's own name with a
+    # suffix next to it (~/bamr87-*), where worktrees and clones made for one piece of work pile up.
+    "siblings": None,
     "regenerable": [
         "node_modules", "__pycache__", ".venv", ".venv-*", "_site", "dist", ".pytest_cache", ".DS_Store",
         ".ruff_cache", ".mypy_cache", ".jekyll-cache", "*.tsbuildinfo", "project_health*.yml", "report.json",
@@ -726,6 +729,165 @@ def tidy(plan: dict, saved: list[dict], cfg: dict, live: dict, now: datetime) ->
     return done
 
 
+# ---- folders beside the hub ----------------------------------------------------------------------
+
+def sibling_globs(root: Path, cfg: dict) -> list[str]:
+    given = cfg.get("siblings")
+    if isinstance(given, str):
+        given = [given]
+    if not isinstance(given, list) or not given:
+        given = [str(root.parent / f"{root.name}-*")]
+    return [str(expand(g)) for g in given]
+
+
+def in_scope(path: str, globs: list[str]) -> bool:
+    """Whether a path matches one of the globs, read both as written and with links resolved (on
+    macOS /var is /private/var, and git may report either)."""
+    from fnmatch import fnmatch
+    names = {path, real(path)}
+    pats = set()
+    for g in globs:
+        pats |= {g, os.path.join(real(os.path.dirname(g)), os.path.basename(g))}
+    return any(fnmatch(n, p) for n in names for p in pats)
+
+
+def _size_mb(path: Path) -> int | None:
+    r = run(["du", "-sk", str(path)], timeout=120)
+    try:
+        return int(r.stdout.split()[0]) // 1024 if r.returncode == 0 else None
+    except (IndexError, ValueError):
+        return None
+
+
+def siblings(root: Path, cfg: dict, inv: list[dict], sizes: bool = True) -> list[dict]:
+    """Every folder beside the hub that matches `weekly.siblings`, with what it is and what happens to
+    it. A registered worktree takes its state from the inventory, and the tidy removes it only when
+    that state is `dead`. A folder git does not know is reported and never removed: nothing proves it
+    safe. The hub itself and the archive the routine saves into are never in the list."""
+    from glob import glob
+    keep_out = {real(root), real(expand(cfg["archive_dir"]))}
+    archive = Path(real(expand(cfg["archive_dir"])))
+    keep_out |= {real(p) for p in archive.parents}
+    known = {real(w["path"]): (repo["name"], w) for repo in inv for w in repo.get("worktrees") or []}
+    rows = []
+    for pattern in sibling_globs(root, cfg):
+        for hit in sorted(glob(pattern)):
+            path = Path(hit)
+            if not path.is_dir() or path.is_symlink() or real(path) in keep_out:
+                continue
+            row: dict = {"path": str(path), "name": path.name, "size_mb": _size_mb(path) if sizes else None}
+            if real(path) in known:
+                repo, w = known[real(path)]
+                row.update(kind="worktree", repo=repo, state=w["state"], why=w.get("why") or "", branch=w.get("branch"))
+            elif (path / ".git").is_file():
+                link = (path / ".git").read_text(errors="replace").strip().removeprefix("gitdir:").strip()
+                row.update(kind="worktree", state="orphan" if not Path(link).exists() else "unregistered",
+                           why="its git link points nowhere, so git cannot say what it holds" if not Path(link).exists()
+                           else "a worktree of a repo the routine does not inventory")
+            elif (path / ".git").is_dir():
+                dirty = [l for l in out(path, "status", "--porcelain").splitlines() if l]
+                unsaved = count(path, "--branches", "--not", "--remotes")
+                row.update(kind="clone", state="clone", why=f"{len(dirty)} uncommitted file(s), {unsaved} commit(s) on no remote")
+            else:
+                row.update(kind="folder", state="folder", why="not a git checkout")
+            row["removable"] = row["kind"] == "worktree" and row["state"] == "dead"
+            rows.append(row)
+    return rows
+
+
+def render_siblings(rows: list[dict], done: dict | None = None) -> list[str]:
+    if not rows:
+        return []
+    removed = set((done or {}).get("worktrees") or [])
+    total = sum(r["size_mb"] or 0 for r in rows)
+    ready = [r for r in rows if r["removable"]]
+    verb = "removed" if done else "removable"
+    lines = ["## Folders beside the hub", "",
+             f"{len(rows)} folders, {total / 1024:.1f} GB. {len(ready)} {verb} (a clean, idle, unused worktree; its branch stays). "
+             "A folder git does not know is never removed: check it, then move it into the archive by hand.", "",
+             "| Folder | What it is | Size | State | Next |", "| --- | --- | ---: | --- | --- |"]
+    for r in rows:
+        if real(r["path"]) in {real(x) for x in removed}:
+            nxt = "removed"
+        elif r["removable"]:
+            nxt = "removed by `tools/dash weekly tidy --apply`, or Friday's active run"
+        else:
+            nxt = {"dirty": "commit or drop its changes", "live": "in use: left alone", "recent": "touched in the last day: next week",
+                   "has-submodules": "remove by hand after checking its submodules", "holds-ignored": "move its ignored files, then remove",
+                   "unique-commits": "branch its commits first", "orphan": "check its files, then move it to the archive",
+                   "clone": "push or bundle its work, then move it to the archive", "folder": "check it, then move it to the archive",
+                   }.get(r["state"], "left alone")
+        size = f"{r['size_mb']} MB" if r["size_mb"] is not None else "?"
+        what = f"worktree of {r['repo']}" if r.get("repo") else r["kind"]
+        lines.append(f"| `{r['name']}` | {what} | {size} | {r['state']}: {r['why']} | {nxt} |")
+    return lines + [""]
+
+
+def cmd_tidy(args: argparse.Namespace, root: Path, state_dir: Path, archive: Path, live: dict | None = None,
+             prs_for: Callable = gh_prs, now: datetime | None = None) -> int:
+    """Account for the folders beside the hub and, with `--apply`, remove the worktrees among them that
+    are proven safe. The same checks, the same save and the same removal Friday's active run uses, scoped
+    to the folders (`--path`, default `weekly.siblings`), with none of the rest: no refresh, no PM
+    review, nothing on GitHub. Merged branches are removed only with `--branches`."""
+    fleet = load_fleet(root)
+    cfg = load_config(fleet)
+    moment = now or now_utc()
+    with lock(state_dir):
+        week = plan_week(moment)
+        stem = f"{moment.strftime('%Y%m%dT%H%M%SZ')}-{week}"
+        run_id = next(f"{stem}-tidy{'' if n == 1 else n}" for n in range(1, 1000) if not (state_dir / f"{stem}-tidy{'' if n == 1 else n}").exists())
+        folder = state_dir / run_id
+        folder.mkdir(parents=True)
+        folder.chmod(0o700)
+        in_use = live if live is not None else live_state()
+        print(f"weekly: {run_id} ({'apply' if args.apply else 'preview'}), taking inventory")
+        inv = inventory(root, cfg, in_use, offline=args.offline, now=moment, prs_for=prs_for)
+        scope = [str(expand(p)) for p in (args.path or [])] or sibling_globs(root, cfg)
+        plan = removals(inv)
+        plan["worktrees"] = [t for t in plan["worktrees"] if in_scope(t["worktree"], scope)]
+        if not args.branches:
+            plan["branches"] = []
+        errors = [f"{r['name']}: {r.get('why') or r.get('state')}" for r in inv if r.get("state") == "unreadable"]
+        if in_use.get("degraded"):
+            errors.append("could not read what is in use (" + ", ".join(in_use["degraded"]) + "): nothing will be removed")
+        rows = siblings(root, cfg, inv)  # read before anything is removed
+        done, saved = None, []
+        if args.apply and (plan["worktrees"] or plan["branches"]):
+            print("weekly: saving to the local archive")
+            saved = save(inv, archive / run_id, cfg)
+            errors += [f"{x['repo']}: {x.get('error')}" for x in saved if not x["ok"]]
+            print("weekly: removing what is proven safe")
+            done = tidy(plan, saved, cfg, in_use, moment)
+        lines = [f"# Tidy: the folders beside the hub", "",
+                 "> " + ("Applied: what is listed as removed is gone, and its branch and commits are kept." if done else
+                         "Preview: nothing was removed. `--apply` removes what this lists as removable.") + "", ""]
+        if errors:
+            lines += ["## Problems", "", *[f"- {e}" for e in errors], ""]
+        lines += render_siblings(rows, done)
+        trees = done["worktrees"] if done else [t["worktree"] for t in plan["worktrees"]]
+        branches = done["branches"] if done else [f"{b['repo']}:{b['branch']}" for b in plan["branches"]]
+        lines += [f"## {'Removed' if done else 'Would remove'}", "",
+                  f"{len(trees)} dead worktrees" + (f" and {len(branches)} merged branches" if args.branches else "") +
+                  f", in scope {', '.join(f'`{g}`' for g in scope)}.", ""]
+        lines += [f"- `{x}`" for x in [*trees, *branches]]
+        if done and done["skipped"]:
+            lines += ["", "Skipped on the final check:", "", *[f"- {x}" for x in done["skipped"]]]
+        if done:
+            lines += ["", f"Saved first to `{archive / run_id}`. A removed worktree comes back with `git worktree add <path> <branch>`."]
+        report = "\n".join(lines).rstrip() + "\n"
+        record = {"schema": RUN_SCHEMA, "id": run_id, "stage": "tidy", "week": week, "mode": "applied" if done else "preview",
+                  "scheduled": False, "started": moment.isoformat(), "errors": errors, "scope": scope,
+                  "siblings": rows, "removal": plan, "done": done, "saved": saved,
+                  "headline": f"{sum(r['removable'] for r in rows)} of {len(rows)} folders removable" if not done else
+                              f"removed {len(done['worktrees'])} worktree(s), skipped {len(done['skipped'])}",
+                  "finished": now_utc().isoformat()}
+        (folder / "run.json").write_text(json.dumps(record, indent=1, default=str) + "\n")
+        (folder / "report.md").write_text(report)
+        print(report)
+        print(f"files: {folder}")
+        return 1 if errors or (done and any("save failed" in x for x in done["skipped"])) else 0
+
+
 def live_now(live: dict) -> dict:
     """A fresh read when the inventory used the real machine; a test's fixed state otherwise."""
     return live if live.get("fixed") else live_state()
@@ -1044,6 +1206,8 @@ def cmd_run(args: argparse.Namespace, root: Path, state_dir: Path, archive: Path
         print(f"weekly: {run_id} ({mode}), taking inventory")
         inv = inventory(root, cfg, in_use, offline=args.offline, now=moment, prs_for=prs_for)
         (folder / "inventory.json").write_text(json.dumps(inv, indent=1, default=str) + "\n")
+        folders = siblings(root, cfg, inv)  # before any tidy, so a removed folder is still reported
+        record["siblings"] = folders
         record["errors"] += [f"{r['name']}: fetch failed, using the last known refs" for r in inv if r.get("fetch_failed")]
         record["errors"] += [f"{r['name']}: {r.get('why')}" for r in inv if r.get("state") == "unreadable"]
         print("weekly: saving to the local archive")
@@ -1122,6 +1286,7 @@ def cmd_run(args: argparse.Namespace, root: Path, state_dir: Path, archive: Path
         retro = f"{date}-weekly-retro.md"
         (posts / retro).write_text(render_retro(week, date, days, state, backlog, plan, limit))
         written.append(retro)
+        extra += render_siblings(folders, done)
         record.update(state=state, backlog=backlog, plan=plan, wip=wip, saved=saved, removal=plan_removal, done=done,
                       recap=totals(days), posts=written, drafts=draft_posts(root), console_stale=console_stale(root),
                       archive=str(archive / run_id), sessions=in_use.get("sessions"),
