@@ -18,6 +18,7 @@ import shutil
 from datetime import datetime, timedelta, timezone, tzinfo
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import urlsplit
 
 import yaml
 
@@ -134,8 +135,12 @@ def switch_state(entry: dict, switches: dict, fleet: dict, live: Callable[[str, 
 # ---- the week's activities ----------------------------------------------------------------------
 
 def nwo_of(url: Any) -> str | None:
-    text = str(url or "").removesuffix(".git").rstrip("/")
-    return text.split("github.com/", 1)[1] if "github.com/" in text else None
+    """owner/repo of a github.com URL, or None for any other host (the host is parsed, not searched for)."""
+    parts = urlsplit(str(url or "").strip())
+    if parts.scheme not in ("http", "https") or (parts.hostname or "").lower() not in ("github.com", "www.github.com"):
+        return None
+    path = parts.path.removesuffix("/").removesuffix(".git").strip("/")
+    return path or None
 
 
 def last_runs(usage: dict | None) -> dict[tuple[str, str], dict]:
