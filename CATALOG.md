@@ -332,10 +332,30 @@ Indexed by [`.claude/README.md`](.claude/README.md). Skills and commands are Cla
 | --- | --- |
 | [`/adopt-release`](.claude/commands/adopt-release.md) | Adopt the standardized release-please pipeline in a repo (scaffold + PR) |
 | [`/adopt-schema`](.claude/commands/adopt-schema.md) | Adopt the Pyramid Schema in one submodule (seed kit + PR) |
-| [`/dash-status`](.claude/commands/dash-status.md) | Show submodule, registry, drift, and attention status for the dash |
-| [`/evolve`](.claude/commands/evolve.md) | Run the attention-driven self-evolution loop (or trigger the CI workflow) |
 | [`/future-features`](.claude/commands/future-features.md) | Turn an idea into a full feature spec and place it on the right repo's roadmap (_data/roadmap.yml) |
 | [`/register-project`](.claude/commands/register-project.md) | Add or reconcile a project in the dash registry |
+| [`/console:jobs`](.claude/commands/console/jobs.md) | The running Harness Console's jobs — the recent ones from the page, the terminal dash, MCP and slash commands, or follow one to its end ($0, read-only) |
+| [`/console:ops`](.claude/commands/console/ops.md) | The Harness Console's operation allowlist — every operation by group with its parameters and gates, one operation in full, or the loops table ($0) |
+| [`/console:run`](.claude/commands/console/run.md) | Run any operation from the Harness Console's allowlist with the console's own validation and confirm gate — explains first, asks before a GitHub write or Claude spend |
+| [`/harness:decisions`](.claude/commands/harness/decisions.md) | The decision queue — what waits on Amr across the fleet in one call (needs-amr, ratifications, Dependabot, ready to merge); read-only |
+| [`/harness:gates`](.claude/commands/harness/gates.md) | Run the hub's own gates — drift, the SCHEMA pyramid, the workflow lint, the fleet graph, the harness surface and the fixture tests ($0) |
+| [`/harness:graph`](.claude/commands/harness/graph.md) | The fleet graph — repos, workflows, loops, switches, agents, sources, features and the operator surfaces as one model; check it, or ask what depends on a node ($0, read-… |
+| [`/harness:health`](.claude/commands/harness/health.md) | The hub's harness health — the six-layer scorecard and trip wires, the agent inventory's contract gaps, and why recent workflow runs failed ($0, read-only) |
+| [`/harness:inventory`](.claude/commands/harness/inventory.md) | The AI-harness inventory against the harness standard — every AI workflow's route, caps, verdict and rebuild lever; regrade offline, rescan live, or list the fan-out gaps |
+| [`/harness:lake`](.claude/commands/harness/lake.md) | The local data lake the harness reads — its status, extract GitHub runs and logs, extract this machine's Claude Code sessions, review both planes ($0, writes only .dash-… |
+| [`/harness:learn`](.claude/commands/harness/learn.md) | Outcome learning, shadow only — what happened to each loop's output, where its next slots would pay, and the replay test ($0, read-only) |
+| [`/harness:refine`](.claude/commands/harness/refine.md) | Harness² refinement — check a harness surface, plan one Propose–Probe–Compose step, build a loop's evidence tree, check the experience library; reflect on the week's inc… |
+| [`/harness:status`](.claude/commands/harness/status.md) | The harness at a glance — drift, the six-layer scorecard, what waits on Amr, and whether each loop's output is landing ($0, read-only) |
+| [`/loops:conflicts`](.claude/commands/loops/conflicts.md) | Merge conflicts through JEV's tiers — scan the fleet, triage one pull request, resolve one or sweep them all (dry run first, then asks), the month's budget, or dispatch… |
+| [`/loops:credentials`](.claude/commands/loops/credentials.md) | Credential rotation, one stage at a time — audit secrets and API keys by name, plan a rotation, verify keys, then push, rotate or project the auth order (dry run first,… |
+| [`/loops:evolution`](.claude/commands/loops/evolution.md) | Repo evolution, one stage at a time — plan the opted-in repos' briefs, rehearse, run the builder locally, show or publish a run, dispatch it in CI, or evolve the hub its… |
+| [`/loops:fanout`](.claude/commands/loops/fanout.md) | Kit fan-outs, one stage at a time — list the gap repos, deploy the agent-context kit to one repo or every gap (dry run first, then asks), fill a kit's scaffold with the… |
+| [`/loops:issues`](.claude/commands/loops/issues.md) | The issue pipeline, one stage at a time — rebuild the three tiers' queues, build one issue's evidence bundle, or dispatch intake, implement or complete in CI |
+| [`/loops:list`](.claude/commands/loops/list.md) | Every loop the harness runs — schedule, local operations, agent steps, CI dispatch, this month's loop spend, and the /loops command that drives each stage ($0) |
+| [`/loops:pm`](.claude/commands/loops/pm.md) | The PM review, one view at a time — every open issue and pull request against the Fleet project, the roadmap and the release trains; read-only, or dispatch it in CI |
+| [`/loops:pulse`](.claude/commands/loops/pulse.md) | Fleet pulse, one stage at a time — gather the fleet's signals, build the doctor's fix queue, rehearse or run the doctor locally, show or publish a run, or dispatch the d… |
+| [`/loops:scout`](.claude/commands/loops/scout.md) | Repo scout, one stage at a time — plan today's sample, rehearse, run the scout agent locally, show or publish a run, or dispatch the loop in CI |
+| [`/loops:upkeep`](.claude/commands/loops/upkeep.md) | The hub's upkeep loops — reconcile the registry with GitHub, regenerate the README project list, and dispatch the submodule bump, the site build or the backlog fan-out |
 
 ### Agents and hooks
 
