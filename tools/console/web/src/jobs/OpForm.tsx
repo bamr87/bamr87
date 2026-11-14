@@ -33,6 +33,7 @@ export function initialParams(op: Op, preset: Params = {}): Params {
     else if (k === 'loop' && steps.length) out[k] = steps[0].loop;
     else if (k in DEFAULTS) out[k] = DEFAULTS[k];
     else if (k in BOOL) out[k] = false;
+    else if (op.choices?.[k]?.length) out[k] = op.choices[k][0];
     else out[k] = '';
   }
   // the loop's one local step needs no choosing
@@ -148,6 +149,11 @@ export function OpForm({ op, preset, onStarted }: { op: Op; preset?: Params; onS
       case 'logs':
         return <Select key={k} label={k === 'jobs' ? 'Jobs + steps for' : 'Logs for'} w={200} data={['ai', 'all', 'none']} value={String(values[k] ?? 'ai')} onChange={(v) => set(k, v ?? 'ai')} allowDeselect={false} />;
       default:
+        if (op.choices?.[k]?.length) {
+          // a parameter the op declares a fixed set for (core.py holds the same list)
+          return <Select key={k} label={k} w={200} data={op.choices[k]} value={String(values[k] || op.choices[k][0])}
+            onChange={(v) => set(k, v ?? op.choices![k][0])} allowDeselect={false} />;
+        }
         return <TextInput key={k} label={k} value={String(values[k] ?? '')} onChange={(e) => set(k, e.currentTarget.value)} />;
     }
   };

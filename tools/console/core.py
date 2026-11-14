@@ -104,7 +104,8 @@ TOKEN_ENV = ["FLEET_TOKEN", "GH_TOKEN", "GITHUB_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN
 # a hand-kept copy of them had drifted and refused every input of
 # issue-pipeline, token-rotation, reconcile-registry and update-submodules.
 DISPATCH_WORKFLOWS = ("fanout", "fleet-pulse", "issue-pipeline", "token-rotation", "repo-evolution", "repo-scout",
-                      "build-dash", "reconcile-registry", "update-submodules", "backlog-fanout")
+                      "build-dash", "reconcile-registry", "update-submodules", "backlog-fanout", "jev-conflicts",
+                      "fleet-pm")
 
 
 # --------------------------------------------------------------------------- #
@@ -222,7 +223,12 @@ LOOPS = [
      "local_ops": ["triage", "actions", "ai-usage", "harnesses", "harness", "remediate", "refine-plan"]},
     {"id": "issue_pipeline", "title": "Issue pipeline — intake → implement → complete", "workflow": "issue-pipeline",
      "schedule_key": "issue_pipeline", "doc": "docs/ISSUE-PIPELINE.md",
-     "outputs": ["issue_pipeline"], "local_ops": ["issues"]},
+     "outputs": ["issue_pipeline"], "local_ops": ["issues", "evidence"]},
+    {"id": "jev_conflicts", "title": "Merge conflicts — JEV's tiers (script, then a capped model, then a human)",
+     "workflow": "jev-conflicts", "schedule_key": "jev_conflicts", "doc": "docs/JEV.md",
+     "outputs": [], "local_ops": ["conflicts", "conflicts-resolve"]},
+    {"id": "fleet_pm", "title": "PM review — issues, pull requests, roadmap and releases", "workflow": "fleet-pm",
+     "schedule_key": "fleet_pm", "doc": "docs/PM.md", "outputs": [], "local_ops": ["pm"]},
     {"id": "token_rotation", "title": "Token rotation — credentials", "workflow": "token-rotation",
      "schedule_key": "rotate_tokens", "doc": "docs/TOKEN-ROTATION.md",
      "outputs": ["token_rotation"], "local_ops": ["secrets-audit", "secrets-plan", "ai-auth", "keys-status",
@@ -1252,6 +1258,75 @@ def _loop_exclusive(params: dict) -> str:
     return f"loop:{str(params.get('loop') or '').strip()}"
 
 
+# owner/name, and a pull request as owner/name#number (the JEV conflict engine's --pr shape)
+NWO_RX = re.compile(r"^[A-Za-z0-9_.-]{1,64}/[A-Za-z0-9_.-]{1,100}$")
+PR_REF_RX = re.compile(r"^[A-Za-z0-9_.-]{1,64}/[A-Za-z0-9_.-]{1,100}#[0-9]{1,7}$")
+# The choices an op's parameter takes, served to the page's form as a select
+# (OpForm.tsx) and to `tools/dash ops show`; the argv builders below hold them.
+CONFLICT_ACTIONS = ("scan", "triage", "budget")
+PM_VIEWS = ("review", "plan", "roadmap", "releases", "status")
+
+
+def _conflicts(params: dict) -> list[str]:
+    """`tools/dash conflicts scan|triage|budget` — JEV's read-only half: list the
+    fleet's conflicting pull requests, reproduce one in a throwaway clone and
+    classify it, or print the month's spend against the cap. Nothing is pushed
+    and no model is called (docs/JEV.md)."""
+    action = str(params.get("action") or "scan").strip()
+    if action not in CONFLICT_ACTIONS:
+        raise ValueError(f"action must be one of {list(CONFLICT_ACTIONS)}")
+    argv = [DASH, "conflicts", action]
+    pr = str(params.get("pr") or "").strip()
+    repo = str(params.get("repo") or "").strip()
+    if action == "triage":
+        if not PR_REF_RX.match(pr):
+            raise ValueError("triage needs pr as owner/repo#number")
+        argv += ["--pr", pr]
+    elif pr:
+        raise ValueError(f"pr applies to triage, not {action}")
+    if repo:
+        if action != "scan":
+            raise ValueError("repo limits a scan; it does not apply here")
+        if not NWO_RX.match(repo):
+            raise ValueError("repo must be owner/name")
+        argv += ["--repo", repo]
+    return argv + (["--json"] if action != "budget" else [])
+
+
+def _conflicts_resolve(params: dict) -> list[str]:
+    """`tools/dash conflicts resolve --pr <ref>`, or `sweep` with no pr: JEV's
+    tiers up to the first that settles each conflict — the script first, then
+    a capped model — each a merge commit pushed to the pull request's branch,
+    never a rebase, a force-push or a merge (constitution § 12.7). `dry_run`
+    decides and reports and changes nothing; without it the job is a GitHub
+    write, so it asks first."""
+    pr = str(params.get("pr") or "").strip()
+    if pr and not PR_REF_RX.match(pr):
+        raise ValueError("pr must be owner/repo#number (blank = sweep every conflicting pull request)")
+    argv = [DASH, "conflicts", "resolve", "--pr", pr] if pr else [DASH, "conflicts", "sweep"]
+    return argv + (["--dry-run"] if _flag(params, "dry_run") else [])
+
+
+def _pm(params: dict) -> list[str]:
+    view = str(params.get("view") or "review").strip()
+    if view not in PM_VIEWS:
+        raise ValueError(f"view must be one of {list(PM_VIEWS)}")
+    return [DASH, "pm", view]
+
+
+def _evidence(params: dict) -> list[str]:
+    repo = str(params.get("repo") or "").strip()
+    if not NWO_RX.match(repo):
+        raise ValueError("repo must be owner/name")
+    try:
+        number = int(str(params.get("number") or "").strip())
+    except ValueError:
+        raise ValueError("number must be an issue number")
+    if not 1 <= number <= 9_999_999:
+        raise ValueError("number must be an issue number")
+    return [DASH, "evidence", repo, str(number)]
+
+
 def contract_secrets() -> list[dict]:
     """The token contract's live (non-deprecated) entries — names and scope only."""
     fleet = load_yaml(DATA / "fleet.yml") or {}
@@ -1925,6 +2000,43 @@ OPS: dict[str, dict] = {
                               desc="Reads every open pull request and gate-labelled issue of the fleet again under "
                                    "decisions.refresh_budget_s and rewrites the index; fails unless the read finished "
                                    "clean, so a scheduled run cannot hide a stale index. Read-only, $0."),
+    "agents": dict(title="Agent inventory: every agent against the efficacy contract (check)", group="observe",
+                   argv=lambda p: [DASH, "agents", "--check"], needs_token=False,
+                   desc="tools/dash agents --check — every CI agent step, JEV loop step, conflict tier and LaunchAgent "
+                        "with its owner, trigger, switch, cap, model, KPIs and contract gaps, held against the committed "
+                        "_data/agents.yml (drift check (p); docs/AGENT-EFFICACY.md). Offline, $0; rewrites nothing."),
+    "pm": dict(title="PM review: issues, pull requests, roadmap and releases against the Fleet project", group="observe",
+               argv=_pm, needs_token=True,
+               desc="tools/dash pm <view> (docs/PM.md). `review` reads every open issue and pull request of the "
+                    "registry repos, their comments and releases and the Fleet project, and writes only local files; "
+                    "`plan` is the Fleet project ops that review proposes (applied only by `dash projects apply` "
+                    "behind § 11's confirm), `roadmap` its roadmap status edits, `releases` the release trains, "
+                    "`status` the committed headline. Read-only, $0.",
+               params=["view"], meta=lambda: {"choices": {"view": list(PM_VIEWS)}}),
+    "conflicts": dict(title="Merge conflicts: scan the fleet, triage one, or the month's budget", group="plan",
+                      argv=_conflicts, needs_token=True,
+                      desc="tools/dash conflicts scan|triage|budget — JEV's read-only half (docs/JEV.md): every open "
+                           "pull request GitHub reports as conflicting (`repo` limits it to one), one reproduced in a "
+                           "throwaway clone and classified to the tier that would settle it (`pr` owner/repo#number), "
+                           "or the conflict engine's spend against its cap. Pushes nothing, calls no model.",
+                      params=["action", "pr", "repo"], meta=lambda: {"choices": {"action": list(CONFLICT_ACTIONS)}}),
+    "conflicts-resolve": dict(title="Merge conflicts: resolve one pull request, or sweep them all", group="plan",
+                              argv=_conflicts_resolve, needs_token=True, exclusive="conflicts",
+                              remote=lambda p: not _flag(p, "dry_run"),
+                              desc="tools/dash conflicts resolve --pr <owner/repo#number>, or `sweep` with no pr: JEV's "
+                                   "tiers up to the first that settles each conflict — the script, then a capped model "
+                                   "in this local session (tier caps in _data/fleet.yml budget.jev; API-equivalent, an "
+                                   "estimate) — each a merge commit pushed to the pull request's branch after the "
+                                   "repo's own checks pass; never a rebase, a force-push or a merge (§ 12.7), and a "
+                                   "model's resolution carries needs-amr. `dry_run` decides and reports and changes "
+                                   "nothing; without it the job writes to GitHub, so it asks first.",
+                              params=["pr", "dry_run"]),
+    "evidence": dict(title="Issue pipeline: build one issue's evidence bundle", group="plan",
+                     argv=_evidence, needs_token=True,
+                     desc="tools/dash evidence <owner/repo> <number> — the intake tier's evidence for one issue, built in "
+                          "an isolated virtual environment (docs/ISSUE-PIPELINE.md): the reproduction, logs and a "
+                          "screenshot where the repo has a page. Writes local files only; no model, $0.",
+                     params=["repo", "number"]),
     "workflow-new": dict(title="Scaffold a new workflow", group="plan", argv=_workflow_new, needs_token=False,
                          desc="Writes .github/workflows/<id>.yml from a template that passes every rule "
                               "(never overwrites) and prints the fleet.yml / README edits that go with it. "

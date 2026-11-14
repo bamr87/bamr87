@@ -657,6 +657,14 @@
       "presentation": { "group": "4-generate", "order": 8 }
     },
     {
+      "name": "🎛️ Console operations: the allowlist + the loops table (tools/dash ops, what the slash commands run)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash ops list && tools/dash ops loops",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 8 }
+    },
+    {
       "name": "🎯 Outcome learning: status + plan (shadow, from the lake)",
       "type": "node-terminal",
       "request": "launch",

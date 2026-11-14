@@ -258,6 +258,8 @@ export interface Op {
   unavailable?: string | null;
   /** loop-run only: the agent steps the form offers. */
   agent_steps?: AgentStep[];
+  /** A parameter with a fixed set of values (pm's view, conflicts' action): the form offers a select. */
+  choices?: Record<string, string[]>;
 }
 
 export interface Job {
