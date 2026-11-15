@@ -2,15 +2,15 @@
   "schema": "deep-dive/v1",
   "owner": "bamr87",
   "label": "deep-dive",
-  "refreshed_at": "2026-11-14T12:23:05Z",
+  "refreshed_at": "2026-11-15T12:23:35Z",
   "summary": {
-    "as_of": "2026-11-14",
+    "as_of": "2026-11-15",
     "cycle": 1,
     "cycle_start": "2026-10-30",
     "cycle_end": "2026-12-10",
     "cycle_days": 42,
     "total": 38,
-    "day": 16,
+    "day": 17,
     "processed": 8,
     "counts": {
       "pending": 30,
@@ -20,20 +20,20 @@
     },
     "progress": 0.2105,
     "today": {
-      "date": "2026-11-14",
-      "cycle": 1,
-      "day": 16,
-      "cycle_days": 42,
-      "kind": "scheduled",
-      "repo": "lifehacker.dev"
-    },
-    "next": {
       "date": "2026-11-15",
       "cycle": 1,
       "day": 17,
       "cycle_days": 42,
       "kind": "scheduled",
       "repo": "gitorio"
+    },
+    "next": {
+      "date": "2026-11-16",
+      "cycle": 1,
+      "day": 18,
+      "cycle_days": 42,
+      "kind": "scheduled",
+      "repo": "SCHEMA"
     },
     "last": ".github",
     "last_date": "2026-11-13",
