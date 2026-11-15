@@ -58,6 +58,16 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(s["state"], "green")
         self.assertTrue(s["false_red"])
 
+    def test_an_earlier_failure_still_counts(self):
+        rows = pq.collapse_checks([run("verify", "FAILURE", "2026-11-14T01:00:00Z", run_id=1),
+                                   run("verify", "SUCCESS", "2026-11-14T02:00:00Z", run_id=2)])
+        s = pq.checks_summary(rows, "FAILURE")
+        self.assertEqual(s["state"], "failing")
+        self.assertFalse(s["false_red"])
+        self.assertEqual(s["failing"], ["verify (an earlier run)"])
+        ok, _ = pq.closeout.checks_green(pq.rollup_for_gate(rows))
+        self.assertFalse(ok, "the gate never reads a failed-then-passed check as green")
+
     def test_success_then_cancelled_stays_cancelled(self):
         rows = pq.collapse_checks([run("verify", "SUCCESS", "2026-11-14T01:00:00Z"),
                                    run("verify", "CANCELLED", "2026-11-14T02:00:00Z")])

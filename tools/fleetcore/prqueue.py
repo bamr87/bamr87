@@ -11,8 +11,9 @@ it hands the records to `build()` here.
 
 One row per open pull request carries:
 
-  checks    collapsed per check to the latest run on the head commit: a
-            CANCELLED run followed by a SUCCESS of the same check is green.
+  checks    superseded runs on the head commit set aside per check: a
+            CANCELLED run followed by a SUCCESS of the same check is green,
+            while an earlier failure still counts (tools/check_rollup.py's rule).
             Verify kit 0.1.0's label-burst race (several runs of one workflow,
             each cancelling the last) is most of the fleet's "red", and
             GitHub's own rollup counts every superseded run.
@@ -169,10 +170,14 @@ def _run_id_of(c: dict) -> int | None:
 
 
 def collapse_checks(contexts: Iterable[dict] | None) -> list[dict]:
-    """Every check on the head commit, collapsed to its latest run. A check run's key is its workflow
+    """Every check on the head commit, with superseded runs set aside. A check run's key is its workflow
     and its name, a status context's its context; the latest is the one that finished (or started)
-    last. `superseded` counts the earlier runs that were dropped."""
-    latest: dict[tuple, dict] = {}
+    last and always counts. An earlier run is set aside only when it cannot change the verdict: a
+    CANCELLED (or STALE) run, or a pass, followed by a later run of the same check. An earlier failure
+    still counts even when a later run passed — the rule tools/check_rollup.py applies in the close-out
+    (bamr87/bamr87#862), so the queue is never looser than the gate. `superseded` counts the runs set
+    aside; a kept earlier run carries `earlier: true`."""
+    groups: dict[tuple, list[dict]] = {}
     for order, c in enumerate(x for x in contexts or [] if isinstance(x, dict)):
         is_status = c.get("__typename") == "StatusContext" or ("context" in c and "conclusion" not in c and "name" not in c)
         if is_status:
@@ -191,17 +196,15 @@ def collapse_checks(contexts: Iterable[dict] | None) -> list[dict]:
                "state": _check_state(key_kind, status, conclusion), "at": at or None,
                "url": c.get("detailsUrl") or c.get("targetUrl") or None, "run_id": _run_id_of(c),
                "event": ((c.get("checkSuite") or {}).get("workflowRun") or {}).get("event"), "_order": order}
-        key = (key_kind, workflow.lower(), name.lower())
-        old = latest.get(key)
-        if old is None:
-            row["superseded"] = 0
-            latest[key] = row
-            continue
-        newer = (row["at"] or "", order) >= (old["at"] or "", old["_order"])
-        keep = row if newer else old
-        keep["superseded"] = int(old.get("superseded", 0)) + 1
-        latest[key] = keep
-    rows = sorted(latest.values(), key=lambda r: (CHECK_STATES.index(r["state"]), r["workflow"].lower(), r["name"].lower()))
+        groups.setdefault((key_kind, workflow.lower(), name.lower()), []).append(row)
+    rows: list[dict] = []
+    for runs in groups.values():
+        runs.sort(key=lambda r: (r["at"] or "", r["_order"]))
+        last = runs[-1]
+        kept = [dict(r, earlier=True) for r in runs[:-1] if r["state"] not in ("cancelled", "green", "skipped")]
+        last["superseded"] = len(runs) - 1 - len(kept)
+        rows += [last, *kept]
+    rows.sort(key=lambda r: (CHECK_STATES.index(r["state"]), r["workflow"].lower(), r["name"].lower(), bool(r.get("earlier"))))
     return [{k: v for k, v in r.items() if v is not None and k != "_order"} for r in rows]
 
 
@@ -211,6 +214,7 @@ def checks_summary(collapsed: list[dict], rollup: str | None = None) -> dict:
     by: dict[str, list[str]] = {s: [] for s in CHECK_STATES}
     for c in collapsed:
         label = f"{c['workflow']} / {c['name']}" if c.get("workflow") and c["workflow"].lower() != c["name"].lower() else c["name"]
+        label += " (an earlier run)" if c.get("earlier") else ""
         by[c["state"]].append(label)
     state = next((s for s in ("failing", "action_required", "cancelled", "pending", "green", "skipped") if by[s]), "none")
     superseded = sum(int(c.get("superseded") or 0) for c in collapsed)
