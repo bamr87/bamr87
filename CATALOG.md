@@ -252,6 +252,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_unwrap_prose.py`](tools/test_unwrap_prose.py) | Fixture tests for `unwrap-prose.py` — structure untouched, list items joined without leaving their list, idempotence (run by `run-all-tests.sh`) |
 | [`test_vscode_launch.py`](tools/test_vscode_launch.py) | The editor-is-a-front-door gate (constitution § 20, [`.vscode/README.md`](../.vscode/README.md)): the four `.vscode/` files parse, every `preLaunchTask`, `dependsOn`, co… |
 | [`test_weekly.py`](tools/test_weekly.py) | Offline tests for tools/weekly/core.py, on real throwaway git repositories (a bare origin and a clone), because what this tool must never get wrong is git's behaviour. |
+| [`test_weekly_closeout.py`](tools/test_weekly_closeout.py) | Contract tests for the weekly close-out family (docs/WEEKLY-CLOSEOUT.md): the three console loops weekly_closeout / weekly_gather / weekly_finalize and the ai-lane calle… |
 | [`test_weekly_dispositions.py`](tools/test_weekly_dispositions.py) | Offline tests for tools/weekly/closeout.py: the disposition rules and the live review gate. |
 | [`test_weekly_harness.py`](tools/test_weekly_harness.py) | Offline tests for tools/weekly/harness.py: the Grok briefs and the direction issue, and the close-out agent's evidence, validation and refusals. |
 | [`test_weekly_stages.py`](tools/test_weekly_stages.py) | Offline tests for the weekend's other stages: Saturday's preflight (tools/weekly/prepare.py), Sunday's plan (tools/weekly/agenda.py), the dispatcher and command line (to… |
@@ -304,6 +305,9 @@ The control-plane automation; standards and the full table in [`.github/workflow
 | [`token-rotation.yml`](.github/workflows/token-rotation.yml) | 🔑 Token Rotation | Mon 02:07, dispatch | **The credential loop.** Probes `secrets:write`, surveys every fleet repo's secret age from GitHub's `updated_at`, re-mints `CLAUDE_CODE_OAUTH_TOKEN` when the refresh gr… |
 | [`update-submodules.yml`](.github/workflows/update-submodules.yml) | 🔀 Update Submodules | daily 03:07, dispatch | Bumps submodule pointers up into the hub and publishes them straight to `main` through `publish-data` (falls back to the stable branch `chore/update-submodules` if a rul… |
 | [`verify.yml`](.github/workflows/verify.yml) | Verify | PR (console, features, verify, pages paths; a `verify` labe… | The hub's own caller of `fleet-verify.yml` at the same checkout: Playwright scenarios against the running console, evidence bundle. |
+| [`weekly-closeout.yml`](.github/workflows/weekly-closeout.yml) | weekly-closeout | Fri 20:17 UTC (13:17 Denver), dispatch | **Friday close-out**: an `ai-lane` caller (Opus, 120 turns, $20) that repairs failing or conflicting PRs on their own branches, prunes finished clones and merged heads,… |
+| [`weekly-finalize.yml`](.github/workflows/weekly-finalize.yml) | weekly-finalize | Sun 23:17 UTC (16:17 Denver), dispatch | **Sunday finalize**: an `ai-lane` caller (Sonnet, 60 turns, $10) that writes the week-ahead brief splitting work between the Grok loops and the Claude job queue. |
+| [`weekly-gather.yml`](.github/workflows/weekly-gather.yml) | weekly-gather | Sat 17:17 UTC (10:17 Denver), dispatch | **Saturday gather**: an `ai-lane` caller (Sonnet, 60 turns, $10) that drafts next week's plan from Friday's carry-over; read-only apart from one issue comment. |
 
 ## 7. AI layer (`.claude/`)
 
@@ -363,6 +367,7 @@ Indexed by [`.claude/README.md`](.claude/README.md). Skills and commands are Cla
 | [`/loops:pulse`](.claude/commands/loops/pulse.md) | Fleet pulse, one stage at a time — gather the fleet's signals, build the doctor's fix queue, rehearse or run the doctor locally, show or publish a run, or dispatch the d… |
 | [`/loops:scout`](.claude/commands/loops/scout.md) | Repo scout, one stage at a time — plan today's sample, rehearse, run the scout agent locally, show or publish a run, or dispatch the loop in CI |
 | [`/loops:upkeep`](.claude/commands/loops/upkeep.md) | The hub's upkeep loops — reconcile the registry with GitHub, regenerate the README project list, and dispatch the submodule bump, the site build or the backlog fan-out |
+| [`/loops:weekly`](.claude/commands/loops/weekly.md) | The weekly cadence — Friday close-out, Saturday gather and Sunday finalize; read the triage snapshot and the decision queue locally, or dispatch one of the three in CI |
 
 ### Agents and hooks
 
@@ -480,6 +485,7 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`UX-HARNESS.md`](docs/UX-HARNESS.md) | Continuous UI/UX audit for the fleet: the `ux-audit` kit's computational gate and the hub's critique loop. |
 | [`VERIFICATION.md`](docs/VERIFICATION.md) | The agent verification standard — feature index, user scenarios, evidence bundles, the `fleet-verify.yml` gate and the fleet coverage index. |
 | [`VISUAL-EVIDENCE.md`](docs/VISUAL-EVIDENCE.md) | Status: **proposed** (constitution § 24, amendment `visual-evidence`; epic [#678](https://github.com/bamr87/bamr87/issues/678), backlog [#679](https://github.com/bamr87/… |
+| [`WEEKLY-CLOSEOUT.md`](docs/WEEKLY-CLOSEOUT.md) | Three scheduled console loops that close out the week's open work on Friday, draft next week's plan on Saturday and write the week-ahead brief on Sunday. |
 | [`WEEKLY.md`](docs/WEEKLY.md) | Friday closes the week, Saturday checks that next week's schedule can run, Sunday plans it. |
 | [`WORK-BOARD.md`](docs/WORK-BOARD.md) | Every open issue, pull request, roadmap spec, spec package and backlog item in one place, in the order the loops will take it, with drag and drop to reorder, move and re… |
 | [`WORKFLOW-ATLAS.md`](docs/WORKFLOW-ATLAS.md) | The hub's own GitHub Actions read as one model: what each workflow and composite action does, the standards they are held to, why their runs fail, what can be retired, a… |
