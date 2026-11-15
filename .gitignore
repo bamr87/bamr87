@@ -87,6 +87,10 @@ scout-workorders/
 # gate-labelled issue of the fleet, read from GitHub; it can hold a private repo's
 # titles, so it is local, owner-only and never published; docs/DECISION-INDEX.md).
 .fleet/decisions/
+# dash prs: the PR queue's detail cache (checks, files and comments of every open
+# pull request; can hold a private repo's titles), its plans and their results
+# (docs/PR-QUEUE.md). Local, owner-only, never published.
+.fleet/prqueue/
 # The MCP layer's scoped-write audit (audit.jsonl: one line per job_dispatch,
 # job_cancel and work_apply call, values scrubbed; tools/console/docs/mcp-layer.md).
 .fleet/mcp/

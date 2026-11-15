@@ -96,8 +96,43 @@ def test_argv_shapes_are_exact_and_never_shell():
         # a dev-stack op takes a project from the port registry, not any name
         argv, _ = core.build_argv(op_id, {"target": "gitorio" if op_id.startswith("dev-") else "alpha", "workflow": "fleet-pulse", "fields": {},
                                           "kind": "gate", "id": "doc-check", "loop": first["loop"],
-                                          "step": first["step"]})
+                                          "step": first["step"], "plan_id": "0123456789abcdef"})
         assert all(isinstance(a, str) for a in argv) and "bash" not in argv[0], (op_id, argv)
+
+
+def test_pr_queue_ops_apply_a_plan_by_id_and_ask_first():
+    """prs-act / prs-agent take only a plan id: the plan itself (targets, ops, bytes) was made from live GitHub
+    and previewed, and the CLI re-plans and refuses it if it moved. With apply they write, so they ask."""
+    sys.path.insert(0, str(core.REPO_ROOT / "tools"))
+    from fleetcore import prqueue
+    assert core.PRQ_WHO == prqueue.WHO
+    argv, remote = core.build_argv("prs-act", {"plan_id": "0123456789abcdef"})
+    assert argv[-5:] == ["apply", "--plan-id", "0123456789abcdef", "--expect-op", "prs-act"] and remote is False
+    argv, remote = core.build_argv("prs-act", {"plan_id": "0123456789abcdef", "apply": True})
+    assert argv[-1] == "--apply" and remote is True
+    argv, remote = core.build_argv("prs-agent", {"plan_id": "0123456789abcdef", "apply": "true"})
+    assert "prs-agent" in argv and remote is True and core.OPS["prs-agent"]["confirm"] == "spend"
+    assert core.OPS["prs-agent"]["needs"] == "claude" and core.OPS["prs-act"]["exclusive"] == "prs"
+    for bad in ({}, {"plan_id": "../../etc"}, {"plan_id": "0123456789ABCDEF"}, {"plan_id": "0" * 17}):
+        try:
+            core.build_argv("prs-act", bad)
+        except ValueError:
+            continue
+        raise AssertionError(f"accepted {bad}")
+    assert core.build_argv("prs", {"who": "amr"})[0][-2:] == ["--who", "amr"]
+    try:
+        core.build_argv("prs", {"who": "everyone"})
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("accepted an unknown who")
+    jm = core.JobManager(Path(tempfile.mkdtemp()))
+    try:
+        jm.submit("prs-act", {"plan_id": "0123456789abcdef", "apply": True})
+    except PermissionError:
+        pass
+    else:
+        raise AssertionError("an apply ran without confirm=true")
 
 
 def test_dispatch_validates_workflow_and_inputs():
@@ -268,6 +303,39 @@ def test_decisions_route_serves_the_queue_and_never_the_token():
     assert argv == [core.DASH, "decisions", "queue", "--repos"] and remote is False
     argv, remote = core.build_argv("decisions-refresh", {})
     assert argv == [core.DASH, "decisions", "refresh"] and remote is False
+
+
+def test_pr_queue_routes_read_plan_and_never_apply():
+    """Over HTTP: /api/prs is the queue (refresh=never reads no GitHub), a bad filter is refused, a plan is
+    refused before any GitHub read when its targets are malformed, a stored plan and result are served by
+    id only, and no route writes to GitHub: applying is the prs-act job behind the confirm."""
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+    import pr_queue
+
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    with tempfile.TemporaryDirectory() as tmp, \
+            mock.patch.dict(os.environ, {"DASH_DECISIONS_INDEX": str(Path(tmp) / "index.json"),
+                                         "DASH_PRQUEUE_DIR": str(Path(tmp) / "prqueue")}), \
+            mock.patch.object(pr_queue, "run", side_effect=AssertionError("no gh call may run")):
+        doc = client.get("/api/prs", params={"refresh": "never"}).json()
+        assert (doc["schema"], doc["status"], doc["rows"]) == ("pr-queue/v1", "unavailable", []), doc
+        assert {a["id"]: a["enabled"] for a in doc["actions"]}["merge"] is False
+        assert client.get("/api/prs", params={"refresh": "never", "kind": "everything"}).status_code == 400
+        assert client.get("/api/prs", params={"refresh": "never", "gate": "maybe"}).status_code == 422
+        assert client.post("/api/prs/plan", json={"action": "ready", "prs": ["not a ref"]}).status_code == 400
+        assert client.post("/api/prs/plan", json={"action": "explode", "prs": ["o/a#1"]}).status_code == 400
+        assert client.post("/api/prs/plan", json={"action": "ready", "prs": []}).status_code == 422
+        assert client.get("/api/prs/plan/0123456789abcdef").status_code == 404
+        assert client.get("/api/prs/plan/../../etc").status_code in (400, 404)
+        assert client.get("/api/prs/result/zz").status_code == 400
+    routes = {getattr(r, "path", "") for r in console_app.app.routes}
+    assert not any(p.startswith("/api/prs") and ("apply" in p or "merge" in p) for p in routes), routes
 
 
 def test_a_dev_stack_op_names_one_project_from_the_port_registry():

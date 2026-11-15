@@ -11,7 +11,7 @@
 | **CLI** | `tools/dash decisions [queue \| refresh \| status] [--kind K] [--repo R] [--limit N] [--refresh auto\|never\|force] [--budget S] [--repos] [--json]` |
 | **API** | `GET /api/decisions?kind=…&repo=…&limit=…&refresh=…&budget=…` · operations `decisions`, `decisions-refresh` |
 | **MCP** | `decision_queue` (`kind`, `repo`, `limit`, `refresh`, `budget_s`); with no console it reads the same index in the MCP process |
-| **Page** | none yet: the operations' logs on the console's Operations page |
+| **Page** | none of its own: the operations' logs on the console's Operations page, and the [PR queue](PR-QUEUE.md) (`/prs`), which lists every pull request the index holds with its checks collapsed, its gate and who moves it next |
 | **Index** | `.fleet/decisions/index.json` (gitignored, mode 600; `DASH_DECISIONS_INDEX` moves it) |
 | **Tests** | `python3 tools/console/test_decision_index.py` · `test_console.py` (the route) · `test_mcp_layer.py` (the tool) |
 | **Requirements** | [docs/prd/DECISION-INDEX.md](prd/DECISION-INDEX.md) |
