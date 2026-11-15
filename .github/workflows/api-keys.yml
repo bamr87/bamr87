@@ -20,6 +20,11 @@ name: 🔑 API Key Watch
 #   CLAUDE_CONSOLE_TOKEN  hub secret: an Admin-API-capable key (a service-account
 #                         key not scoped to a workspace). Read-only here.
 #   ANTHROPIC_API_KEY     the hub's own inference key — the one thing tested live.
+#                         Claude auth is OAuth only for now (2026-11-15): no
+#                         Claude run uses this key. This health check still
+#                         reads it (one Messages call, never Claude Code), so
+#                         a dead key keeps showing here; pause it with
+#                         API_KEYS_ENABLED=false if that is noise.
 #   GITHUB_TOKEN          files the issue in THIS repo, which it can always do —
 #                         deliberately not a FLEET_TOKEN fallback: an alarm must
 #                         not ride on the credential most likely to be dead.
