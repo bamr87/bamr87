@@ -149,10 +149,21 @@ def test_workflows_contain_no_force_push_or_merge_commands():
 
 
 def test_the_feature_fragment_and_docs_cover_the_family():
-    frag = yaml.safe_load((ROOT / "features" / "features.d" / "weekly-closeout.yml").read_text(encoding="utf-8"))
-    assert frag["id"] == "HUB-NEW" and frag["prd"] == ["FR-NEW:weekly-closeout"], frag["prd"]
-    assert [r["key"] for r in frag["prd_new"]] == ["weekly-closeout"]
-    doc = (ROOT / "docs" / "WEEKLY-CLOSEOUT.md").read_text(encoding="utf-8")
+    # Before `jev number` runs on main the feature is a pending fragment; after
+    # it (4e4a8f1 compiled it as HUB-115 / FR131) it lives in features.yml and
+    # the fragment is gone. Accept either, or the test breaks every later PR.
+    frag_path = ROOT / "features" / "features.d" / "weekly-closeout.yml"
+    if frag_path.exists():
+        frag = yaml.safe_load(frag_path.read_text(encoding="utf-8"))
+        assert frag["id"] == "HUB-NEW" and frag["prd"] == ["FR-NEW:weekly-closeout"], frag["prd"]
+        assert [r["key"] for r in frag["prd_new"]] == ["weekly-closeout"]
+    else:
+        features = yaml.safe_load((ROOT / "features" / "features.yml").read_text(encoding="utf-8"))["features"]
+        entry = next(f for f in features if f.get("link") == ".github/workflows/weekly-closeout.yml")
+        assert re.fullmatch(r"HUB-\d+", entry["id"]), entry["id"]
+        assert len(entry["prd"]) == 1 and re.fullmatch(r"FR\d+", entry["prd"][0]), entry["prd"]
+        assert "tools/test_weekly_closeout.py" in entry["tests"], entry["tests"]
+    doc =(ROOT / "docs" / "WEEKLY-CLOSEOUT.md").read_text(encoding="utf-8")
     for needle in ("User stories", "Failure modes", "WEEKLY_CLOSEOUT_ENABLED", "WEEKLY_GATHER_ENABLED",
                    "WEEKLY_FINALIZE_ENABLED", "Grok", "loop-run", "mcp_writes_enabled", "harness-console-http"):
         assert needle in doc, needle
