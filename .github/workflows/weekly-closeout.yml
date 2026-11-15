@@ -1,0 +1,48 @@
+# kit: ai-runner v0.2.1 — a caller of the fleet's reusable AI lane.
+# Friday close-out: inventory-driven cleanup of open project work so the next
+# week starts clean. Console loop `weekly_closeout` (docs/WEEKLY-CLOSEOUT.md).
+name: weekly-closeout
+
+on:
+  schedule:
+    # Friday 13:17 America/Denver (MST, UTC-7) = 20:17 UTC. Odd minute, and UTC
+    # hours 17 / 20 / 23 carry no other AI cron (`/schedules`). The cron lives in
+    # _data/fleet.yml schedule.weekly_closeout; test_weekly_closeout.py holds them equal.
+    - cron: "17 20 * * 5"
+  workflow_dispatch:              # a human can always run it by hand (bypasses the switch)
+    inputs:
+      manifest:
+        description: "Path or URL of a close-out manifest (JSON/Markdown); empty = the agent builds one with gh"
+        type: string
+        default: ""
+      focus:
+        description: "Optional steer for this run (free text)"
+        type: string
+        default: ""
+
+# Least privilege lives HERE: the reusable lane inherits exactly these.
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  lane:
+    uses: bamr87/bamr87/.github/workflows/ai-lane.yml@main
+    with:
+      lane: weekly-closeout
+      switch: WEEKLY_CLOSEOUT_ENABLED   # repo VARIABLE; a scheduled run idles until it is "true"
+      model: claude-opus-5-5
+      prompt: "You are the weekly close-out agent for bamr87. Follow .github/weekly/closeout.md exactly. Manifest: ${{ inputs.manifest || '(none given: build it)' }}. Focus: ${{ inputs.focus || '(none)' }}. Write the close-out summary to .closeout/summary.md, post it to the week's tracking issue, and STOP. Never merge, close, approve, release, force-push, or change settings, variables or secrets."
+      tools: "Bash,Read,Write,Edit,Grep,Glob"
+      # The two circuit breakers, sized together (_data/fleet.yml budget.usd_per_turn):
+      # the dollar cap must clear 0.15 x the turn cap. Change both together.
+      max-turns: "120"
+      max-budget-usd: "20"
+      timeout-minutes: 60
+      setup-python: "3.12"
+      result-file: .closeout/summary.md
+      artifact-path: .closeout/
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GH_PAT: ${{ secrets.FLEET_TOKEN }}

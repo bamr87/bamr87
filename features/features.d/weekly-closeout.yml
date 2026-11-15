@@ -1,0 +1,18 @@
+id: HUB-NEW
+slug: weekly-closeout
+title: "Weekly close-out and weekend-prep loops, scheduled and maintained from the Harness Console"
+description: "Three console loops (weekly_closeout Fri 13:17, weekly_gather Sat 10:17, weekly_finalize Sun 16:17 Denver) built as ai-lane callers: Friday cleans up open PRs, branches and clones, Saturday drafts next week's plan, Sunday writes the week-ahead brief; each has its own kill switch that starts off, an exact model, turn and dollar caps, and never merges, force-pushes or changes settings. Proof is tools/test_weekly_closeout.py."
+implemented: true
+status: partial
+surface: infra
+link: .github/workflows/weekly-closeout.yml
+docs: docs/WEEKLY-CLOSEOUT.md
+tags: [console, loops, schedule, ai-lane]
+date: 2026-11-13
+tests:
+  - tools/test_weekly_closeout.py
+prd: ["FR-NEW:weekly-closeout"]
+prd_new:
+  - key: weekly-closeout
+    kind: FR
+    text: "The control plane must schedule, dispatch and maintain a weekly close-out of open project work (Friday), a draft of next week's plan (Saturday) and a week-ahead brief (Sunday) as console loops built to the fleet harness standard, each off until its kill switch is set, none able to merge, force-push or change settings."
