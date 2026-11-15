@@ -32,6 +32,7 @@ Claude Code configuration that makes the dash self-managing.
 | `commands/adopt-release.md` | `/adopt-release <repo>` — adopt the standardized release-please pipeline (scaffold + PR) |
 | `commands/adopt-schema.md` | `/adopt-schema <submodule>` — seed the Pyramid Schema kit into one submodule (preview → apply → PR) |
 | `commands/future-features.md` | `/future-features <idea>` — draft a full feature spec + place it on the right repo's roadmap |
+| `commands/weekly.md` | `/weekly [close\|prepare\|plan\|confirm]` — run a stage of the weekly routine as a preview and walk through it; `--apply` only on Amr's yes (docs/WEEKLY.md) |
 | `agents/feature-scout.md` | sub-agent that scans the session thread for latent feature ideas and proposes roadmap-ready specs (review/approval before backlog) |
 | `hooks/` | `SessionStart` + `Stop` hooks that make the Future-Features pipeline active in **every** session (see `hooks/README.md`) |
 | `settings.json` | registers the hooks above |

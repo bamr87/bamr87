@@ -77,6 +77,9 @@ scout-workorders/
 # (github-writes.jsonl, token values redacted); the decisions themselves are
 # committed in _data/projects_backfill.yml.
 .fleet/backfill/
+.fleet/projects/
+# The weekly routine's run folders: inventory, report and draft posts (docs/WEEKLY.md).
+.fleet/weekly/
 # dash pm: the routine PM review's local files (model, review, board plan preview);
 # the public snapshot is committed as _data/pm_review.yml.
 .fleet/pm/
