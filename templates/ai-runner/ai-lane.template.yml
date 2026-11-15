@@ -1,11 +1,19 @@
 # kit: ai-runner v__KIT_VERSION__ — a caller of the fleet's reusable AI lane.
-# Copy per lane; fill the four __PLACEHOLDERS__; keep the rest.
+# Copy per lane; fill the five __PLACEHOLDERS__; keep the rest. A filled copy
+# passes the fleet harness standard (bamr87/bamr87 _data/fleet.yml
+# `harnesses.standard`) as it stands.
 # Docs: https://github.com/bamr87/bamr87/tree/main/templates/ai-runner
 name: __LANE__
 
 on:
   schedule:
-    - cron: "17 6 * * 1"          # pick an odd minute; never :00
+    # This lane's OWN slot. It is a placeholder on purpose: the example cron
+    # this template used to carry was kept by twelve lanes, which then all woke
+    # at Monday 06:17 UTC. Pick an odd minute (never :00) in an hour and weekday
+    # the fleet's schedule map shows as free (bamr87/bamr87 `/schedules`, or
+    # `throughput.hour_collisions` in _data/harness_registry.yml): at most three
+    # AI crons may fire in one UTC hour of one day.
+    - cron: "__CRON__"
   workflow_dispatch:              # a human can always run it by hand (bypasses the switch)
 
 # Least privilege lives HERE: the reusable lane inherits exactly these.
@@ -22,6 +30,14 @@ jobs:
       agent: __AGENT__               # .claude/agents/__AGENT__.md owns the role
       prompt: "You are the __AGENT__ agent for __PROJECT_NAME__. Do EXACTLY ONE unit of work, verify it with the repo's own harness, open ONE pull request, write its URL to pr-result.txt, and STOP. Never merge."
       tools: "Bash,Read,Write,Edit,Grep,Glob"
+      # The two circuit breakers, sized together (bamr87/bamr87 _data/fleet.yml
+      # `budget.usd_per_turn`): the dollar cap must clear 0.15 x the turn cap, so
+      # a run stops at a turn boundary before it stops mid-task. The hub's own
+      # evolution loop, which does this lane's job (one unit of work, one PR),
+      # runs 120 turns under a $20 cap; its first cap of 60 turns threw away two
+      # finished runs. Change both together, never one alone.
+      max-turns: "120"
+      max-budget-usd: "20"
       setup-ruby: "3.3"
       result-file: pr-result.txt
     secrets:

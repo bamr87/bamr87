@@ -12,6 +12,8 @@
 # ============================================================================
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import os
 import sys
@@ -276,6 +278,122 @@ class BoardTests(unittest.TestCase):
         board = pb.Board(pb.Gh(run=FakeRunner()), "bamr87", 14)
         self.assertFalse(board.load())
         self.assertTrue(board.error.startswith("graphql_unavailable"), board.error)
+
+
+def _row(n: int, state: str = "open", closed_at: str | None = None, reason: str | None = None, labels=()) -> dict:
+    return {"number": n, "node_id": f"I_{n}", "title": f"item {n}", "state": state, "closed_at": closed_at,
+            "state_reason": reason, "labels": [{"name": l} for l in labels]}
+
+
+OTHER = "bamr87/law-ai"
+LISTS = {  # repo -> open rows, closed rows
+    REPO: ([_row(1550, labels=["P1"])],
+           [_row(700, "closed", "2026-09-01T10:00:00Z", "completed"),
+            _row(701, "closed", "2026-10-03T12:00:00Z", "not_planned"),   # the cleanup: excluded
+            _row(702, "closed", "2026-10-03T12:00:00Z", "completed"),     # same day, but completed: kept
+            _row(703, "closed", "2026-07-01T10:00:00Z", "completed")]),   # before the window
+    OTHER: ([_row(208, labels=["P1", "bug"])], [_row(150, "closed", "2026-11-01T00:00:00Z", "completed")]),
+}
+PROJECT_SIZE = 600  # more than gp.MAX_ITEMS (500): the old read cap
+
+
+class TargetRunner(FakeRunner):
+    """FakeRunner plus issue lists per repo and a 600-item Fleet project over GraphQL."""
+
+    def __call__(self, args, stdin, env):
+        method, path = args[3], args[4]
+        params = dict(a.split("=", 1) for a in args[5:] if "=" in a and not a.startswith("-"))
+        if method == "GET" and path.endswith("/issues") and path.startswith("repos/"):
+            self.calls.append((method, path, params))
+            repo = path[len("repos/"):-len("/issues")]
+            opened, closed = LISTS.get(repo, ([], []))
+            if int(params.get("page", 1)) > 1:
+                return 0, "[]", ""
+            rows = opened if params.get("state") == "open" else closed
+            if params.get("since"):
+                rows = [r for r in rows if (r.get("closed_at") or "") >= params["since"]]
+            return 0, json.dumps(rows), ""
+        if method == "POST" and path == "graphql":
+            body = json.loads(stdin)
+            self.calls.append((method, path, body["variables"]))
+            q = body["query"]
+            if "projectV2(number" in q:
+                return 0, json.dumps({"data": {"user": {"projectV2": {"id": "PVT_fleet", "title": "Fleet", "url": "u",
+                                                                       "closed": False, "fields": {"nodes": [
+                    {"id": "F_s", "name": "Status", "dataType": "SINGLE_SELECT",
+                     "options": [{"id": "o1", "name": "Triaged"}, {"id": "o3", "name": "Done"}]},
+                    {"id": "F_p", "name": "Priority", "dataType": "SINGLE_SELECT",
+                     "options": [{"id": "p1", "name": "P1"}, {"id": "p2", "name": "P2"}]}]}}}}}), ""
+            after = int(body["variables"].get("after") or 0)
+            nodes = [{"id": f"PVTI_{n}", "isArchived": False, "type": "ISSUE",
+                      "fieldValues": {"nodes": [{"name": "Triaged", "field": {"name": "Status"}},
+                                                {"name": "P1", "field": {"name": "Priority"}}]},
+                      "content": {"__typename": "Issue", "id": f"I_{n}", "number": n, "title": "t", "state": "OPEN",
+                                  "url": "u", "body": "", "repository": {"nameWithOwner": REPO}}}
+                     for n in range(1000 + after, min(1000 + after + 100, 1000 + PROJECT_SIZE))]
+            end = after + 100
+            return 0, json.dumps({"data": {"node": {"items": {"nodes": nodes, "pageInfo": {
+                "hasNextPage": end < PROJECT_SIZE, "endCursor": str(end)}}}}}), ""
+        return super().__call__(args, stdin, env)
+
+
+class TargetingTests(unittest.TestCase):
+    """#453: registry-wide and closed-window targets, the cleanup exclusion, dedupe past 500 items."""
+
+    def setUp(self):
+        self.runner = TargetRunner()
+        self.gh = pb.Gh(run=self.runner)
+
+    def test_registry_targets_more_than_one_repo(self):
+        repos = pb.target_repos(DECISIONS, "registry", registry=lambda: {OTHER})
+        self.assertEqual(repos, sorted({REPO, OTHER}))
+        self.assertEqual(pb.target_repos(DECISIONS, "hub"), [REPO], "the default is unchanged")
+        targets, counts = pb.board_targets(self.gh, repos, DECISIONS)
+        self.assertEqual({t["repo"] for t in targets}, {REPO, OTHER})
+        self.assertEqual(set(counts), {REPO, OTHER})
+
+    def test_closed_window_selects_only_the_window_and_derives_done(self):
+        items = pb.closed_items(self.gh, REPO, since="2026-08-14", before="2026-11-01")
+        self.assertEqual(sorted(t["number"] for t in items), [700, 701, 702])
+        targets, counts = pb.board_targets(self.gh, [REPO], DECISIONS, include_open=False,
+                                           closed_since="2026-08-14", closed_before="2026-11-01")
+        self.assertEqual(sorted(t["number"] for t in targets), [700, 702])
+        for t in targets:
+            self.assertEqual(pb.derive_fields(t, DECISIONS, FRAMEWORK)["Status"], "Done")
+        before_only = pb.closed_items(self.gh, REPO, before="2026-08-14")
+        self.assertEqual([t["number"] for t in before_only], [703])
+
+    def test_cleanup_is_excluded(self):
+        targets, counts = pb.board_targets(self.gh, [REPO], DECISIONS, include_open=False, closed_since="2026-10-01")
+        self.assertNotIn(701, [t["number"] for t in targets])
+        self.assertIn(702, [t["number"] for t in targets], "only not_planned on the cleanup day is dropped")
+        self.assertEqual(counts[REPO]["excluded"], 1)
+        d = json.loads(json.dumps(DECISIONS))
+        d["board"]["exclude"] = {"closed_not_planned_on": []}
+        targets, _ = pb.board_targets(self.gh, [REPO], d, include_open=False, closed_since="2026-10-01")
+        self.assertIn(701, [t["number"] for t in targets], "the decisions file can change the dates")
+        d["board"]["exclude"] = {"closed_not_planned_on": ["Oct 3"]}
+        self.assertTrue(any("YYYY-MM-DD" in e for e in pb.validate_decisions(d)))
+
+    def test_plan_past_500_items_adds_nothing_already_on_the_project(self):
+        old = pb.Gh._subprocess
+        pb.Gh._subprocess = staticmethod(self.runner)
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                dec, out = Path(td) / "d.yml", Path(td) / "plan.json"
+                dec.write_text(pb.yaml.safe_dump(DECISIONS))
+                with contextlib.redirect_stdout(io.StringIO()):
+                    rc = pb.main(["plan", "--board", "--json", "--decisions", str(dec), "--out", str(out)])
+                self.assertEqual(rc, 0)
+                preview = json.loads(out.read_text())
+        finally:
+            pb.Gh._subprocess = old
+        self.assertEqual(preview["board"]["status"], "planned", preview["board"])
+        self.assertEqual(preview["board"]["items_on_project"], PROJECT_SIZE)
+        self.assertGreaterEqual(preview["max_items"], PROJECT_SIZE, "apply re-reads the project with the same cap")
+        board_ops = [o for b in preview["batches"] if b.get("board") for o in b["ops"]]
+        self.assertNotIn(("item.add", 1550), [(o["op"], o["number"]) for o in board_ops],
+                         "#1550 is item 551 of the project: it is on the board already")
 
 
 class LedgerTests(unittest.TestCase):

@@ -26,7 +26,7 @@ The deployable unit is the **agent-context kit** ([`templates/agent-context/`](.
 
 The baseline asks whether a repo *has* a harness. The standard asks whether each harness is *built* the way the constitution and the standing rules say. It is declared in `_data/fleet.yml` `harnesses.standard`, the inventory grades every harness against it on each scan, and every harness that falls short carries the lever that rebuilds it.
 
-**A harness is any workflow that reaches a model, and a route is how it does.** The inventory used to recognise one route, the `claude-code-action` step. On 2026-11-11 that hid 56 of the fleet's 117 AI workflows: every caller of the hub's own `ai-lane.yml` and `claude-run`, every bare `claude -p`, and every other provider. It also hid 63 agents from `_data/agents.yml` and a 13-way cron collision at 06:00 UTC, where twelve `evolve.yml` lanes had kept the template's example cron. Routes are matched against the workflow file with its comment lines removed, so a file that only mentions an action is not a harness.
+**A harness is any workflow that reaches a model, and a route is how it does.** The inventory used to recognise one route, the `claude-code-action` step. On 2026-11-11 that hid 56 of the fleet's 117 AI workflows: every caller of the hub's own `ai-lane.yml` and `claude-run`, every bare `claude -p`, and every other provider. It also hid 63 agents from `_data/agents.yml` and thirteen AI crons in one hour of one day: twelve `evolve.yml` lanes had kept the template's example cron (`17 6 * * 1`, Monday 06:17 UTC), beside a link checker at Monday 06:00. Routes are matched against the workflow file with its comment lines removed, so a file that only mentions an action is not a harness.
 
 | Route | What it is | On the standard |
 | --- | --- | --- |
@@ -110,7 +110,9 @@ Scheduled agent work is a **standing commitment** — it runs whether or not any
 | --- | --- |
 | `max_scheduled_ai_per_day_fleet` | Estimated cron-driven AI workflow runs/day, fleet-wide |
 | `max_scheduled_ai_per_day_repo` | The same per repo, so one repo can't absorb the whole budget |
-| `max_ai_crons_per_utc_hour` | AI crons sharing one UTC hour — the Claude loops share one OAuth account's rate limit, so adjacency is contention |
+| `max_ai_crons_per_utc_hour` | AI crons that can fire in one UTC hour of one day — the Claude loops share one OAuth account's rate limit, so adjacency is contention |
+
+The hour cap is counted per weekday: crons contend only when they fire in the same hour of the same day, so five weekly lanes at 14:xx on five different days are not a collision. A day-of-month cron counts toward every weekday, because it lands on whichever one the month gives it. Each entry in `throughput.hour_collisions` names the hour bucket (`utc_hour: "06:00"` is 06:00 to 06:59), the most that can fire in it on one day (`count`, with that day's `entries`), the weekdays over the cap (`days`), and the exact minutes two or more of them share (`same_minute`). The finding reads "13 AI crons fire in the 06 UTC hour on Mon; 12 at exactly 06:17", never "share 06:00 UTC". Until 2026-11-13 the count ignored the weekday and the wording named the top of the hour: of the three collisions reported on 2026-11-11, only the Monday 06 one was real. A lane whose switch is off still wakes at its cron to check the switch, so a collision of disarmed lanes costs runner minutes today and becomes rate-limit contention the day they are armed.
 
 The estimate is cron arithmetic (hourly = 24/day, weekly ≈ 0.14/day; the approximations are documented on `cron_fires_per_day`), cross-checked against the **observed** rate from `ai_usage.yml` (which includes mention/PR traffic riding on top). A violation is an attention item naming the cron; the fix is a human retuning the cron or the cap — by design there is no automatic throttle, because silently skipping a scheduled loop is exactly the failure mode (`stale-data`) the harness watches for. Per-run depth stays where it always was: each loop's caps and `--max-turns` in `fleet.yml`, asserted by fixture tests.
 
@@ -237,5 +239,7 @@ tools/dash config show harnesses          # the contract
 tools/dash secrets rotate --apply         # credentials now instead of Monday
 python3 .github/scripts/dash-gen/test_harness_registry.py   # the invariants
 ```
+
+From a Claude Code session the same card is three namespaces of slash commands, each a front door onto the console's operation allowlist through `tools/dash ops`: `/harness:` observes and gates the harness (`status`, `inventory`, `health`, `decisions`, `graph`, `gates`, `refine`, `learn`, `lake`), `/loops:` runs one stage of one loop (`/loops:scout rehearse kvlite`, `/loops:conflicts resolve <owner/repo#n>`, `/loops:pulse ci`), and `/console:` reaches any operation. A stage that writes to GitHub or spends Claude budget asks first, exactly where the console does ([.claude/README.md](../.claude/README.md#slash-commands-the-harness-and-its-loops-one-stage-at-a-time)).
 
 Dispatch surface: `fanout.yml` (kit `harness`) (`target: gaps|all|<name>`, `artifacts`, `dry_run`, `upgrade`). Daily refresh: `fleet-pulse.yml` → publish → `/harnesses/` after the 08:37 `build-dash` run. Fixture tests for the lake and the exporter: `python3 .github/scripts/dash-gen/test_fleet_lake.py`. Thresholds: `_data/fleet.yml` `harnesses:` — tune them the way the trip wires are tuned: a cap that is always breached is noise, prune or raise it deliberately.

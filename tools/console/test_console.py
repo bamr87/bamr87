@@ -90,7 +90,8 @@ def test_argv_shapes_are_exact_and_never_shell():
     # loop-run needs a loop with a local: spec, and its step named when the loop has several (fanout's kits)
     first = (core.agent_steps() or [{"loop": "", "step": ""}])[0]
     for op_id in core.OPS:
-        if op_id in ("tests", "refine-evidence", "assist"):   # need an item / a question (their own test below)
+        if op_id in ("tests", "refine-evidence", "assist", "evidence"):   # need an item / a question / an issue
+            # (their own tests: below, and test_ops_cli.py for evidence)
             continue
         # a dev-stack op takes a project from the port registry, not any name
         argv, _ = core.build_argv(op_id, {"target": "gitorio" if op_id.startswith("dev-") else "alpha", "workflow": "fleet-pulse", "fields": {},

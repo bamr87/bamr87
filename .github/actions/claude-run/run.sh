@@ -16,6 +16,7 @@
 #   scripts/ai/run.sh --prompt "..." [--agent name] [--tools "Bash,Read,..."] \
 #                     [--mcp cfg.json] [--system "..."] [--out file] \
 #                     [--model id] [--max-turns N] [--max-budget-usd USD]
+#                     [--permission-mode acceptEdits|default|plan]
 #   echo "..." | scripts/ai/run.sh            # stdin prompt
 #
 # Auth (either works for the primary Claude Code path):
@@ -110,6 +111,7 @@ fi
 
 prompt=""; tools=""; mcp=""; system=""; out=""; agent=""; model_flag=""; max_turns="${AI_MAX_TURNS:-}"
 max_budget="${AI_MAX_BUDGET_USD:-}"
+perm_mode="${AI_PERMISSION_MODE:-}"
 while [ $# -gt 0 ]; do
   case "$1" in
     --prompt|-p)  prompt="$2";     shift 2;;
@@ -121,9 +123,26 @@ while [ $# -gt 0 ]; do
     --model)      model_flag="$2"; shift 2;;
     --max-turns)  max_turns="$2";  shift 2;;
     --max-budget-usd) max_budget="$2"; shift 2;;
+    --permission-mode) perm_mode="$2"; shift 2;;
     *) shift;;
   esac
 done
+# Permission mode. `acceptEdits` (the default, and the only mode until kit
+# 0.3.0) lets the agent edit files whether or not --tools names an edit tool:
+# right for a lane that writes, wrong for a reviewer that must not. `default`
+# keeps the allowlist as the whole grant (headless, a tool outside it is
+# refused), and `plan` reads only. Nothing else is accepted: a mode that
+# skips permission checks has no place in an unattended lane, and a typo must
+# not silently fall back to the widest mode. Refused before anything is spent.
+perm_mode="${perm_mode:-acceptEdits}"
+case "$perm_mode" in
+  acceptEdits|default|plan) ;;
+  *)
+    echo "[ai] --permission-mode '$perm_mode' is not allowed here (acceptEdits, default or plan) — nothing was run." >&2
+    [ "${GITHUB_ACTIONS:-}" = "true" ] && echo "::error::AI step: permission mode '$perm_mode' is not allowed (acceptEdits, default or plan)"
+    exit 1 ;;
+esac
+
 # No --prompt? read stdin.
 [ -z "$prompt" ] && [ ! -t 0 ] && prompt="$(cat)"
 
@@ -146,7 +165,7 @@ run_claude_code() {
   # (total_cost_usd, per-model tokens) alongside the result text. emit_result
   # records the usage (when usage.rb is present) and re-emits the text, so
   # callers see exactly what they always did on stdout/--out.
-  local args=(-p "$prompt" --model "$MODEL" --permission-mode acceptEdits --output-format json)
+  local args=(-p "$prompt" --model "$MODEL" --permission-mode "$perm_mode" --output-format json)
   # Run AS a named agent (.claude/agents/<name>.md) when given — its system prompt,
   # tool scope, and role constraints are the single source of truth, so every CI
   # invocation of that role behaves identically. --tools/--system still layer on.
@@ -235,6 +254,7 @@ claude_failure_reason() {
 claude_failure_class() {
   case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
     *max_budget*|*"max budget"*) echo budget ;;
+    *max_turns*|*"max turns"*|*"maximum number of turns"*) echo turns ;;
     *"usage limit"*|*rate_limit*|*"too many requests"*|*429*) echo quota ;;
     *authentication*|*unauthorized*|*"invalid api key"*|*invalid_api_key*|*expired*|*revoked*|*"/login"*|*401*|*403*) echo auth ;;
     *overloaded*|*529*|*503*|*502*) echo transient ;;
@@ -322,6 +342,16 @@ if [ "${AI_FORCE_API:-0}" != "1" ] && command -v claude >/dev/null 2>&1; then
         # spend somewhere else. Fail the step with the reason.
         echo "[ai] --max-budget-usd ${max_budget:-?} reached$via — stopping (no retry, no API fallback)." >&2
         [ "${GITHUB_ACTIONS:-}" = "true" ] && echo "::error::AI step hit its dollar cap (--max-budget-usd ${max_budget:-?}; a client-side estimate, a throughput ceiling under OAuth) — the work is truncated."
+        exit 1 ;;
+      turns)
+        # The turn cap bound. The same kind of event as the dollar cap: the
+        # agent did its turns and was cut off, so there is no credential to
+        # retry and nothing for the single-shot API fallback to finish. Until
+        # kit 0.3.0 this fell through to that fallback, and where a consumer
+        # ships one the step ended GREEN on one completion while the agent's
+        # work was truncated. Fail the step with the reason.
+        echo "[ai] --max-turns ${max_turns:-?} reached$via — stopping (no retry, no API fallback)." >&2
+        [ "${GITHUB_ACTIONS:-}" = "true" ] && echo "::error::AI step hit its turn cap (--max-turns ${max_turns:-?}) — the work is truncated. If the lane needs more turns, raise the turn cap and the dollar cap together."
         exit 1 ;;
       auth|quota)
         if [ -n "$next_method" ]; then

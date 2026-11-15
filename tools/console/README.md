@@ -128,6 +128,24 @@ No HTTP middleware sees a WebSocket handshake, and CORS does not apply to one, s
 - the **Origin** must be this console's own page, which stops cross-site WebSocket hijacking (add a dev origin with `DASH_CONSOLE_ALLOWED_ORIGINS`);
 - when `DASH_CONSOLE_TOKEN` is set, the first frame must carry it, because a browser cannot put a bearer token on a WebSocket.
 
+## tools/dash ops
+
+`tools/dash ops` ([`ops_cli.py`](ops_cli.py)) runs the operation allowlist from a terminal, and the Claude Code slash commands (`/harness:*`, `/loops:*`, `/console:*`, [`.claude/README.md`](../../.claude/README.md#slash-commands-the-harness-and-its-loops-one-stage-at-a-time)) run every stage through it. It is a surface, never a code path: the operations, their validation and the confirm gate are `core.py`'s.
+
+```bash
+tools/dash ops list [--group G]          # every operation, by group, with its gates
+tools/dash ops show conflicts-resolve    # what it runs, its parameters, why it may be unavailable here
+tools/dash ops run loop-run loop=repo-scout target=kvlite rehearse=true
+tools/dash ops run dispatch workflow=repo-scout fields.dry_run=true --explain   # argv and gate; runs nothing
+tools/dash ops run dispatch workflow=repo-scout fields.dry_run=true --confirm   # a GitHub write: asked first
+tools/dash ops loops                     # the loops table, each loop's operations and slash command
+tools/dash ops jobs [<job-id>]           # the running console's jobs, or follow one
+```
+
+A run goes to the running console when it answers at `DASH_CONSOLE_URL`, serves this checkout (`/api/health`'s `repo_root`) and can run the operation itself; the job then shows on the Jobs page and in the terminal dash, and the console's locks apply. Otherwise it runs here in the foreground with the same argv, and refuses when a console job already holds the lock it needs. `--here` and `--console` force either. A gated call without `--confirm` exits 3 and prints what it would run; the other exits are in the module's docstring.
+
+The operations the loop commands needed and the console lacked are in `OPS` too, on the loops' cards: `agents` (the agent inventory's check), `pm` (the PM review's views), `conflicts` (JEV's scan, triage and budget, read-only) and `conflicts-resolve` (resolve one pull request or sweep them all; a GitHub write unless `dry_run`), and `evidence` (one issue's evidence bundle). The loops table gained `jev_conflicts` and `fleet_pm`, and both workflows are dispatchable.
+
 ## For AI agents: the MCP layer
 
 The refinement is a read for agents too: `refine_status` (the whole document, or one `section`), `refine_library` (the lessons by loop and domain) and `refine_reviews` (the unfiled previews) are MCP tools of the layer, and the assistant itself reads the fleet through them ([docs/mcp-layer.md](docs/mcp-layer.md)).

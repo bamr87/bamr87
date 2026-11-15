@@ -224,9 +224,13 @@ def sec_ai() -> list[str]:
         fm = frontmatter(d / "SKILL.md")
         out.append(row(f"[`{d.name}`](.claude/skills/{d.name}/SKILL.md)", short(str(fm.get("description", "—")))))
     out += ["", "### Commands", ""] + header("Command", "Description")
-    for f in sorted((ROOT / ".claude" / "commands").glob("*.md")):
+    # a subdirectory is a namespace: .claude/commands/loops/scout.md is typed /loops:scout
+    cmd_root = ROOT / ".claude" / "commands"
+    for f in sorted(cmd_root.rglob("*.md"), key=lambda p: (len(p.relative_to(cmd_root).parts), str(p))):
         fm = frontmatter(f)
-        out.append(row(f"[`/{f.stem}`](.claude/commands/{f.name})", short(str(fm.get("description", "—")))))
+        rel = f.relative_to(cmd_root)
+        name = ":".join(rel.with_suffix("").parts)
+        out.append(row(f"[`/{name}`](.claude/commands/{rel.as_posix()})", short(str(fm.get("description", "—")))))
     out += ["", "### Agents and hooks", ""] + header("Entry", "Description")
     for f in sorted((ROOT / ".claude" / "agents").glob("*.md")):
         fm = frontmatter(f)

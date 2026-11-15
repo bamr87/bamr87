@@ -64,6 +64,13 @@ inputs:
       test_ai_budget.py), so a caller that forgets it is still capped. Empty = no cap.
       The cost is the CLI's client-side estimate: under OAuth a throughput ceiling.
     default: "10"
+  permission-mode:
+    description: >-
+      Claude Code --permission-mode: acceptEdits (the default; the agent may edit
+      files even when `tools` names no edit tool), default (the `tools` allowlist is
+      the whole grant; use it for a reviewer that must not write) or plan (read
+      only). Any other value fails the step before anything runs.
+    default: "acceptEdits"
 runs:
   using: composite
   steps:
@@ -78,6 +85,7 @@ runs:
         MODEL: ${{ inputs.model }}
         MAX_TURNS: ${{ inputs.max-turns }}
         MAX_BUDGET_USD: ${{ inputs.max-budget-usd }}
+        PERMISSION_MODE: ${{ inputs.permission-mode }}
       run: |
         if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && [ -z "${ANTHROPIC_API_KEY:-}" ]; then
           echo "::warning::no Claude auth (CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY) — AI step is a no-op."
@@ -106,6 +114,7 @@ runs:
         [ -n "$MODEL" ]     && args+=(--model "$MODEL")
         [ -n "$MAX_TURNS" ] && args+=(--max-turns "$MAX_TURNS")
         [ -n "$MAX_BUDGET_USD" ] && args+=(--max-budget-usd "$MAX_BUDGET_USD")
+        [ -n "$PERMISSION_MODE" ] && args+=(--permission-mode "$PERMISSION_MODE")
         bash "$GITHUB_ACTION_PATH/run.sh" "${args[@]}"
 
     # ---- metering post-steps (always run, never fail the job) ----------------

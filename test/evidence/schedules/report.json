@@ -1,0 +1,188 @@
+{
+  "id": "schedules",
+  "title": "Schedule map counts AI cron collisions per weekday and names the shared minute",
+  "features": [
+    "HUB-005"
+  ],
+  "path": "verify/scenarios/schedules.yml",
+  "started": "2026-11-13T16:22:55.114Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/schedules",
+          "ok": true,
+          "ms": 788
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "main table"
+          },
+          "ok": true,
+          "ms": 30
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "UTC-hour collisions"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "AI crons by UTC hour"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "on one day"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "schedules",
+          "ok": true,
+          "file": "test/evidence/schedules/desktop-schedules.png",
+          "ms": 40
+        },
+        {
+          "step": "screenshot",
+          "arg": "schedules-full",
+          "ok": true,
+          "file": "test/evidence/schedules/desktop-schedules-full.png",
+          "ms": 196
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/schedules/desktop-schedules.png",
+        "test/evidence/schedules/desktop-schedules-full.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4321/schedules/"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/schedules",
+          "ok": true,
+          "ms": 666
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "main table"
+          },
+          "ok": true,
+          "ms": 23
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "UTC-hour collisions"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "AI crons by UTC hour"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "on one day"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "schedules",
+          "ok": true,
+          "file": "test/evidence/schedules/mobile-schedules.png",
+          "ms": 25
+        },
+        {
+          "step": "screenshot",
+          "arg": "schedules-full",
+          "ok": true,
+          "file": "test/evidence/schedules/mobile-schedules-full.png",
+          "ms": 193
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/schedules/mobile-schedules.png",
+        "test/evidence/schedules/mobile-schedules-full.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4321/schedules/"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-11-13T16:22:57.295Z",
+  "base": "http://127.0.0.1:4321"
+}

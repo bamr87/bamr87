@@ -90,6 +90,10 @@ def test_component_classification():
     assert S.skill_name(sf, ".claude/skills/deploy/notes.md") is None
     assert S.agent_name(sf, ".claude/agents/tester.md") == "tester"
     assert S.command_name(sf, ".claude/commands/status.md") == "status"
+    # a subdirectory is a namespace, as Claude Code types it: /loops:scout
+    assert S.command_name(sf, ".claude/commands/loops/scout.md") == "loops:scout"
+    assert S.command_name(sf, ".claude/commands/a/b/c.md") == "a:b:c"
+    assert S.command_name(sf, ".claude/commands/loops/notes.txt") is None
 
 
 def test_fixture_is_clean_and_the_census_counts():

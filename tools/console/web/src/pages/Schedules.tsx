@@ -26,6 +26,12 @@ export function Schedules() {
         const tp = s.harnesses?.throughput ?? {};
         const sched = s.harnesses?.schedule ?? [];
         const cap = tp.cap_per_utc_hour ?? 3;
+        // A collision is counted per weekday by the generator: crons in the same
+        // hour on different days never meet. The chart counts the whole week, so
+        // an hour is marked from the collision list, not from its bar height.
+        const collisions = tp.hour_collisions ?? [];
+        const crowded = new Set(collisions.map((c) => c.utc_hour));
+        const when = (days?: string[]) => (!days?.length ? '' : days.length === 7 ? 'every day' : `on ${days.join(', ')}`);
         const load = Array(24).fill(0) as number[];
         const all = Array(24).fill(0) as number[];
         sched.forEach((e) => cronHours(e.cron).forEach((h) => { all[h]++; if (e.ai) load[h]++; }));
@@ -41,18 +47,21 @@ export function Schedules() {
               <StatTile label="Observed AI runs / day" value={fmt(tp.observed_ai_runs_per_day)} sub="all triggers — mention and PR traffic rides on the scheduled floor" href={to.costs()} />
               <StatTile label="Repos over the per-repo cap" value={(tp.repos_over_cap ?? []).length} tone={(tp.repos_over_cap ?? []).length ? 'crit' : undefined}
                 sub={(tp.repos_over_cap ?? []).map((v) => `${v.repo} ${v.est_per_day}/d`).join(', ') || 'none'} />
-              <StatTile label="UTC-hour collisions" value={(tp.hour_collisions ?? []).length} tone={(tp.hour_collisions ?? []).length ? 'crit' : undefined}
-                sub={(tp.hour_collisions ?? []).map((c) => `${c.utc_hour} × ${c.count}`).join(', ') || 'none'} />
+              <StatTile label="UTC-hour collisions" value={collisions.length} tone={collisions.length ? 'crit' : undefined}
+                sub={collisions.map((c) => `${c.utc_hour.slice(0, 2)} UTC hour × ${c.count}`).join(', ') || 'none'} />
             </SimpleGrid>
-            <Section title="AI crons by UTC hour" description={`Bars above the per-hour cap (${cap}) are drawn in the critical colour and marked in the table view.`}>
+            <Section title="AI crons by UTC hour" description={`Each bar counts the AI crons in that hour across the whole week. An hour is drawn in the critical colour when more than ${cap} of them can fire in it on one day.`}>
               <Paper p="md">
                 <ColumnChart rows={hours} label="hour" series={[{ key: 'ai', label: 'AI crons' }]} height={110}
-                  fmtLabel={(x) => String(x).slice(0, 2)} tone={(r) => (Number(r.ai) > cap ? 'crit' : undefined)} />
+                  fmtLabel={(x) => String(x).slice(0, 2)} tone={(r) => (crowded.has(String(r.hour)) ? 'crit' : undefined)} />
               </Paper>
-              {(tp.hour_collisions ?? []).map((c) => (
-                <Banner key={c.utc_hour} tone="crit" title={`${c.utc_hour} UTC — ${c.count} AI crons`}>
+              {collisions.map((c) => (
+                <Banner key={c.utc_hour} tone="crit" title={`${c.utc_hour.slice(0, 2)} UTC hour — ${c.count} AI crons ${when(c.days)}`.trim()}>
+                  {(c.same_minute ?? []).length ? (
+                    <Text size="sm" mb={4}>{(c.same_minute ?? []).map((m) => `${m.count} at exactly ${m.at}`).join(', ')}.</Text>
+                  ) : null}
                   <Stack gap={2}>{c.entries.map((e) => <Text key={e} size="sm" ff="monospace">{e}</Text>)}</Stack>
-                  <Text size="sm" mt={4}>Stagger one of them.</Text>
+                  <Text size="sm" mt={4}>Stagger them across hours or days. A lane whose switch is off still wakes to check it.</Text>
                 </Banner>
               ))}
               {(tp.repos_over_cap ?? []).length ? (

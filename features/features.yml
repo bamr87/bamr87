@@ -104,8 +104,10 @@ features:
       - .github/scripts/dash-gen/test_harness_registry.py
     scenarios:
       - verify/scenarios/harnesses.yml
+      - verify/scenarios/schedules.yml
     evidence:
       - test/evidence/harnesses
+      - test/evidence/schedules
     verified:
       date: 2026-10-12
       by: agent
@@ -2647,3 +2649,79 @@ features:
     - NFR29
     - NFR30
     - NFR31
+  - id: HUB-113
+    title: 'Run the harness and its loops one stage at a time from Claude Code: /harness, /loops and /console
+      slash commands over the console''s operation allowlist'
+    description: 'Three namespaces of Claude Code slash commands (.claude/commands/harness, loops, console)
+      let an operator run any part of the harness and any stage of any loop from a session: /harness:status,
+      :inventory, :health, :decisions, :graph, :gates, :refine, :learn and :lake observe and gate the harness;
+      /loops:list and one command per loop of the console''s loops table (pulse, issues, conflicts, pm,
+      credentials, evolution, scout, fanout, upkeep) run one stage at a time (plan, rehearse, run, show,
+      publish, ci); /console:ops, :run and :jobs reach the whole allowlist. Every stage runs through `tools/dash
+      ops` (tools/console/ops_cli.py), which runs the console''s own operations with their validation and
+      confirm gate, and joins the running console''s job list and locks when it serves the same checkout.
+      The console gains the operations the loop stages lacked (agents, pm, conflicts, conflicts-resolve,
+      evidence), the jev_conflicts and fleet_pm loops, their dispatch, and a select for fixed-choice parameters.
+      tools/console/test_ops_cli.py holds the commands to the console: every operation they name exists,
+      nothing they pre-approve can write to GitHub or spend, and the /loops commands cover exactly core.LOOPS.
+      The surface check and the catalog read a command subdirectory as a namespace.'
+    implemented: true
+    status: shipped
+    surface: cli
+    link: tools/console/ops_cli.py
+    docs: .claude/README.md
+    tags:
+    - harness
+    - loops
+    - console
+    - claude-code
+    - slash-commands
+    date: 2026-11-13
+    tests:
+    - tools/console/test_ops_cli.py
+    - tools/console/test_console.py
+    - tools/test_jev_surface.py
+    - tools/test_vscode_launch.py
+    prd:
+    - FR129
+    - FR65
+    - FR63
+  - id: HUB-114
+    title: 'The weekly routine: Friday closes the week, Saturday checks next week''s schedule can run, Sunday
+      plans it'
+    description: 'tools/weekly/ and `tools/dash weekly`, run by one LaunchAgent with three local slots.
+      Friday (`close`) takes inventory of the hub and every submodule and of the folders beside it, proves
+      what is merged, saves everything else to a local archive, refreshes to main and removes what is proven
+      safe (`tidy` does the folder clean-up on its own), gives every open pull request and issue in the
+      fleet one disposition (a merge candidate is read from live GitHub against the § 12.3 review gate),
+      has one capped, sandboxed, read-only Claude Code session propose what to do with the stale ones, and
+      drafts the week''s chronicles and retro. Saturday (`prepare`) checks every activity scheduled for
+      the coming week: when it fires, its switch, its last result, the credential ledgers, the month''s
+      AI spend against its ceilings, the freshness of the data the agents read, and this Mac''s own jobs.
+      Sunday (`plan`) ranks the open work with what the Grok bots handed off lifted in, lays the week out
+      day by day and writes the Monday brief. A scheduled stage makes no GitHub write: `confirm --apply`
+      is the maintainer''s yes for the `wip/` pushes, the Fleet project ops and one weekly pull request.
+      The routine lists what is ready to merge and what is stale; it never merges or closes. The direction
+      half is the Grok bots'' (constitution § 26): a standing brief a stage and one issue a week that the
+      two halves pass work through.'
+    implemented: true
+    status: shipped
+    surface: cli
+    link: tools/weekly/cli.py
+    docs: docs/WEEKLY.md
+    tags:
+    - routine
+    - backup
+    - planning
+    - chronicle
+    - close-out
+    - schedule
+    - grok
+    date: 2026-11-13
+    tests:
+    - tools/test_weekly.py
+    - tools/test_weekly_dispositions.py
+    - tools/test_weekly_harness.py
+    - tools/test_weekly_stages.py
+    prd:
+    - FR130

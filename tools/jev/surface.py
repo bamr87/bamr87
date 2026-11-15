@@ -197,10 +197,15 @@ def agent_name(surface: SurfaceSpec, rel: str) -> str | None:
 
 
 def command_name(surface: SurfaceSpec, rel: str) -> str | None:
+    """The name a command file is typed as. A subdirectory is a namespace:
+    `.claude/commands/loops/scout.md` is `/loops:scout` — each `/` of the path
+    below the commands directory becomes `:` (Claude Code's own rule)."""
     parts = rel.split("/")
     base = surface.commands_dir.split("/")
-    if parts[: len(base)] == base and len(parts) == len(base) + 1 and parts[-1].endswith(".md"):
-        return parts[-1][: -len(".md")]
+    if parts[: len(base)] == base and len(parts) > len(base) and parts[-1].endswith(".md"):
+        below = parts[len(base):]
+        if all(below[:-1]) and below[-1] != ".md":
+            return ":".join([*below[:-1], below[-1][: -len(".md")]])
     return None
 
 
