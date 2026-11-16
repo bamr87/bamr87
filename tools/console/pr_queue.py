@@ -401,9 +401,11 @@ def label_exists(repo: str, name: str, runner: Callable = run) -> bool | None:
 # --------------------------------------------------------------------------- #
 # Plans
 # --------------------------------------------------------------------------- #
-def parse_refs(refs: list[str] | str, cap: int, fleet_repos: set[str] | None = None) -> list[tuple[str, int]]:
-    """owner/repo#number refs, deduplicated and capped. With `fleet_repos`, a repo outside it is refused:
-    the queue writes only to the hub and the registry repos it owns, as the console's GitHub page does."""
+def parse_refs(refs: list[str] | str, cap: int, fleet_repos: list[str] | set[str]) -> list[tuple[str, int]]:
+    """owner/repo#number refs, deduplicated and capped. A repo outside `fleet_repos` is refused: the queue
+    writes only to the hub and the registry repos it owns, as the console's GitHub page does. The repo in
+    each ref is the registry's own string, never the request's, because it reaches gh's argv."""
+    trusted = {str(r).lower(): str(r) for r in fleet_repos}
     items = refs.split(",") if isinstance(refs, str) else list(refs)
     out: list[tuple[str, int]] = []
     for raw in items:
@@ -413,9 +415,10 @@ def parse_refs(refs: list[str] | str, cap: int, fleet_repos: set[str] | None = N
         m = REF_RX.match(raw)
         if not m:
             raise ValueError(f"{raw!r} is not owner/repo#number")
-        ref = (m.group(1), int(m.group(2)))
-        if fleet_repos is not None and ref[0].lower() not in fleet_repos:
-            raise ValueError(f"{ref[0]} is not a fleet repo the hub owns (the registry, hub.repo, hub.shared)")
+        repo = trusted.get(m.group(1).lower())
+        if repo is None:
+            raise ValueError(f"{m.group(1)} is not a fleet repo the hub owns (the registry, hub.repo, hub.shared)")
+        ref = (repo, int(m.group(2)))
         if ref not in out:
             out.append(ref)
     if not out:
@@ -600,7 +603,7 @@ def plan(action: str, refs: list[str] | str, params: dict | None = None, *, root
     fleet = load_fleet(root)
     cfg = pq.config(fleet)
     di_cfg = di.load_config(root)
-    targets = parse_refs(refs, cfg["max_targets"], set(di_cfg.get("registry") or []))
+    targets = parse_refs(refs, cfg["max_targets"], di_cfg.get("registry") or [])
     params = check_params(action, params)
     today = _now().strftime("%Y-%m-%d")
     with ThreadPoolExecutor(min(workers, len(targets))) as pool:
@@ -627,22 +630,32 @@ def plan(action: str, refs: list[str] | str, params: dict | None = None, *, root
         doc["cost_label"] = "API-equivalent (estimate)"
     if save:
         failed = _write(state_dir(root) / "plans" / f"{doc['plan_id']}.json", doc)
-        if failed:
-            doc["warning"] = failed
+        if failed:  # the OS error names local paths: it goes to the console's log, never into a response
+            print(f"pr_queue: {failed}", file=sys.stderr)
+            doc["warning"] = "the plan could not be saved under .fleet/prqueue/plans, so it cannot be applied (the console's log says why)"
     return doc
 
 
-def stored_plan(plan_id: str, root: Path = ROOT) -> dict | None:
+def _stored(kind: str, plan_id: str, root: Path) -> Any:
+    """A saved plan or result by its id. The path is the one the folder lists, never one built from the
+    request, so no id can name a file outside it."""
     if not re.fullmatch(r"[0-9a-f]{16}", plan_id or ""):
         raise ValueError("plan_id is 16 hex characters")
-    doc = _read(state_dir(root) / "plans" / f"{plan_id}.json")
+    try:
+        files = {p.name: p for p in (state_dir(root) / kind).iterdir()}
+    except OSError:
+        return None
+    path = files.get(f"{plan_id}.json")
+    return _read(path) if path else None
+
+
+def stored_plan(plan_id: str, root: Path = ROOT) -> dict | None:
+    doc = _stored("plans", plan_id, root)
     return doc if isinstance(doc, dict) and doc.get("schema") == pq.PLAN_SCHEMA else None
 
 
 def stored_result(plan_id: str, root: Path = ROOT) -> dict | None:
-    if not re.fullmatch(r"[0-9a-f]{16}", plan_id or ""):
-        raise ValueError("plan_id is 16 hex characters")
-    doc = _read(state_dir(root) / "results" / f"{plan_id}.json")
+    doc = _stored("results", plan_id, root)
     return doc if isinstance(doc, dict) else None
 
 

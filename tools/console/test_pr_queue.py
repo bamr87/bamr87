@@ -129,6 +129,32 @@ class PlanTests(Base):
         self.assertIn("not a fleet repo", str(ctx.exception))
         self.assertEqual(self.gh.calls, [], "refused before any GitHub read")
 
+    def test_the_repo_in_gh_argv_is_the_registrys_own_string(self):
+        doc = self.plan("ready", ["O/App#8"])
+        self.assertEqual(doc["items"][0]["key"], "o/app#8")
+        self.assertEqual(doc["items"][0]["op"]["argv"], ["gh", "pr", "ready", "8", "--repo", "o/app"])
+        self.assertEqual(doc["plan_id"], self.plan("ready", ["o/app#8"])["plan_id"], "the same plan, whatever the case")
+
+    def test_a_stored_plan_is_found_by_listing_never_by_a_built_path(self):
+        pid = self.plan("ready", ["o/app#8"])["plan_id"]
+        self.assertEqual(q.stored_plan(pid, self.root)["plan_id"], pid)
+        self.assertIsNone(q.stored_plan("0" * 16, self.root))
+        self.assertIsNone(q.stored_result(pid, self.root), "not applied yet")
+        for bad in ("../../etc/passwd", "../plans/" + pid, pid.upper(), ""):
+            with self.assertRaises(ValueError):
+                q.stored_plan(bad, self.root)
+
+    def test_a_plan_that_cannot_be_saved_says_so_without_the_os_error(self):
+        blocker = Path(TMP) / "not-a-folder"
+        blocker.write_text("x")
+        os.environ["DASH_PRQUEUE_DIR"] = str(blocker)
+        try:
+            doc = self.plan("ready", ["o/app#8"])
+        finally:
+            os.environ["DASH_PRQUEUE_DIR"] = str(Path(TMP) / "prqueue")
+        self.assertIn("could not be saved", doc["warning"])
+        self.assertNotIn(str(TMP), doc["warning"])
+
     def test_the_agent_never_pushes_to_a_fork(self):
         self.fleet({"agent": {"enabled": True, "model": "claude-sonnet-5-5"}})
         self.gh.prs[("o/app", 7)] = live(7, isCrossRepository=True, statusCheckRollup=[
