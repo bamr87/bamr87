@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Fixture tests for ai_usage_collector.py — the fleet's COMMITTED Claude CI
-spend ledger, and therefore the input to the $75/month budget check.
+spend ledger, and therefore the input to the monthly budget check against
+_data/fleet.yml harnesses.budget.monthly_ai_usd.
 
 WHY THIS EXISTS
 ---------------
