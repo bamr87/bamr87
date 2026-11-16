@@ -89,6 +89,7 @@ dash config auth sync --apply           # set them (the weekly token-rotation va
 The `api_key` credential is not one fleet-wide value. Each repo holds the key of the **Console workspace that pays for it**, as declared in `_data/fleet.yml` `api_keys:`:
 
 - A workspace claims repos by registry name, by `owner/repo` (which can be outside the registry, like a content site in another GitHub org), or by GitHub owner.
+- A repo the registry knows is claimed by its registry name, never its `owner/repo`: the registry follows a transfer, a pasted slug does not. `bash-365.com` once claimed `amr-bash/bash-365.com` after that repo had moved to `bash-365/bash-365.com` (#337); `test_fleet_config.py` now fails on such a slug.
 - Every repo that no workspace claims gets the key from the **Default Workspace**.
 - A repo whose `ai_auth` order leaves `api_key` out is never sent a key.
 
