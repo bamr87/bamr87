@@ -1692,11 +1692,14 @@ content:
       quality: { require: [title, description, date, author, tags] }
     - name: it-journey
       quality: { require: [title, description, date, author, categories, tags], description: [120, 160] }
-    # bash-365.com: `exclude:` drops the pages that are structure, not content: the admin and site pages
-    # under pages/_about, the search page, the case-study listing, and the section indexes under
-    # pages/_posts, whose front matter the site's zer0.json says to leave alone (content_lint exempts them).
+    # bash-365.com's own contract (zer0.json, and scripts/content_lint.py POST_REQUIRED_FIELDS, which its
+    # CI enforces) asks for `date` and `tags` on dated posts only, so the atlas requires only a title and a
+    # description and stops asking the evergreen services, toolkit, about and case-study pages for a date
+    # or tags. `exclude:` drops the pages that are structure, not content: the admin and site pages under
+    # pages/_about, the search page, the case-study listing, and the section indexes under pages/_posts,
+    # whose front matter zer0.json says to leave alone (content_lint exempts them).
     - name: bash-365.com
-      quality: { description: [120, 155] }
+      quality: { description: [120, 155], require: [title, description] }
       exclude:
         - pages/_about/settings # layout: admin — the theme's configuration pages
         - pages/_about/site # the site config page and the sitemap
