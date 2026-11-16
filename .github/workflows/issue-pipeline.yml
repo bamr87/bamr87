@@ -1040,10 +1040,13 @@ jobs:
                criterion of every issue the PR closes, each text verbatim.
             2. Write it to `verdict.md` with every entry filled in. `status`
                is `met`, `unmet` or `unverifiable`. For `met`, `evidence` is
-               required and is one of: a test id
-               (`path/test_x.py::test_name`), a run URL
-               (`https://github.com/…/actions/runs/…`) or a line anchor
-               (`path/to/file#L10-L20`). Prose is not evidence. A `note`
+               required and is one of: a test id that names a test, the
+               path of a test or spec file with an optional `::name`,
+               `[param]` or `:line` (`path/test_x.py::test_name`,
+               `spec/x_spec.rb:42`); a run URL
+               (`https://github.com/…/actions/runs/…`); or a line anchor
+               (`path/to/file#L10-L20`). A word such as `tested` or
+               `manual-test` is not a test id, and prose is not evidence. A `note`
                may say why an entry is not `met`. Never reword a criterion,
                and never mark `met` what you did not verify.
             3. Post it: `gh pr comment <n> -R <owner/repo> --body-file verdict.md`.
@@ -1087,9 +1090,6 @@ jobs:
             - Do not open new PRs — you finish existing ones.
             - Be specific in every comment. Quote the failing line, name the fix.
 
-      # Spend on EVERY run, a budget abort FAILS the step (and publishes
-      # `budget_hit`), a refused credential and a 429 are each classified —
-      # one script, .github/actions/claude-cost, asserted by test_ai_budget.py.
       # The VERDICT contract's backstop (header: CONTRACTS BETWEEN TIERS):
       # the agent is told to mark a PR ready, and its issue agent:done, only
       # after `issues verdict check` passes. This holds it to that. Every PR on
@@ -1106,6 +1106,9 @@ jobs:
           TARGETS: ${{ needs.scan.outputs.complete_targets }}
         run: tools/dash-gen issues verdict backstop --targets "${TARGETS:-[]}" --apply
 
+      # Spend on EVERY run, a budget abort FAILS the step (and publishes
+      # `budget_hit`), a refused credential and a 429 are each classified —
+      # one script, .github/actions/claude-cost, asserted by test_ai_budget.py.
       - name: Report Claude run cost
         id: cost
         if: ${{ !cancelled() && env.HAS_CLAUDE_AUTH == 'true' }}

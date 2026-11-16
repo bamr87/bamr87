@@ -758,6 +758,46 @@ def _pr_ci_state(repo, sha: str) -> str:
     return "pass"
 
 
+def slim_comment(com) -> dict:
+    """What comment_signals reads from one PyGithub IssueComment. Its author's
+    association and type come from `_rawData`, which the listing already
+    returned, so this costs no per-comment GET."""
+    raw = com._rawData  # noqa: SLF001 — no lazy per-comment GET
+    return {"body": com.body or "", "html_url": com.html_url,
+            "created_at": com.created_at,
+            "author_association": raw.get("author_association"),
+            "user_type": (raw.get("user") or {}).get("type")}
+
+
+def comment_signals(comments: list[dict], ttl: int) -> tuple[set[int], dict | None, list[dict]]:
+    """What enrich_candidates takes from one issue's comments (slim_comment
+    shape, oldest first): the pipeline tiers whose markers appear, the last
+    evidence bundle a TRUSTED author posted, with its freshness, and the
+    comments that may hold a recorded handoff.
+
+    Anyone can comment on a public issue. A stranger's evidence marker naming
+    another issue would make the handoff check move this one to `blocked`, and
+    a fresh-looking one would skip the evidence build, so it is ignored, as a
+    stranger's recorded handoff or verdict is (pipeline_contracts.is_trusted).
+    """
+    seen_tiers: set[int] = set()
+    evidence = None
+    handoff_comments: list[dict] = []
+    for com in comments:
+        cbody = com.get("body") or ""
+        for m in MARKER_RE.finditer(cbody):
+            seen_tiers.add(int(m.group(1)))
+        em = EVIDENCE_MARKER_RE.search(cbody)
+        if em and pc.is_trusted(com.get("author_association"), com.get("user_type")):
+            age = age_days(com.get("created_at"))
+            evidence = {"key": em.group(1), "at": str(com.get("created_at")),
+                        "age_days": age, "url": com.get("html_url"),
+                        "fresh": age is not None and age <= ttl}
+        if "issue-pipeline-handoff key=" in cbody:
+            handoff_comments.append(com)
+    return seen_tiers, evidence, handoff_comments
+
+
 def enrich_candidates(gh, cands: list[dict], cfg: dict) -> None:
     """Second pass over the CAPPED shortlist only: comments → evidence freshness.
 
@@ -770,31 +810,16 @@ def enrich_candidates(gh, cands: list[dict], cfg: dict) -> None:
     ttl = cfg["evidence"]["ttl_days"]
     for c in cands:
         nwo, num = c["key"].split("#")
-        seen_tiers: set[int] = set()
-        evidence = None
-        slim_comments: list[dict] = []
+        comments: list[dict] = []
         try:
             issue = gh.get_repo(nwo).get_issue(int(num))
             for com in issue.get_comments():
-                cbody = com.body or ""
-                for m in MARKER_RE.finditer(cbody):
-                    seen_tiers.add(int(m.group(1)))
-                em = EVIDENCE_MARKER_RE.search(cbody)
-                if em:
-                    age = age_days(com.created_at)
-                    evidence = {"key": em.group(1), "at": str(com.created_at),
-                                "age_days": age, "url": com.html_url,
-                                "fresh": age is not None and age <= ttl}
-                if "issue-pipeline-handoff key=" in cbody:
-                    raw = com._rawData  # noqa: SLF001 — no lazy per-comment GET
-                    slim_comments.append({
-                        "body": cbody, "html_url": com.html_url,
-                        "author_association": raw.get("author_association"),
-                        "user_type": (raw.get("user") or {}).get("type")})
+                comments.append(slim_comment(com))
         except (GithubException, ValueError):
             pass
+        seen_tiers, evidence, handoff_comments = comment_signals(comments, ttl)
         # The handoff tier 1 recorded (pipeline_contracts), for gate_handoffs.
-        c["_handoff_recorded"] = pc.recorded_handoff(slim_comments)
+        c["_handoff_recorded"] = pc.recorded_handoff(handoff_comments)
         c["evidence"] = evidence
         c["tiers_seen"] = sorted(seen_tiers)
         c["needs_evidence"] = bool(cfg["evidence"]["enabled"]

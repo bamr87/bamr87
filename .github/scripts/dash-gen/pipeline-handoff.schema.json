@@ -30,7 +30,7 @@
       }
     },
     "evidence": {
-      "description": "The last evidence bundle tools/issue-evidence.sh posted on the issue, or null when none was built.",
+      "description": "The last evidence bundle tools/issue-evidence.sh posted on the issue, read only from a trusted author (owner, member, collaborator or a bot), or null when none was built.",
       "oneOf": [
         {
           "type": "null"

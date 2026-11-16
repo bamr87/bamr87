@@ -59,7 +59,7 @@ A label plus prose is not a handoff. Tier 1 used to mark an issue `agent:ready` 
 | `issue` | `owner/repo#N`, and it is the issue being checked |
 | `owner_repo` | the issue's own repo, owned by the hub's owner: tier 2 opens its PR there |
 | `acceptance_criteria` | at least one checkbox criterion |
-| `evidence` | the last evidence bundle on the issue (`key` for this issue, `at`, `url`), or `null` when none was built |
+| `evidence` | the last evidence bundle a trusted author (owner, member, collaborator or a bot) posted on the issue (`key` for this issue, `at`, `url`), or `null` when none was built; a stranger's evidence marker is ignored, so a comment naming another issue cannot get this one blocked |
 | `size` | one of the size labels |
 
 1. **Recorded after tier 1.** `dash issues handoff record` builds the handoff for each issue on tier 1's queue that the agent left at `agent:ready`, uploads it as the `issue-handoffs` artifact, and records it on the issue: appended to tier 1's marker comment between hidden markers, replaced in place on a later run.
@@ -77,7 +77,7 @@ A dry run (`dry_run: true`) shows the check in the scan summary without blocking
 | `issue` | `owner/repo#N`, or `#N` for the PR's own repo |
 | `criterion_text` | the criterion verbatim (`dash issues verdict template` prints them); matched ignoring case, code and emphasis marks, whitespace runs and trailing punctuation |
 | `status` | `met`, `unmet` or `unverifiable` |
-| `evidence` | required for `met`: a test id (`tools/test_x.py::test_y`), a run URL, or a line anchor (`path#L10-L20`); prose is not evidence |
+| `evidence` | required for `met`: a test id that names a test (the path of a test or spec file, optionally with `::name`, `[param]` or `:line`, such as `tools/test_x.py::test_y` or `spec/x_spec.rb:42`, or a `::`-qualified id with a test or spec name in it), a run URL, or a line anchor (`path#L10-L20`); a word such as `tested` or `manual-test` is not a test id, and prose is not evidence |
 | `note` | optional, not checked |
 
 `dash issues verdict check --repo R --pr N` reads the last such block from a trusted author (owner, member, collaborator or a bot; anyone can comment on a public PR) and exits 0 only when every criterion of every issue has exactly one entry and all of them are `met` with evidence. A missing, duplicate or unlisted entry fails, and so does an issue with no checkbox criteria: it is `unverifiable`, because there is nothing to check a claim against. Tier 3 may run `gh pr ready` and apply `agent:done` only after the check passes; otherwise the PR stays a draft with the unmet list. After tier 3, `dash issues verdict backstop` re-checks every PR on its queue that was a draft at the scan and is ready now, or whose issue gained `agent:done` since the scan. Where the check fails, the PR goes back to draft, that `agent:done` comes off, and the PR gets the unmet list. A PR that was already ready before the run, or an earlier run's `agent:done`, is left alone.

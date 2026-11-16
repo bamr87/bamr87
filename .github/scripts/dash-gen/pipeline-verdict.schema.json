@@ -24,7 +24,7 @@
         "enum": ["met", "unmet", "unverifiable"]
       },
       "evidence": {
-        "description": "For met, required: a test id (path/test_x.py::test_y), a run URL, or a line anchor (path#Lx-Ly). Prose is not evidence. May be empty otherwise.",
+        "description": "For met, required: a test id that names a test (the path of a test or spec file, optionally followed by ::name, [param] or :line, such as path/test_x.py::test_y or spec/x_spec.rb:42; or a ::-qualified id with a test or spec name in it), a run URL, or a line anchor (path#Lx-Ly). A word such as tested or manual-test is not a test id, and prose is not evidence. May be empty otherwise. This schema checks only that a met entry has evidence; its form is checked by pipeline_contracts.evidence_ok.",
         "type": "string"
       },
       "note": {

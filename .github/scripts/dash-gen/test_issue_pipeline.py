@@ -34,6 +34,7 @@ Deliberately dependency-light — no network, no gh, no pytest. Needs only PyYAM
 
 from __future__ import annotations
 
+import datetime as dt
 import inspect
 import json
 import sys
@@ -809,6 +810,44 @@ def test_handoff_contract():
           pc.recorded_handoff([stranger]) is None
           and pc.recorded_handoff([comment(block)])["doc"] == doc)
 
+    # A stranger's evidence marker: anyone can comment on a public issue, and
+    # one naming another issue would get this ready issue blocked.
+    ours = comment('<!-- issue-evidence key="bamr87/x#7" at="2026-11-12T07:43:51Z" -->\nbundle',
+                   cid=21, user_type="Bot", assoc="NONE")
+    theirs = comment('<!-- issue-evidence key="bamr87/other#9" at="2026-11-15T00:00:00Z" -->',
+                     cid=22, assoc="NONE")
+    check("a stranger's evidence marker is ignored when the handoff is built",
+          pc.evidence_from_comments([ours, theirs])["key"] == "bamr87/x#7"
+          and pc.evidence_from_comments([theirs]) is None)
+    plan = pc.plan_record(nwo="bamr87/x", number=7, body=T1_BODY, labels=good["labels"],
+                          comments=[ours, theirs], sizes=SIZES, owner=OWNER, built_at="t")
+    check("…so tier 1 records a valid handoff with its own bundle",
+          plan["problems"] == [] and plan["handoff"]["evidence"]["key"] == "bamr87/x#7",
+          str(plan["problems"]))
+    then = dt.datetime(2026, 11, 12, 7, 43, 51, tzinfo=dt.timezone.utc)
+    seen, ev, held = ip.comment_signals([dict(ours, created_at=then),
+                                         dict(theirs, created_at=then),
+                                         dict(comment(block, cid=23), created_at=then)], ttl=7)
+    check("…and the tier-2 gate's comment scan ignores it too",
+          ev is not None and ev["key"] == "bamr87/x#7" and ev["url"].endswith("-21")
+          and [c["id"] for c in held] == [23], str(ev))
+    _, ev, _ = ip.comment_signals([dict(theirs, created_at=then)], ttl=7)
+    check("…so it can neither block the issue nor pass as its evidence", ev is None, str(ev))
+    poisoned = handoff_candidate(evidence=ev)
+    check("…and the issue stays in the tier-2 work order",
+          ip.gate_handoffs([poisoned], cfg)[1] == [], str(poisoned.get("_handoff")))
+
+    class FakeComment:
+        def __init__(self, body, assoc, user_type):
+            self.body, self.html_url, self.created_at = body, "https://c", then
+            self._rawData = {"author_association": assoc, "user": {"type": user_type}}
+
+    slim = ip.slim_comment(FakeComment("b", "NONE", "User"))
+    check("enrich_candidates reads each comment's author from the listing (_rawData)",
+          slim["author_association"] == "NONE" and slim["user_type"] == "User"
+          and "comment_signals(comments" in _source_of(ip.enrich_candidates)
+          and "slim_comment(com)" in _source_of(ip.enrich_candidates))
+
     report = ip.build_report([repo("bamr87/x")], {"intake": [], "implement": [], "complete": []},
                              CFG, {}, handoff=ip.handoff_summary(
                                  [dict(bare), dict(bare, private=True, key="bamr87/p#1")], 3))
@@ -908,10 +947,24 @@ def test_verdict_contract():
           pc.check_verdicts(bad_shape, issues, default_nwo="bamr87/x")["pass"] is False)
 
     for ev in GOOD_EVIDENCE + ["tests/unit/test_x.py::TestA::test_b[case-1]",
-                               "spec/models/user_spec.rb:42", "src/app.py#L7"]:
+                               "spec/models/user_spec.rb:42", "src/app.py#L7",
+                               "templates/ai-runner/tests/contract.sh",
+                               "src/__tests__/App.test.tsx", "pkg/store/cache_test.go",
+                               "src/test/java/FooTest.java", "spec/x_spec.rb[1:2]",
+                               "crate::tests::it_works", "test_module::test_name"]:
         check(f"evidence {ev!r} is accepted", pc.evidence_ok(ev))
-    for ev in ("", "  ", "I checked it by hand", "see the PR", "scripts/latest.py", None, 3):
+    # A word with `test` or `spec` in it does not name a test (#537: `met`
+    # without evidence fails), nor does a file that is not a test.
+    for ev in ("", "  ", "I checked it by hand", "see the PR", "scripts/latest.py", None, 3,
+               "test", "tests", "tested", "Tested", "manual-test", "not-tested",
+               "unit-tests", "verified-by-tests", "specs", "manual.test", "contest.py",
+               "docs/Testament.md", "Tested::Manually", "foo::bar"):
         check(f"evidence {ev!r} is refused", not pc.evidence_ok(ev))
+    words = verdicts(evidence=("tested", "manual-test", GOOD_EVIDENCE[2]))
+    r = pc.check_verdicts(words, issues, default_nwo="bamr87/x")
+    check("`met` citing a word (`tested`, `manual-test`) instead of a test fails",
+          r["pass"] is False and [c["verdict"] for c in r["issues"][0]["criteria"]]
+          == ["met-without-evidence", "met-without-evidence", "met"], json.dumps(r))
 
     # Reading the block from the PR, and the template tier 3 fills in.
     first = "```pipeline-verdict\n[]\n```"

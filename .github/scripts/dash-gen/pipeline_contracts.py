@@ -84,8 +84,17 @@ ACCEPT_LABELS = ("acceptance", "definition of done", "done when")
 # Evidence for a `met` verdict: something a reviewer can open or run.
 EVIDENCE_URL_RE = re.compile(r"https?://\S+")
 EVIDENCE_ANCHOR_RE = re.compile(r"[\w.@+/-]+#L\d+(?:-L?\d+)?")
-EVIDENCE_TOKEN_RE = re.compile(r"[\w.@+/:#\[\]-]+")
-EVIDENCE_TEST_RE = re.compile(r"(?:^|[^a-z])(?:test|spec)", re.I)
+# A test id names a test, so a word such as `tested`, `tests` or `manual-test`
+# is not one. Either a test file's path, with an optional `::name` chain,
+# `[param]` and `:line` (`tools/test_x.py::TestA::test_b[case-1]`,
+# `spec/models/user_spec.rb:42`), or a `::`-qualified id
+# (`crate::tests::it_works`); see evidence_ok for what a test name is.
+EVIDENCE_TEST_FILE_RE = re.compile(
+    r"(?P<dirs>(?:[\w.@+-]+/)*)(?P<stem>[\w@+-][\w.@+-]*)\.[A-Za-z0-9]{1,10}"
+    r"(?P<names>(?:::[\w.-]+)*)(?:\[[^\]\s]+\])?(?::\d+(?:-\d+)?)?")
+EVIDENCE_QUALIFIED_RE = re.compile(r"[\w.-]+(?:::[\w.-]+)+(?:\[[^\]\s]+\])?")
+TEST_WORDS = ("test", "tests", "spec", "specs")
+CAMEL_TEST_RE = re.compile(r"(?:Test|Spec)s?[A-Z0-9]\w*|\w*[a-z0-9](?:Test|Spec)s?")
 
 # Who may author a recorded handoff or a verdict. Anyone can comment on a
 # public issue; a block from a stranger is ignored, never trusted.
@@ -205,11 +214,13 @@ def criterion_key(text: str) -> str:
 # --------------------------------------------------------------------------- #
 def evidence_from_comments(comments: list[dict]) -> dict | None:
     """The LAST evidence bundle posted on the issue (tools/issue-evidence.sh's
-    marker), as the handoff's `evidence`: its key, when it was built, its URL."""
+    marker) by a trusted author, as the handoff's `evidence`: its key, when it
+    was built, its URL. A stranger's marker is ignored: one naming another
+    issue would otherwise get a ready issue blocked by the handoff check."""
     found = None
     for c in comments or []:
         m = EVIDENCE_MARKER_RE.search(c.get("body") or "")
-        if m:
+        if m and is_trusted(c.get("author_association"), c.get("user_type")):
             found = {"key": m.group(1), "at": m.group(2) or None,
                      "url": c.get("html_url") or None}
     return found
@@ -437,10 +448,23 @@ def plan_block(reject: dict, *, ready: str, blocked: str) -> list[dict]:
 # --------------------------------------------------------------------------- #
 # the verdict — tier 3 → agent:done
 # --------------------------------------------------------------------------- #
+def names_test(word: str) -> bool:
+    """Is `word` (a directory, a file name without its extension, or one
+    segment of a qualified id) a test or spec name? `test_x`, `x_test`,
+    `x.spec`, `__tests__`, `TestFoo` and `FooSpec` are; `tested`, `latest`,
+    `contest` and `testament` are not."""
+    parts = [p for p in re.split(r"[._-]+", word) if p]
+    return any(p.lower() in TEST_WORDS or CAMEL_TEST_RE.fullmatch(p) for p in parts)
+
+
 def evidence_ok(evidence) -> bool:
     """A `met` verdict's evidence: a URL, a `path#Lx-Ly` line anchor, or a test
-    id (one token naming a test or spec: `tools/test_x.py::test_y`). Prose is
-    not evidence."""
+    id. A test id names a test: the path of a file whose name, or one of whose
+    directories, is a test or spec name (`tools/test_x.py`, `x.spec.ts`,
+    `templates/ai-runner/tests/contract.sh`), optionally followed by a `::name`
+    chain, a `[param]` and a `:line`; or a `::`-qualified id with a test or
+    spec name in it (`crate::tests::it_works`). A word is not a test id
+    (`tested`, `tests`, `manual-test`), and prose is not evidence."""
     if not isinstance(evidence, str):
         return False
     s = evidence.strip()
@@ -448,7 +472,15 @@ def evidence_ok(evidence) -> bool:
         return False
     if EVIDENCE_URL_RE.fullmatch(s) or EVIDENCE_ANCHOR_RE.fullmatch(s):
         return True
-    return bool(EVIDENCE_TOKEN_RE.fullmatch(s) and EVIDENCE_TEST_RE.search(s))
+    m = EVIDENCE_TEST_FILE_RE.fullmatch(s)
+    if m:
+        dirs = [d for d in m.group("dirs").split("/") if d]
+        if any(names_test(w) for w in dirs + [m.group("stem")]):
+            return True
+    if EVIDENCE_QUALIFIED_RE.fullmatch(s):
+        segments = re.sub(r"\[[^\]]*\]$", "", s).split("::")
+        return any(names_test(seg) for seg in segments)
+    return False
 
 
 def parse_verdicts(texts: list[str]) -> tuple[list | None, str | None]:
