@@ -61,6 +61,7 @@ const TerminalPage = lazy(() => import('./pages/TerminalPage').then((m) => ({ de
 import { ConfigPage } from './pages/ConfigPage';
 import { AuthPage } from './pages/AuthPage';
 import { GithubPage, GithubRepoPage } from './pages/GithubPage';
+import { GhProjects } from './pages/GhProjects';
 import { NotFound } from './pages/NotFound';
 
 const queryClient = new QueryClient({
@@ -104,6 +105,7 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="containers" element={<Containers />} />
                   <Route path="github" element={<GithubPage />} />
                   <Route path="github/:owner/:repo" element={<GithubRepoPage />} />
+                  <Route path="gh-projects" element={<GhProjects />} />
                   <Route path="harnesses" element={<Inventory />} />
                   <Route path="harnesses/health" element={<HealthPage />} />
                   <Route path="schedules" element={<Schedules />} />
