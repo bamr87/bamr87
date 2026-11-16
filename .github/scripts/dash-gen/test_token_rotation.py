@@ -122,7 +122,8 @@ class ReportJobTests(unittest.TestCase):
             # the rotate step crashed (or rotation is switched off) after the
             # probe passed: no verdict on the credentials at all
             {"can_write": "true", "full_run": "true"},
-            # a dry-run, one-repo or one-token dispatch saw only part of it
+            # a dry run (writes nothing, so it cannot meet a write failure) or
+            # a one-repo / one-token dispatch (audits only part of the fleet)
             {"attention": "false", "can_write": "true", "full_run": "false"},
             {"attention": "false", "can_write": "true"},
         ):
@@ -141,11 +142,19 @@ class ReportJobTests(unittest.TestCase):
         self.assertIn("steps.cfg.outputs.enabled == 'true'", step.get("if", ""))
 
     def test_report_body_is_composed_only_to_open(self):
-        for step in report_steps():
-            if step.get("name") == "Compose the report" or step.get("uses", "").startswith(
-                    "actions/download-artifact"):
-                with self.subTest(step=step.get("name") or step.get("uses")):
-                    self.assertIn("steps.verdict.outputs.state == 'open'", step.get("if", ""))
+        # Found by what they do, not only by name, and required to exist: a
+        # renamed or removed step must fail here rather than pass vacuously.
+        body_steps = {
+            "compose": [s for s in report_steps()
+                        if "rotation-attention.md" in str(s.get("run", ""))],
+            "download": [s for s in report_steps()
+                         if str(s.get("uses", "")).startswith("actions/download-artifact")],
+        }
+        for kind, steps in body_steps.items():
+            with self.subTest(kind=kind):
+                self.assertEqual(len(steps), 1,
+                                 f"expected one {kind} step in report, found {len(steps)}")
+                self.assertIn("steps.verdict.outputs.state == 'open'", steps[0].get("if", ""))
 
     def test_full_run_is_the_ledger_scope(self):
         rotate = load_jobs()["rotate"]

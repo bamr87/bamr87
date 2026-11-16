@@ -304,9 +304,11 @@ jobs:
       # close = a full apply run judged every token and found nothing
       #         (`attention` explicitly 'false', never merely absent);
       # none  = no verdict on the whole fleet — the rotate step died after
-      #         the probe, rotation is switched off, or a dry-run / one-repo /
-      #         one-token dispatch saw only part of it. The issue is left as
-      #         it is: a missing answer must not post a false all-clear.
+      #         the probe or rotation is switched off (no `attention` at
+      #         all), a dry run wrote nothing so it met no write failure, or a
+      #         one-repo / one-token dispatch audited only part of it. The
+      #         issue is left as it is: a missing answer must not post a false
+      #         all-clear.
       - name: Decide whether the issue opens, closes or stays
         id: verdict
         env:
