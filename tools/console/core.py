@@ -1076,6 +1076,80 @@ def _content_file(params: dict) -> list[str]:
 
 
 # --------------------------------------------------------------------------- #
+# VOICES — the editor for the fleet voice model (constitution § 23 rule 7)
+# --------------------------------------------------------------------------- #
+# `_data/voices/voices.yml` is the only copy: the page loads it (with its check
+# errors and its drift from origin/main), previews an edit as the exact bytes
+# and diff a PR would carry (writing nothing), stages those bytes OUTSIDE the
+# repo under the job dir, and the `voices-pr` op files them — a dry run, then,
+# behind confirm, one branch and one draft PR that change that file alone
+# (tools/voices.py `pr`, the OPS remote-write path of § 11.8).
+VOICES_PLAN_RX = re.compile(r"^[0-9a-f]{16}$")
+
+
+def _voices():
+    if str(TOOLS) not in sys.path:
+        sys.path.insert(0, str(TOOLS))
+    import voices  # noqa: PLC0415 - tools/voices.py, shared with the CLI
+    return voices
+
+
+def voices_stage_dir() -> Path:
+    return JOB_DIR / "voices"
+
+
+def voices_doc() -> dict:
+    """The Voices page's document: the file, its check errors, its drift from
+    origin/main, the form's vocabularies. Reads only."""
+    return _voices().editor_doc(REPO_ROOT)
+
+
+def voices_preview(data) -> dict:
+    """An edit validated, rendered and diffed against main, with its plan id. Writes nothing."""
+    return _voices().preview(data, REPO_ROOT)
+
+
+def voices_stage(data, plan_id: str) -> dict:
+    """Stage a previewed edit for `voices-pr`: the bytes the preview showed, under
+    the console's job dir (never the working tree). Refused when the edit fails
+    the check, changes nothing, or no longer matches the plan id it was previewed as."""
+    if not VOICES_PLAN_RX.fullmatch(str(plan_id or "")):
+        raise ValueError("plan_id must be the 16-hex id of a preview")
+    p = voices_preview(data)
+    if not p["ok"]:
+        raise ValueError(f"the edit fails tools/voices.py check: {'; '.join(p['errors'][:5])}")
+    if not p["changed"]:
+        raise ValueError(f"nothing to file: the edit equals voices.yml on {p['base']}")
+    if p["plan_id"] != plan_id:
+        raise PermissionError(f"the edit or main moved since plan {plan_id} was previewed (now {p['plan_id']}) "
+                              "— preview again")
+    folder = voices_stage_dir()
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / f"{plan_id}.yml").write_text(p["text"], encoding="utf-8")
+    return {"plan_id": plan_id, "staged": True, "base": p["base"], "changes": p["changes"], "diff": p["diff"]}
+
+
+def _voices_pr(params: dict) -> list[str]:
+    """`tools/voices.py pr --file <staged> --plan-id <id> [--apply]`. The staged
+    bytes must exist (POST /api/voices/stage, which also runs the preview), so a
+    filing is always the exact bytes someone reviewed; `scheduled` is never a
+    console parameter, and the filer refuses `--scheduled` with `--apply` too."""
+    if "scheduled" in params:
+        raise ValueError("scheduled is never a console parameter: an unattended filing is refused (constitution "
+                         "§ 11.8, until § 13.7 earned autonomy)")
+    plan = str(params.get("plan_id") or "").strip()
+    if not VOICES_PLAN_RX.fullmatch(plan):
+        raise ValueError("plan_id must be the 16-hex id of a staged preview (the Voices page, or POST /api/voices/stage)")
+    staged = voices_stage_dir() / f"{plan}.yml"
+    if not staged.is_file():
+        raise ValueError(f"no staged edit for plan {plan}: preview and stage it first (the Voices page)")
+    argv = [sys.executable, str(TOOLS / "voices.py"), "pr", "--file", str(staged), "--plan-id", plan]
+    if _flag(params, "apply"):
+        argv.append("--apply")
+    return argv
+
+
+# --------------------------------------------------------------------------- #
 # OPS — the allowlist
 # --------------------------------------------------------------------------- #
 def _flag(params: dict, key: str) -> bool:
@@ -1916,6 +1990,15 @@ OPS: dict[str, dict] = {
                               "editorial:directive and deduped on a hidden marker — DRY RUN unless apply. "
                               "Records filed + the URL in _data/editorial.yml (commit it yourself).",
                          params=["target", "apply"]),
+    "voices-pr": dict(title="Voices: file an edit of the voice model as a draft PR", group="content",
+                      argv=_voices_pr, needs_token=True, remote=lambda p: _flag(p, "apply"),
+                      desc="tools/voices.py pr — the edit staged from the Voices page, by its plan id. DRY RUN "
+                           "unless apply: the diff against origin/main and the branch it would push. With apply "
+                           "(the OPS remote-write path, constitution § 11.8): the token probed with `gh api user`, "
+                           "the plan re-checked against a fresh main, one chore/voices-* branch and one draft PR "
+                           "that changes only _data/voices/voices.yml; refused with an open voices PR, a dirty "
+                           "engine or --scheduled.",
+                      params=["plan_id", "apply"]),
     # deploy (writes to GitHub — confirm-gated, serialized) ---------------------
     "deploy-gaps": dict(title="Deploy the agent-context kit to gap repos", group="deploy",
                         argv=lambda p: _deploy(p, "gaps"), needs_token=True,

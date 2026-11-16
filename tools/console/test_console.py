@@ -90,8 +90,8 @@ def test_argv_shapes_are_exact_and_never_shell():
     # loop-run needs a loop with a local: spec, and its step named when the loop has several (fanout's kits)
     first = (core.agent_steps() or [{"loop": "", "step": ""}])[0]
     for op_id in core.OPS:
-        if op_id in ("tests", "refine-evidence", "assist", "evidence"):   # need an item / a question / an issue
-            # (their own tests: below, and test_ops_cli.py for evidence)
+        if op_id in ("tests", "refine-evidence", "assist", "evidence", "voices-pr"):   # need an item / a question / an
+            # issue / a staged plan (their own tests: below, and test_ops_cli.py for evidence)
             continue
         # a dev-stack op takes a project from the port registry, not any name
         argv, _ = core.build_argv(op_id, {"target": "gitorio" if op_id.startswith("dev-") else "alpha", "workflow": "fleet-pulse", "fields": {},
@@ -2119,6 +2119,93 @@ def test_github_callback_needs_no_bearer_but_everything_else_does():
             os.environ.pop("DASH_CONSOLE_TOKEN", None)
         else:
             os.environ["DASH_CONSOLE_TOKEN"] = saved
+
+
+def test_voices_editor_previews_writes_nothing_and_files_only_through_a_confirmed_staged_plan():
+    """The Voices editor (constitution § 23 rule 7, the write path § 11.8): the page's document carries the
+    file's check errors and its drift from main; a preview writes nothing; staging puts the previewed bytes
+    under the job dir, never the working tree, and refuses an edit that fails the check, changes nothing or no
+    longer matches its plan; `voices-pr` needs that staged plan, is a dry run without apply, needs confirm with
+    it, and never takes `scheduled`."""
+    import copy
+    doc = core.voices_doc()
+    assert doc["schema"] == "voices-editor/v1" and doc["ok"] and doc["canonical"], doc["errors"]
+    assert {"ref", "available", "differs", "diff", "changes"} <= set(doc["drift"]) and doc["enums"]["cadence"] == ["daily", "weekly"]
+    path = core.REPO_ROOT / "_data" / "voices" / "voices.yml"
+    before = path.read_bytes()
+    data = copy.deepcopy(doc["data"])
+    data["sites"]["lifehacker.dev"]["personas"]["kit"]["tone"] = "candid, caffeinated"
+    p = core.voices_preview(data)
+    assert path.read_bytes() == before, "a preview wrote the file"
+    assert p["ok"] and p["changed"] and "sites.lifehacker.dev.personas.kit.tone" in p["changes"], p
+    bad = copy.deepcopy(data)
+    bad["sites"]["lifehacker.dev"]["personas"]["kit"]["style"]["humor"] = "loud"
+    assert not core.voices_preview(bad)["ok"]
+    for args, exc in (((data, ""), ValueError), ((data, "nope"), ValueError), ((data, "0" * 16), PermissionError),
+                      ((bad, core.voices_preview(bad)["plan_id"]), ValueError)):
+        try:
+            core.voices_stage(*args)
+        except exc:
+            continue
+        raise AssertionError(f"staged {args[1]!r}")
+    plan = p["plan_id"]
+    for params in ({}, {"plan_id": "nope"}, {"plan_id": plan}):            # nothing staged yet
+        try:
+            core.build_argv("voices-pr", params)
+        except ValueError:
+            continue
+        raise AssertionError(f"voices-pr built without a staged plan: {params}")
+    staged = core.voices_stage(data, plan)
+    assert staged["staged"] and staged["plan_id"] == plan and path.read_bytes() == before
+    copy_path = core.voices_stage_dir() / f"{plan}.yml"
+    assert copy_path.read_text() == p["text"] and core.REPO_ROOT not in copy_path.parents, copy_path
+    argv, remote = core.build_argv("voices-pr", {"plan_id": plan})
+    assert remote is False and argv[1:5] == [str(core.TOOLS / "voices.py"), "pr", "--file", str(copy_path)], argv
+    assert "--apply" not in argv and argv[-2:] == ["--plan-id", plan]
+    argv, remote = core.build_argv("voices-pr", {"plan_id": plan, "apply": True})
+    assert remote is True and argv[-1] == "--apply"
+    try:
+        core.build_argv("voices-pr", {"plan_id": plan, "apply": True, "scheduled": True})
+    except ValueError as exc:
+        assert "scheduled" in str(exc)
+    else:
+        raise AssertionError("voices-pr took scheduled")
+    try:
+        core.JobManager(Path(tempfile.mkdtemp())).submit("voices-pr", {"plan_id": plan, "apply": True}, confirm=False)
+    except PermissionError:
+        pass
+    else:
+        raise AssertionError("voices-pr apply ran without confirm")
+    op = next(o for o in core.list_ops() if o["id"] == "voices-pr")
+    assert op["remote_write"] and op["confirm"] == "write" and op["params"] == ["plan_id", "apply"], op
+    copy_path.unlink()
+
+
+def test_voices_routes_serve_the_document_and_a_preview_that_writes_nothing():
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    import app as console_app
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    doc = client.get("/api/voices").json()
+    assert doc["schema"] == "voices-editor/v1" and doc["path"] == "_data/voices/voices.yml" and doc["ok"], doc.get("errors")
+    path = core.REPO_ROOT / "_data" / "voices" / "voices.yml"
+    before = path.read_bytes()
+    data = doc["data"]
+    data["sites"]["lifehacker.dev"]["personas"]["kit"]["enabled"] = "sometimes"
+    r = client.post("/api/voices/preview", json={"data": data})
+    assert r.status_code == 200 and not r.json()["ok"] and any("enabled" in e for e in r.json()["errors"]), r.text
+    assert path.read_bytes() == before, "a preview wrote the file"
+    r = client.post("/api/voices/stage", json={"data": data, "plan_id": r.json()["plan_id"]})
+    assert r.status_code == 400 and "check" in r.json()["detail"], r.text
+    data["sites"]["lifehacker.dev"]["personas"]["kit"]["enabled"] = True
+    data["sites"]["lifehacker.dev"]["personas"]["kit"]["tone"] = "candid, caffeinated"
+    r = client.post("/api/voices/stage", json={"data": data, "plan_id": "0" * 16})
+    assert r.status_code == 409 and "preview again" in r.json()["detail"], r.text
+    assert client.post("/api/voices/preview", json={"text": "x"}).status_code == 422
+    assert path.read_bytes() == before
 
 
 def main() -> int:

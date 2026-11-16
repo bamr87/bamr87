@@ -10,7 +10,7 @@ import type {
   AppsDoc, AuthDoc, Capabilities, ProjectReadme, ConfigDoc, DockerView, FleetView, Job, LakeLine, LakeRun, Op,
   ProjectDetail, StateDoc, TuiStatus, Dict, GithubStatus, GhRepo, GhRepoDetail, GhAction, GhIssue,
   SiteIndex, SitePage, SitePost, GithubFleet, PullSpecs, WorkBoard, WorkItemDetail, WorkPlan,
-  WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint, RefineDoc, EvidenceDoc, TextFile, AssistDoc, JobTail,
+  WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint, RefineDoc, EvidenceDoc, TextFile, AssistDoc, JobTail, VoicesDoc,
 } from './types';
 
 const minute = 60_000;
@@ -222,6 +222,8 @@ export const useReviewFile = (runId: string | null, path: string | null) =>
     enabled: Boolean(runId && path),
     retry: false,
   });
+// --- The fleet voice model (tools/voices.py; constitution § 23 rule 7) -------
+export const useVoices = () => useQuery({ queryKey: ['voices'], queryFn: () => api<VoicesDoc>('/api/voices'), staleTime: minute });
 export const useAssist = () => useQuery({ queryKey: ['assist'], queryFn: () => api<AssistDoc>('/api/assist'), staleTime: minute });
 /** One job's tail from offset 0: the Assist page reads a finished answer through it. */
 export const useJobTail = (id: string | null, live = false) =>
