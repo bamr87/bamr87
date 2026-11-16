@@ -115,6 +115,10 @@ jobs:
       attention: ${{ steps.rotate.outputs.attention }}
       reasons: ${{ steps.rotate.outputs.reasons }}
       can_write: ${{ steps.probe.outputs.can_write }}
+      # 'true' when this run audited the whole contract across the whole fleet
+      # with --apply: the scope that publishes the ledger below, and the only
+      # one whose clean result may close the tracking issue.
+      full_run: ${{ steps.mode.outputs.apply != '' && inputs.repo == '' && inputs.only == '' }}
     steps:
       - uses: actions/checkout@v7
 
@@ -277,30 +281,61 @@ jobs:
           token: ${{ steps.token.outputs.token }}
 
   # ========================================================================= #
-  # 2. FILE WHAT A HUMAN HAS TO DO
+  # 2. FILE WHAT A HUMAN HAS TO DO — AND CLOSE IT ONCE NOTHING IS LEFT
   #
   # `needs: rotate` with `if: always()` rather than a `workflow_run` chain: the
   # runs most worth reporting are the ones where rotation did NOT go cleanly,
-  # and a `workflow_run` trigger skips exactly those.
+  # and a `workflow_run` trigger skips exactly those. The job runs on every
+  # run, clean ones included: it was once gated on `attention`, so it could
+  # open the issue but never close it, and #148 stayed open for weeks after
+  # the ledger showed nothing left to do.
   # ========================================================================= #
   report:
-    name: File the tracking issue
+    name: File or close the tracking issue
     needs: rotate
-    if: always() && (needs.rotate.outputs.attention == 'true' || needs.rotate.outputs.can_write != 'true')
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       issues: write
     steps:
+      # open  = a human is needed: attention, a credential without
+      #         secrets:write, or a probe that never ran;
+      # close = a full apply run judged every token and found nothing
+      #         (`attention` explicitly 'false', never merely absent);
+      # none  = no verdict on the whole fleet — the rotate step died after
+      #         the probe, rotation is switched off, or a dry-run / one-repo /
+      #         one-token dispatch saw only part of it. The issue is left as
+      #         it is: a missing answer must not post a false all-clear.
+      - name: Decide whether the issue opens, closes or stays
+        id: verdict
+        env:
+          ATTENTION: ${{ needs.rotate.outputs.attention }}
+          CAN_WRITE: ${{ needs.rotate.outputs.can_write }}
+          FULL_RUN: ${{ needs.rotate.outputs.full_run }}
+        run: |
+          if [ "$ATTENTION" = "true" ] || [ "$CAN_WRITE" != "true" ]; then
+            state=open
+          elif [ "$ATTENTION" = "false" ] && [ "$FULL_RUN" = "true" ]; then
+            state=close
+          else
+            state=none
+          fi
+          echo "state=$state" >> "$GITHUB_OUTPUT"
+          echo "tracking issue: $state (attention='$ATTENTION' can_write='$CAN_WRITE' full_run='$FULL_RUN')"
+
       - uses: actions/checkout@v7
+        if: steps.verdict.outputs.state != 'none'
 
       # This job reads `rotation.issue` out of _data/fleet.yml, so it needs the
       # same Python env as the rotate job. Relying on PyYAML happening to be in
       # the runner image is the kind of undocumented dependency that breaks on
       # an image bump and takes the week's report with it.
       - uses: ./.github/actions/setup/dash-gen
+        if: steps.verdict.outputs.state != 'none'
 
       - uses: actions/download-artifact@v8
+        if: steps.verdict.outputs.state == 'open'
         continue-on-error: true
         with:
           name: rotation-attention
@@ -310,6 +345,7 @@ jobs:
       # prevent, so it is read rather than restated here.
       - name: Read the issue contract
         id: cfg
+        if: steps.verdict.outputs.state != 'none'
         run: |
           set -euo pipefail
           cfg=$(python3 tools/fleet-config.py show rotation.issue)
@@ -321,7 +357,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Compose the report
-        if: steps.cfg.outputs.enabled == 'true'
+        if: steps.verdict.outputs.state == 'open' && steps.cfg.outputs.enabled == 'true'
         env:
           REASONS: ${{ needs.rotate.outputs.reasons }}
           # '' = the probe never ran (the job broke before it); 'false' = the
@@ -368,10 +404,12 @@ jobs:
           } >> rotation-attention.md
 
       # ONE issue, updated in place, deduped on its exact title (a body marker
-      # is not a reliable search key). Filed with the job token on purpose: an
-      # alarm must not ride on the credential most likely to be dead.
-      - name: Open or update the rotation issue
-        if: steps.cfg.outputs.enabled == 'true'
+      # is not a reliable search key), and closed by the first full run that
+      # finds nothing; the next run with attention files a fresh one. Filed
+      # with the job token on purpose: an alarm must not ride on the
+      # credential most likely to be dead.
+      - name: Open, update, or close the rotation issue
+        if: steps.verdict.outputs.state != 'none' && steps.cfg.outputs.enabled == 'true'
         uses: ./.github/actions/utilities/upsert-issue
         with:
           token: ${{ github.token }}
@@ -379,3 +417,5 @@ jobs:
           title: "🔑 Fleet credential rotation needs attention"
           body-file: rotation-attention.md
           labels: ${{ steps.cfg.outputs.labels }}
+          state: ${{ steps.verdict.outputs.state }}
+          close-comment: "Every fleet credential is inside its policy: this run audited the whole contract across the fleet and found nothing for a human to do ([run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})). Closing; the next run that needs attention files a fresh issue."
