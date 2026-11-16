@@ -405,7 +405,7 @@ def parse_refs(refs: list[str] | str, cap: int, fleet_repos: list[str] | set[str
     """owner/repo#number refs, deduplicated and capped. A repo outside `fleet_repos` is refused: the queue
     writes only to the hub and the registry repos it owns, as the console's GitHub page does. The repo in
     each ref is the registry's own string, never the request's, because it reaches gh's argv."""
-    trusted = {str(r).lower(): str(r) for r in fleet_repos}
+    canonical = {str(r).lower(): str(r) for r in fleet_repos}
     items = refs.split(",") if isinstance(refs, str) else list(refs)
     out: list[tuple[str, int]] = []
     for raw in items:
@@ -415,7 +415,7 @@ def parse_refs(refs: list[str] | str, cap: int, fleet_repos: list[str] | set[str
         m = REF_RX.match(raw)
         if not m:
             raise ValueError(f"{raw!r} is not owner/repo#number")
-        repo = trusted.get(m.group(1).lower())
+        repo = canonical.get(m.group(1).lower())
         if repo is None:
             raise ValueError(f"{m.group(1)} is not a fleet repo the hub owns (the registry, hub.repo, hub.shared)")
         ref = (repo, int(m.group(2)))
