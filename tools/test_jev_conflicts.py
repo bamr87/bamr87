@@ -546,9 +546,11 @@ def test_a_conflict_past_every_tier_still_goes_to_a_person_on_any_host():
 # --------------------------------------------------------------------------- #
 # an expedite sprint's ceiling and switch (tools/jev/sprints.py, #689)
 # --------------------------------------------------------------------------- #
-def _sprint_world(usd: float, spent: float, *, scheduled_off: bool = False):
+def _sprint_world(usd: float, spent: float, *, scheduled_off: bool = False, pipeline: Path | None = None):
     """STAGED with one active sprint on bamr87/demo, a JEV ledger that has spent
-    `spent` on it today, and every other ledger pointed at nothing."""
+    `spent` on it today, and every other ledger pointed at a path that does not
+    exist (nothing is created, so nothing is left behind), or the issue
+    pipeline's snapshot at `pipeline`."""
     import dataclasses
     import datetime as dt
 
@@ -561,8 +563,9 @@ def _sprint_world(usd: float, spent: float, *, scheduled_off: bool = False):
     if spent:
         led.append(Resolution(repo="bamr87/demo", pr=7, tier="tier2", outcome="resolved",
                               date=now.date().isoformat(), cost_usd=spent))
-    env = {"DASH_AI_LEDGER": str(Path(tempfile.mkdtemp()) / "none.json"),
-           "JEV_CI_USAGE": str(Path(tempfile.mkdtemp()) / "none.yml")}
+    nothing = Path("/nonexistent/jev-sprint-test")
+    env = {"DASH_AI_LEDGER": str(nothing / "none.json"), "JEV_CI_USAGE": str(nothing / "none.yml"),
+           "JEV_ISSUE_PIPELINE": str(pipeline or nothing / "issue_pipeline.yml")}
     if scheduled_off:
         env[sp.SWITCH] = "false"
     return dataclasses.replace(STAGED, sprints=sprints), led, env
@@ -596,6 +599,24 @@ def test_tier0_still_runs_for_a_sprint_at_its_cap():
     cfg, led, env = _sprint_world(usd=5.0, spent=5.0)
     stage = Stage(cls.TIER0, ci=False, tier0_works=True)
     assert _staged_in(cfg, led, env, stage).outcome == "resolved" and stage.calls == ["push"], stage.calls
+
+
+def test_the_issue_pipelines_reservations_count_against_a_sprint_pr():
+    import datetime as dt
+
+    import yaml
+
+    from tools.jev import sprints as sp
+    with tempfile.TemporaryDirectory() as d:
+        snapshot = Path(d) / "issue_pipeline.yml"
+        cfg, led, env = _sprint_world(usd=5.0, spent=0.0, pipeline=snapshot)
+        [s] = cfg.sprints
+        row = sp.reservation(s, run="77.1", at=dt.datetime.now(dt.UTC), tiers={"intake": 4.9})
+        snapshot.write_text(yaml.safe_dump({"sprint": {"reservations": [row]}}))
+        stage = Stage(cls.TIER1, ci=False)
+        res = _staged_in(cfg, led, env, stage)
+    assert res.outcome == "escalated" and stage.calls == ["escalate"], (res, stage.calls)
+    assert "$4.90 (4.90 estimated) of $5.00" in res.reason, res.reason
 
 
 def test_the_sprint_switch_stops_jev_on_the_sprints_prs_tier0_included():

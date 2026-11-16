@@ -805,11 +805,13 @@ budget:
   # Inside its time box every loop attempt on a sprint repo is sprint work: the
   # loop runner, JEV tiers 1-2 and the issue pipeline's tier jobs run it only
   # when the sprint's spend (the AI ledger's loop rows, JEV's ledger, the sprint
-  # repos' own CI runs) plus the attempt's FULL call-site cap fits under `usd`;
-  # otherwise `budget-skip`, JEV hands the PR to jev:needs-human, and the
-  # breaker is recorded as an event. The issue pipeline reserves each tier's cap
-  # once a run; its hub jobs batch issues, so their own cost reaches the
-  # ceiling only once the live sprint record (#691) carries it. When the time box
+  # repos' own CI runs, the issue pipeline's reservations) plus the attempt's
+  # FULL call-site cap fits under `usd`; otherwise `budget-skip`, JEV hands the
+  # PR to jev:needs-human, and the breaker is recorded as an event. The issue
+  # pipeline's scan reserves each tier's cap once for its whole run, and its
+  # hub jobs batch issues, so those caps are the estimate: every run's
+  # reservation is a row in _data/issue_pipeline.yml sprint.reservations that
+  # the next run, the loop runner and JEV count. When the time box
   # closes the sprint is over and its item stays held until a new declaration
   # (never extended). A ceiling sits INSIDE every cap above and never raises one:
   # `usd` above harnesses.budget.monthly_ai_usd, a cap that is .inf/.nan/0 or

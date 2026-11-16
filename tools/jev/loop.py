@@ -1464,7 +1464,8 @@ def sprint_block(ctx: RunContext, item: Item, cap: float) -> tuple[str, str] | N
             return None
         verdict = sp.gate(ctx.sprints, repo=item.nwo, now=now, cost_usd=cap, switch=ctx.sprint_switch,
                           spend_of=lambda s: sp.spend(s, ai_ledger=ledger_path(), jev=Ledger.load(), ci=sp.ci_rows(),
-                                                      hub=hub_repo(ctx.fleet), extra=ctx.unledgered))
+                                                      pipeline=sp.pipeline_rows(), hub=hub_repo(ctx.fleet),
+                                                      extra=ctx.unledgered))
     except (JevError, StepSpecError) as exc:
         return "budget-unreadable", f"sprint ceiling: {exc}"
     return _sprint_verdict(ctx, verdict, now)
@@ -3000,7 +3001,8 @@ def _sprint_budget(fleet: dict) -> dict:
         if s is None:
             return {"active": None, "declared": len(sprints),
                     "line": f"no active expedite sprint ({len(sprints)} declared)"}
-        spent = sp.spend(s, ai_ledger=ledger_path(), jev=Ledger.load(), ci=sp.ci_rows(), hub=hub_repo(fleet))
+        spent = sp.spend(s, ai_ledger=ledger_path(), jev=Ledger.load(), ci=sp.ci_rows(), pipeline=sp.pipeline_rows(),
+                         hub=hub_repo(fleet))
         return {"active": s.as_dict(), "declared": len(sprints), **spent.as_dict(),
                 "line": f"{s.slug}: {spent.summary(s)}; its time box ends {sp.iso(s.ends)}"}
     except JevError as exc:
@@ -3015,13 +3017,17 @@ def cmd_budget(args: argparse.Namespace) -> int:
     above 0 and so cannot be judged, or when the sprint cannot be."""
     fleet = load_fleet()
     loops = budget_position(fleet, scheduled=args.scheduled)
-    conflicts = budget_state(load_config(fleet), Ledger.load(), scheduled=args.scheduled, month=loops.month)
+    sprint = _sprint_budget(fleet)
+    # load_config refuses a sprint declaration that bounds nothing; budget.jev's month does not depend on it,
+    # so that declaration is reported on the sprint line (exit 1) rather than ending the whole readout
+    jev_fleet = fleet if "error" not in sprint else {
+        **fleet, "budget": {k: v for k, v in (fleet.get("budget") or {}).items() if k != "sprints"}}
+    conflicts = budget_state(load_config(jev_fleet), Ledger.load(), scheduled=args.scheduled, month=loops.month)
     ceiling = (((fleet.get("harnesses") or {}).get("budget") or {}).get("monthly_ai_usd"))
     limit = (float(ceiling) if isinstance(ceiling, (int, float)) and not isinstance(ceiling, bool)
              and math.isfinite(ceiling) and ceiling > 0 else None)
     together = round(loops.cap_usd + conflicts.cap_usd, 4)
     inside = limit is not None and together <= limit
-    sprint = _sprint_budget(fleet)
     out = {"label": f"{COST_LABEL} — a throughput ceiling under OAuth, not an invoice",
            "loops": {**_budget_dict(loops), "ledger": str(ledger_path())},
            "jev_conflicts": _budget_dict(conflicts),

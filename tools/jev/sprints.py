@@ -10,7 +10,10 @@ Description: The expedite sprint's ceiling and circuit breaker (constitution
              nothing (a cap that is `.inf`, `.nan`, 0 or negative, a ceiling
              above the fleet's monthly one) and a second sprint whose time box
              overlaps another (WIP 1). It sums a sprint's spend from the
-             ledgers that already exist, and answers the one question every
+             ledgers that already exist, and from the issue pipeline's record
+             of the tier caps each of its runs reserved for sprint items
+             (`_data/issue_pipeline.yml` `sprint.reservations`), and answers
+             the one question every
              loop asks before it spends on a sprint item: `gate()` gives
              nothing, `budget-skip` (the ceiling cannot absorb this attempt's
              full cap, or the time box of the sprint that declared this item
@@ -51,7 +54,11 @@ SPRINT_OFF = "sprint-off"
 STOP_EVENT = "sprint-stop"
 #: the committed CI ledger (dash-gen ai_usage_collector); JEV_CI_USAGE points a test elsewhere
 CI_USAGE = HUB / "_data" / "ai_usage.yml"
-KEYS = frozenset({"item", "repos", "usd", "hours", "declared", "ends", "note"})
+#: the issue pipeline's committed snapshot: `sprint.reservations` holds one row
+#: per run that reserved a tier job's cap for a sprint item (dash-gen
+#: issue_pipeline.py); JEV_ISSUE_PIPELINE points a test elsewhere
+ISSUE_PIPELINE = HUB / "_data" / "issue_pipeline.yml"
+KEYS =frozenset({"item", "repos", "usd", "hours", "declared", "ends", "note"})
 SLUG_RX = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
 #: dash-gen work_queue.KEY_RX, copied because nothing under tools/jev imports
 #: dash-gen (tools/test_jev_sprints.py holds the two equal)
@@ -314,16 +321,96 @@ def _ci_cost(row: dict, p: str) -> float:
     return cost
 
 
+def pipeline_rows(path: Path | None = None, *, text: str | None = None, where: str | None = None) -> list[dict]:
+    """The issue pipeline's record of its runs' sprint reservations: the
+    `sprint.reservations` rows of its snapshot, read from `path` (default
+    `_data/issue_pipeline.yml`, or JEV_ISSUE_PIPELINE) or from `text` (the same
+    file as another branch holds it). A missing file or block is no rows; one
+    that cannot be read refuses, as an unreadable ledger does."""
+    if text is None:
+        p = path or Path(os.environ.get("JEV_ISSUE_PIPELINE") or ISSUE_PIPELINE)
+        where = where or str(p)
+        if not p.is_file():
+            return []
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise JevError(f"{where} cannot be read ({exc}); the sprint ceiling cannot be judged") from exc
+    where = where or "the issue pipeline snapshot"
+    try:
+        data = yaml.safe_load(text) or {}
+    except yaml.YAMLError as exc:
+        raise JevError(f"{where} cannot be read ({exc}); the sprint ceiling cannot be judged") from exc
+    block = data.get("sprint") if isinstance(data, dict) else None
+    if block is None:
+        return []
+    if not isinstance(block, dict):
+        raise JevError(f"{where} has a `sprint` block that is not a mapping; the sprint ceiling cannot be judged")
+    rows = block.get("reservations")
+    if rows is None:
+        return []
+    if not isinstance(rows, list) or not all(isinstance(r, dict) for r in rows):
+        raise JevError(f"{where} has a `sprint.reservations` that is not a list of runs; the sprint ceiling cannot "
+                       "be judged")
+    return rows
+
+
+def reservation(sprint: Sprint, *, run: str, at: dt.datetime, tiers: Mapping[str, float]) -> dict:
+    """One issue-pipeline run's row in `sprint.reservations`: the full cap of
+    each tier job it let run a sprint item, which every later attempt on the
+    sprint counts as estimated spend (`pipeline_spend`)."""
+    return {"run": str(run), "at": iso(at), "sprint": sprint.slug, "declared": iso(sprint.declared),
+            "usd": round(sum(float(v) for v in tiers.values()), 4),
+            "tiers": {k: float(v) for k, v in tiers.items()}, "label": COST_LABEL}
+
+
+def of_sprint(row: Mapping, sprint: Sprint) -> bool:
+    """A reservation row made under this declaration (its slug and declared
+    time): a re-declared slug starts from nothing."""
+    return row.get("sprint") == sprint.slug and _instant(row.get("declared")) == sprint.declared
+
+
+def pipeline_spend(sprint: Sprint, rows: Iterable[dict]) -> float:
+    """What the issue pipeline's runs reserved for `sprint` inside its time box
+    (rows of this declaration only, one per run). A tier job batches several
+    issues in one hub session, so no ledger attributes its cost to one item:
+    the full cap it was allowed is the estimate, and it errs high. A row of
+    this sprint that cannot be read refuses."""
+    total, seen = 0.0, set()
+    for r in rows:
+        if not of_sprint(r, sprint):
+            continue
+        run = str(r.get("run") or "")
+        at = _instant(r.get("at"))
+        raw = r.get("usd")
+        try:
+            usd = float(raw)
+        except (TypeError, ValueError):
+            usd = math.nan
+        if not run or at is None or isinstance(raw, bool) or not math.isfinite(usd) or usd < 0:
+            raise JevError(f"the issue pipeline's sprint.reservations has a row ({r!r}) without a run, a time and a "
+                           "finite figure of 0 or more; the sprint ceiling cannot be judged")
+        if run in seen or not sprint.within(at):
+            continue
+        seen.add(run)
+        total += usd
+    return round(total, 4)
+
+
 def spend(sprint: Sprint, *, ai_ledger: Path | None = None, jev=None, ci: Iterable[dict] | None = None,
-          hub: str = "bamr87/bamr87", extra: Iterable[tuple[float, str | None]] = ()) -> Spend:
+          pipeline: Iterable[dict] | None = None, hub: str = "bamr87/bamr87",
+          extra: Iterable[tuple[float, str | None]] = ()) -> Spend:
     """What `sprint` has spent inside its time box, from every ledger it is
     handed: the local loop runner's attempts in the AI ledger (and the
     engine's unledgered charges) on a sprint repository; JEV's conflict
-    attempts (`jev`, a ledger.Ledger) on one; and the CI runs of a sprint
-    repository's own workflows (`ci`, ai_usage.yml rows). The hub's CI rows are
-    never attributed: its workflows run fleet-wide loops. `extra` is a run's
-    own charges no ledger holds yet, counted whole. An unreadable figure
-    refuses, as the monthly ceilings do."""
+    attempts (`jev`, a ledger.Ledger) on one; the CI runs of a sprint
+    repository's own workflows (`ci`, ai_usage.yml rows); and the tier caps the
+    issue pipeline's runs reserved for sprint items (`pipeline`, its
+    `sprint.reservations` rows, an estimate). The hub's CI rows are never
+    attributed: its workflows run fleet-wide loops, and the issue pipeline's
+    share of them is its reservations. `extra` is a run's own charges no
+    ledger holds yet, counted whole. An unreadable figure refuses, as the
+    monthly ceilings do."""
     total = Spend()
     if ai_ledger is not None:
         from . import loop as engine   # lazily: loop imports this module
@@ -344,6 +431,10 @@ def spend(sprint: Sprint, *, ai_ledger: Path | None = None, jev=None, ci: Iterab
         for r in ci:
             if str(r.get("repo") or "").lower() in names and sprint.within_day(r.get("day")):
                 total.add("ci", _ci_cost(r, where), str(r.get("cost_source")) in ESTIMATED)
+    if pipeline is not None:
+        reserved = pipeline_spend(sprint, pipeline)
+        if reserved:
+            total.add("issue-pipeline", reserved, True)
     for cost, source in extra:
         total.add("unledgered", float(cost), source == "estimated")
     return total

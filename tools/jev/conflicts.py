@@ -985,7 +985,8 @@ def resolve(cfg: JevConfig, pr: PullRequest, *, dry_run: bool = False, scheduled
                 held = sp.gate(cfg.sprints, repo=pr.repo, key=f"pr:{pr.repo}#{pr.number}", now=sp.now_utc(),
                                cost_usd=cfg.tier(tier).max_usd,
                                spend_of=lambda s: sp.spend(s, ai_ledger=sp.ai_ledger_path(), jev=led, ci=sp.ci_rows(),
-                                                           hub=hub_repo(), extra=[(spent, "reported")] if spent else []))
+                                                           pipeline=sp.pipeline_rows(), hub=hub_repo(),
+                                                           extra=[(spent, "reported")] if spent else []))
                 if held is not None:
                     notes.append(f"{tier}: skipped, {held.reason}")
                     break

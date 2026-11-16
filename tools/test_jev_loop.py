@@ -1728,19 +1728,21 @@ def test_the_monthly_ceiling_skips_an_attempt_that_would_not_fit_and_scheduled_s
         assert code == 2 and "cannot be read" in err, "an unreadable ledger is not an empty month"
 
 
-def _sprint_on_target(usd: float):
+def _sprint_on_target(usd: float, declared: str | None = None):
     """A fleet edit: the $25 pilot ceiling, plus one expedite sprint on the scout's
     fixture repo, declared an hour ago with a four-hour box (tools/jev/sprints.py)."""
     def edit(f: dict) -> None:
         pilot_ceiling(f)
-        declared = (L.now_utc() - dt.timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        f["budget"]["sprints"] = {"pilot": {"item": f"issue:{NWO}#1", "usd": usd, "hours": 4, "declared": declared}}
+        when = declared or (L.now_utc() - dt.timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        f["budget"]["sprints"] = {"pilot": {"item": f"issue:{NWO}#1", "usd": usd, "hours": 4, "declared": when}}
     return edit
 
 
 def _sprint_box(box: Box) -> dict[str, str]:
-    """Every ledger a sprint reads, in the box: the AI ledger already is; JEV's and the CI one are empty."""
-    return {"JEV_LEDGER": str(box.root / "jev_resolutions.yml"), "JEV_CI_USAGE": str(box.root / "ai_usage.yml")}
+    """Every ledger a sprint reads, in the box: the AI ledger already is; JEV's, the CI one and the issue
+    pipeline's reservations are empty."""
+    return {"JEV_LEDGER": str(box.root / "jev_resolutions.yml"), "JEV_CI_USAGE": str(box.root / "ai_usage.yml"),
+            "JEV_ISSUE_PIPELINE": str(box.root / "issue_pipeline.yml")}
 
 
 def test_an_expedite_sprint_at_its_cap_skips_the_next_attempt_and_records_the_stop():
@@ -1802,6 +1804,29 @@ def test_a_sprint_declaration_that_bounds_nothing_stops_every_attempt():
     item = box.last()["items"][0]
     assert item["decision"] == "budget-unreadable" and "budget.sprints.pilot.usd" in item["reason"], item
     assert not box.live_calls()
+    with world(box, fleet_edit=infinite, **_sprint_box(box)):
+        code, out, err = jev("budget")
+    assert code == 1 and "cannot be judged" in out and "budget.sprints.pilot.usd" in out, (code, out, err[-300:])
+    assert "jev conflicts (budget.jev)" in out, "the rest of the readout still prints"
+
+
+def test_the_issue_pipelines_sprint_reservations_count_against_the_loop_runner():
+    box = Box()
+    declared = (L.now_utc() - dt.timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    row = {"run": "77.1", "at": (L.now_utc() - dt.timedelta(minutes=20)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+           "sprint": "pilot", "declared": declared, "usd": 5.0, "tiers": {"intake": 5.0},
+           "label": "API-equivalent (estimate)"}
+    (box.root / "issue_pipeline.yml").write_text(yaml.safe_dump({"sprint": {"reservations": [row]}}))
+    with world(box, fleet_edit=_sprint_on_target(12, declared), **_sprint_box(box)):
+        box.seed_live({"kind": "ok", "proposals": GOOD})
+        code, _, err = jev("run", "repo-scout", "--target", TARGET)
+        item = box.last()["items"][0]
+        assert code == 0 and item["decision"] == "budget-skip", (item, err[-400:])
+        assert "$5.00 (5.00 estimated) of $12.00" in item["reason"], item["reason"]
+        assert not box.live_calls(), "the issue pipeline's $5 reservation + the scout's $8 cap crosses the sprint's $12"
+        code, out, _ = jev("budget", "--json")
+    sprint = json.loads(out)["sprint"]
+    assert sprint["by_source"] == {"issue-pipeline": 5.0} and sprint["estimated_usd"] == 5.0, sprint
 
 
 def test_a_budget_hit_is_discarded_and_nothing_is_previewed():

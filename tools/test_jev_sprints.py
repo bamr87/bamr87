@@ -9,8 +9,10 @@ second sprint whose time box overlaps another (WIP 1) are refused at load; a
 sprint at its cap answers `budget-skip` to the next attempt; its switch set
 to 'false' answers `sprint-off` on a scheduled run and a manual run bypasses
 it; a closed sprint keeps its declared item stopped; spend is read from the
-AI ledger's loop rows, JEV's ledger and the sprint repositories' own CI runs,
-never from the hub's. The loop runner, the conflict engine and the issue
+AI ledger's loop rows, JEV's ledger, the sprint repositories' own CI runs
+(never the hub's) and the tier caps the issue pipeline's runs reserved for
+sprint items (its snapshot's `sprint.reservations`, an estimate). The loop
+runner, the conflict engine and the issue
 pipeline each prove the same breaker in their own suites
 (tools/test_jev_loop.py, tools/test_jev_conflicts.py,
 .github/scripts/dash-gen/test_issue_pipeline.py).
@@ -315,6 +317,59 @@ def test_an_unreadable_figure_refuses_rather_than_reads_as_free():
     else:
         raise AssertionError("a ci_ledger that is not a list was read")
     assert sp.ci_rows(tmp / "missing.yml") == []
+
+
+def test_the_issue_pipelines_reservations_are_estimated_sprint_spend():
+    s = one(usd=200)
+    row = sp.reservation(s, run="77.1", at=NOW, tiers={"intake": 40, "implement": 60})
+    assert row == {"run": "77.1", "at": "2026-11-20T18:00:00Z", "sprint": "pilot", "declared": "2026-11-20T15:00:00Z",
+                   "usd": 100.0, "tiers": {"intake": 40.0, "implement": 60.0},
+                   "label": "API-equivalent (estimate)"}, row
+    rows = [row, dict(row),                                              # one row per run
+            dict(row, run="78.1", at="2026-11-24T00:00:00Z"),            # after the time box
+            dict(row, run="79.1", sprint="other"),                       # another sprint
+            dict(row, run="80.1", declared="2026-11-01T00:00:00Z"),      # an earlier declaration of the slug
+            dict(row, run="81.1", usd=60.0, tiers={"complete": 60.0})]
+    assert sp.pipeline_spend(s, rows) == 160.0
+    got = sp.spend(s, pipeline=rows)
+    assert got.by_source == {"issue-pipeline": 160.0} and got.estimated_usd == 160.0, got
+    hub_sprint = one(item="issue:bamr87/bamr87#691")
+    hub_row = sp.reservation(hub_sprint, run="82.1", at=NOW, tiers={"intake": 40})
+    assert sp.spend(hub_sprint, pipeline=[hub_row]).spent_usd == 40.0, \
+        "the hub's CI rows are never counted, but what the issue pipeline reserved for a hub sprint is"
+    for bad in ({**row, "usd": "NaN"}, {**row, "usd": -1}, {**row, "usd": True}, {**row, "usd": None},
+                {**row, "at": "soon"}, {**row, "run": ""}):
+        try:
+            sp.pipeline_spend(s, [bad])
+        except JevError as exc:
+            assert "cannot be judged" in str(exc), exc
+        else:
+            raise AssertionError(f"a reservation row {bad!r} was read")
+    with tempfile.TemporaryDirectory() as d:
+        p = Path(d) / "issue_pipeline.yml"
+        assert sp.pipeline_rows(p) == [], "no snapshot yet: no rows"
+        p.write_text("# GENERATED\ntotals: {open_issues: 3}\n")
+        assert sp.pipeline_rows(p) == [], "no sprint declared: no rows"
+        p.write_text(yaml.safe_dump({"sprint": {"active": None, "reservations": [row]}}))
+        assert sp.pipeline_rows(p) == [row], "the committed snapshot reads back as written"
+        saved = os.environ.get("JEV_ISSUE_PIPELINE")
+        os.environ["JEV_ISSUE_PIPELINE"] = str(p)
+        try:
+            assert sp.pipeline_rows() == [row], "JEV_ISSUE_PIPELINE points the default reader elsewhere"
+        finally:
+            os.environ.pop("JEV_ISSUE_PIPELINE")
+            if saved is not None:
+                os.environ["JEV_ISSUE_PIPELINE"] = saved
+        for text in ("sprint: [1, 2]\n", "sprint: {reservations: {a: 1}}\n", "sprint: {reservations: [1]}\n",
+                     "sprint: {reservations: [\n"):
+            p.write_text(text)
+            try:
+                sp.pipeline_rows(p)
+            except JevError as exc:
+                assert "cannot be" in str(exc), exc
+            else:
+                raise AssertionError(f"a snapshot of {text!r} was read")
+    assert sp.pipeline_rows(text="sprint:\n  reservations: []\n") == []
 
 
 def test_the_ai_ledger_path_is_the_loop_runners():
