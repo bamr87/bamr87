@@ -695,6 +695,24 @@ def lake_review(days: int = 30, repo: str | None = None, limit: int = 10) -> dic
                 "local": {}, "ci": {}, "totals": {}, "findings": []}
 
 
+def lake_recall(query: str, days: int = 30, repo: str | None = None, limit: int = 10) -> dict:
+    """The /api/lake/recall document (`lake recall --json`): the stored local
+    sessions whose first prompt or one assistant turn holds every word of the
+    query, best match first, each with a redacted excerpt. The lake is opened
+    read-only. A query with no words raises ValueError (the route's 422); any
+    other failure is a document that says why, never a 500."""
+    try:
+        mod = _lake_module()
+    except Exception as exc:  # the module is optional at import time
+        return {"present": False, "error": f"{exc.__class__.__name__}: {exc}", "results": []}
+    try:
+        return mod.recall(LAKE_DIR, query, days=days, repo=repo, limit=limit)
+    except ValueError:
+        raise
+    except Exception as exc:
+        return {"present": False, "error": f"{exc.__class__.__name__}: {exc}", "results": []}
+
+
 # --------------------------------------------------------------------------- #
 # PROJECT — one registry project, every signal the console holds about it
 # --------------------------------------------------------------------------- #

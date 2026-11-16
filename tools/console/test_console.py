@@ -326,6 +326,53 @@ def test_lake_ops_argv_shapes_and_status_document():
     assert isinstance(caps["otel_exporter"], bool) and caps["phoenix"]["collector"] and isinstance(caps["lake_present"], bool)
 
 
+def test_lake_recall_document_and_route():
+    """bamr87/bamr87#546: /api/lake/recall is `lake recall --json` over the lake
+    the console reads: read-only, one result per session, each excerpt redacted.
+    A query with no words is a 422, a missing lake is a document."""
+    fl = core._lake_module()
+    tmp = Path(tempfile.mkdtemp(prefix="console-recall-"))
+    at = fl.utcnow() - fl.dt.timedelta(hours=2)
+    recs = [{"type": "user", "timestamp": fl.iso(at), "sessionId": "s1", "cwd": "/w/alpha",
+             "message": {"role": "user", "content": "where are the deploy notes"}},
+            {"type": "assistant", "timestamp": fl.iso(at + fl.dt.timedelta(seconds=5)), "sessionId": "s1",
+             "uuid": "u1", "message": {"id": "m1", "model": "claude-sonnet-5", "usage": {"input_tokens": 1},
+                                       "content": [{"type": "text", "text": "The deploy notes are in "
+                                                    "/Users/alice/notes/deploy.md"}]}}]
+    try:
+        conn = fl.connect(tmp)
+        fl.store_session(conn, fl.session_facts(recs, "/x/s1.jsonl"))
+        conn.commit()
+        conn.close()
+        with mock.patch.object(core, "LAKE_DIR", tmp):
+            doc = core.lake_recall("deploy notes md")
+            assert doc["schema"] == "lake-recall/v1" and [r["key"] for r in doc["results"]] == ["session:s1"], doc
+            assert "/Users/alice" not in json.dumps(doc) and "~/notes/deploy.md" in doc["results"][0]["excerpt"], doc
+            try:
+                core.lake_recall("  ?? ")
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("a query with no words was answered")
+        with mock.patch.object(core, "LAKE_DIR", tmp / "nowhere"):
+            assert core.lake_recall("x")["present"] is False
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError:
+            print("    (skipped the route half: fastapi not installed)")
+            return
+        import app as console_app
+
+        client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+        with mock.patch.object(core, "LAKE_DIR", tmp):
+            r = client.get("/api/lake/recall", params={"q": "deploy notes", "limit": 5})
+            assert r.status_code == 200 and [x["key"] for x in r.json()["results"]] == ["session:s1"], r.text
+            for params in ({"q": "?? !!"}, {"q": ""}, {}, {"q": "x", "limit": 51}, {"q": "x", "days": 0}):
+                assert client.get("/api/lake/recall", params=params).status_code == 422, params
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_content_ops_argv_and_only_apply_is_remote():
     argv, remote = core.build_argv("content-sync", {"target": "lifehacker.dev", "no_fetch": True})
     assert argv[1:] == ["content", "sync", "--site", "lifehacker.dev", "--no-fetch"], argv

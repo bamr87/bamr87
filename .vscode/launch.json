@@ -443,6 +443,14 @@
       "presentation": { "group": "3-observe", "order": 3 }
     },
     {
+      "name": "🌊 Lake: recall (past sessions by keyword, read-only)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash lake recall --query \"${input:recallQuery}\" --days ${input:lakeDays}",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "3-observe", "order": 3 }
+    },
+    {
       "name": "🌊 Lake: status",
       "type": "node-terminal",
       "request": "launch",
@@ -1716,6 +1724,13 @@
       "description": "Semantic search over the code index",
       "type": "promptString",
       "default": "how are ports allocated"
+    },
+    {
+      // Words `tools/dash lake recall` looks for in the stored local sessions.
+      "id": "recallQuery",
+      "description": "Words to find in past local sessions (every word must match)",
+      "type": "promptString",
+      "default": "drift check"
     },
     {
       "id": "workflowKind",

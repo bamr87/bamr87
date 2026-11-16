@@ -28,7 +28,11 @@ record of what GitHub holds, and the traces trustworthy as evidence:
   * iter_log_entries — the generator the log plane's shipper replays through —
     yields exactly what store_logs used to consume, in the same order, and
     store_logs still truncates at its per-run cap (the refactor that gave the
-    lake a second sink must not have changed the first one); and
+    lake a second sink must not have changed the first one);
+  * `lake recall` finds a stored session by the words of its prompt or one
+    turn, one result per session up to the limit, refuses an empty query
+    (exit 2), redacts each excerpt before clipping it, and never writes the
+    lake, with or without FTS5; and
   * the status / runs / lines documents the console serves are JSON-safe.
 
 Deliberately dependency-light — no network, no gh, no OpenTelemetry, no
@@ -928,6 +932,220 @@ def test_an_older_lake_gains_the_outcome_columns_in_place():
         old = conn.execute("SELECT state_reason, merged_at FROM issues WHERE number = 9").fetchone()
         assert tuple(old) == (None, None)                               # unread, never guessed
         conn.close()
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+# --------------------------------------------------------------------------- #
+# recall: keyword search over the stored sessions, read-only
+# --------------------------------------------------------------------------- #
+GHP = "ghp_" + "A1b2C3d4E5" * 4            # token-shaped, never a real one
+HOME = "/Users/alice"
+
+
+def _scrub():
+    """The context pack's Scrubber with a fixed home and no host names, so the
+    assertions do not depend on the machine the tests run on."""
+    import fleet_context
+    return fleet_context.Scrubber(home=HOME, hosts=[], paths=[]).text
+
+
+def _transcript(sid: str, prompt: str, replies: list[str], days_ago: float = 1.0,
+                cwd: str = "/w/alpha") -> list[dict]:
+    at = fl.utcnow() - dt.timedelta(days=days_ago)
+
+    def stamp(seconds: int) -> str:
+        return fl.iso(at + dt.timedelta(seconds=seconds))
+
+    recs = [{"type": "user", "timestamp": stamp(0), "sessionId": sid, "cwd": cwd,
+             "message": {"role": "user", "content": prompt}}]
+    for i, text in enumerate(replies):
+        recs.append({"type": "assistant", "timestamp": stamp(i + 1), "sessionId": sid, "uuid": f"{sid}-u{i}",
+                     "message": {"id": f"{sid}-m{i}", "model": "claude-sonnet-5",
+                                 "content": [{"type": "text", "text": text}],
+                                 "usage": {"input_tokens": 1, "output_tokens": 1}}})
+    return recs
+
+
+def _recall_lake(tmp: Path, extra: int = 0) -> Path:
+    """Three sessions (one 100 days old) and `extra` that all say "widget"."""
+    sessions = [
+        ("sess-a", "rebuild the recall index for the lake",
+         ["Looking at the lake first.", "The recall index is built in memory, per call."], 1.0, "alpha"),
+        ("sess-b", "fix the flaky build", ["Fixed the flaky build in tools/dash."], 2.0, "beta"),
+        ("sess-old", "an old recall index question", ["Long ago."], 100.0, "alpha"),
+    ] + [(f"sess-w{i:02d}", f"widget pass {i}", [f"widget {i} done"], 3.0 + i / 100, "gamma")
+         for i in range(extra)]
+    conn = fl.connect(tmp)
+    for sid, prompt, replies, ago, repo in sessions:
+        facts = fl.session_facts(_transcript(sid, prompt, replies, ago, f"/w/{repo}"), f"/x/{sid}.jsonl")
+        facts["session"]["repo"] = repo          # repo_for reads the disk; the fixture names it outright
+        fl.store_session(conn, facts)
+    conn.commit()
+    conn.close()
+    return tmp
+
+
+def test_recall_finds_the_session_by_its_words_with_an_excerpt():
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        _recall_lake(tmp)
+        doc = fl.recall(tmp, "Recall INDEX", scrub=_scrub())
+        assert doc["schema"] == "lake-recall/v1" and doc["present"] and doc["terms"] == ["recall", "index"]
+        assert doc["engine"] == ("fts5" if fl.fts5_available() else "substring"), doc["engine"]
+        assert doc["window_days"] == 30 and doc["limit"] == 10 and doc["note"] is None, doc
+        # one result per session (sess-a matches in its prompt AND a turn); the 100-day-old one is outside 30 days
+        assert [r["key"] for r in doc["results"]] == ["session:sess-a"], doc["results"]
+        r = doc["results"][0]
+        assert set(r) == {"key", "session_id", "repo", "started_at", "ended_at", "match", "turn", "excerpt"}, r
+        assert r["session_id"] == "sess-a" and r["repo"] == "alpha" and r["started_at"] <= r["ended_at"], r
+        assert "recall index" in r["excerpt"].lower(), r
+        json.dumps(doc)
+        # a word prefix matches, and a wider window reaches the old session
+        assert [x["key"] for x in fl.recall(tmp, "rebuil", scrub=_scrub())["results"]] == ["session:sess-a"]
+        wide = fl.recall(tmp, "recall index", days=365, scrub=_scrub())
+        assert {x["key"] for x in wide["results"]} == {"session:sess-a", "session:sess-old"}, wide["results"]
+        # a turn matches too and says which one; --repo narrows; every word must match the same row
+        flaky = fl.recall(tmp, "flaky tools", scrub=_scrub())["results"]
+        assert [(x["key"], x["match"], x["turn"]) for x in flaky] == [("session:sess-b", "turn", 0)], flaky
+        assert fl.recall(tmp, "flaky", repo="alpha", scrub=_scrub())["results"] == []
+        assert fl.recall(tmp, "flaky memory", scrub=_scrub())["results"] == []
+        # FTS5 syntax never reaches sqlite: quotes, operators and column filters are only words
+        odd = fl.recall(tmp, 'flaky" OR NEAR(build) body:* -', scrub=_scrub())
+        assert odd["note"] is None and odd["terms"] == ["flaky", "or", "near", "build", "body"], odd
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_recall_returns_one_row_per_session_up_to_the_limit():
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        _recall_lake(tmp, extra=15)
+        keys = [r["key"] for r in fl.recall(tmp, "widget", limit=5, scrub=_scrub())["results"]]
+        assert len(keys) == 5 and len(set(keys)) == 5, keys
+        capped = fl.recall(tmp, "widget", limit=500, scrub=_scrub())
+        assert capped["limit"] == fl.RECALL_LIMIT_MAX == 50 and len(capped["results"]) == 15, capped["limit"]
+        assert fl.recall(tmp, "widget", limit=0, scrub=_scrub())["limit"] == 1
+        assert fl.recall(tmp, "widget", days=10 ** 6, scrub=_scrub())["window_days"] == fl.RECALL_DAYS_MAX
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            assert fl.main(["--lake", str(tmp), "recall", "--query", "widget", "--limit", "3", "--json"]) == 0
+        doc = json.loads(out.getvalue())
+        assert doc["limit"] == 3 and len(doc["results"]) == 3, doc
+        assert all(r["key"].startswith("session:sess-w") for r in doc["results"]), doc["results"]
+        # bounded in time too: past its deadline sqlite is interrupted and the document says so
+        saved = fl.RECALL_DEADLINE_S, fl.RECALL_PROGRESS_OPS
+        fl.RECALL_DEADLINE_S, fl.RECALL_PROGRESS_OPS = -1.0, 1
+        try:
+            late = fl.recall(tmp, "widget", scrub=_scrub())
+        finally:
+            fl.RECALL_DEADLINE_S, fl.RECALL_PROGRESS_OPS = saved
+        assert late["results"] == [] and "limit" in (late["note"] or ""), late
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_recall_refuses_an_empty_query():
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        _recall_lake(tmp)
+        for query in ("", "   ", "!!! -- ??", "___", None):
+            try:
+                fl.recall(tmp, query, scrub=_scrub())
+            except ValueError:
+                continue
+            raise AssertionError(f"recall accepted the empty query {query!r}")
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            assert fl.main(["--lake", str(tmp), "recall", "--query", "  "]) == 2
+            try:
+                fl.main(["--lake", str(tmp), "recall"])          # no --query at all: argparse's usage error
+            except SystemExit as exc:
+                assert exc.code == 2, exc.code
+            else:
+                raise AssertionError("recall ran without --query")
+        assert "no words" in err.getvalue(), err.getvalue()
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_recall_excerpts_are_redacted_before_they_are_clipped():
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        filler = "lorem ipsum " * 60
+        text = f"{filler}the deploy key {GHP} sits in {HOME}/work/secrets.txt beside the deploy notes {filler}"
+        conn = fl.connect(tmp)
+        fl.store_session(conn, fl.session_facts(_transcript("sess-r", "where is it", [text]), "/x/sess-r.jsonl"))
+        conn.commit()
+        conn.close()
+        for scrub in (_scrub(), None):            # None: the context pack's default Scrubber, as the CLI runs
+            ex = fl.recall(tmp, "deploy key", scrub=scrub)["results"][0]["excerpt"]
+            assert len(ex) <= fl.RECALL_EXCERPT_CHARS and ex.startswith("…") and ex.endswith("…"), ex
+            assert GHP not in ex and GHP[4:16] not in ex and "ghp_[REDACTED]" in ex, ex
+            assert HOME not in ex and "alice" not in ex and "~/work/secrets.txt" in ex, ex
+        # a token straddling the window's start: clipped first, its tail would be too short to mask
+        tok = "ghp_" + "Z9" * 20
+        text = "x" * 50 + " " + tok + " " + "y " * 30 + "needle" + " z" * 300
+        start = text.index("needle") - (fl.RECALL_EXCERPT_CHARS - 2) // 3
+        assert text.index(tok) < start < text.index(tok) + len(tok), "the fixture no longer straddles"
+        ex = fl.recall_excerpt(text, ["needle"], _scrub())
+        assert "Z9Z9Z9" not in ex and "needle" in ex and len(ex) <= fl.RECALL_EXCERPT_CHARS, ex
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_recall_never_writes_the_lake():
+    tmp = Path(tempfile.mkdtemp())
+    db = Path(fl.lake_paths(tmp)[1])
+    try:
+        _recall_lake(tmp)
+        before = (db.read_bytes(), db.stat().st_mtime_ns, sorted(p.name for p in tmp.iterdir()))
+        db.chmod(0o444)                           # a lake it could not write even if it tried
+        for fts in (True, False):
+            doc = fl.recall(tmp, "recall index", scrub=_scrub(), fts=fts)
+            assert doc["note"] is None and [r["key"] for r in doc["results"]] == ["session:sess-a"], doc
+        db.chmod(0o644)
+        after = (db.read_bytes(), db.stat().st_mtime_ns, sorted(p.name for p in tmp.iterdir()))
+        assert after == before, "recall wrote to the lake"
+    finally:
+        if db.exists():
+            db.chmod(0o644)
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_recall_without_fts5_is_a_substring_search_with_the_same_contract():
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        _recall_lake(tmp, extra=3)
+        doc = fl.recall(tmp, "recall index", fts=False, scrub=_scrub())
+        assert doc["engine"] == "substring" and [r["key"] for r in doc["results"]] == ["session:sess-a"], doc
+        assert doc["results"][0]["match"] == "first_prompt", doc["results"]   # the prompt before the turns
+        assert fl.recall(tmp, "flaky", repo="alpha", fts=False, scrub=_scrub())["results"] == []
+        assert fl.recall(tmp, "flaky memory", fts=False, scrub=_scrub())["results"] == []
+        assert len(fl.recall(tmp, "widget", limit=2, fts=False, scrub=_scrub())["results"]) == 2
+        # newest session first when there is no rank to order by
+        assert [r["key"] for r in fl.recall(tmp, "widget", fts=False, scrub=_scrub())["results"]] == \
+            ["session:sess-w00", "session:sess-w01", "session:sess-w02"]
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_recall_answers_on_a_missing_lake_and_on_one_without_sessions():
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        doc = fl.recall(tmp / "nowhere", "anything")
+        assert doc["present"] is False and doc["results"] == [] and "lake sessions" in doc["note"], doc
+        assert not (tmp / "nowhere").exists(), "recall created a lake directory"
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            assert fl.main(["--lake", str(tmp / "nowhere"), "recall", "--query", "x"]) == 1
+        conn = fl.connect(tmp)
+        for t in ("sessions", "session_turns", "session_tools"):
+            conn.execute(f"DROP TABLE {t}")
+        conn.commit()
+        conn.close()
+        doc = fl.recall(tmp, "anything", scrub=_scrub())
+        assert doc["present"] and doc["results"] == [] and "no session tables" in doc["note"], doc
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

@@ -189,6 +189,24 @@ class ReadTools(unittest.TestCase):
         call(srv.build_server(fc), "code_search", {"q": "retry", "mode": "harmonize"})
         self.assertEqual(fc.calls[-1][1:3], ("/api/index/harmonize", {"q": "retry"}))
 
+    def test_lake_recall_is_read_only_and_bounds_what_it_asks_for(self):
+        """bamr87/bamr87#546: recall over the lake's sessions, next to agent_activity — a read tool whose
+        window and limit are clamped to what the console route accepts, so an agent cannot ask for more."""
+        doc = {"schema": "lake-recall/v1", "present": True, "terms": ["fts5", "index"],
+               "results": [{"key": "session:s1", "session_id": "s1", "repo": "bamr87", "match": "turn",
+                            "turn": 3, "excerpt": "…the fts5 index is built in memory…"}]}
+        fc = FakeConsole({"/api/lake/recall": doc})
+        server = srv.build_server(fc, allow_writes=False, scopes="")
+        tools = {t.name: t for t in anyio.run(server.list_tools)}
+        self.assertTrue(tools["lake_recall"].annotations.read_only_hint)
+        self.assertFalse(tools["lake_recall"].annotations.destructive_hint)
+        self.assertIn("lake_recall", srv.INSTRUCTIONS)
+        p = payload(*call(server, "lake_recall", {"query": "fts5 index"}))
+        self.assertEqual(p["results"][0]["key"], "session:s1")
+        self.assertEqual(fc.calls[-1][1:3], ("/api/lake/recall", {"q": "fts5 index", "days": 30, "limit": 10}))
+        call(server, "lake_recall", {"query": "x", "days": 99999, "repo": "bamr87", "limit": 500})
+        self.assertEqual(fc.calls[-1][2], {"q": "x", "days": 3650, "repo": "bamr87", "limit": 50})
+
     # ------------------------------------------------------------ work board
     # /api/work is the whole board: 394 items, ~390k characters, which clip()
     # turned into a prefix the client read as nothing.

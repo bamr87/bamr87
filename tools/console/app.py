@@ -438,6 +438,19 @@ def lake_review(days: int = Query(default=30, ge=1, le=3650),
     return core.lake_review(days, repo, limit)
 
 
+@app.get("/api/lake/recall", dependencies=[Depends(require_token)])
+def lake_recall(q: str = Query(min_length=1, max_length=300),
+                days: int = Query(default=30, ge=1, le=3650),
+                repo: str | None = Query(default=None, max_length=100),
+                limit: int = Query(default=10, ge=1, le=50)) -> dict:
+    """Keyword recall over the lake's stored Claude Code sessions (`lake recall --json`):
+    read-only, one result per session, each excerpt redacted. A query with no words is a 422."""
+    try:
+        return core.lake_recall(q, days, repo, limit)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
 @app.get("/api/index/coverage", dependencies=[Depends(require_token)])
 def index_coverage() -> dict:
     """Chunk counts per submodule, plus scanner blind spots (dot-directories)."""

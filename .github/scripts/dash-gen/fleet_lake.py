@@ -39,6 +39,13 @@ Three subcommands:
            DETERMINISTIC (sha256 of the run / session key), so a re-export
            is idempotent at Phoenix rather than a duplicate; an `exports`
            ledger in the lake skips what was already shipped unless --force.
+  recall   Keyword search over the local sessions `lake sessions` stored:
+           every word of --query must match a session's first prompt or one
+           of its assistant turns. It returns at most --limit sessions, best
+           match first, each with a short excerpt that is redacted before it
+           is clipped. The lake is attached read-only (`mode=ro`), the FTS5
+           index is built in memory for each call, and without FTS5 the same
+           search runs as a substring match. No network.
 
 Design rules, same as every other dash-gen module: the network half degrades
 (a repo that 404s yields no rows, not a crash); the analytics half is pure
@@ -59,7 +66,9 @@ import os
 import re
 import sqlite3
 import sys
+import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -2244,6 +2253,224 @@ def cmd_review(args: argparse.Namespace) -> int:
 
 
 # --------------------------------------------------------------------------- #
+# recall — keyword search over the stored sessions, read-only
+# --------------------------------------------------------------------------- #
+RECALL_SCHEMA = "lake-recall/v1"
+RECALL_DAYS_DEFAULT = 30
+RECALL_DAYS_MAX = 3650
+RECALL_LIMIT_DEFAULT = 10
+RECALL_LIMIT_MAX = 50
+RECALL_MAX_TERMS = 8
+RECALL_TERM_CHARS = 64
+RECALL_EXCERPT_CHARS = 300
+# How many rows the in-memory index takes (newest sessions first) and how many
+# hits are read before they are folded to one per session. In 2026-11 the whole
+# local plane was about 60k turns and 5 MB of text, which indexes in a fifth of
+# a second; these caps hold a lake many times that size.
+RECALL_MAX_ROWS = 250_000
+RECALL_MAX_HITS = 20_000
+RECALL_LOCK_TIMEOUT_S = 10.0
+RECALL_DEADLINE_S = 30.0
+RECALL_PROGRESS_OPS = 10_000              # sqlite VM steps between deadline checks
+# A word is a run of letters and digits. That is what FTS5's unicode61
+# tokenizer indexes, so the substring fallback looks for the same words.
+_RECALL_TERM_RX = re.compile(r"[^\W_]+")
+
+
+def recall_terms(query: str | None) -> list[str]:
+    """The query's words: lower-cased, deduplicated, at most RECALL_MAX_TERMS of
+    RECALL_TERM_CHARS each. Only these words reach FTS5, each one quoted, so no
+    query can be an FTS5 syntax error or an operator (AND, NEAR, column:)."""
+    out: list[str] = []
+    for word in _RECALL_TERM_RX.findall(query or ""):
+        word = word.lower()[:RECALL_TERM_CHARS]
+        if word not in out:
+            out.append(word)
+    return out[:RECALL_MAX_TERMS]
+
+
+def recall_excerpt(text: str | None, terms: list[str], scrub, width: int = RECALL_EXCERPT_CHARS) -> str:
+    """At most `width` characters of `text` on one line, around the first query
+    word it holds. The text is redacted BEFORE it is clipped: a token cut in half
+    is too short for its own pattern, so its first half would survive a clip."""
+    flat = " ".join(scrub(text or "").split())
+    if len(flat) <= width:
+        return flat
+    words = "|".join(r"(?<![^\W_])" + re.escape(t) for t in terms)
+    hit = re.search(words, flat, re.I) if words else None
+    room = width - 2                            # an ellipsis at either end
+    start = max(0, (hit.start() if hit else 0) - room // 3)
+    end = min(len(flat), start + room)
+    start = max(0, end - room)
+    return ("…" if start else "") + flat[start:end] + ("…" if end < len(flat) else "")
+
+
+def _recall_scrubber():
+    """The context pack's redaction (fleet_context.Scrubber): $HOME and any
+    /Users/<name> → ~, the machine's names → <host>, temp dirs → <tmp>,
+    addresses → <email>, credential shapes masked, control characters out."""
+    import fleet_context  # lazy: fleet_context imports this module
+    return fleet_context.Scrubber().text
+
+
+def fts5_available() -> bool:
+    """Whether this interpreter's sqlite was built with FTS5 (recall's engine)."""
+    try:
+        conn = sqlite3.connect(":memory:")
+        try:
+            conn.execute("CREATE VIRTUAL TABLE probe USING fts5(body)")
+        finally:
+            conn.close()
+        return True
+    except sqlite3.OperationalError:
+        return False
+
+
+def _recall_source(cutoff: str, repo: str | None) -> tuple[str, list]:
+    """Every searchable row of the window as (key, field, idx, body, at, ord):
+    each session's first prompt and each of its assistant turns' text. Newest
+    session first, and within a session the prompt, then the turns in order."""
+    rf = " AND s.repo = ?" if repo else ""
+    sql = ("SELECT key, field, idx, body, at, ord FROM ("
+           "SELECT s.key AS key, 'first_prompt' AS field, NULL AS idx, s.first_prompt AS body, "
+           "s.started_at AS at, -1 AS ord FROM lake.sessions s "
+           f"WHERE s.first_prompt IS NOT NULL AND s.started_at >= ?{rf} "
+           "UNION ALL "
+           "SELECT t.key, 'turn', t.idx, t.text, s.started_at, t.idx FROM lake.session_turns t "
+           f"JOIN lake.sessions s ON s.key = t.key WHERE t.text IS NOT NULL AND s.started_at >= ?{rf}"
+           ") ORDER BY at DESC, key, ord LIMIT ?")
+    one = [cutoff] + ([repo] if repo else [])
+    return sql, one + one + [RECALL_MAX_ROWS]
+
+
+def recall(lake_dir: Path | str | None = None, query: str = "", days: int = RECALL_DAYS_DEFAULT,
+           repo: str | None = None, limit: int = RECALL_LIMIT_DEFAULT, scrub=None, fts: bool = True) -> dict:
+    """Find the stored local sessions whose first prompt or one assistant turn
+    holds every word of `query`. Returns the `lake-recall/v1` document: at most
+    `limit` sessions, best match first, each with its key, session id, repo,
+    start and end, where it matched and a redacted excerpt of at most
+    RECALL_EXCERPT_CHARS characters.
+
+    Read-only by construction: the lake is ATTACHed `mode=ro` to a private
+    in-memory database, which holds the FTS5 index for this call only. Nothing
+    is ever written to the lake: no index, no schema DDL, no `meta` stamp.
+    Ranked by FTS5's bm25 when the sqlite build has FTS5 (`fts` True);
+    otherwise every word must appear as a substring, newest session first.
+    Bounded: at most RECALL_MAX_ROWS rows indexed and RECALL_DEADLINE_S of
+    sqlite time, after which the document carries the hits found so far and
+    a note saying it was cut short. No network.
+
+    Raises ValueError when the query has no word to search for.
+    """
+    terms = recall_terms(query)
+    if not terms:
+        raise ValueError("lake recall: the query has no words to search for (letters or digits)")
+    days = max(1, min(int(days), RECALL_DAYS_MAX))
+    limit = max(1, min(int(limit), RECALL_LIMIT_MAX))
+    _, db = lake_paths(lake_dir)
+    out: dict = {"schema": RECALL_SCHEMA, "generated_at": iso(utcnow()), "present": db.exists(),
+                 "terms": terms, "window_days": days, "repo": repo or None, "limit": limit,
+                 "engine": None, "indexed": 0, "truncated": False, "results": [], "note": None}
+    if not db.exists():
+        out["note"] = "no lake here: run `tools/dash lake sessions` first"
+        return out
+    scrub = scrub or _recall_scrubber()
+    cutoff = iso(utcnow() - dt.timedelta(days=days))
+    deadline = time.monotonic() + RECALL_DEADLINE_S
+    conn = sqlite3.connect("file::memory:", uri=True, timeout=RECALL_LOCK_TIMEOUT_S)
+    conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("ATTACH DATABASE ? AS lake", (f"file:{urllib.parse.quote(str(db))}?mode=ro",))
+        conn.set_progress_handler(lambda: 1 if time.monotonic() > deadline else 0, RECALL_PROGRESS_OPS)
+        tables = {r[0] for r in conn.execute("SELECT name FROM lake.sqlite_master WHERE type = 'table'")}
+        if not {"sessions", "session_turns"} <= tables:
+            out["note"] = "the lake has no session tables: run `tools/dash lake sessions` first"
+            return out
+        source, params = _recall_source(cutoff, repo)
+        engine = "fts5" if fts else "substring"
+        if fts:
+            try:
+                conn.execute("CREATE VIRTUAL TABLE recall USING fts5("
+                             "key UNINDEXED, field UNINDEXED, idx UNINDEXED, body, tokenize = 'unicode61')")
+            except sqlite3.OperationalError:     # a sqlite built without FTS5
+                engine = "substring"
+        out["engine"] = engine
+        if engine == "fts5":
+            conn.execute(f"INSERT INTO recall (key, field, idx, body) SELECT key, field, idx, body FROM ({source})",
+                         params)
+            out["indexed"] = conn.execute("SELECT COUNT(*) FROM recall").fetchone()[0]
+            match = " ".join(f'"{t}"*' for t in terms)
+            hits = conn.execute("SELECT key, field, idx FROM recall WHERE recall MATCH ? ORDER BY rank LIMIT ?",
+                                (match, RECALL_MAX_HITS))
+        else:
+            out["indexed"] = conn.execute(f"SELECT COUNT(*) FROM ({source})", params).fetchone()[0]
+            words = " AND ".join("instr(lower(body), ?) > 0" for _ in terms)
+            hits = conn.execute(f"SELECT key, field, idx FROM ({source}) WHERE {words} "
+                                "ORDER BY at DESC, key, ord LIMIT ?", params + terms + [RECALL_MAX_HITS])
+        out["truncated"] = out["indexed"] >= RECALL_MAX_ROWS
+        chosen: list[sqlite3.Row] = []
+        seen: set[str] = set()
+        for hit in hits:                          # one result per session, its best hit
+            if hit["key"] in seen:
+                continue
+            seen.add(hit["key"])
+            chosen.append(hit)
+            if len(chosen) >= limit:
+                break
+        for hit in chosen:
+            s = conn.execute("SELECT key, session_id, repo, started_at, ended_at, first_prompt "
+                             "FROM lake.sessions WHERE key = ?", (hit["key"],)).fetchone()
+            if hit["field"] == "turn":
+                row = conn.execute("SELECT text FROM lake.session_turns WHERE key = ? AND idx = ?",
+                                   (hit["key"], hit["idx"])).fetchone()
+                body = row["text"] if row else None
+            else:
+                body = s["first_prompt"] if s else None
+            out["results"].append({
+                "key": hit["key"], "session_id": s["session_id"] if s else None,
+                "repo": s["repo"] if s else None, "started_at": s["started_at"] if s else None,
+                "ended_at": s["ended_at"] if s else None, "match": hit["field"],
+                "turn": hit["idx"] if hit["field"] == "turn" else None,
+                "excerpt": recall_excerpt(body, terms, scrub)})
+    except sqlite3.Error as exc:
+        said = str(exc).lower()
+        if "interrupt" in said:
+            out["note"] = f"stopped at the {RECALL_DEADLINE_S:.0f} s limit: narrow --days or --repo"
+        elif "locked" in said or "busy" in said:
+            out["note"] = "the lake is locked by a writer (a sync or `lake sessions`): try again when it finishes"
+        else:
+            out["note"] = f"the lake could not be read: {exc.__class__.__name__}: {scrub(str(exc))[:200]}"
+    finally:
+        conn.close()
+    return out
+
+
+def cmd_recall(args: argparse.Namespace) -> int:
+    try:
+        doc = recall(args.lake, args.query, days=args.days, repo=args.repo, limit=args.limit)
+    except ValueError as exc:
+        sys.stderr.write(f"{exc}\n")
+        return 2
+    if args.json:
+        print(json.dumps(doc, indent=2, default=str))
+        return 0
+    if not doc["present"]:
+        print(f"lake recall: nothing at {lake_paths(args.lake)[1]}: run `tools/dash lake sessions` first.")
+        return 1
+    scope = f" · repo={doc['repo']}" if doc.get("repo") else ""
+    print(f"lake recall: {len(doc['results'])} session(s) for {' '.join(doc['terms'])!r} — last "
+          f"{doc['window_days']}d{scope} · {doc['engine'] or '—'} over {doc['indexed']} rows"
+          + (" (truncated)" if doc["truncated"] else ""))
+    for r in doc["results"]:
+        where = f"turn {r['turn']}" if r["match"] == "turn" else "first prompt"
+        print(f"  {r['started_at'] or '—'}  {(r['repo'] or '—'):<20} {r['key']}  ({where})")
+        print(f"      {r['excerpt']}")
+    if doc.get("note"):
+        print(f"  note: {doc['note']}")
+    return 0
+
+
+# --------------------------------------------------------------------------- #
 # entry point
 # --------------------------------------------------------------------------- #
 def add_arguments(parser: argparse.ArgumentParser) -> None:
@@ -2286,6 +2513,21 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     p_review.add_argument("--limit", type=int, default=10, help="rows in each top-N table")
     p_review.add_argument("--json", action="store_true")
     p_review.set_defaults(func=cmd_review)
+
+    p_recall = sub.add_parser("recall", help="search the stored Claude Code sessions by keyword "
+                                             "(read-only; redacted excerpts; no network)")
+    p_recall.add_argument("--query", "-q", required=True,
+                          help="words to find; every word must match one prompt or turn (a word prefix "
+                               "with FTS5, a substring without it); an empty query exits 2")
+    p_recall.add_argument("--days", type=int, default=RECALL_DAYS_DEFAULT,
+                          help=f"sessions started in this window (default {RECALL_DAYS_DEFAULT}, "
+                               f"at most {RECALL_DAYS_MAX})")
+    p_recall.add_argument("--repo", default=None, help="only sessions attributed to this repo")
+    p_recall.add_argument("--limit", type=int, default=RECALL_LIMIT_DEFAULT,
+                          help=f"sessions to return, best match first (default {RECALL_LIMIT_DEFAULT}, "
+                               f"at most {RECALL_LIMIT_MAX})")
+    p_recall.add_argument("--json", action="store_true", help="the lake-recall/v1 document")
+    p_recall.set_defaults(func=cmd_recall)
 
     p_export = sub.add_parser("export", help="ship OpenInference traces (agent runs, local sessions) to Phoenix")
     p_export.add_argument("--endpoint", default=None, help=f"Phoenix collector (PHOENIX_COLLECTOR_ENDPOINT; default {PHOENIX_DEFAULT})")
