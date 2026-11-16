@@ -16,6 +16,7 @@ import os
 import re
 import socket
 import sys
+import time
 import unittest
 import urllib.error
 import urllib.parse
@@ -189,6 +190,52 @@ class Limits(Offline):
         self.upstream(FX["phoenix"]["spans"])
         self.assertNotIn(GHP, json.dumps(tq.traces_query(trace_id=TRACE)))
 
+    def test_redaction_of_a_long_string_stays_fast_and_bounded(self):
+        # Each shape made a pattern rescan the run from every position in it (an
+        # email local part, a JWT header): 40k characters took 1.5 s, so one long
+        # log line could hold a console worker for minutes. Even linear patterns
+        # take seconds over 4 MB, so redact() reads only a bounded prefix.
+        shapes = ("a" * 250_000, "0123456789abcdef" * 15_625, "eyJ-" * 62_500, "x." * 125_000,
+                  "a@" * 125_000, EMAIL * 13_200, "eyJ-" * 1_000_000)
+        started = time.perf_counter()
+        for s in shapes:
+            out = tq.redact(s)
+            self.assertTrue(out.endswith("…[cut]"), s[:20])
+            self.assertLessEqual(len(out), tq.MAX_FIELD_CHARS + len("…[cut]"))
+        self.assertLess(time.perf_counter() - started, 1.0, "redacting six 250k strings and one of 4M")
+        # Only the first MAX_FIELD_CHARS of the original are shown, masked; a value
+        # that straddles the cut is masked whole and nothing past the cut leaks,
+        # however much the masks before it shortened the text.
+        edge = "x" * (tq.MAX_FIELD_CHARS - 10) + " " + GHP + " after-the-cut" * 20_000
+        out = tq.redact(edge)
+        self.assertIn("ghp_[REDACTED]", out)
+        self.assertNotIn(GHP[4:14], out)
+        self.assertNotIn("after-the-cut", out)
+        shrunk = tq.redact((SKANT + " ") * 60 + "after-the-cut")
+        self.assertIn("sk-ant-[REDACTED]", shrunk)
+        self.assertNotIn("after-the-cut", shrunk)
+
+    def test_an_identity_label_cannot_be_named_in_a_query(self):
+        up = self.upstream(FX["prometheus"]["vector"])
+        for q in (
+            # copied into a label the answer keeps
+            'label_replace(claude_code_session_count_total, "acct", "$1", "user_account_uuid", "(.*)")',
+            'label_join(claude_code_session_count_total, "org", ",", "organization_id")',
+            "label_join(claude_code_session_count_total, 'a', ',', `user.account_uuid`)",
+            'label_replace(claude_code_session_count_total, "a", "$1", "\\x75ser_email", "(.*)")',
+            # guessed a prefix at a time
+            'claude_code_session_count_total{user_account_uuid=~"8.*"}',
+            'count(claude_code_session_count_total{organization_id!=""})',
+            # grouped, joined or ordered on
+            "sum by (user_email) (claude_code_session_count_total)",
+            "sum without (session_id, user_id) (claude_code_session_count_total)",
+            "claude_code_session_count_total * on (session_id) group_left (process_owner) claude_code_cost_usage_USD_total",
+            'sort_by_label(claude_code_session_count_total, "user_account_id")',
+        ):
+            self.assertIn("identity label", self.refused(tq.prom_query, q), q)
+        self.assertEqual(up.calls, [], "a refused query must never reach Prometheus")
+        self.assertIn("escape", self.refused(tq.check_promql, 'claude_code_x{type="\\q"}'))
+
     def test_identity_never_comes_back(self):
         self.upstream(FX["prometheus"]["vector"])
         labels = set().union(*(s["metric"] for s in tq.prom_query("claude_code_token_usage_tokens_total")["series"]))
@@ -272,8 +319,12 @@ class Prometheus(Offline):
                   'label_replace(claude_code_session_count_total, "s", "$1", "session_id", "(.{8}).*")',
                   "max_over_time(sum(claude_code_session_count_total)[6h:5m]) @ end()",
                   "histogram_quantile(0.9, sum by (le) (rate(claude_code_x_bucket[1h])))",
-                  "claude_code_session_count_total > bool 0"):
+                  "claude_code_session_count_total > bool 0",
+                  "increase(claude_code_session_count_total[1h30m]) offset 10ms > 1e3 or claude_code_x > 0x1f"):
             self.assertTrue(tq.check_promql(q), q)
+        self.assertEqual((tq.duration_s("1h30m"), tq.duration_s("10ms"), tq.duration_s("1y2w3d4h5m6s7ms")),
+                         (5400, 0.01, 33019506.007))
+        self.refused(tq.duration_s, "12345678901s")  # no part of a real duration has 11 digits
 
     def test_an_unreachable_prometheus_is_an_upstream_error(self):
         self.upstream(lambda url, body: urllib.error.URLError("connection refused"))

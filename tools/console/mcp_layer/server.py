@@ -772,8 +772,10 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
         name a claude_code_* metric: a __name__ matcher, a bare {…} selector and info() are refused. No
         `start` = an instant query at `end` (default now); with `start` = a range query, `step` raised to
         keep ≤ 500 points. Times: now, now-6h, 6h, unix seconds or ISO 8601. Limits: window and every
-        [range] ≤ 30 days, ≤ 200 series (then truncated: true), 10 s; identity labels are dropped. Cost
-        metrics are Claude Code's API-equivalent (estimate), not the subscription bill."""
+        [range] ≤ 30 days, ≤ 200 series (then truncated: true), 10 s. Identity labels (user_email,
+        user_account_uuid, organization_id …) may not appear anywhere in the query, even as a
+        label_replace/label_join argument, and are dropped from the answer. Cost metrics are Claude
+        Code's API-equivalent (estimate), not the subscription bill."""
         return telemetry("/api/telemetry/prom", query=query, start=start, end=end, step=step)
 
     @mcp.tool(annotations=READ)

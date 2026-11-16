@@ -18,9 +18,13 @@ The limits (each one held by test_telemetry_query.py):
   * every HTTP call times out after 10 s;
   * the index is always logs-fleet.* and the Phoenix project always
     claude-code-otel: neither is a parameter;
-  * identity labels and fields (email, account, organisation and user ids, the
-    OS user) are dropped, and every returned string passes redact() for
-    secret-shaped values and email addresses.
+  * an identity label (email, account, organisation and user ids, the OS user)
+    cannot be named anywhere in a query, so its value cannot be matched,
+    grouped on or copied into another label (label_replace, label_join);
+    identity labels and log fields are dropped from every answer, and every
+    returned string passes redact() for secret-shaped values and email
+    addresses. redact() reads at most MAX_FIELD_CHARS + 4 KiB of a string, so
+    its cost does not grow with the length of a log line.
 
 Endpoints are claude_telemetry's (PROMETHEUS_URL, ELASTICSEARCH_URL) and
 core.py's Phoenix (PHOENIX_COLLECTOR_ENDPOINT). PHOENIX_API_KEY is sent as a
@@ -78,23 +82,49 @@ class UpstreamError(RuntimeError):
 
 
 # --------------------------------------------------------------------------- redaction
+# Every pattern is linear in the length it reads: a repetition that must be
+# followed by something it cannot itself match (the JWT header before its dot,
+# an email's local part before its @) is bounded, so a long run of such
+# characters is not rescanned from every position in it.
 _REDACTIONS = (
     (re.compile(r"sk-ant-[A-Za-z0-9_\-]+"), "sk-ant-[REDACTED]"),
     (re.compile(r"github_pat_[A-Za-z0-9_]+"), "github_pat_[REDACTED]"),
     (re.compile(r"\b(gh[pousr])_[A-Za-z0-9]{20,}"), r"\1_[REDACTED]"),
     (re.compile(r"AIza[A-Za-z0-9_\-]{20,}"), "AIza[REDACTED]"),
     (re.compile(r"(?i)\b(bearer)\s+[A-Za-z0-9._~+/=\-]{8,}"), r"\1 [REDACTED]"),
-    (re.compile(r"\beyJ[A-Za-z0-9_\-]{5,}\.[A-Za-z0-9_\-]{5,}\.[A-Za-z0-9_\-]{5,}"), "[REDACTED_JWT]"),
-    (re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}"), "[REDACTED_EMAIL]"),
+    (re.compile(r"\beyJ[A-Za-z0-9_\-]{5,1024}\.[A-Za-z0-9_\-]{5,}\.[A-Za-z0-9_\-]{5,}"), "[REDACTED_JWT]"),
+    (re.compile(r"[A-Za-z0-9._%+\-]{1,64}@[A-Za-z0-9\-]{1,63}(?:\.[A-Za-z0-9\-]{1,63}){0,8}\.[A-Za-z]{2,63}"),
+     "[REDACTED_EMAIL]"),
 )
+# How far past the cut the patterns read, so a secret that starts in the part a
+# caller sees is matched whole. Nothing beyond it is scanned.
+_REDACT_LOOKAHEAD = 4096
+
+
+def _redact_text(s: str) -> str:
+    """`s` up to MAX_FIELD_CHARS with every secret-shaped value and email masked whole, then '…[cut]'."""
+    view = s[:MAX_FIELD_CHARS + _REDACT_LOOKAHEAD]
+    spans = sorted((m.start(), m.end(), m.expand(repl)) for rx, repl in _REDACTIONS for m in rx.finditer(view))
+    out: list[str] = []
+    pos = 0
+    for start, end, mask in spans:
+        if start < pos:  # overlaps a value already masked: the mask covers both
+            pos = max(pos, end)
+            continue
+        if start >= MAX_FIELD_CHARS:
+            break
+        out += [view[pos:start], mask]
+        pos = end
+    shown = max(pos, MAX_FIELD_CHARS)
+    out.append(view[pos:shown])
+    text = "".join(out)
+    return text + "…[cut]" if len(s) > shown else text
 
 
 def redact(obj):
     """Mask secret-shaped values and email addresses in every string of `obj`, and cut long strings."""
     if isinstance(obj, str):
-        for rx, repl in _REDACTIONS:
-            obj = rx.sub(repl, obj)
-        return obj if len(obj) <= MAX_FIELD_CHARS else obj[:MAX_FIELD_CHARS] + "…[cut]"
+        return _redact_text(obj)
     if isinstance(obj, dict):
         return {k: redact(v) for k, v in obj.items()}
     if isinstance(obj, (list, tuple)):
@@ -104,7 +134,12 @@ def redact(obj):
 
 # --------------------------------------------------------------------------- time
 _UNITS = {"ms": 0.001, "s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800, "y": 31536000}
-_DURATION = re.compile(r"(?:\d+(?:ms|[smhdwy]))+")
+# Bounded on purpose: CodeQL reported the unbounded (\d+unit)+ form, and the
+# unanchored findall over it, as polynomial ReDoS (py/polynomial-redos). No part
+# of a real duration needs more than 10 digits, nor a duration more than 8 parts.
+_DURATION_PART = r"\d{1,10}(?:ms|[smhdwy])"
+_DURATION = re.compile(rf"(?:{_DURATION_PART}){{1,8}}")
+_DURATION_PARTS = re.compile(r"(\d{1,10})(ms|[smhdwy])")
 
 
 def duration_s(text: str) -> float:
@@ -114,7 +149,7 @@ def duration_s(text: str) -> float:
         return float(s)
     if not _DURATION.fullmatch(s):
         raise ValueError(f"not a duration: {text!r} (use 90s, 15m, 1h30m, 7d)")
-    return sum(int(n) * _UNITS[u] for n, u in re.findall(r"(\d+)(ms|[smhdwy])", s))
+    return sum(int(n) * _UNITS[u] for n, u in _DURATION_PARTS.findall(s))
 
 
 def timestamp(value: str | float | None, now: float) -> float | None:
@@ -186,13 +221,42 @@ def _http_json(source: str, url: str, body: dict | None = None, headers: dict | 
 
 # --------------------------------------------------------------------------- PromQL
 METRIC_RX = re.compile(r"^claude_code_[A-Za-z0-9_]+$")
+# A number is a hex literal, a duration (1h30m) or a float (1.5, 1e3), tried in
+# that order. The earlier single alternative let one digit run be split between
+# a leading \d+ and a repeated (\d+unit)*, which CodeQL reported as polynomial
+# ReDoS; here no unbounded digit run is followed by another that can read it.
 _TOKEN = re.compile(r"""
     (?P<ws>\s+)
   | (?P<str>"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`[^`]*`)
-  | (?P<num>0[xX][0-9a-fA-F]+|(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?(?:ms|[smhdwy])?(?:\d+(?:ms|[smhdwy]))*)
+  | (?P<num>0[xX][0-9a-fA-F]+|(?:""" + _DURATION_PART + r"""){1,8}|(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)
   | (?P<ident>[A-Za-z_][A-Za-z0-9_:]*)
   | (?P<op>=~|!~|!=|==|<=|>=|[-+*/%^<>=,(){}\[\]@:])
 """, re.X)
+# PromQL strings take Go's escapes, so "\x75ser_email" names user_email.
+_ESCAPE = re.compile(r"""\\(?:([abfnrtv\\'"])|x([0-9a-fA-F]{2})|([0-7]{3})|u([0-9a-fA-F]{4})|U([0-9a-fA-F]{8})|(.))""",
+                     re.S)
+_ESCAPED = dict(zip("abfnrtv\\'\"", "\a\b\f\n\r\t\v\\'\""))
+
+
+def _unquote(tok: str) -> str:
+    """The value of a PromQL string token, its escapes decoded."""
+    if tok[0] == "`":
+        return tok[1:-1]
+
+    def esc(m: re.Match) -> str:
+        simple, hx, octal, u4, u8, bad = m.groups()
+        if simple:
+            return _ESCAPED[simple]
+        if bad is not None:
+            raise ValueError(f"unknown escape sequence \\{bad} in {tok}")
+        code = int(octal, 8) if octal else int(hx or u4 or u8, 16)
+        if code > 0x10FFFF:
+            raise ValueError(f"escape out of range in {tok}")
+        return chr(code)
+
+    return _ESCAPE.sub(esc, tok[1:-1])
+
+
 AGGREGATORS = frozenset({"sum", "min", "max", "avg", "group", "stddev", "stdvar", "count", "count_values",
                          "bottomk", "topk", "quantile", "limitk", "limit_ratio"})
 KEYWORDS = frozenset({"and", "or", "unless", "bool", "offset", "atan2", "anchored", "smoothed", "inf", "nan"})
@@ -231,6 +295,15 @@ def check_promql(query: str) -> list[str]:
         if m.lastgroup != "ws":
             toks.append((m.lastgroup, m.group()))
         pos = m.end()
+
+    # An identity label may not appear anywhere: not as a matcher (which can guess
+    # its value a prefix at a time), in by/without/on/ignoring/group_* lists, nor
+    # as a string argument (label_replace and label_join would copy its value
+    # into a label the answer keeps; sort_by_label would order by it).
+    for kind, val in toks:
+        name = val if kind == "ident" else _unquote(val) if kind == "str" else None
+        if name in IDENTITY_LABELS:
+            raise ValueError(f"{name!r} is an identity label: a query may not match, group on or copy it")
 
     metrics: list[str] = []
     prev_metric = False
