@@ -20,6 +20,34 @@ The console is one of the local stack's three services; `docker compose up -d ph
 
 Credentials are inherited from the process environment (`gh auth login`, or `GH_TOKEN` / `FLEET_TOKEN` / the Claude tokens in `.env` for the compose service) — and, since 0.3, they can also be handed to the console **on the Credentials page** when it starts without them: a pasted value lives in this process's environment (which is exactly what a job inherits) and dies with the process, a GitHub token can instead go to `gh auth login --with-token` over stdin so the CLI's own store keeps it, and writing anything to the gitignored `.env` (mode 600) is a separate, explicitly confirmed step. Values are never returned, logged, or placed on a command line; every status document reports credential **names**, presence and provenance only. `DASH_CONSOLE_AUTH=off` refuses every credential write; set `DASH_CONSOLE_TOKEN` to require `Authorization: Bearer …` on the API when the console is reachable beyond localhost. Independently of that, the console answers only to loopback `Host` values: binding to 127.0.0.1 does not by itself stop a hostile page from resolving its own hostname to 127.0.0.1 (DNS rebinding) and then talking to this origin as same-origin, which on a console that can dispatch workflows and run `--apply` fan-outs is a real lever. Front it with another hostname by naming that hostname in `DASH_CONSOLE_ALLOWED_HOSTS` (comma-separated) — and set the token as well.
 
+## The Django backend (ADR 0006)
+
+The console's backend is moving to Django one route family at a time ([ADR 0006](../../docs/adr/0006-django-management-backend.md), epic #699), in the same process on the same port. `run.sh` and `serve.py` serve [`dispatch.py`](dispatch.py), which sends `/admin/`, `/accounts/` and `/api/v1/` to the Django project in [`backend/`](backend/SCHEMA.md) and every other path, the Terminal WebSocket and the startup lifespan to the FastAPI app exactly as before. Phase B1 ports no route and moves no data; what Django answers today:
+
+| Path | What it is | Token |
+| --- | --- | --- |
+| `/admin/` | the Django admin over its own users and groups (the operational records arrive in B2 and B4) | required when `DASH_CONSOLE_TOKEN` is set |
+| `/api/v1/healthz` | liveness: `{"status": "ok"}`, touches nothing | never |
+| `/api/v1/readyz` | readiness: 200 when the database answers and every migration is applied, else 503 `{"status": "degraded", "checks": {…}}` | never |
+| `/api/v1/version` | `{"name", "version", "commit", "built_at"}`: the hub release in `CHANGELOG.md`, `GIT_SHA` or the checkout's HEAD | never |
+| `/accounts/` | reserved for B3's sign-in; 404 until then | required when set |
+
+The dispatcher runs the console's own checks before Django sees a request, with the same functions the FastAPI routes use: a foreign `Host` is refused (421) on every Django path, and without the bearer token, when `DASH_CONSOLE_TOKEN` is set, every Django path but the three health endpoints answers 401. A browser cannot add that header, so on a console that requires a token the admin is reachable only through a client or proxy that sends it, until B3 brings the sign-in contract. Every Django response carries the page's Content-Security-Policy; the admin uses no inline script, so `script-src 'self'` holds. Its `Referrer-Policy` stays Django's `same-origin`: under the page's `no-referrer` a browser sends `Origin: null` with the login form and Django's CSRF check refuses it.
+
+The settings come from the environment ([`backend/settings.py`](backend/settings.py)):
+
+- **The database** is SQLite in `DASH_CONSOLE_STATE` (default `.fleet/console/`, gitignored; the compose service keeps its own in the `console-run` volume) unless `DATABASE_URL` names one (`postgres://user:pass@host:5432/name`, which also needs `psycopg` in the venv). `run.sh` applies the migrations before every start; a failed migrate is reported and the console starts anyway, with `/api/v1/readyz` saying what is wrong.
+- **The secret key** is `DJANGO_SECRET_KEY`. On loopback it may be unset: one is generated once into the state directory (`secret_key`, mode 600) and reused, and never printed. When `DASH_CONSOLE_ALLOWED_HOSTS` names a non-loopback host it is required; without it the Django paths answer 503 with that reason and the rest of the console serves as before.
+- **The hosts** are the console's own allowlist: `ALLOWED_HOSTS` equals the DNS-rebinding guard's list. DEBUG is always off; the session and CSRF cookies are `console_sessionid` and `console_csrftoken`, so a Django app on another loopback port never shares them.
+
+```bash
+.venv-console/bin/python tools/console/backend/manage.py migrate            # what run.sh runs on start
+.venv-console/bin/python tools/console/backend/manage.py createsuperuser    # an admin login (asks for the password)
+curl -s http://127.0.0.1:4001/api/v1/readyz
+```
+
+Both commands have an F5 entry in the **1-console** group. The public site never imports Django: `snapshot.py` calls the service layer, and `test_backend.py` holds that.
+
 ## The page
 
 A React + TypeScript app on **Mantine** (app shell, Spotlight palette, modals, notifications), **TanStack Query** (one cache for every API document) and **React Router** (every view is a URL), built with Vite from [`web/`](web/README.md) into `web/dist/`, which `app.py` serves. `run.sh` rebuilds it whenever a source file is newer than the last build, at latest versions and without a lockfile, like the venv. Without `npm` the API still serves, and `/` says how to build the page.
@@ -193,11 +221,12 @@ keys v1, from `/api/keys` ([`tools/fleetcore/keys.py`](../fleetcore/keys.py)), t
 - Publish a repo's README. The repo app reads it from a checkout on the operator's machine; the public snapshot carries none.
 - Commit, push, or merge. Generated data lands in the working tree; you review it in git.
 - Invent contract structure. The Config form edits declared keys only: a key `fleet.yml` does not already carry is shown read-only, and the policy keys the file itself calls non-negotiable (`rotation.hub_first`, `issue_pipeline.autonomy.never_merge`) are not offered at all.
+- Let Django answer a request the FastAPI routes would refuse. The Django paths get the same Host check and bearer-token check first, from the same functions; only `/api/v1/healthz`, `readyz` and `version` are exempt from the token, and DEBUG is never on.
 - Hand a credential back. Values go in; names, presence and provenance come out. A token pasted for `gh` travels on stdin, and `.env` is written only on an explicit confirm — never if git tracks it.
 - Publish the lake. `.dash-lake/` is gitignored (it holds run logs); traces go only to the Phoenix endpoint you configured, and `PHOENIX_API_KEY`, when set, is forwarded and never shown.
 
 ## Files
 
-`core.py` (logic, tested by `test_console.py` on PyYAML alone) · `github_link.py` (the OAuth App flows and fleet repo management, stdlib HTTP only) · `decision_index.py` (the decision queue and its local index, stdlib HTTP only) · `tui_bridge.py` (the Terminal page's pty-over-WebSocket bridge and its handshake checks) · `serve.py` (TCP + Unix socket, one process) · `app.py` (FastAPI routes, the CSP, and the page fallback) · `web/` (the page: React + Mantine, built to `web/dist/`) · `run.sh` · `requirements.txt` (always-latest; carries the OpenTelemetry SDK + OTLP/HTTP exporter for `lake export`, `websockets` for `/api/tui`, the TUI's own requirements, and `httpx2`, starlette's TestClient dependency, without which the DNS-rebinding test cannot run). `design-system/` is the React package of the console's earlier hand-written look, kept for the Claude Design sync.
+`core.py` (logic, tested by `test_console.py` on PyYAML alone) · `github_link.py` (the OAuth App flows and fleet repo management, stdlib HTTP only) · `decision_index.py` (the decision queue and its local index, stdlib HTTP only) · `tui_bridge.py` (the Terminal page's pty-over-WebSocket bridge and its handshake checks) · `serve.py` (TCP + Unix socket, one process) · `dispatch.py` (the ASGI entry point: Django's three prefixes, FastAPI for the rest) · `backend/` (the Django project: settings, the admin, the health endpoints, `manage.py`) · `app.py` (FastAPI routes, the CSP, and the page fallback) · `web/` (the page: React + Mantine, built to `web/dist/`) · `run.sh` · `requirements.txt` (always-latest; carries the OpenTelemetry SDK + OTLP/HTTP exporter for `lake export`, `websockets` for `/api/tui`, the TUI's own requirements, and `httpx2`, starlette's TestClient dependency, without which the DNS-rebinding test cannot run). `design-system/` is the React package of the console's earlier hand-written look, kept for the Claude Design sync.
 
 The page's policy is `script-src 'self'`: the bundle has no inline script, so an injected `<script>` cannot run. Styles allow `'unsafe-inline'` because Mantine and xterm.js set style attributes. `/docs` keeps the narrow frame policy because Swagger UI boots inline from a CDN.
