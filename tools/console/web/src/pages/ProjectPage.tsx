@@ -19,6 +19,9 @@ import { AttentionTable } from './Overview';
 import { RepoManager } from '../github/RepoManager';
 import u from '../styles/utils.module.css';
 
+/** A `merge` row (FF-0036) is the fix, not a fault: no alarm tone, and its badge says it is the way out. */
+const isMerge = (i: InboxItem) => i.kind === 'merge';
+
 export function InboxTable({ rows, showRepo = false }: { rows: InboxItem[]; showRepo?: boolean }) {
   return (
     <DataTable<InboxItem>
@@ -29,11 +32,15 @@ export function InboxTable({ rows, showRepo = false }: { rows: InboxItem[]; show
       open={(i) => i.url}
       copy={(i) => i.url}
       initialSort={{ key: 'pri', desc: true }}
-      tone={(i) => (i.priority >= 80 ? 'crit' : i.priority >= 60 ? 'warn' : undefined)}
+      tone={(i) => (isMerge(i) ? undefined : i.priority >= 80 ? 'crit' : i.priority >= 60 ? 'warn' : undefined)}
       empty={<Status tone="good">nothing open</Status>}
       columns={[
         { key: 'pri', header: 'pri', num: true, sort: (i) => i.priority, render: (i) => i.priority, width: 50 },
-        { key: 'kind', header: 'kind', sort: (i) => i.kind, render: (i) => <Badge variant="default" size="sm">{i.kind}</Badge> },
+        {
+          key: 'kind', header: 'kind', sort: (i) => i.kind, render: (i) => (isMerge(i)
+            ? <Badge variant="light" color="teal" size="sm" title={`A ${i.evidence ?? 'verified'} fix, green and clean. Merging stays yours.`}>merge</Badge>
+            : <Badge variant="default" size="sm">{i.kind}</Badge>),
+        },
         ...(showRepo ? [{ key: 'repo', header: 'repo', sort: (i: InboxItem) => i.repo, render: (i: InboxItem) => <Anchor component={Link} to={to.project(i.repo)} ff="monospace" fz="sm">{i.repo}</Anchor> }] : []),
         { key: 'item', header: 'item', sort: (i) => i.label, render: (i) => <External href={i.url} size="sm">{i.label}</External> },
         { key: 'why', header: 'why', render: (i) => <Text size="xs" c="dimmed">{i.why}</Text> },

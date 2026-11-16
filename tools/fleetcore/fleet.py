@@ -33,6 +33,12 @@ CAT_LABEL = {
 }
 LEVEL_RANK = {"red": 0, "amber": 1, "green": 2, None: 3}
 
+# The inbox's priority per kind — fleet_triage.PRIORITY's mirror, so an item
+# ranks the same in the fleet inbox and in a repo's drill-down
+# (tools/test_fleetcore.py holds the two equal).
+PRIORITY = {"merge": 95, "workflow": 90, "pr_failing": 70, "bug": 60, "pr_idle": 55, "issue": 40}
+FIX_TIERS = ("verified", "doctor", "weak")  # fix-PR evidence, strongest first (FF-0036)
+
 # The files a reload watches. Order is display order in the status line.
 SOURCES = (
     ("registry", "_data/projects.yml"),
@@ -120,10 +126,23 @@ class InboxItem:
     age_days: int | None
     url: str
     ref: str = ""  # "#123" for issues/PRs, the workflow path for workflows
+    # kind `merge` (FF-0036): the refs merging this PR clears — the red
+    # workflow(s), then the PRs red only because of it — and its fix evidence.
+    clears: list[str] = field(default_factory=list)
+    evidence: str = ""
 
     @property
     def label(self) -> str:
         return f"{self.ref} {self.title}" if self.ref.startswith("#") else self.title
+
+    @property
+    def brief(self) -> str:
+        """`why`, short enough for a narrow column: a merge item counts what it clears."""
+        if self.kind != "merge" or not self.clears:
+            return self.why
+        reds = sum(1 for c in self.clears if not c.startswith("#"))
+        prs = len(self.clears) - reds
+        return f"clears {reds} red workflow{'s' * (reds != 1)}" + (f" + {prs} PR{'s' * (prs != 1)}" if prs else "")
 
     @property
     def haystack(self) -> str:
@@ -285,6 +304,8 @@ def inbox_items(triage: Any) -> list[InboxItem]:
             age_days=_int(i.get("age_days")),
             url=str(i.get("url") or ""),
             ref=str(i.get("ref") or ""),
+            clears=[str(c) for c in (i.get("clears") or []) if c],
+            evidence=str(i.get("evidence") or ""),
         )
         for i in (raw or [])
         if isinstance(i, dict)
@@ -301,46 +322,120 @@ def _triage_entry(triage: Any, name: str, repo_url: str = "") -> dict | None:
     )
 
 
+def _ref_num(ref: str) -> int:
+    return int(ref[1:]) if ref[1:].isdigit() else 0
+
+
+def merge_plan(t: dict) -> tuple[list[dict], dict[str, str]]:
+    """fleet_triage.merge_plan, over one `by_repo` entry of the committed snapshot:
+    the `merge` items its fix links make (FF-0036), and the note each covered
+    item gains. Mirrored rather than imported so fleetcore stays stdlib + PyYAML;
+    tools/test_fleetcore.py holds the two equal on the same record."""
+    groups: dict[int, dict] = {}
+    notes: dict[str, str] = {}
+    for wf in (t.get("workflows") or {}).get("failing") or []:
+        if not isinstance(wf, dict):
+            continue
+        ref = str(wf.get("path") or wf.get("workflow") or "?")
+        fixes = [f for f in wf.get("fix_prs") or [] if isinstance(f, dict) and f.get("number")]
+        strong = [f for f in fixes if f.get("evidence") in ("verified", "doctor")]
+        ready = [f for f in strong if f.get("ready")]
+        if ready:
+            top = ready[0]
+            g = groups.setdefault(top["number"], {"fix": top, "wfs": [], "prs": set(), "tiers": set(),
+                                                  "also": set()})
+            g["wfs"].append(wf)
+            g["prs"].update(top.get("clears") or [])
+            g["tiers"].add(top.get("evidence"))
+            g["also"].update(f["number"] for f in ready[1:])
+            note = f"fix: #{top['number']}"
+        elif strong:
+            top = strong[0]
+            note = f"fix: #{top['number']} ({top.get('mergeable_state') or 'unknown'})"
+        elif fixes:
+            notes[ref] = "possible fix: " + ", ".join(f"#{f['number']}" for f in fixes)
+            continue
+        else:
+            continue
+        notes[ref] = note
+        for c in top.get("clears") or []:
+            notes.setdefault(c, note)
+    merges: list[dict] = []
+    for number, g in groups.items():
+        fix = g["fix"]
+        names = " + ".join(str(w.get("workflow") or w.get("path") or "?") for w in g["wfs"])
+        prs = sorted(g["prs"], key=_ref_num)
+        why = f"Merge #{number}: clears {names} on {g['wfs'][0].get('branch') or 'the tracked branch'}"
+        if prs:
+            why += (f" and {', '.join(prs)} once "
+                    + ("their branches are updated" if len(prs) > 1 else "its branch is updated"))
+        also = sorted(g["also"] - {number})
+        if also:
+            why += " · also ready: " + ", ".join(f"#{n}" for n in also)
+        merges.append({
+            "kind": "merge", "repo": t.get("name"), "nwo": t.get("nwo"), "ref": f"#{number}",
+            "title": fix.get("title") or "", "why": why, "age_days": fix.get("age_days"),
+            "url": fix.get("url") or "", "priority": PRIORITY["merge"],
+            "clears": [str(w.get("path") or w.get("workflow") or "?") for w in g["wfs"]] + prs,
+            "evidence": min(g["tiers"], key=FIX_TIERS.index),
+        })
+    return merges, notes
+
+
 def repo_items(triage: Any, name: str, repo_url: str = "") -> list[InboxItem]:
     """Every open item one repo carries in fleet_triage.yml `by_repo` — the
     drill-down. The fleet inbox holds only FLAGGED items, capped at 150 across
     ~40 repos, so most repos have open work and no inbox rows at all.
 
-    Priorities mirror fleet_triage.build_inbox (workflow 90, failing-CI PR 70,
-    bug 60, PR 55, issue 40) so an item ranks the same in both views.
+    Priorities mirror fleet_triage.build_inbox (merge 95, workflow 90,
+    failing-CI PR 70, bug 60, PR 55, issue 40 — PRIORITY) so an item ranks the
+    same in both views; a merge-ready fix PR's row is its merge item.
     """
     t = _triage_entry(triage, name, repo_url)
     if not t:
         return []
     repo = str(t.get("name") or name)
     items: list[InboxItem] = []
+    merges, notes = merge_plan(t)
+    for m in merges:
+        items.append(InboxItem(
+            kind="merge", repo=repo, title=str(m["title"]), why=m["why"], priority=m["priority"],
+            age_days=_int(m["age_days"]), url=str(m["url"]), ref=m["ref"], clears=list(m["clears"]),
+            evidence=str(m["evidence"]),
+        ))
+    subjects = {m["ref"] for m in merges}
     for f in (t.get("workflows") or {}).get("failing") or []:
         if isinstance(f, dict):
+            ref = str(f.get("path") or f.get("workflow") or "?")
+            why = f"latest run {f.get('conclusion') or 'failed'}"
             items.append(InboxItem(
                 kind="workflow", repo=repo, title=str(f.get("workflow") or f.get("path") or "?"),
-                why=f"latest run {f.get('conclusion') or 'failed'}", priority=90, age_days=None,
-                url=str(f.get("run_url") or ""), ref=str(f.get("path") or ""),
+                why=f"{why} · {notes[ref]}" if ref in notes else why, priority=PRIORITY["workflow"],
+                age_days=None, url=str(f.get("run_url") or ""), ref=str(f.get("path") or ""),
             ))
     for p in (t.get("prs") or {}).get("items") or []:
         if not isinstance(p, dict):
             continue
+        ref = f"#{p['number']}" if p.get("number") else ""
+        if ref and ref in subjects:
+            continue
         tags = [x for x, on in (("draft", p.get("draft")), ("dependabot", p.get("dependabot"))) if on]
         if p.get("ci") == "fail":
-            pri, why = 70, "PR checks failing"
+            pri, why = PRIORITY["pr_failing"], "PR checks failing"
         else:
-            pri, why = 55, f"PR idle {_fmt_days(p.get('idle_days'))}"
+            pri, why = PRIORITY["pr_idle"], f"PR idle {_fmt_days(p.get('idle_days'))}"
         items.append(InboxItem(
-            kind="pr", repo=repo, title=str(p.get("title") or ""), why=" · ".join([why, *tags]),
-            priority=pri, age_days=_int(p.get("age_days")), url=str(p.get("url") or ""),
-            ref=f"#{p['number']}" if p.get("number") else "",
+            kind="pr", repo=repo, title=str(p.get("title") or ""),
+            why=" · ".join([why, *tags, *([notes[ref]] if ref in notes else [])]),
+            priority=pri, age_days=_int(p.get("age_days")), url=str(p.get("url") or ""), ref=ref,
         ))
     for i in (t.get("issues") or {}).get("items") or []:
         if not isinstance(i, dict):
             continue
         if any("bug" in str(lb).lower() for lb in i.get("labels") or []):
-            pri, why = 60, "bug label"
+            pri, why = PRIORITY["bug"], "bug label"
         else:
-            pri, why = 40, f"issue idle {_fmt_days(i.get('idle_days'))}"
+            pri, why = PRIORITY["issue"], f"issue idle {_fmt_days(i.get('idle_days'))}"
         items.append(InboxItem(
             kind="issue", repo=repo, title=str(i.get("title") or ""), why=why, priority=pri,
             age_days=_int(i.get("age_days")), url=str(i.get("url") or ""),
