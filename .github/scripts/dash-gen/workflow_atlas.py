@@ -440,7 +440,10 @@ def parse_workflow(rel: str, text: str, hub: str = HUB_DEFAULT) -> dict:
     wf["secrets"] = sorted(set(SECRET_RX.findall(code)))
     wf["vars"] = sorted(set(VAR_RX.findall(code)))
     wf["switches"] = sorted(set(hr.SWITCH_RX.findall(code)))
-    wf["switch"] = wf["switches"][0] if wf["switches"] else None
+    # The workflow's OWN kill switch is the first it reads, as the harness registry reads it: a loop that
+    # also hands a sprint-scope switch to its script (vars.EXPEDITE_SPRINT_ENABLED) still shows its own.
+    first = hr.SWITCH_RX.search(code)
+    wf["switch"] = first.group(1) if first else None
 
     refs: dict[str, dict] = {}
     for jid, job in (data.get("jobs") or {}).items():
