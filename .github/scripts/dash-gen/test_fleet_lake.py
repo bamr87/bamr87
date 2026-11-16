@@ -31,8 +31,10 @@ record of what GitHub holds, and the traces trustworthy as evidence:
     lake a second sink must not have changed the first one);
   * `lake recall` finds a stored session by the words of its prompt or one
     turn, one result per session up to the limit, refuses an empty query
-    (exit 2), redacts each excerpt before clipping it, and never writes the
-    lake, with or without FTS5; and
+    (exit 2), redacts each excerpt before clipping it, matches only the
+    redacted text (a query cannot probe a masked token, home or address),
+    keeps its deadline while it redacts, and never writes the lake, with or
+    without FTS5; and
   * the status / runs / lines documents the console serves are JSON-safe.
 
 Deliberately dependency-light — no network, no gh, no OpenTelemetry, no
@@ -1045,6 +1047,45 @@ def test_recall_returns_one_row_per_session_up_to_the_limit():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_recall_checks_its_deadline_in_python_too():
+    """Redaction runs in Python, where sqlite's progress handler never looks,
+    so the deadline is also checked between batches and while hits are folded.
+    A fake clock stands in for the time; the handler is set never to fire."""
+    tmp = Path(tempfile.mkdtemp())
+
+    class Clock:
+        now = 1000.0
+
+        def monotonic(self) -> float:
+            return self.now
+
+    clock, scrub, calls = Clock(), _scrub(), []
+
+    def slow(cost: float):
+        def run(text: str) -> str:
+            calls.append(text)
+            clock.now += cost
+            return scrub(text)
+        return run
+
+    saved = fl.time, fl.RECALL_BATCH, fl.RECALL_PROGRESS_OPS
+    try:
+        _recall_lake(tmp, extra=15)
+        fl.time, fl.RECALL_PROGRESS_OPS = clock, 10 ** 9
+        # one row spends the whole budget: the next batch is never redacted
+        fl.RECALL_BATCH = 1
+        doc = fl.recall(tmp, "widget", scrub=slow(fl.RECALL_DEADLINE_S + 1))
+        assert doc["results"] == [] and "limit" in (doc["note"] or "") and len(calls) == 1, (doc, len(calls))
+        # every row fits one batch and the budget runs out inside it: the hits are not folded
+        fl.RECALL_BATCH, calls[:] = 1000, []
+        doc = fl.recall(tmp, "widget", scrub=slow(fl.RECALL_DEADLINE_S / 4))
+        assert doc["indexed"] == len(calls) > 4 and doc["results"] == [], (doc, len(calls))
+        assert "limit" in (doc["note"] or ""), doc
+    finally:
+        fl.time, fl.RECALL_BATCH, fl.RECALL_PROGRESS_OPS = saved
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_recall_refuses_an_empty_query():
     tmp = Path(tempfile.mkdtemp())
     try:
@@ -1094,6 +1135,37 @@ def test_recall_excerpts_are_redacted_before_they_are_clipped():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_recall_matches_only_the_redacted_text():
+    """Whether a query matches must not say what the redaction hides. When the
+    raw turn was indexed and only the excerpt redacted, `ghp a1b2c3d4e5a1`
+    found the session and `ghp a1b2c3d4e5a2` did not, so a token could be
+    rebuilt a prefix at a time from excerpts that only ever said
+    `ghp_[REDACTED]`; the same held for a masked home's user name and an
+    address. Recall indexes and matches the Scrubber's output only."""
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        text = (f"rotate the deploy token {GHP} kept in {HOME}/work/secrets.txt "
+                f"and mail someone@example.com about it")
+        conn = fl.connect(tmp)
+        fl.store_session(conn, fl.session_facts(_transcript("sess-s", "token chores", [text]), "/x/sess-s.jsonl"))
+        conn.commit()
+        conn.close()
+        body = GHP[4:]
+        hidden = [f"ghp {body[:12]}", f"ghp {body[:11]}2", body[:12], body[:4],
+                  "alice", "alice secrets", "users alice", "someone", "someone example", "example com"]
+        for fts in (True, False):
+            for query in hidden:
+                doc = fl.recall(tmp, query, scrub=_scrub(), fts=fts)
+                assert doc["note"] is None and doc["results"] == [], (fts, query, doc)
+            for query in ("rotate deploy token", "secrets", "ghp", "work secrets"):
+                doc = fl.recall(tmp, query, scrub=_scrub(), fts=fts)
+                assert [r["key"] for r in doc["results"]] == ["session:sess-s"], (fts, query, doc)
+                ex = doc["results"][0]["excerpt"]
+                assert body[:8] not in ex and "alice" not in ex and "someone" not in ex, ex
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_recall_never_writes_the_lake():
     tmp = Path(tempfile.mkdtemp())
     db = Path(fl.lake_paths(tmp)[1])
@@ -1126,6 +1198,14 @@ def test_recall_without_fts5_is_a_substring_search_with_the_same_contract():
         # newest session first when there is no rank to order by
         assert [r["key"] for r in fl.recall(tmp, "widget", fts=False, scrub=_scrub())["results"]] == \
             ["session:sess-w00", "session:sess-w01", "session:sess-w02"]
+        # case folds beyond ASCII, as FTS5's tokenizer does (sqlite's own lower() leaves "Ü" alone)
+        conn = fl.connect(tmp)
+        fl.store_session(conn, fl.session_facts(_transcript("sess-u", "ÜBERSICHT der Größe", ["ok"]), "/x/sess-u.jsonl"))
+        conn.commit()
+        conn.close()
+        for fts in (True, False):
+            found = fl.recall(tmp, "übersicht", fts=fts, scrub=_scrub())["results"]
+            assert [r["key"] for r in found] == ["session:sess-u"], (fts, found)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

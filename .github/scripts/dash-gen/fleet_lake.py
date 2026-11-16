@@ -43,9 +43,11 @@ Three subcommands:
            every word of --query must match a session's first prompt or one
            of its assistant turns. It returns at most --limit sessions, best
            match first, each with a short excerpt that is redacted before it
-           is clipped. The lake is attached read-only (`mode=ro`), the FTS5
-           index is built in memory for each call, and without FTS5 the same
-           search runs as a substring match. No network.
+           is clipped. Only redacted text is indexed and matched, so whether
+           a query matches never tells what the redaction hides. The lake is
+           attached read-only (`mode=ro`), the FTS5 index is built in memory
+           for each call, and without FTS5 the same search runs as a
+           substring match. No network.
 
 Design rules, same as every other dash-gen module: the network half degrades
 (a repo that 404s yields no rows, not a crash); the analytics half is pure
@@ -2265,13 +2267,16 @@ RECALL_TERM_CHARS = 64
 RECALL_EXCERPT_CHARS = 300
 # How many rows the in-memory index takes (newest sessions first) and how many
 # hits are read before they are folded to one per session. In 2026-11 the whole
-# local plane was about 60k turns and 5 MB of text, which indexes in a fifth of
-# a second; these caps hold a lake many times that size.
+# local plane was about 60k turns and 5 MB of text. Every row is redacted before
+# it is indexed, and that is most of the cost: a call over that much text takes
+# about 2 s (the FTS5 insert alone is a fifth of a second), so the row cap is
+# about 8 s of work, well inside the deadline.
 RECALL_MAX_ROWS = 250_000
 RECALL_MAX_HITS = 20_000
 RECALL_LOCK_TIMEOUT_S = 10.0
 RECALL_DEADLINE_S = 30.0
 RECALL_PROGRESS_OPS = 10_000              # sqlite VM steps between deadline checks
+RECALL_BATCH = 1_000                      # rows redacted per insert, and per Python deadline check
 # A word is a run of letters and digits. That is what FTS5's unicode61
 # tokenizer indexes, so the substring fallback looks for the same words.
 _RECALL_TERM_RX = re.compile(r"[^\W_]+")
@@ -2343,6 +2348,15 @@ def _recall_source(cutoff: str, repo: str | None) -> tuple[str, list]:
     return sql, one + one + [RECALL_MAX_ROWS]
 
 
+def _recall_body(raw, scrub, fold: bool) -> str:
+    """What recall indexes for one row: the Scrubber's output, never the raw
+    text, and lower-cased by Python for the substring engine (Unicode case
+    folding, as FTS5's tokenizer does, rather than sqlite's ASCII-only lower())."""
+    text = raw.decode("utf-8", "replace") if isinstance(raw, bytes) else str(raw)
+    text = scrub(text) or ""
+    return text.lower() if fold else text
+
+
 def recall(lake_dir: Path | str | None = None, query: str = "", days: int = RECALL_DAYS_DEFAULT,
            repo: str | None = None, limit: int = RECALL_LIMIT_DEFAULT, scrub=None, fts: bool = True) -> dict:
     """Find the stored local sessions whose first prompt or one assistant turn
@@ -2352,13 +2366,22 @@ def recall(lake_dir: Path | str | None = None, query: str = "", days: int = RECA
     RECALL_EXCERPT_CHARS characters.
 
     Read-only by construction: the lake is ATTACHed `mode=ro` to a private
-    in-memory database, which holds the FTS5 index for this call only. Nothing
+    in-memory database, which holds the index for this call only. Nothing
     is ever written to the lake: no index, no schema DDL, no `meta` stamp.
     Ranked by FTS5's bm25 when the sqlite build has FTS5 (`fts` True);
     otherwise every word must appear as a substring, newest session first.
+
+    Only redacted text is indexed and matched: each row passes through
+    `scrub` before it enters the index, so a query can match only what an
+    excerpt could show. Matching the raw row and redacting only the excerpt
+    made the match itself an oracle: `ghp a1b2…` found the session and
+    `ghp a1b3…` did not, which spells out a masked token one prefix at a
+    time (and a masked home's user name, and an address).
+
     Bounded: at most RECALL_MAX_ROWS rows indexed and RECALL_DEADLINE_S of
-    sqlite time, after which the document carries the hits found so far and
-    a note saying it was cut short. No network.
+    wall time (checked by sqlite's progress handler and between batches of
+    redaction, which runs in Python), after which the document carries the
+    hits found so far and a note saying it was cut short. No network.
 
     Raises ValueError when the query has no word to search for.
     """
@@ -2377,6 +2400,7 @@ def recall(lake_dir: Path | str | None = None, query: str = "", days: int = RECA
     scrub = scrub or _recall_scrubber()
     cutoff = iso(utcnow() - dt.timedelta(days=days))
     deadline = time.monotonic() + RECALL_DEADLINE_S
+    late = f"stopped at the {RECALL_DEADLINE_S:.0f} s limit: narrow --days or --repo"
     conn = sqlite3.connect("file::memory:", uri=True, timeout=RECALL_LOCK_TIMEOUT_S)
     conn.row_factory = sqlite3.Row
     try:
@@ -2394,23 +2418,36 @@ def recall(lake_dir: Path | str | None = None, query: str = "", days: int = RECA
                              "key UNINDEXED, field UNINDEXED, idx UNINDEXED, body, tokenize = 'unicode61')")
             except sqlite3.OperationalError:     # a sqlite built without FTS5
                 engine = "substring"
+        if engine == "substring":
+            conn.execute("CREATE TABLE recall (key TEXT, field TEXT, idx INTEGER, body TEXT)")
         out["engine"] = engine
+        # Fill the in-memory index with redacted rows only, in the source's order
+        # (newest session first). The progress handler counts only sqlite's
+        # steps, so the deadline is also checked here, between batches.
+        rows = conn.execute(source, params)
+        while batch := rows.fetchmany(RECALL_BATCH):
+            if time.monotonic() > deadline:
+                out["note"] = late
+                return out
+            conn.executemany("INSERT INTO recall (key, field, idx, body) VALUES (?, ?, ?, ?)",
+                             [(r["key"], r["field"], r["idx"], _recall_body(r["body"], scrub, engine == "substring"))
+                              for r in batch])
+            out["indexed"] += len(batch)
+        out["truncated"] = out["indexed"] >= RECALL_MAX_ROWS
         if engine == "fts5":
-            conn.execute(f"INSERT INTO recall (key, field, idx, body) SELECT key, field, idx, body FROM ({source})",
-                         params)
-            out["indexed"] = conn.execute("SELECT COUNT(*) FROM recall").fetchone()[0]
             match = " ".join(f'"{t}"*' for t in terms)
             hits = conn.execute("SELECT key, field, idx FROM recall WHERE recall MATCH ? ORDER BY rank LIMIT ?",
                                 (match, RECALL_MAX_HITS))
-        else:
-            out["indexed"] = conn.execute(f"SELECT COUNT(*) FROM ({source})", params).fetchone()[0]
-            words = " AND ".join("instr(lower(body), ?) > 0" for _ in terms)
-            hits = conn.execute(f"SELECT key, field, idx FROM ({source}) WHERE {words} "
-                                "ORDER BY at DESC, key, ord LIMIT ?", params + terms + [RECALL_MAX_HITS])
-        out["truncated"] = out["indexed"] >= RECALL_MAX_ROWS
+        else:                                     # rowid order is the source's: newest session first
+            words = " AND ".join("instr(body, ?) > 0" for _ in terms)
+            hits = conn.execute(f"SELECT key, field, idx FROM recall WHERE {words} ORDER BY rowid LIMIT ?",
+                                terms + [RECALL_MAX_HITS])
         chosen: list[sqlite3.Row] = []
         seen: set[str] = set()
         for hit in hits:                          # one result per session, its best hit
+            if time.monotonic() > deadline:
+                out["note"] = late
+                break
             if hit["key"] in seen:
                 continue
             seen.add(hit["key"])
@@ -2435,7 +2472,7 @@ def recall(lake_dir: Path | str | None = None, query: str = "", days: int = RECA
     except sqlite3.Error as exc:
         said = str(exc).lower()
         if "interrupt" in said:
-            out["note"] = f"stopped at the {RECALL_DEADLINE_S:.0f} s limit: narrow --days or --repo"
+            out["note"] = late
         elif "locked" in said or "busy" in said:
             out["note"] = "the lake is locked by a writer (a sync or `lake sessions`): try again when it finishes"
         else:

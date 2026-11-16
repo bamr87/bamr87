@@ -191,7 +191,8 @@ class ReadTools(unittest.TestCase):
 
     def test_lake_recall_is_read_only_and_bounds_what_it_asks_for(self):
         """bamr87/bamr87#546: recall over the lake's sessions, next to agent_activity — a read tool whose
-        window and limit are clamped to what the console route accepts, so an agent cannot ask for more."""
+        query, window and limit are clamped to what the console route accepts (a longer query was a 422), so an
+        agent cannot ask for more."""
         doc = {"schema": "lake-recall/v1", "present": True, "terms": ["fts5", "index"],
                "results": [{"key": "session:s1", "session_id": "s1", "repo": "bamr87", "match": "turn",
                             "turn": 3, "excerpt": "…the fts5 index is built in memory…"}]}
@@ -206,6 +207,8 @@ class ReadTools(unittest.TestCase):
         self.assertEqual(fc.calls[-1][1:3], ("/api/lake/recall", {"q": "fts5 index", "days": 30, "limit": 10}))
         call(server, "lake_recall", {"query": "x", "days": 99999, "repo": "bamr87", "limit": 500})
         self.assertEqual(fc.calls[-1][2], {"q": "x", "days": 3650, "repo": "bamr87", "limit": 50})
+        call(server, "lake_recall", {"query": "word " * 100})
+        self.assertEqual(fc.calls[-1][2]["q"], ("word " * 100)[:300])
 
     # ------------------------------------------------------------ work board
     # /api/work is the whole board: 394 items, ~390k characters, which clip()
