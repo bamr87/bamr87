@@ -69,6 +69,7 @@ MAX_JSONL_BYTES = 2 << 20       # every .jsonl in it, uncompressed
 MAX_FINDINGS = 500          # per artifact
 MAX_MESSAGE = 1000
 MAX_INLINE = 20             # new inline comments per review; the rest wait for the next one
+MAX_REFUSED = 5             # refusals in a row before a review stops posting; the rest wait
 MAX_PAGES = 30              # GitHub lists at most 3,000 files of a PR
 RULE_ID_RX = re.compile(r"[A-Za-z0-9][\w.:/-]{0,79}")
 FINDING_KEY_RX = re.compile(r"<!-- fleet:finding key=([0-9a-f]{40}) -->")
@@ -369,8 +370,19 @@ def finding_key(path: str, line: int, rule: str) -> str:
     return hashlib.sha1(f"{path}:{line}:{rule}".encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
+def _utf8(text: str) -> bool:
+    """False for a string UTF-8 cannot hold. JSON's `\\ud800` escape decodes to a
+    lone surrogate, which would crash the job summary's UTF-8 write."""
+    try:
+        text.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
 def _valid_path(path) -> bool:
-    if not isinstance(path, str) or not 0 < len(path) <= 512 or re.search(r"[\x00-\x1f\x7f\\]", path):
+    if (not isinstance(path, str) or not 0 < len(path) <= 512 or not _utf8(path)
+            or re.search(r"[\x00-\x1f\x7f\\]", path)):
         return False
     return not path.startswith("/") and all(part not in ("", ".", "..") for part in path.split("/"))
 
@@ -387,14 +399,15 @@ def validate_finding(item, where: str) -> dict:
         raise BadArtifact(f"{where}: `path` must be a relative path inside the repository")
     if type(line) is not int or not 1 <= line <= 10_000_000:
         raise BadArtifact(f"{where}: `line` must be a positive integer")
-    if not isinstance(item["rule"], str) or not RULE_ID_RX.fullmatch(item["rule"]):
+    if not isinstance(item["rule"], str) or not _utf8(item["rule"]) or not RULE_ID_RX.fullmatch(item["rule"]):
         raise BadArtifact(f"{where}: `rule` must be an id of letters, digits and . _ : / -")
     if item["severity"] not in FINDING_SEVERITIES:
         raise BadArtifact(f"{where}: `severity` must be one of {', '.join(FINDING_SEVERITIES)}")
     if item["kind"] not in FINDING_KINDS:
         raise BadArtifact(f"{where}: `kind` must be one of {', '.join(FINDING_KINDS)}")
-    if not isinstance(message, str) or not message.strip() or len(message) > MAX_MESSAGE or "\x00" in message:
-        raise BadArtifact(f"{where}: `message` must be text of 1 to {MAX_MESSAGE} characters")
+    if (not isinstance(message, str) or not message.strip() or len(message) > MAX_MESSAGE or "\x00" in message
+            or not _utf8(message)):
+        raise BadArtifact(f"{where}: `message` must be UTF-8 text of 1 to {MAX_MESSAGE} characters")
     return {k: item[k] for k in ("path", "line", "rule", "severity", "kind", "message")}
 
 
@@ -421,21 +434,30 @@ def parse_findings(data: bytes) -> list[dict]:
                 text = raw.decode("utf-8")
             except UnicodeDecodeError as e:
                 raise BadArtifact(f"{name} is not UTF-8") from e
-            for n, line in enumerate(text.splitlines(), 1):
+            # Only "\n" ends a JSON line. str.splitlines() also splits on \x0c,
+            # \x85 and U+2028, which may sit raw inside a JSON string.
+            for n, line in enumerate(text.split("\n"), 1):
                 if not line.strip():
                     continue
                 try:
                     item = json.loads(line)
                 except json.JSONDecodeError as e:
                     raise BadArtifact(f"{name}:{n}: not JSON") from e
+                except (ValueError, RecursionError) as e:
+                    # An integer past Python's 4,300-digit limit, or nesting past the recursion limit.
+                    raise BadArtifact(f"{name}:{n}: JSON this reader cannot hold ({type(e).__name__})") from e
                 out.append(validate_finding(item, f"{name}:{n}"))
                 if len(out) > MAX_FINDINGS:
                     raise BadArtifact(f"it holds more than {MAX_FINDINGS} findings")
         return out
+    except BadArtifact:
+        raise
     except (zipfile.BadZipFile, zipfile.LargeZipFile, NotImplementedError, RuntimeError, EOFError, OSError,
-            zlib.error, lzma.LZMAError) as e:
+            ValueError, zlib.error, lzma.LZMAError) as e:
         # An encrypted member raises RuntimeError, an unknown compression
-        # NotImplementedError, a truncated stream EOFError or zlib.error.
+        # NotImplementedError, a truncated stream EOFError or zlib.error, and a
+        # member name flagged UTF-8 that is not valid UTF-8 UnicodeDecodeError, a
+        # ValueError. BadArtifact is a ValueError too, so it is re-raised above.
         raise BadArtifact(f"not a readable zip archive ({type(e).__name__})") from e
 
 
@@ -443,7 +465,9 @@ def added_lines(patch: str) -> set[int]:
     """The new-file line numbers a unified-diff patch adds."""
     out: set[int] = set()
     n = None
-    for line in patch.splitlines():
+    # Git ends a diff line with "\n" only; str.splitlines() would also split an
+    # added line holding a form feed, \x85 or U+2028 and shift every later number.
+    for line in patch.split("\n"):
         m = HUNK_RX.match(line)
         if m:
             n = int(m.group(1))
@@ -557,12 +581,15 @@ def review_findings(gh: Gh, number: int, head_sha: str, runs: list[dict], dry_ru
         for c in _pages(gh, f"pulls/{number}/comments"):
             if (c.get("user") or {}).get("type") == "Bot":
                 posted_keys.update(FINDING_KEY_RX.findall(str(c.get("body") or "")))
-    new = 0
+    new = refused = 0   # refused: in a row, so one bad line never blocks the rest
     for f in on_diff:
         if finding_key(f["path"], f["line"], f["rule"]) in posted_keys:
             f["status"] = "already on the PR"
         elif new >= MAX_INLINE:
             f["status"] = f"waiting: over {MAX_INLINE} new comments in one review"
+        elif refused >= MAX_REFUSED:
+            # A locked conversation or a 403 refuses every comment: stop asking.
+            f["status"] = f"waiting: GitHub refused {MAX_REFUSED} comments in a row"
         elif dry_run:
             new += 1
             f["status"] = "would post"
@@ -571,9 +598,10 @@ def review_findings(gh: Gh, number: int, head_sha: str, runs: list[dict], dry_ru
                        "path": f["path"], "line": f["line"], "side": "RIGHT"}
             try:
                 gh.post_review_comment(number, payload)
-                new += 1
+                new, refused = new + 1, 0
                 f["status"] = "posted"
             except RuntimeError as e:
+                refused += 1
                 f["status"] = f"GitHub refused it: {code_span(str(e), 120)}"
     counts: dict[str, int] = {}
     for f in on_diff:

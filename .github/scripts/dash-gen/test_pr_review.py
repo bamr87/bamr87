@@ -342,6 +342,11 @@ def test_added_lines_reads_only_what_the_patch_adds():
     patch = "@@ -10,3 +10,4 @@ def f():\n ctx\n-gone\n+new a\n+new b\n ctx\n\\ No newline at end of file\n@@ -40 +41,2 @@\n+x\n ctx"
     assert P.added_lines(patch) == {11, 12, 41}
     assert P.added_lines("") == set()
+    # Only "\n" ends a diff line: a form feed, \x0b, \x1c-\x1e, NEL or U+2028/9
+    # inside an added line must not shift the lines after it.
+    for sep in ("\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", " ", " "):
+        assert P.added_lines(f"@@ -1,1 +1,3 @@\n ctx\n+a{sep}b\n+c") == {2, 3}, repr(sep)
+    assert P.added_lines("@@ -1,1 +1,3 @@\r\n ctx\r\n+a\r\n+b\r\n") == {2, 3}, "a CRLF file's patch"
 
 
 def test_a_clean_run_posts_nothing():
@@ -409,6 +414,37 @@ def test_dependabot_and_release_prs_skip_content_and_docs_findings():
     assert len(inline(person)) == 3, "a person's PR gets every kind"
 
 
+def utf8_flagged_name_that_is_not(good: str) -> bytes:
+    """A zip whose member name sets the UTF-8 flag but is not UTF-8."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as z:
+        z.writestr("findings\u00e9.jsonl", good)  # a non-ASCII name: Python sets the flag
+    data = buf.getvalue()
+    assert data.count("\u00e9".encode("utf-8")) == 2, "the local header and the central directory"
+    return data.replace("\u00e9".encode("utf-8"), b"\xff\xfe")
+
+
+def assert_rejected(why: str, blob: bytes, **kw) -> None:
+    """A green run writes nothing at all; a failing run still gets its CI-failure
+    sticky, with no findings in it; the job summary says why the artifact was
+    rejected either way."""
+    with tempfile.TemporaryDirectory() as d:
+        summary = Path(d) / "summary.md"
+        os.environ["GITHUB_STEP_SUMMARY"] = str(summary)
+        try:
+            green = fworld(blob, **kw)
+            result = go(green)
+            assert not green.writes and "1 artifact(s) rejected" in result, (why, result, green.writes)
+            red = fworld(blob, runs=[run()], **kw)
+            result = go(red)
+            assert [w[:2] for w in red.writes] == [("post", 7)], (why, result, red.writes)
+            assert "Findings on this" not in red.writes[0][2] and "1 artifact(s) rejected" in result, (why, result)
+            text = summary.read_text(encoding="utf-8")
+        finally:
+            del os.environ["GITHUB_STEP_SUMMARY"]
+    assert text.count("Rejected: `fleet-findings`") == 2, (why, text)
+
+
 def test_a_malformed_artifact_posts_nothing():
     good = json.dumps(finding()) + "\n"
     bad_lines = {
@@ -421,27 +457,34 @@ def test_a_malformed_artifact_posts_nothing():
         "an absolute path": json.dumps(finding(path="/etc/passwd")),
         "a line as text": json.dumps({**finding(), "line": "3"}),
         "a line as a boolean": json.dumps({**finding(), "line": True}),
+        # json.loads raises a plain ValueError past Python's 4,300-digit limit.
+        "a line of 5,000 digits": json.dumps(finding(line=1234567)).replace("1234567", "9" * 5000),
+        "nesting past the recursion limit": "[" * 100_000,
         "a rule with markup": json.dumps(finding(rule="<b>x</b>")),
         "an empty message": json.dumps(finding(message="  ")),
         "a message over the limit": json.dumps(finding(message="x" * (P.MAX_MESSAGE + 1))),
         "a list, not an object": json.dumps([finding()]),
+        # JSON's \ud800 escape decodes to a lone surrogate, which UTF-8 cannot hold.
+        "a lone surrogate in the path": json.dumps(finding(path="docs/a\ud800.md")),
+        "a lone surrogate in the rule": json.dumps(finding(rule="MD\udfff")),
+        "a lone surrogate in the message": json.dumps(finding(message="bad \ud800 text")),
     }
-    for why, line in bad_lines.items():
-        gh = fworld(artifact(raw=good + line + "\n"))
-        result = go(gh)
-        assert not gh.writes and "1 artifact(s) rejected" in result, (why, result, gh.writes)
-    for why, blob in {"not a zip": b"PK\x03\x04 broken", "no .jsonl in it": artifact(raw=good, member="findings.json")}.items():
-        gh = fworld(blob)
-        assert not gh.writes and "1 artifact(s) rejected" in go(gh), why
+    assert "\\ud800" in bad_lines["a lone surrogate in the path"], "the fixture is escaped JSON, not a raw surrogate"
+    shapes = {why: artifact(raw=good + line + "\n") for why, line in bad_lines.items()}
     utf16 = io.BytesIO()
     with zipfile.ZipFile(utf16, "w") as z:
         z.writestr("findings.jsonl", good.encode("utf-16"))
-    gh = fworld(utf16.getvalue())
-    assert not gh.writes and "1 artifact(s) rejected" in go(gh), "not UTF-8"
-    big = fworld(artifact(finding()), sizes={0: P.MAX_ARTIFACT_BYTES + 1})
-    assert not big.writes and "1 artifact(s) rejected" in go(big), "over the size limit"
-    many = fworld(artifact(*[finding(line=n) for n in range(1, P.MAX_FINDINGS + 2)]))
-    assert not many.writes and "1 artifact(s) rejected" in go(many), "over the findings limit"
+    shapes.update({
+        "not a zip": b"PK\x03\x04 broken",
+        "no .jsonl in it": artifact(raw=good, member="findings.json"),
+        "not UTF-8": utf16.getvalue(),
+        # zipfile.ZipFile() raises UnicodeDecodeError reading the directory.
+        "a member name flagged UTF-8 that is not": utf8_flagged_name_that_is_not(good),
+        "over the findings limit": artifact(*[finding(line=n) for n in range(1, P.MAX_FINDINGS + 2)]),
+    })
+    for why, blob in shapes.items():
+        assert_rejected(why, blob)
+    assert_rejected("over the size limit", artifact(finding()), sizes={0: P.MAX_ARTIFACT_BYTES + 1})
 
 
 def test_a_malformed_artifact_does_not_stop_a_good_one():
@@ -488,6 +531,35 @@ def test_github_refusing_one_comment_does_not_stop_the_rest():
     gh = fworld(artifact(finding(line=3), finding(line=4)))
     gh.refuse = {3}
     assert "posted 1 inline" in go(gh) and [p["line"] for p in inline(gh)] == [4]
+
+
+def test_a_review_stops_posting_after_refusals_in_a_row():
+    many = [finding(line=n, rule=f"R{n}") for n in range(2, 32)]
+    locked = fworld(artifact(*many))
+    tries: list[int] = []
+
+    def refuse_all(_number, payload):
+        tries.append(payload["line"])
+        raise RuntimeError("gh api pulls/7/comments: HTTP 403 conversation is locked")
+    locked.post_review_comment = refuse_all
+    result = go(locked)
+    assert len(tries) == P.MAX_REFUSED and "posted 0 inline" in result, (tries, result)
+    k = P.MAX_REFUSED - 1  # refusals that never reach the cap: one success resets the count
+    some = fworld(artifact(*many))
+    some.refuse = set(range(2, 2 + k)) | set(range(3 + k, 3 + 2 * k))
+    go(some)
+    assert len(inline(some)) == min(P.MAX_INLINE, 30 - 2 * k), [p["line"] for p in inline(some)]
+
+
+def test_only_a_newline_ends_a_finding():
+    # JSON allows U+2028, U+2029 and NEL raw inside a string (JavaScript's
+    # JSON.stringify writes them so); str.splitlines() would break the line there.
+    raw = "\r\n".join(json.dumps(f, ensure_ascii=False) for f in (
+        finding(message="a\u2028b\u2029c\x85d"), finding(line=4, rule="R4"))) + "\r\n"
+    assert "\u2028" in raw
+    gh = fworld(artifact(raw=raw))
+    result = go(gh)
+    assert "posted 2 inline" in result and "0 artifact(s) rejected" in result, result
 
 
 def test_an_api_error_in_findings_still_leaves_the_failure_summary():

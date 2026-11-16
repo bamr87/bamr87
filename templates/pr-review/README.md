@@ -34,12 +34,12 @@ A repo-specific check (a docs warden, a content-quality or docs-quality check, a
           retention-days: 7
 ```
 
-The file is JSON lines, one finding per line, with exactly these six keys:
+The file is UTF-8 JSON lines, one finding per line, each line ended by `\n` (a `\r\n` ending is fine; a raw U+2028 or NEL inside a string is not a line break), with exactly these six keys:
 
 | Key | Value |
 | --- | --- |
 | `path` | The file, relative to the repository root (no leading `/`, no `..`) |
-| `line` | The line in the PR's version of the file, a positive integer |
+| `line` | The line in the PR's version of the file, a positive integer (a `\n`-ended line, as git counts them) |
 | `rule` | The check's rule id: letters, digits and `. _ : / -`, at most 80 characters |
 | `severity` | `error`, `warning` or `note` |
 | `message` | What is wrong, plain text, 1 to 1,000 characters (markdown is escaped) |
@@ -55,9 +55,9 @@ What happens to each finding:
 - **Once per (path, line, rule).** Each comment carries a hidden key, `<!-- fleet:finding key=<sha1 of path:line:rule> -->`. A later push with the same finding posts nothing new; a finding that moves to another line is a new one. Only keys on comments posted by a bot count.
 - **Severity first, signature last.** Each comment opens with its severity and rule and ends with `<!-- fleet:source=<check> trigger=<event> run=<run-url> -->`, where `<check>` is the uploading workflow's name. It is a single review comment, never a review, so it never approves (§ 19.5).
 - **Scope (§ 19.6).** `content` and `docs` findings are dropped on a PR opened by `dependabot[bot]` or from a `release-please--*` branch. `code` findings still post.
-- **Strict validation.** The artifact comes from the PR's own code. It is read in memory, never extracted or executed. A line that is not valid JSON, a missing or extra key, a value outside the table above, a zip over 1 MiB, more than 2 MiB of `.jsonl` or more than 500 findings rejects the whole artifact: nothing from it is posted, and the job summary says why.
-- **Caps.** At most 20 new inline comments per review; the rest post on the next one. Each review re-reads every check's latest artifact for the head commit, so a review the concurrency group cancelled loses nothing.
-- **Job summary.** Every finding and what happened to it (posted, already on the PR, not on a line the PR adds, skipped, waiting) goes to the run's `$GITHUB_STEP_SUMMARY`. Cost, usage and test tables belong there too, never in a comment (§ 19.8).
+- **Strict validation.** The artifact comes from the PR's own code. It is read in memory, never extracted or executed. A line that is not valid JSON (or JSON Python cannot hold, such as a 5,000-digit number), a missing or extra key, a value outside the table above, a string UTF-8 cannot hold (a `\ud800` escape decodes to a lone surrogate), a zip the reader cannot open (a member name flagged UTF-8 that is not), a zip over 1 MiB, more than 2 MiB of `.jsonl` or more than 500 findings rejects the whole artifact: nothing from it is posted, the CI-failure sticky is still written, and the job summary says why.
+- **Caps.** At most 20 new inline comments per review, and a review stops posting once GitHub has refused 5 in a row (a locked conversation, a 403); the rest post on the next one. Each review re-reads every check's latest artifact for the head commit, so a review the concurrency group cancelled loses nothing.
+- **Job summary.** Every finding and what happened to it (posted, already on the PR, not on a line the PR adds, skipped, waiting, refused) goes to the run's `$GITHUB_STEP_SUMMARY`. Cost, usage and test tables belong there too, never in a comment (§ 19.8).
 
 A workflow with several jobs uploads one artifact per job under its own name, then merges them into one `fleet-findings` with `actions/upload-artifact/merge`. The check still decides its own pass or fail: findings say where, the check status says whether.
 
