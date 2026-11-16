@@ -8,9 +8,15 @@
 
 ## 1. Mission
 
-The `bamr87/bamr87` repo is simultaneously the GitHub profile README, the fleet control plane ("dash") that vendors every project as a Git submodule, and the public Harness Console site. It hosts shared standards, kits and reusable actions (e.g. `claude-run`) that the rest of the fleet consumes.
+The bamr87 hub's direction is to become the ultimate open home for the fleet: the control plane, the shared standards, and a public window onto every project.
 
-_Source: [PRD.md](../PRD.md)._
+1. Provide data, tools, resources and transparency for all stakeholders, operators, contributors and the general public — the project registry, the Harness Console, the public documentation site, and the catalogs that make every repo visible and auditable.
+2. Be the source of fleet standards and the path they take into each repo — the constitution, amendments, the PRD, the feature catalog, the Universal Project Standard, kits and fan-out — so a rule is written once in the hub, ratified by the maintainer merging, and adopted consistently across the fleet.
+3. Run a reliable, agentic control plane for the work itself — the dash, the loops, JEV, the issue pipeline and the harness — so planning, execution, review and cost across the mounted projects stay governed, observable and local-first where they can be.
+
+This § 1 format — one direction statement and exactly three numbered missions, adopted only through a numbered amendment — is the fleet-wide mission standard (see § 31). The README and AGENTS.md one-liners match this direction and link here.
+
+_Source: this section; [PRD.md](../PRD.md) § 1._
 
 ## 2. Invariants (non-negotiable)
 
@@ -373,3 +379,14 @@ _(amendment `agentic-efficacy-contract`, numbered at merge — see the [amendmen
 6. **Has a local entry point** (§ 10.9), unless it must react inside GitHub (an @claude mention handler); the inventory records the exemption and its reason.
 7. **Shadow, then grace.** The checks are read-only. For at least 14 days after this section is ratified, and until `harness.efficacy.shadow_until`, a contract gap is a warning. Enforcement starts only when a gated pull request sets `harness.efficacy.enforce: true`. From then on, an agent first registered after the shadow period complies on arrival, and one registered before it keeps its gaps as warnings until `harness.efficacy.grace_until`. Registration itself (item 1) gates from the start.
 8. **Gated.** The contract's KPIs, thresholds, sources and exemptions change only by a gated change (§ 12.3). An agent never changes its own KPIs, thresholds or exemptions (§ 13.9).
+
+## 31. Fleet mission statements and the repository about section
+
+_(amendment `mission-and-about-section`, numbered at merge — see the [amendment log](amendments/README.md); follows § 29 `agentic-efficacy-contract`; [bamr87/bamr87#858](https://github.com/bamr87/bamr87/pull/858) proposes § 30, so this section is numbered § 31 to avoid a collision and may be renumbered if merge order changes; extends § 1 and § 14; features `HUB-NEW:mission-statements` and `HUB-NEW:about-section-sitemap`)_
+
+1. **Mission statements.** Every governed fleet repo states its purpose in constitution § 1 as one direction statement followed by exactly three numbered missions. The text is adopted only through a numbered amendment, ratified when the maintainer merges the PR (§ 8). Ambition is written as direction, not as a claim of current capability. The first mission provides data, tools, resources and transparency for all stakeholders in that repo's domain, including professionals in the field and the general public, unless a ratified amendment records a documented reason it does not apply (for example a private research repo).
+2. **Matching one-liners.** The repo's README tagline and AGENTS.md opening one-liner match that direction and link to constitution § 1.
+3. **About section as site map.** Every non-fork, non-archived fleet repo carries a public-facing about section, primarily in `README.md` and on the public docs site (§ 14), that functions as a site map of the repo's fundamental pages. The required and optional entries, and the exemptions for forks and archived repos, are defined in [docs/ABOUT-SECTION.md](ABOUT-SECTION.md). The section is consistent (the same entries in the same order), reliable (links resolve to files that exist) and comprehensive (every required entry is present, and every optional entry is present when the underlying page exists).
+4. **Hub first, then fan-out.** The standard is written and ratified in this hub, then fanned out to each repo in its own PR. A repo may already be ahead of the standard (for example an open mission-statement amendment); those PRs stay valid and are ratified by the maintainer merging them.
+5. **Conformance.** A `tools/conformance.py` check verifies the § 1 shape and the about-section links; warn-only per repo until its fan-out PR lands, then a hard failure for that repo. The check itself is follow-up work and is not in this amendment's pull request.
+6. **Exemptions.** Forks keep the upstream README. Archived and retired repos need a README, a license when one exists, and a retired notice. Private repos are flagged, never made public by an agent, and may omit a public about section for sensitive research. Any other exemption needs a reason the § 15 completeness review accepts.
