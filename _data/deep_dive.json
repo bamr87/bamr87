@@ -11,14 +11,14 @@
     "cycle_days": 42,
     "total": 38,
     "day": 18,
-    "processed": 8,
+    "processed": 9,
     "counts": {
-      "pending": 30,
+      "pending": 29,
       "in_progress": 0,
-      "done": 8,
+      "done": 9,
       "skipped": 0
     },
-    "progress": 0.2105,
+    "progress": 0.2368,
     "today": {
       "date": "2026-11-16",
       "cycle": 1,
@@ -35,9 +35,9 @@
       "kind": "scheduled",
       "repo": "bashos"
     },
-    "last": ".github",
-    "last_date": "2026-11-13",
-    "avg_score": 45.0,
+    "last": "SCHEMA",
+    "last_date": "2026-11-16",
+    "avg_score": 40.8,
     "open_issues": 68,
     "open_prs": 7
   },
@@ -457,16 +457,25 @@
       "day": 18,
       "repo": "SCHEMA",
       "scheduled": "2026-11-16",
-      "status": "pending",
-      "last_processed": null,
+      "status": "done",
+      "last_processed": "2026-11-16",
       "cycle": 1,
-      "issues": [],
-      "prs": [],
+      "issues": [
+        "https://github.com/bamr87/SCHEMA/issues/17",
+        "https://github.com/bamr87/SCHEMA/issues/18",
+        "https://github.com/bamr87/SCHEMA/issues/15",
+        "https://github.com/bamr87/SCHEMA/issues/16"
+      ],
+      "prs": [
+        "https://github.com/bamr87/SCHEMA/pull/19",
+        "https://github.com/bamr87/SCHEMA/pull/13",
+        "https://github.com/bamr87/SCHEMA/pull/14"
+      ],
       "open_issues": 0,
       "open_prs": 0,
-      "findings": "",
-      "score": null,
-      "next_focus": ""
+      "findings": "Day 18 SCHEMA @ 8b37153: solid stdlib linter + distribution contract + tests (7/10). High: #15 verify PASS when all copies absent (cmd_verify lines 297\u2013337); #16 check has no --json. Medium: catalog prd TBD for SCHEMA-001\u2013004 and 006 and constitution \u00a7 3 still listing CLAUDE.md not AGENTS.md (#17, docs PR #19 with amendment 0002); claude.yml is kit 0.5.0 with claude-auth@main, addressed by #13 and in conflict with #14. Feature: AGENTS.md protocol snippet (#18, agent:queued). Low: stale CHANGELOG commit count; .vscode hidden from strict coverage.",
+      "score": 7.0,
+      "next_focus": "Claude Code lands #15 (and #16, #18 when queued). Merge order for #13 then #14 is Amr's. Amr reviews docs PR #19 (amendment 0002: PRD traces and AGENTS.md precedence)."
     },
     {
       "day": 19,
