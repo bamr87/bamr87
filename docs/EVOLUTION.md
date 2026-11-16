@@ -58,7 +58,7 @@ The plan job also **probes** `FLEET_TOKEN` with `gh api user` (a present-but-exp
 
 Each matrix job checks the target repository out at its declared branch, downloads its brief into `.evolution/` (excluded from git, so it can never be committed there), and runs one Opus Claude Code agent (`--model claude-opus-5-5`, the exact id `opus` resolved to; `--max-turns 120`, the literal of `evolution.max_turns`) with a prompt whose hard rules are the JEV step spec [`tools/jev/steps/repo-evolution/evolve.prompt.txt`](../tools/jev/steps/repo-evolution/evolve.prompt.txt) — the workflow carries it inline with the matrix expressions in its token places, byte-equal, held by `python3 -m tools.jev steps check` (ADR 0002 P3):
 
-- the brief's **Conformance gaps** section (from `_data/conformance.yml`, written by `dash spec fleet --write`) is the agent's adoption lane: failing Universal Project Standard rows, MUST first, each pointing at its spec file and a reference implementation in `_data/references.yml`;
+- the brief's **Conformance gaps** section (from `_data/conformance.yml`, written by `dash spec fleet --write` in `fleet-snapshots.yml` every Monday at 04:17 UTC, six hours before this loop) is the agent's adoption lane: failing Universal Project Standard rows, MUST first, each pointing at its spec file and a reference implementation in `_data/references.yml`;
 - the agent reads the brief, then orients README-First (`README.md`, `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`, `SCHEMA.md` — house rules there override the prompt);
 - it makes a **small number** of high-leverage, obviously-correct changes in the brief's
 priority order — documentation → clarity → functionality — verifies with the repo's own lint/tests, and leaves the tree clean;

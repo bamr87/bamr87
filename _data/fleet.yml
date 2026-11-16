@@ -171,6 +171,9 @@ schedule:
                                   # the daily chain's lanes; gated by vars.JEV_CONFLICTS_ENABLED.
   scorecard_sweep: "17 6 * * 0"   # weekly read-only OpenSSF Scorecard sweep → conformance.yml security:
                                   # (docs/SECURITY-POSTURE.md); gated by vars.SCORECARD_SWEEP_ENABLED.
+  fleet_snapshots: "17 4 * * 1"   # weekly conformance.yml + features_index.yml from real submodule checkouts,
+                                  # behind a shrink guard (#775): after update_submodules, before fleet_pulse
+                                  # (stale-data), build_dash and repo_evolution; gated by vars.FLEET_SNAPSHOTS_ENABLED.
   weekly_closeout: "17 20 * * 5"  # Friday 13:17 America/Denver (MST, UTC-7): close out open PRs, branches, clones
                                   # (docs/WEEKLY-CLOSEOUT.md); off until vars.WEEKLY_CLOSEOUT_ENABLED is 'true'.
                                   # UTC hours 17, 20 and 23 carry no other AI cron.
@@ -657,7 +660,7 @@ decisions:
 # (verify/scenarios/*.yml) both verify/runner.mjs and a Claude Code pass can
 # execute, and evidence bundles (test/evidence/<slug>/) linked back to the
 # feature. The hub aggregates coverage into _data/features_index.yml
-# (`dash features fleet --write`, refreshed by fleet-pulse) → /features/.
+# (`dash features fleet --write`, refreshed weekly by fleet-snapshots.yml) → /features/.
 # Kit: templates/verify/ · reusable gate: fleet-verify.yml · spec: UPS-QA-50..53
 # --------------------------------------------------------------------------- #
 verification:
@@ -914,8 +917,9 @@ harness:
     # nothing said so). This wire makes that class of failure loud within days.
     # token_rotation gets 10 days of slack in the generator — it is weekly.
     stale_data_days: 3
-    # _data/conformance.yml (tools/conformance.py fleet --write) has no scheduled
-    # writer, so it gets a longer leash: older than this trips stale-data.
+    # _data/conformance.yml (tools/conformance.py fleet --write) is written
+    # weekly by fleet-snapshots.yml, so it gets a longer leash: one missed run
+    # is fine, two trip stale-data.
     conformance_stale_days: 14
     pass_rate_floor_pct: 75       # fleet-wide quality regression
     waste_ceiling_pct: 30         # non-success minutes / total minutes
@@ -1081,11 +1085,18 @@ harness:
       slo: on-change
     conformance:
       path: _data/conformance.yml
-      # No scheduled writer: `tools/dash spec fleet --write` runs by hand, and
-      # scorecard-sweep.yml writes only its `security:` block. It was 17 days
-      # old on 2026-11-07 (#763). The defect rule 4 names, left visible.
-      writer: null
+      # It had no scheduled writer until #775 (17 days old on 2026-11-07, #763).
+      # fleet-snapshots.yml regenerates it from real submodule checkouts behind
+      # a shrink guard; scorecard-sweep.yml writes only its `security:` block.
+      writer: fleet-snapshots.yml (dash spec fleet --write, weekly)
       slo_days: 14                # harness.trip_wires.conformance_stale_days
+    features-index:
+      path: _data/features_index.yml
+      # fleet-pulse wrote it daily from a checkout with no submodules, so it
+      # graded the hub alone (`repos_scanned: 1`); fleet-snapshots.yml is its
+      # only writer since #775.
+      writer: fleet-snapshots.yml (dash features fleet --write, weekly)
+      slo_days: 14
     token-rotation:
       path: _data/token_rotation.yml
       writer: token-rotation.yml
@@ -2502,6 +2513,22 @@ switches:
       verified: false
       flip: 'gh variable set SCORECARD_SWEEP_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
       cron: 17 6 * * 0
+      dispatch_bypasses: true
+    hub/fleet-snapshots:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/fleet-snapshots.yml
+      group: hub-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: FLEET_SNAPSHOTS_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set FLEET_SNAPSHOTS_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
+      cron: 17 4 * * 1
       dispatch_bypasses: true
     hub/token-rotation:
       repo: bamr87/bamr87
