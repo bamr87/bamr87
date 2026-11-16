@@ -1171,9 +1171,12 @@ features:
       jobs_list (state and diagnostics per row), built on the existing /api/jobs, job_log, sessions and
       ops_list, and shown on the console''s Jobs page, so the primary bot can audit an operation instead
       of holding only its receipt (motivating case: a slow Claude Code session lookup that could not be
-      diagnosed).'
-    implemented: false
-    status: planned
+      diagnosed). Shipped by bamr87/bamr87#556: GET /api/jobs/{id}/status, the same fields on every /api/jobs
+      row and the job page, the MCP read tool job_status and jobs_list(state=...), and on the Jobs page a
+      stalled badge, a Stalled tile and filter, age and idle columns and the diagnostics; a running job
+      whose log has not grown for 120 s (per-op stall_s) reads stalled.'
+    implemented: true
+    status: shipped
     surface: infra
     link: tools/console/mcp_layer/server.py
     docs: tools/console/docs/job-status.md
@@ -1185,7 +1188,12 @@ features:
     - agents
     date: 2026-11-01
     tests:
-    - na: planned; tests land with the implementation
+    - tools/console/test_console.py
+    - tools/console/test_mcp_layer.py
+    scenarios:
+    - verify/scenarios/console-job-status.yml
+    evidence:
+    - test/evidence/console-job-status
     prd:
     - FR60
   - id: HUB-065
