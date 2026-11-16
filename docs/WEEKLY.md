@@ -237,7 +237,7 @@ They meet on the week's issue: both use the same title, and each writes under it
 
 ## Writing
 
-The routine is the daily chronicle generator § 23 asked for, run weekly. It drafts `pages/posts/YYYY-MM-DD-chronicle.md` for each active day without one, and `YYYY-MM-DD-weekly-retro.md` for the week, with secret-shaped text redacted. Features lead each repo's list, and routine bot commits are left out.
+The routine is the daily chronicle generator § 23 asked for, run weekly. It drafts `pages/posts/YYYY-MM-DD-chronicle.md` for each active day without one, and `YYYY-MM-DD-weekly-retro.md` for the week, with secret-shaped text redacted. Features lead each repo's list, and routine bot commits are left out. Each post is served at its dated address, `/blog/YYYY-MM-DD-chronicle` or `/blog/YYYY-MM-DD-weekly-retro`, on the console and on the public site (`pages/SCHEMA.md`).
 
 Posts are drafts until reviewed (§ 23.4): they wait in the run folder, and `confirm --apply` is the review that publishes them. Read them first. The retro ends with an *In my own words* section for your notes; left empty, it is removed on publish. `--keep-drafts` lands the posts as drafts, and `--publish FILE` also publishes an older draft.
 

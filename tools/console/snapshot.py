@@ -237,7 +237,6 @@ def documents() -> dict[str, object]:
         "github/fleet": {"owner": ghl._hub_owner(), "hub": ghl._hub(), "repos": ghl.fleet_repos(),
                          "dispatchable": core.dispatchable()},
         "github/log": [],
-        "site": site_docs.site_index(include_drafts=False),
         # Addresses from the two registries: nothing here was probed, so there
         # is no laptop's port state to keep out of the public build.
         "apps": fapps.apps_view(core.REPO_ROOT),
@@ -246,14 +245,22 @@ def documents() -> dict[str, object]:
         docs[f"fleet/{sort}"] = view
     for p in registry:
         docs[f"project/{p['name']}"] = project(p["name"])
-    for meta in site_docs.pages():
-        docs[f"site/page/{meta['slug']}"] = site_docs.page(meta["slug"])
-    for meta in site_docs.posts():
-        docs[f"site/post/{meta['slug']}"] = site_docs.post(meta["slug"])
+    docs.update(site_documents())
     for name in site_docs.PUBLIC_DATA:
         value = site_docs.data(name)
         if value is not None:
             docs[f"data/{name}"] = value
+    return docs
+
+
+def site_documents() -> dict[str, object]:
+    """The site's own documents, drafts left out: its index, each long-form
+    page and each published post, one document per address."""
+    docs: dict[str, object] = {"site": site_docs.site_index(include_drafts=False)}
+    for meta in docs["site"]["pages"]:
+        docs[f"site/page/{meta['slug']}"] = site_docs.page(meta["slug"])
+    for meta in docs["site"]["posts"]:
+        docs[f"site/post/{meta['slug']}"] = site_docs.post(meta["slug"])
     return docs
 
 
