@@ -43,6 +43,12 @@
 #                 client-side estimate (under OAuth a throughput ceiling, not an
 #                 invoice) - see bamr87/bamr87 _data/fleet.yml `budget:`.
 #   AI_USAGE_DIR  where usage.rb writes records (default $RUNNER_TEMP/ai-usage)
+#   AI_TRANSIENT_RETRIES  how many times a TRANSIENT failure (529, 503, 502,
+#                 overloaded) whose payload shows nothing billed is re-run on the
+#                 same credential (default 2, at most 5; 0 turns it off). A failed
+#                 call that billed anything is never re-run.
+#   AI_TRANSIENT_BACKOFF  the seconds to wait before each of those retries
+#                 (default "30 90"; the last wait repeats; each at most 300)
 #
 # Optional companions — present means used, absent means the runner degrades
 # honestly rather than failing:
@@ -142,6 +148,31 @@ case "$perm_mode" in
     [ "${GITHUB_ACTIONS:-}" = "true" ] && echo "::error::AI step: permission mode '$perm_mode' is not allowed (acceptEdits, default or plan)"
     exit 1 ;;
 esac
+
+# In-run transient retry (kit 0.3.1). The CLI already retries a 529 inside one
+# call and gives up after three in a row ("Repeated 529 Overloaded errors"),
+# so this outer retry is for an overload that lasts minutes, not seconds: the
+# same credential again after AI_TRANSIENT_BACKOFF, at most
+# AI_TRANSIENT_RETRIES times, and only when the failed call billed nothing.
+transient_retries="${AI_TRANSIENT_RETRIES:-2}"
+if ! [[ "$transient_retries" =~ ^[0-9]+$ ]]; then
+  echo "[ai] AI_TRANSIENT_RETRIES='$transient_retries' is not a whole number — using 2" >&2
+  transient_retries=2
+elif [ "$transient_retries" -gt 5 ]; then
+  echo "[ai] AI_TRANSIENT_RETRIES=$transient_retries is above the cap — using 5" >&2
+  transient_retries=5
+fi
+transient_retries=$((10#$transient_retries))   # "02" is 2, not an octal error
+transient_backoff=()
+read -r -a transient_backoff <<<"${AI_TRANSIENT_BACKOFF:-30 90}"
+[ ${#transient_backoff[@]} -gt 0 ] || transient_backoff=(30 90)
+for _d in "${transient_backoff[@]}"; do
+  if ! [[ "$_d" =~ ^[0-9]+$ ]]; then
+    echo "[ai] AI_TRANSIENT_BACKOFF='${AI_TRANSIENT_BACKOFF:-}' must be whole seconds — using '30 90'" >&2
+    transient_backoff=(30 90); break
+  fi
+done
+transient_retried=0
 
 # No --prompt? read stdin.
 [ -z "$prompt" ] && [ ! -t 0 ] && prompt="$(cat)"
@@ -250,7 +281,9 @@ claude_failure_reason() {
 # Classify a failure. `quota` and `auth` are CREDENTIAL failures — the call was
 # refused before the model did any work — and are the only ones that hand over
 # to the next method in AI_AUTH_ORDER; retrying anything else would re-run a
-# task that already spent its turns.
+# task that already spent its turns. The one other retry is `transient` (529,
+# 503, overloaded): the SAME method again, and only when the failed payload
+# shows nothing was billed (claude_unbilled, AI_TRANSIENT_RETRIES).
 claude_failure_class() {
   case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
     *max_budget*|*"max budget"*) echo budget ;;
@@ -287,6 +320,60 @@ claude_failure_hint() {
   esac
 }
 
+# Succeeds only when the failed call's payload SHOWS that nothing was billed: a
+# result object carrying its usage or cost, with zero cost (total and per
+# model), zero tokens of every kind, and no more than the one turn the refusal
+# itself counts. A cost, a token, a second turn, or no readable payload at all
+# means the call may have done work, and such a call is never re-run.
+claude_unbilled() {
+  ruby -rjson -e '
+    res = (JSON.parse(File.read(ARGV[0], encoding: "UTF-8")) rescue nil)
+    exit 1 unless res.is_a?(Hash) && (res["usage"].is_a?(Hash) || res.key?("total_cost_usd"))
+    usage = res["usage"].is_a?(Hash) ? res["usage"] : {}
+    tokens = %w[input_tokens output_tokens cache_creation_input_tokens cache_read_input_tokens].sum { |k| usage[k].to_f }
+    per_model = res["modelUsage"].is_a?(Hash) ? res["modelUsage"].values.sum { |m| m.is_a?(Hash) ? m["costUSD"].to_f : 0.0 } : 0.0
+    exit 1 if res["total_cost_usd"].to_f > 0 || per_model > 0 || tokens > 0 || res["num_turns"].to_i > 1
+  ' "$1" 2>/dev/null
+}
+
+# The wait before transient retry $1 (1-based): its AI_TRANSIENT_BACKOFF entry,
+# or the last entry when there are fewer, never more than 300 seconds.
+transient_delay() {
+  local i=$(( $1 - 1 )) d
+  [ "$i" -lt ${#transient_backoff[@]} ] || i=$(( ${#transient_backoff[@]} - 1 ))
+  d="${transient_backoff[$i]}"
+  [ "$d" -le 300 ] || d=300
+  echo "$d"
+}
+
+# Best-effort retry event for the fleet activity log, only where the consumer
+# tree carries tools/fleet_activity.py (the hub does): it spools one JSON line
+# and never raises, so it can never fail the step. $1 = the attempt about to
+# run, $2 = the most attempts this call can take, $3 = the failure it follows.
+emit_retry_event() {
+  [ -f "$REPO/tools/fleet_activity.py" ] || return 0
+  command -v python3 >/dev/null 2>&1 || return 0
+  python3 -I - "$REPO/tools" "$1" "$2" "$3" "${GITHUB_REPOSITORY:-local}" "${agent:-claude-run}" >/dev/null 2>&1 <<'PY' || true
+import sys
+sys.path.insert(0, sys.argv[1])
+import fleet_activity
+fleet_activity.Activity("claude-run", dry_run=False).retry(
+    repo=sys.argv[5], task_ref=sys.argv[6],
+    decision="re-run the same call: transient API failure, nothing billed",
+    attempt=int(sys.argv[2]), max_attempts=int(sys.argv[3]), cause=sys.argv[4][:300])
+PY
+}
+
+# The step summary's retry count, written once on the way out (an EXIT trap set
+# by the first transient retry; the trap leaves the exit status untouched).
+report_transient_retries() {
+  local rc=$?
+  [ -n "${GITHUB_STEP_SUMMARY:-}" ] || return 0
+  printf -- '- AI step%s: %s transient API retr%s (529/503/overloaded, nothing billed); the step exited %s.\n' \
+    "${agent:+ (agent: $agent)}" "$transient_retried" "$([ "$transient_retried" -eq 1 ] && echo y || echo ies)" "$rc" \
+    >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+}
+
 # --- Primary: Claude Code ----------------------------------------------------
 primary_failed=0
 reason=""
@@ -294,7 +381,9 @@ if [ "${AI_FORCE_API:-0}" != "1" ] && command -v claude >/dev/null 2>&1; then
   # bash 3.2 (macOS) treats "${empty[@]}" as unbound under `set -u`.
   attempts=(); [ ${#auth_methods[@]} -gt 0 ] && attempts=("${auth_methods[@]}")
   [ ${#attempts[@]} -gt 0 ] || attempts=(ambient)
-  for attempt_idx in "${!attempts[@]}"; do
+  # One pass per credential; a transient retry runs the same index again.
+  attempt_idx=0
+  while [ "$attempt_idx" -lt ${#attempts[@]} ]; do
     method="${attempts[$attempt_idx]}"
     next_method="${attempts[$((attempt_idx + 1))]:-}"
     tmp_json="$(mktemp "${TMPDIR:-/tmp}/ai-result.XXXXXX")"
@@ -326,6 +415,10 @@ if [ "${AI_FORCE_API:-0}" != "1" ] && command -v claude >/dev/null 2>&1; then
       ruby "$USAGE_RB" ingest-claude "$tmp_json" --agent "$agent" --rc "$rc" || true
     fi
     reason="$(claude_failure_reason "$tmp_json")"
+    failure_class="$(claude_failure_class "$reason")"
+    # Read before the payload is deleted: whether this failed call billed anything.
+    unbilled=0
+    [ "$failure_class" = transient ] && claude_unbilled "$tmp_json" && unbilled=1
     rm -f "$tmp_json"
     via=""; [ "$method" = ambient ] || via=" [$method]"
     if [ "$rc" -ne 0 ]; then
@@ -335,7 +428,7 @@ if [ "${AI_FORCE_API:-0}" != "1" ] && command -v claude >/dev/null 2>&1; then
     fi
     hint="$(claude_failure_hint "$reason" "$method")"
     [ -n "$hint" ] && echo "[ai] likely cause: $hint" >&2
-    case "$(claude_failure_class "$reason")" in
+    case "$failure_class" in
       budget)
         # The dollar ceiling bound. It is a circuit breaker, not a refusal: no
         # second credential and no API fallback, or the cap would only move the
@@ -356,8 +449,32 @@ if [ "${AI_FORCE_API:-0}" != "1" ] && command -v claude >/dev/null 2>&1; then
       auth|quota)
         if [ -n "$next_method" ]; then
           echo "[ai] $method was refused — retrying with $next_method (AI_AUTH_ORDER=$AUTH_ORDER)." >&2
-          [ "${GITHUB_ACTIONS:-}" = "true" ] && echo "::warning::AI step: $method was refused ($(claude_failure_class "$reason")) — fell back to $next_method"
+          [ "${GITHUB_ACTIONS:-}" = "true" ] && echo "::warning::AI step: $method was refused ($failure_class) — fell back to $next_method"
+          attempt_idx=$((attempt_idx + 1))
           continue
+        fi ;;
+      transient)
+        # The API was overloaded or briefly unavailable. When the payload shows
+        # the call billed nothing, the model did no work, so running the SAME
+        # call again on the SAME credential is idempotent: up to
+        # AI_TRANSIENT_RETRIES times, after the AI_TRANSIENT_BACKOFF waits. A
+        # call that billed anything is never re-run, and a transient failure
+        # never hands over to the next credential: the API is overloaded for
+        # every credential alike, and only a refusal (auth, quota) moves on.
+        if [ "$unbilled" -eq 1 ] && [ "$transient_retried" -lt "$transient_retries" ]; then
+          transient_retried=$((transient_retried + 1))
+          delay="$(transient_delay "$transient_retried")"
+          [ "$transient_retried" -eq 1 ] && trap report_transient_retries EXIT
+          echo "[ai] transient API failure$via with nothing billed — attempt $((transient_retried + 1))/$((transient_retries + 1)) of the same call in ${delay}s (AI_TRANSIENT_RETRIES=$transient_retries)." >&2
+          [ "${GITHUB_ACTIONS:-}" = "true" ] && echo "::warning::AI step: transient API failure$via with nothing billed — attempt $((transient_retried + 1))/$((transient_retries + 1)) of the same call in ${delay}s"
+          emit_retry_event "$((transient_retried + 1))" "$((transient_retries + 1))" "$reason"
+          sleep "$delay"
+          continue
+        fi
+        if [ "$unbilled" -ne 1 ]; then
+          echo "[ai] the failed call$via billed usage, or its payload does not show that it billed nothing — not retried (a call that may have done work is never re-run)." >&2
+        elif [ "$transient_retries" -gt 0 ]; then
+          echo "[ai] still failing after $transient_retried transient retr$([ "$transient_retried" -eq 1 ] && echo y || echo ies) — giving up on Claude Code." >&2
         fi ;;
     esac
     break

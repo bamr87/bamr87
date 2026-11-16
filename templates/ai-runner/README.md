@@ -23,7 +23,7 @@ Every AI lane in the fleet is the same job: gate on a repo variable, check a cre
 | `<LANE>_ENABLED` repo **variable** | The kill switch. Default OFF: a lane idles until it is `true` | per scheduled lane |
 | The verification harness | Whatever proves the agent's work (`scripts/ci/run-all.sh`, `make cms-all`, …) — passed as `pre-run`/`post-run`, or run by the agent | per repo |
 
-Canonical environment (no repo prefix, so nothing is repo-specific): `CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY`, `AI_MODEL`, `AI_FORCE_API`, `AI_MAX_TURNS`, `AI_USAGE_DIR`, `AI_ROLE`, `AI_REPO_ROOT`.
+Canonical environment (no repo prefix, so nothing is repo-specific): `CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY`, `AI_MODEL`, `AI_FORCE_API`, `AI_MAX_TURNS`, `AI_USAGE_DIR`, `AI_ROLE`, `AI_REPO_ROOT`, `AI_TRANSIENT_RETRIES`, `AI_TRANSIENT_BACKOFF`.
 
 ## Exit contract
 
@@ -34,13 +34,15 @@ Canonical environment (no repo prefix, so nothing is repo-specific): `CLAUDE_COD
 
 A circuit breaker that binds is a failure too, and never reaches the fallback: a run stopped by its dollar cap (`--max-budget-usd`) or its turn cap (`--max-turns`) exits `1` with the cap named, because the agent's work is cut off and a single completion cannot finish it. Until kit 0.3.0 a turn-cap stop fell through to the API fallback and could end the step green.
 
+A transient API failure (529, 503, 502, `overloaded`) is retried inside the run before any of this applies, on the same credential and only when the failed call's payload shows that nothing was billed: `AI_TRANSIENT_RETRIES` times (default `2`, at most `5`, `0` for off) after the `AI_TRANSIENT_BACKOFF` waits (default `30 90` seconds). A call that billed anything is never re-run. The step exits `1` only when the last retry fails too. Until kit 0.3.1 the first such failure failed the step. The [`claude-run` README](../../.github/actions/claude-run/README.md#transient-retry) has the details.
+
 ## Not expressible as the reusable lane
 
 Keep your own workflow and reference only the action for: matrices computed by a planning job (call the lane once per item from the caller, as it-journey's `quest-fix-loop.yml` already does), multi-job pipelines with artifact hand-offs, lanes that check out ANOTHER repository, and several model passes in one job.
 
 ## Tests
 
-`tests/contract.sh` pins the runner's contract with a stubbed `claude` — success, rejected call, silent CLI, no-op, `is_error` with exit 0, kit-only mode without metering, flag passthrough — no network, no credential. CI runs it on every change to the runner, the lane, or this kit (`ai-runner-contract.yml`). A consumer that still vendors the runner proves parity with:
+`tests/contract.sh` pins the runner's contract with a stubbed `claude` — success, rejected call, silent CLI, no-op, `is_error` with exit 0, kit-only mode without metering, flag passthrough, the credential order, the dollar and turn caps, model resolution, the transient retry — no network, no credential. CI runs it on every change to the runner, the lane, or this kit (`ai-runner-contract.yml`). A consumer that still vendors the runner proves parity with:
 
 ```bash
 AI_RUNNER_SUT=scripts/ai/run.sh bash <hub>/templates/ai-runner/tests/contract.sh
