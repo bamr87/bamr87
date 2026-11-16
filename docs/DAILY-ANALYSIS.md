@@ -43,7 +43,7 @@ Five generators run off one checkout and one Python setup. Each is independently
 | `dash-gen ai-usage` | `_data/ai_usage.yml` | fleet Claude Code touchpoints (runs, commits, PRs) |
 | `dash-gen ledger --no-local` | `_data/engagements.yml` | engagement actuals accrued from that evidence |
 | `dash-gen daily` | `_reports/daily/<date>.md` | prior-day commits / PRs / issues / releases / CI failures |
-| `dash-gen triage` | `_data/fleet_triage.yml` | **open state**: every open issue, open PR (with CI status), and each workflow's latest conclusion, plus per-repo attention scores — the `/triage/` portal |
+| `dash-gen triage` | `_data/fleet_triage.yml` | **open state**: every open issue, open PR (with CI status), and each workflow's latest conclusion, plus per-repo attention scores and each failing workflow's fix PRs — the `/triage/` portal |
 
 External mirrors (e.g. `microsoft/skills`) appear in the digests but are excluded from totals, scores, and anything actionable — their failures are not ours.
 
@@ -76,6 +76,24 @@ The rationale is that a `pull_request` run failing on an unmerged topic branch i
 The filters fail **open**: a run missing `head_branch` or `event` is kept. Dropping every run would report the fleet permanently green, which is strictly worse than the bug being fixed — `test_fleet_triage.py` asserts that converse directly.
 
 Note that `actions_usage.yml` deliberately keeps its unfiltered view: it measures **cost**, and PR runs spend real minutes. Its correctness-flavoured flag (`flaky`) is guarded downstream instead, by `supersede_on_success` below.
+
+#### A failing workflow and the PR that fixes it
+
+The triage snapshot also links each failing workflow to the open pull requests that fix it ([FF-0036](https://github.com/bamr87/bamr87/issues/609)). On 2026-11-02 bashcrawl's CI was red on `main` at priority 90 and three PRs sat at 70 failing the same Lint job, while #133, the green, clean fix, appeared nowhere: a green PR idle for 14 days or less never entered the inbox, and the fleet doctor dedupes only PRs carrying its own marker.
+
+For each repo with a failing tracked-branch workflow, `fleet_triage.py` grades up to `--fix-pr-cap` (default 5) open, non-draft PRs with passing head checks, reading CI state past `--pr-ci-cap` when it has to. Each PR gets the strongest evidence it shows for each failing workflow:
+
+| Evidence | What it takes |
+| --- | --- |
+| `verified` | A run of the failing workflow on the PR's head SHA, newer than the branch's latest failure, in which every job that failed on the branch ran and passed. A job skipped by an `if:` (a push-only deploy) or missing from the run does not count, which keeps any green docs PR from passing as a fix. |
+| `doctor` | The PR body carries the fleet doctor's marker for that workflow (`remediation.marker_key`). |
+| `weak` | The PR touches the workflow file, its title starts `fix(ci):` or `ci:`, or its branch starts `fix/ci`. A scoped `ci(claude):` change on a `ci/…` branch is not a claim to fix CI: the fleet-wide harness PRs carry exactly that and matched every red in the first live run. |
+
+The failing workflow records its `failed_jobs`, the tracked `branch` and its `fix_prs` (strongest evidence, then oldest, each with its `mergeable_state` and the PRs it `clears`). A PR clears another open PR when every check that PR fails is a job that failed on the branch, so it turns green once the fix merges and its branch is updated. A PR that also fails a check of its own is left out. A verified or doctor fix PR's own item in `prs.items` carries `clears` (the workflow, then those PRs), `fix_evidence`, `mergeable_state` and `merge_ready`. `mergeable_state` comes from the single-PR GET, because the list endpoint omits it. GitHub computes it lazily, so a null or `unknown` first read is retried once and then reported as `unknown`, never looped.
+
+A verified or doctor fix that is green and `clean` becomes one inbox item of kind **`merge`** at priority **95**, above every failing workflow: *"Merge #133: clears CI on main and #127, #134, #137 once their branches are updated"*. Its `clears` lists the workflow and the PRs. Each failing workflow picks one subject PR (strongest evidence, then oldest) and names any other ready fix as *also ready*, so the inbox never shows two merge items for the same red. A PR that fixes two reds is one item, and its own idle row gives way to the merge item. The items a merge covers keep their rank and gain `fix: #133`. A verified or doctor fix that is not clean (dirty, blocked, behind, unstable or still unknown) makes no merge item, and the annotation shows its state, as in `fix: #133 (dirty)`. Weak evidence only adds `possible fix: #N` to the failing workflow and changes no priority.
+
+The extra calls are GET requests only, made only for repos with a failing workflow and capped per repo. The snapshot's `fix_links` block and the run's summary line count them. The merge stays a human's call (constitution § 12). fleetcore's `repo_items` mirrors `merge_plan` for a repo's drill-down (`tools/test_fleetcore.py` holds the two equal), the console Inbox and the TUI render the kind, and the `fleet_inbox` MCP tool returns `clears`. The Work board puts the fix PR first ([WORK-BOARD.md](WORK-BOARD.md#fix-pull-requests)), and `remediation.py` counts a red with a verified fix PR as already tracked (see the guardrails below).
 
 #### Four guards on the queue
 
@@ -133,6 +151,7 @@ and `max_cross_repo` (default 3). The cross-repo sub-cap stops a burst of submod
 log-triage filters (`grep`, `head`, `tail`, `wc`, `jq`, …) are in `--allowedTools` for that reason, and the same test asserts it — a prompt that instructs a command nobody granted turns the budget into denials, silently.
 - **Dedupe is marker-based.** Every PR/issue body starts with
 `<!-- fleet-doctor key="owner/repo:path" -->`. Markers from the two retired loops (`actions-review`, `daily-analysis`) are honoured too, so open tickets from before the migration are not re-filed.
+- **A verified fix PR counts as tracked.** A failing workflow whose triage entry lists a `verified` fix PR (its own run passed every job that failed on the branch) is not queued, because a human-authored fix carries no marker. The work order names it under *Already fixed by an open pull request*, with its `mergeable_state`, and a plan-mode run skips it with the PR named. It is read from the snapshot, so it costs no call and applies offline too. `--no-dedupe` turns it off with the marker scan. `doctor` evidence is the marker the dedupe already reads, and `weak` evidence proves nothing, so neither counts.
 - **Draft PRs only** — never merges, never pushes to a default branch, never
 force-pushes, never touches submodule working trees under `projects/`, and never edits generated surfaces (`_site/`, `_reports/`, `_data/*_usage.yml`, `_data/fleet_triage.yml`, the README AUTO span, `projects/SCHEMA.md`).
 - **Retired workflows are dropped.** GitHub keeps a deleted workflow's run
@@ -211,7 +230,7 @@ Without a Claude token the loop degrades to gather + publish — the data still 
 | `.github/scripts/dash-gen/remediation.py` | merges failing + expensive signals into the ranked fix queue |
 | `.github/scripts/dash-gen/daily_report.py` | prior-day gather + digest generator |
 | `.github/scripts/dash-gen/fleet_triage.py` | open-state (issues/PRs/CI) snapshot generator |
-| `.github/scripts/dash-gen/test_fleet_triage.py` | guards the tracked-branch rule above — and its converse |
+| `.github/scripts/dash-gen/test_fleet_triage.py` | guards the tracked-branch rule above — and its converse — and the fix-PR link, end to end on the bashcrawl 2026-11-02 fixture |
 | `.github/scripts/dash-gen/actions_analytics.py` | Actions cost / effectiveness / waste analytics |
 | `_data/fleet.yml` | central config: caps, cadences, toolchain, token contract |
 | `_reports/daily/<date>.md` | committed daily digests |
