@@ -2405,9 +2405,10 @@ features:
       action or ai-lane workflow, a bare claude -p, a vendored runner, or another provider''s key. It used
       to know the first one only, which hid 56 of the fleet''s 117 AI workflows, 63 agents from _data/agents.yml
       and a 13-way cron collision. Each harness is graded against the standard declared in _data/fleet.yml
-      harnesses.standard: ten controls read from the workflow file, each traced to its rule (exact model,
-      dollar and turn caps, kill switch, ordered credential, trusted-author gate, least privilege, timeout,
-      off-the-hour cron, a fleet route), counted only where they can bind. A harness that falls short carries
+      harnesses.standard: twelve controls read from the workflow file, each traced to its rule (exact model,
+      dollar and turn caps, kill switch, ordered credential, trusted-author gate, least privilege, no wildcard
+      bot allowlist, no pull_request_target checkout of a PR head, timeout, off-the-hour cron, a fleet route),
+      counted only where they can bind. A harness that falls short carries
       its lever: kit-upgrade, kit-adopt, lane-adopt, fix-controls, factory-recompile, hub-fix or retire.
       Whether a kit copy is upgradeable is the fan-out''s own byte comparison, run at scan time, not the
       stamp. The console''s Harness inventory page lists one row per harness with its route, caps, verdict

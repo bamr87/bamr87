@@ -1403,6 +1403,14 @@ harnesses:
         title: declares top-level permissions, never write-all
         rule: "bamr87/bamr87#514"
         applies: [mention-handler, scheduled-agent, event-agent]
+      no-wildcard-bots:
+        title: "never lets every bot start the run (allowed_bots '*')"
+        rule: "bamr87/bamr87#514"
+        applies: [mention-handler, scheduled-agent, event-agent]
+      safe-pr-target:
+        title: "never checks out a PR's head on pull_request_target"
+        rule: "bamr87/bamr87#514"
+        applies: [mention-handler, scheduled-agent, event-agent]
       timeout:
         title: bounds wall-clock time (timeout-minutes)
         rule: "docs/HARNESS.md layer 3"
