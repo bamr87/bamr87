@@ -40,6 +40,8 @@ CLI (tools/dash workflows …):
   lint [--json] [--strict]  findings; exit 1 on an error (on a warning too with --strict)
   health [--days N] [--json]  run health + failure causes from the lake
   new --kind K --id ID [--name N] [--cron C] [--purpose P] [--write]
+  sync [--repo R] [--lake DIR]  every fleet repo's workflow files into the lake
+                          (workflow_sync.py; rendered by `tools/dash workflows --fleet`)
 """
 from __future__ import annotations
 
@@ -1632,6 +1634,12 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     p.add_argument("--json", action="store_true")
     p.add_argument("--write", action="store_true", help="create the file (never overwrites)")
     p.set_defaults(func=cmd_new)
+    # The fleet half (ADR 0007): the sync lives in workflow_sync.py, which imports this module, so it
+    # is imported here, once this module is loaded. `tools/dash workflows --fleet …` renders the model.
+    import workflow_sync  # noqa: WPS433
+    p = sub.add_parser("sync", help="read every fleet repo's workflow files and its checks' latest runs into the "
+                                    "local lake (operator token; refused in CI and on pull requests)")
+    workflow_sync.add_arguments(p)
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -16,10 +16,11 @@ other MCP host gets the views a person sees and can run what a person can run �
 no more.
 
   read     fleet_overview · fleet_apps · fleet_inbox · fleet_docker ·
-           fleet_work · fleet_workflows · workflow_lint · fleet_graph ·
-           fleet_learning — straight from fleetcore (and dash-gen's work_board
-           and workflow_atlas) over the committed signals, the checkout and the
-           local lake; work with no console running
+           fleet_work · fleet_workflows (the fleet model with fleet=true) ·
+           workflow_lint · fleet_graph · fleet_learning — straight from
+           fleetcore (and dash-gen's work_board and workflow_atlas) over the
+           committed signals, the checkout and the local lake; work with no
+           console running
   act      console_ops · console_run · console_jobs · console_job_log ·
            console_cancel — through fleetcore.client to the console, so the
            allowlist, parameter validation and the confirm-before-GitHub-write
@@ -142,7 +143,18 @@ WORKFLOW_FIELDS = ("id", "name", "group", "purpose_text", "triggers", "switch", 
 def t_workflows(a: dict) -> dict:
     """The hub's workflows as one model (the workflow atlas): one workflow or
     action in full, or the catalog with every finding; `health` adds run
-    health and failure causes from the local lake."""
+    health and failure causes from the local lake. With `fleet`, the fleet
+    model instead (fleet-workflows/v1, fleetcore/workflows.py): every
+    repository's read state, findings and check states, one repository's
+    workflows with `repo`, one workflow in full with `repo` and `workflow`."""
+    if a.get("fleet"):
+        from fleetcore import workflows as fworkflows
+        try:
+            return fworkflows.view(ROOT, repo=str(a.get("repo") or ""), workflow=str(a.get("workflow") or ""))
+        except KeyError as exc:  # an unknown repository or workflow: say which, as bad arguments
+            raise ValueError(exc.args[0] if exc.args else str(exc)) from None
+        except fworkflows.LakeError as exc:
+            raise ValueError(str(exc)) from None
     wa = _atlas()
     atlas = wa.scan(ROOT)
     if a.get("workflow"):
@@ -261,11 +273,17 @@ TOOLS: dict[str, dict] = {
         "The hub's GitHub Actions as one model (the workflow atlas): every workflow and composite action with "
         "its triggers, crons, inputs, jobs, Claude call sites and kill switch, and every finding against the "
         "standards. Pass `workflow` for one in full; `health` adds run health and failure causes (capacity · "
-        "config · transient · dependency · defect) from the local lake. Read it before changing a workflow."),
+        "config · transient · dependency · defect) from the local lake. Read it before changing a workflow. "
+        "`fleet=true` reads the FLEET model instead (fleet-workflows/v1, from `tools/dash workflows sync`): every "
+        "registry repository with when it was read or why not, its findings and its checks' states (verified · "
+        "passed-empty · never-ran · quota · real-failure · cancelled); `repo` for one repository's workflows, "
+        "`repo` + `workflow` for one in full. A repository that was not read shows `read: false`, never a pass."),
         schema=_schema({
             "workflow": {"type": "string", "description": "a workflow file stem (fleet-pulse) or action id (claude-cost)"},
             "health": {"type": "boolean", "description": "add run health from the local lake"},
-            "days": {"type": "integer", "minimum": 1, "maximum": 365}})),
+            "days": {"type": "integer", "minimum": 1, "maximum": 365},
+            "fleet": {"type": "boolean", "description": "the fleet model (every repository) instead of the hub's atlas"},
+            "repo": {"type": "string", "description": "with fleet: one repository, owner/name or registry name"}})),
     "workflow_lint": dict(fn=t_workflow_lint, annotations=READ, description=(
         "Lint a draft workflow (YAML text) against the hub's standards and _data/fleet.yml: permissions, "
         "timeouts, concurrency, crons, kill switch, Claude budget and usage-limit pairing, null dispatch inputs, "

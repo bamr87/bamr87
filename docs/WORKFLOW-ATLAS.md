@@ -7,11 +7,11 @@ The 2026-10-27 overhaul ([#422](https://github.com/bamr87/bamr87/pull/422), [WOR
 | | |
 | --- | --- |
 | **Page** | Harness Console → Harnesses → **Workflows** (`/workflows`, `/workflows/<id>`, `/workflows/actions/<id>`); read-only on the [public site](CONSOLE-PAGES.md), which has no run health and no designer |
-| **Module** | [`.github/scripts/dash-gen/workflow_atlas.py`](../.github/scripts/dash-gen/workflow_atlas.py) |
-| **CLI** | `tools/dash workflows [list \| show <id> \| lint \| health \| new]` |
-| **MCP** | `fleet_workflows` (the catalog, one workflow, or run health) and `workflow_lint` (check a draft) |
+| **Module** | [`.github/scripts/dash-gen/workflow_atlas.py`](../.github/scripts/dash-gen/workflow_atlas.py); the fleet model in [`tools/fleetcore/workflows.py`](../tools/fleetcore/workflows.py), filled by [`.github/scripts/dash-gen/workflow_sync.py`](../.github/scripts/dash-gen/workflow_sync.py) |
+| **CLI** | `tools/dash workflows [list \| show <id> \| lint \| health \| new \| sync]` · `tools/dash workflows --fleet [list \| show <repo> [<id>] \| lint]` |
+| **MCP** | `fleet_workflows` (the catalog, one workflow, or run health; with `fleet=true` the fleet model, one repository with `repo`) and `workflow_lint` (check a draft) |
 | **API** | `GET /api/workflows` · `GET /api/workflows/health?days=N` · `POST /api/workflows/lint` · `POST /api/workflows/scaffold` · operations `workflows-lint`, `workflow-new` |
-| **Tests** | `python3 .github/scripts/dash-gen/test_workflow_atlas.py` (holds the live tree to zero errors) · `python3 tools/console/test_console.py` · `python3 tools/test_fleetcore_mcp.py` |
+| **Tests** | `python3 .github/scripts/dash-gen/test_workflow_atlas.py` (holds the live tree to zero errors) · `python3 tools/console/test_console.py` · `python3 tools/test_fleetcore_mcp.py` · `python3 tools/test_fleetcore_workflows.py` (the fleet model and its sync) |
 
 ## The model
 
@@ -85,6 +85,33 @@ Each workflow also shows:
 - **429s absorbed**: green runs whose annotations record a usage-limit skip, so capacity stays visible after skip mode turns those runs green;
 - **ghosts**: runs whose workflow file is gone (GitHub keeps listing a workflow while it has runs);
 - **skipping**: a workflow whose every run was skipped, which is normal for a mention handler and a dead loop for a schedule.
+
+## The fleet model
+
+[ADR 0007](adr/0007-workflow-studio.md) grows the atlas to the fleet. Phase S1 ([#721](https://github.com/bamr87/bamr87/issues/721)) is the read half: one model, `fleet-workflows/v1`, built from every repository's workflow files by the same `parse_workflow()`, `lint_workflow()` and `classify_failure()` the hub's atlas runs. There is no second parser. The console and the TUI views come with S2.
+
+**The sync.** `tools/dash workflows sync` reads the files into the local lake (`.dash-lake/fleet.sqlite`, the `workflows` table) and records each attempt in `workflow_reads`:
+
+- **Targets:** every repository in `_data/projects.yml`, plus the hub. The repositories of the `bash-365`, `year-of-ai` and `ai-world-view` organizations are read like the rest, because those owners are in `_data/fleet.yml` `hub.owners`. An external upstream (`microsoft/skills`, `tt-a1i/archify`) is never fetched, and it is reported as not read with that reason.
+- **Conditional read:** the listing is read every time, but a file's content is fetched only when its blob sha changed since the last read. At most `harnesses.inventory.max_workflow_files` files are read per repository, and a repository past that cap is marked truncated.
+- **Checks:** for each repository's Verify caller and pull-request or push gates (at most `--max-checks`, Verify first), the sync reads the latest completed run, its jobs and steps, and, for a failed run, its log under a byte cap. An archived repository's runs are not read.
+- **Guardrails:** it refuses before reading anything when `GITHUB_ACTIONS` is set or `GITHUB_EVENT_NAME` is a pull-request event. Its token is `GH_TOKEN` or `gh auth token`, and `gh` runs with every token variable removed, so `GITHUB_TOKEN` is never used. `--budget-s` bounds the wall clock, `--max-repos` the repositories, and the repositories it did not reach are reported as not read.
+- **Output:** how many repositories it read, and each one it could not read with the reason.
+
+**The model.** `tools/dash workflows --fleet list` (or `show <repo> [<workflow>]`, `lint`, `--json`) and the `fleet_workflows` MCP tool with `fleet=true` render the same document from [`tools/fleetcore/workflows.py`](../tools/fleetcore/workflows.py), which opens the lake read-only. Every repository carries `read`, `read_at` (the last read that worked) and, when it was not read, a `reason`. A repository that was not read has no workflows in the model and shows "not read", never a pass. A later failed attempt keeps the earlier read time in its reason. A file deleted upstream leaves the model, although its row stays in the lake. The hub's workflows are linted with the hub rules, which check `fleet.yml` keys and README rows; every other repository's are linted with `hub_rules=False`.
+
+**Check states (ADR 0007 decision 4).** Each workflow's latest run is read into one state:
+
+| State | When |
+| --- | --- |
+| `verified` | green, and at least one job ran |
+| `passed-empty` | green, but it checked nothing: every job was skipped, fleet-verify's "Report that nothing was verified" step ran or its scenario step was skipped, or the log carries the "Not verified" warning |
+| `never-ran` | no run on GitHub, a run held for approval, or a failure with no job |
+| `quota` | failed, and `classify_failure()` says a shared limit was spent: `api-rate-limit`, or the capacity class |
+| `real-failure` | failed for any other cause, with its cause, class, failed step and evidence |
+| `cancelled` | cancelled before it finished |
+
+A workflow whose runs were not read has no state, and is counted as `unknown`. Fleet health counts `verified` only, so a green check that verified nothing is not healthy. The step names are fleet-verify's own, and `test_fleetcore_workflows.py` fails if the reusable workflow renames them.
 
 ## Retire
 

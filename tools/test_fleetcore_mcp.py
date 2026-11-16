@@ -183,6 +183,25 @@ def test_read_tools_over_the_committed_signals():
         assert all(len(lp["arms"]) <= 3 for lp in learning["loops"])
 
 
+def test_fleet_true_serves_the_fleet_workflow_model():
+    """fleet_workflows(fleet=true) is fleet-workflows/v1 (fleetcore/workflows.py), the model the CLI prints. With
+    nothing synced, every repository says it was not read and why — never a pass."""
+    tmp = tempfile.mkdtemp(prefix="fleet-wf-lake-")
+    try:
+        with Env(DASH_LAKE_DIR=tmp):
+            doc, err = call("fleet_workflows", {"fleet": True})
+            assert not err and doc["schema"] == "fleet-workflows/v1", doc
+            assert doc["summary"]["repos"] == len(doc["repos"]) > 2 and doc["summary"]["read"] == 0
+            assert all(r["read"] is False and r["reason"] for r in doc["repos"])
+            assert set(doc["states"]) == {"verified", "passed-empty", "never-ran", "quota", "real-failure", "cancelled"}
+            one, err = call("fleet_workflows", {"fleet": True, "repo": "bamr87/bamr87"})
+            assert not err and one["repo"]["nwo"] == "bamr87/bamr87" and one["workflows"] == [], one
+            _, err = call("fleet_workflows", {"fleet": True, "repo": "no-such-repo-anywhere"})
+            assert err
+    finally:
+        os.rmdir(tmp)
+
+
 class Env:
     def __init__(self, **kw):
         self.kw, self.saved = kw, {}
