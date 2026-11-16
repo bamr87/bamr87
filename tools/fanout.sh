@@ -1185,6 +1185,45 @@ run_one() {
   return "$rc"
 }
 
+# --- pre-flight: the kit's caller templates pin hub refs that exist (FF-0037)
+# A template that pins bamr87/bamr87/.github/workflows/<file>@<ref> (or an
+# action) at a ref without <file> seeds a caller that fails at startup with no
+# job, in every target at once: the spec-driven kit pinned spec-gate.yml@v2
+# before v2.1.0 carried it, and law-ai's CI on main was red that way from
+# 2026-10-30. Resolved by .github/scripts/dash-gen/hub_refs.py, GitHub first
+# (the tags a caller will get), then this checkout's tags. The dry run names an
+# unresolved pin and carries on; --apply refuses until it resolves.
+preflight_paths() {  # the kit's templates that can seed a hub pin, relative to $HUB
+  case "$KIT" in
+    standardize|agent-context)
+      case ",$ARTIFACTS," in *,ci,*) echo "templates/standard-ci/ci.yml" ;; esac
+      case ",$ARTIFACTS," in *,conformance,*) echo "templates/conformance/conformance.yml" ;; esac
+      case ",$ARTIFACTS," in *,claude,*) echo "templates/agent-context/claude.yml" ;; esac ;;
+    backlog) ;;  # a hub backlog file, no caller templates
+    *) if [[ -d "$HUB/templates/$KIT" ]]; then echo "templates/$KIT"; fi ;;
+  esac
+}
+preflight_hub_refs() {
+  local paths=() p out rc
+  while IFS= read -r p; do [[ -n "$p" ]] && paths+=("$p"); done < <(preflight_paths)
+  [[ ${#paths[@]} -gt 0 ]] || return 0
+  [[ -f "$HUB/.github/scripts/dash-gen/hub_refs.py" ]] || return 0
+  set +e
+  out="$("${PYTHON:-python3}" "$HUB/.github/scripts/dash-gen/hub_refs.py" check \
+         --root "$HUB" --online "${paths[@]}" 2>&1)"
+  rc=$?
+  set -e
+  while IFS= read -r p; do [[ -n "$p" ]] && echo "pre-flight: ${p#  }"; done <<< "$out"
+  [[ "$rc" -eq 0 ]] && return 0
+  if [[ "$APPLY" -eq 1 ]]; then
+    echo "pre-flight: refusing --apply — a pin above does not resolve, so every target would get a caller that fails at startup." >&2
+    echo "pre-flight: cut the release and move the major (docs/WORKFLOW-VERSIONING.md), or repin the template, then rerun." >&2
+    exit 1
+  fi
+  echo "pre-flight: DRY RUN continues; --apply is refused until every pin above resolves."
+}
+preflight_hub_refs
+
 # Process substitution (not a pipe) keeps the loop in the main shell so the
 # failure counter survives; per-repo failures warn and continue — one flaky
 # target must not strand the rest of the fleet. macOS bash 3.2-compatible.

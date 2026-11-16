@@ -69,6 +69,15 @@ When a major ships, each caller is tried on it, one PR per repo through the call
 
 The first planned major is `v2.0.0`, for #310: `standard-ci` stops ignoring failed dependency installs (`|| true`), which can turn a green caller red. `v1` keeps the lenient installs.
 
+## Pins resolve before they ship
+
+A caller that pins a ref without the file it names fails at startup: the run has no jobs, and nothing in the caller's repository says why. law-ai's CI on `main` failed that way from 2026-10-30, because its `ci.yml` called `spec-gate.yml@v2` while `v2` still pointed at 2.0.0, which predates the file; the `spec-driven` kit's caller template carried the same pin until v2.1.0 was cut (#610). Two rules follow, and [`hub_refs.py`](../.github/scripts/dash-gen/hub_refs.py) checks both.
+
+- **A kit template pins only a ref that contains its target.** A new reusable workflow or action ships in a release, and `vX` moves to it, before any template under `templates/` pins it at `@vX`. Drift check (q) resolves every hub pin in `templates/` against the hub's tags on every pull request, offline, and warns on one that does not resolve. `tools/fanout.sh` resolves the kit's caller templates before it clones a target: its dry run names an unresolved pin, and `--apply` refuses to run until the pin resolves.
+- **Before you tag, list what the release must carry.** Run `python3 .github/scripts/dash-gen/hub_refs.py check templates` for the kit templates and `python3 .github/scripts/dash-gen/hub_refs.py fleet` for the fleet's callers, as the daily harness scan recorded them (`_data/harness_registry.yml` `hub_refs`). Each broken pin names its fix. When the file is on `main` under `[Unreleased]`, the fix is this release: cut `vX.Y.0` and move `vX` (steps 2 and 3 below), then run the check again with fresh tags (`git fetch --no-tags --depth=1 origin '+refs/tags/v*:refs/tags/v*'`). Every pin should read `ok`.
+
+A pin reads `ok`, `ref-missing` (the hub has no such ref), `file-missing-at-ref` (the ref exists but lacks the file) or `unverified`. `unverified` covers a tag missing from the local clone and any GitHub answer other than a 404, and it is never counted as broken or as clean. Repinning a caller to a SHA or to `@main` is only a stopgap: a SHA pin breaks drift check (k), and an `@main` pin breaks UPS-WORK-10. For a caller on a floating major, the fix is the hub release.
+
 ## Cutting a release
 
 Releases are cut by hand from `main` until a release automation is adopted for the hub. Tags are created only after the change is merged, never from a PR branch.
