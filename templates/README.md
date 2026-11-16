@@ -2,6 +2,8 @@
 
 Scaffolding templates consumed by the dash's tooling — copied into target repos, never built by Jekyll.
 
+A caller here pins a hub workflow or action (`uses: bamr87/bamr87/...@v2`) only at a ref that carries it: [`tools/test_template_pins.py`](../tools/test_template_pins.py) resolves every such pin against the tags GitHub serves and fails otherwise, so a new workflow ships in a release before a template pins it ([docs/WORKFLOW-VERSIONING.md](../docs/WORKFLOW-VERSIONING.md#cutting-a-release)).
+
 ## `standard-ci/`
 
 The baseline CI caller dropped into a submodule by [`.github/workflows/fanout.yml (kit: standardize)`](../.github/workflows/fanout.yml (kit: standardize)):
