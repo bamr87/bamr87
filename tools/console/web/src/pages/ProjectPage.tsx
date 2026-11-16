@@ -37,9 +37,11 @@ export function InboxTable({ rows, showRepo = false }: { rows: InboxItem[]; show
       columns={[
         { key: 'pri', header: 'pri', num: true, sort: (i) => i.priority, render: (i) => i.priority, width: 50 },
         {
+          // miw: a badge never shrinks below its word. A table squeezed by a long `why` (a merge row's) or a phone
+          // otherwise cut every kind to "m…" / "w…", and the merge badge is the one a reader looks for.
           key: 'kind', header: 'kind', sort: (i) => i.kind, render: (i) => (isMerge(i)
-            ? <Badge variant="light" color="teal" size="sm" title={`A ${i.evidence ?? 'verified'} fix, green and clean. Merging stays yours.`}>merge</Badge>
-            : <Badge variant="default" size="sm">{i.kind}</Badge>),
+            ? <Badge variant="light" color="teal" size="sm" miw="max-content" title={`A ${i.evidence ?? 'verified'} fix, green and clean. Merging stays yours.`}>merge</Badge>
+            : <Badge variant="default" size="sm" miw="max-content">{i.kind}</Badge>),
         },
         ...(showRepo ? [{ key: 'repo', header: 'repo', sort: (i: InboxItem) => i.repo, render: (i: InboxItem) => <Anchor component={Link} to={to.project(i.repo)} ff="monospace" fz="sm">{i.repo}</Anchor> }] : []),
         { key: 'item', header: 'item', sort: (i) => i.label, render: (i) => <External href={i.url} size="sm">{i.label}</External> },
