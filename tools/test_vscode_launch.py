@@ -113,6 +113,10 @@ def compose_hosted() -> set[str]:
     return {n for n, s in (PORTS.get("projects") or {}).items() if (s or {}).get("host") == "compose"}
 
 
+def devenv_hosted() -> dict[str, dict]:
+    return {n: s for n, s in (PORTS.get("projects") or {}).items() if (s or {}).get("host") == "devenv"}
+
+
 def allocations(project: str) -> set[int]:
     spec = (PORTS.get("projects") or {}).get(project) or {}
     out = {a["port"] for a in (spec.get("services") or {}).values()}
@@ -240,6 +244,31 @@ class Ports(unittest.TestCase):
             if "exec" in cmd and "devenv" in cmd:
                 for port in map(int, PORT_IN_NAME.findall(name)):
                     self.assertIn(port, devenv, f"{name}: devenv does not publish {port} (docker-compose.yml devenv ports)")
+
+    def test_devenv_hosted_allocations_are_ports_devenv_publishes(self):
+        """A `host: devenv` project is served from inside devenv, and the app
+        portal frames its _data/ports.yml port: an allocation devenv does not
+        publish (bamr87.github.io's 4012, #702) is an address nothing answers."""
+        devenv = service_ports("devenv")
+        self.assertTrue(devenv_hosted(), "no devenv-hosted project in _data/ports.yml")
+        for name, spec in devenv_hosted().items():
+            for sname, alloc in (spec.get("services") or {}).items():
+                for port in (alloc.get("port"), alloc.get("livereload")):
+                    if port is not None:
+                        self.assertIn(port, devenv, f"{name}/{sname}: devenv does not publish {port} (docker-compose.yml devenv ports)")
+
+    def test_devenv_hosted_start_is_its_launch_entry(self):
+        """The portal offers a devenv site's `start:` to copy, and F5 runs its
+        launch.json entry: one command, so the two cannot drift, from an entry
+        whose name carries the allocated port."""
+        entries = {cmd: name for name, cmd in commands()}
+        for name, spec in devenv_hosted().items():
+            start = spec.get("start")
+            self.assertTrue(start, f"{name}: a devenv-hosted project carries `start:`, its launch.json command")
+            self.assertIn(start, entries, f"{name}: `start:` is not the command of any .vscode/launch.json entry")
+            ports = {a["port"] for a in (spec.get("services") or {}).values()}
+            named = set(map(int, PORT_IN_NAME.findall(entries[start])))
+            self.assertTrue(ports & named, f"{entries[start]}: its name carries {sorted(named)}, not {name}'s {sorted(ports)}")
 
     def test_dev_entries_use_ports_yml_allocations(self):
         for name, cmd in commands():

@@ -291,12 +291,18 @@ def test_a_dev_stack_op_names_one_project_from_the_port_registry():
     assert core._exclusive_key("dev-up", {"target": "gitorio"}) == core._exclusive_key("dev-down", {"target": "gitorio"})
     assert core._exclusive_key("dev-up", {"target": "gitorio"}) != core._exclusive_key("dev-up", {"target": "law-ai"})
     assert core.OPS["dev-logs"].get("exclusive") is None, "reading logs must not wait on a start"
-    # every local target the launcher offers can be started by these operations
+    # every compose-hosted local target the launcher offers can be started by
+    # these operations; a devenv-hosted one (served inside the workspace
+    # container) is not a stack, so the page offers its terminal command instead
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from fleetcore import apps as fapps
     doc = fapps.apps_view(core.REPO_ROOT)
     local = [t for r in doc["apps"] for t in r["targets"] if t["kind"] == "local"]
-    assert local and all(t["project"] in known for t in local), "a Local target names a project dev-up refuses"
+    stacks = [t for t in local if t["host"] == "compose"]
+    assert stacks and all(t["project"] in known for t in stacks), "a Local target names a project dev-up refuses"
+    devenv = [t for t in local if t["host"] == "devenv"]
+    assert devenv and all(t["project"] not in known and t["start"].startswith("docker compose exec ") for t in devenv), devenv
+    assert {t["host"] for t in local} == {"compose", "devenv"}, "a Local target from a host no one can start"
 
 
 def test_lake_ops_argv_shapes_and_status_document():
