@@ -26,7 +26,7 @@ Diagnostic codes:
 
 | Code | When | Read from |
 | --- | --- | --- |
-| `queue_wait` | a queued job waits behind a live job holding the same `exclusive` key (the lake, one loop's run), or a queued GitHub-writing job waits behind the running one (one remote write at a time); the detail names the job it waits on | the other jobs in the runtime |
+| `queue_wait` | a queued job waits behind a live job holding the same `exclusive` key (the lake, one loop's run), or a queued GitHub-writing job waits behind the running one (one remote write at a time); the detail names the job it waits on. The `exclusive` case is a guard only: `submit` refuses a second job whose key is held (a 409), so on a console the wait you see is the GitHub-write slot | the other jobs in the runtime |
 | `collector_lag` | a live job, while the live collector's `.dash-live/sessions.json` is older than `live.STALE_S` (30 s, six of the collector's 5 s intervals): a Claude Code session lookup reads old data. A missing file means no collector on this host and says nothing | `live.collector_age()` |
 | `long_step` | a running job past the p90 duration of its operation's most recent successful runs (up to 20, at least 3) and past 30 s, so a quick operation is not flagged for a few seconds' wobble | the job index |
 | `no_heartbeat` | a running job whose `idle_s` passed `stall_s`; it is why the state reads `stalled` | the job's log |
