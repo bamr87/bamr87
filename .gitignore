@@ -87,6 +87,9 @@ scout-workorders/
 # gate-labelled issue of the fleet, read from GitHub; it can hold a private repo's
 # titles, so it is local, owner-only and never published; docs/DECISION-INDEX.md).
 .fleet/decisions/
+# The console's Django backend state (DASH_CONSOLE_STATE, tools/console/backend/settings.py):
+# the SQLite database and, on loopback, the generated secret key (mode 600).
+.fleet/console/
 # The MCP layer's scoped-write audit (audit.jsonl: one line per job_dispatch,
 # job_cancel and work_apply call, values scrubbed; tools/console/docs/mcp-layer.md).
 .fleet/mcp/

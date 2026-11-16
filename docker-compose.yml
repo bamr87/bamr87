@@ -218,6 +218,12 @@ services:
       # volume, so it survives the container being recreated — the default
       # /tmp dir does not, and a recreate is what every compose change does.
       - DASH_CONSOLE_JOBS=/home/vscode/.dash-run/jobs
+      # The Django backend's state (tools/console/backend/, ADR 0006): its
+      # SQLite database and generated secret key, on the same volume. Not the
+      # bind mount: a native console shares .fleet/console/, and SQLite across
+      # the VM boundary is no place for two writers. DATABASE_URL is not passed
+      # through, so the shared Postgres is untouched until that is decided.
+      - DASH_CONSOLE_STATE=/home/vscode/.dash-run/state
       - PYTHONDONTWRITEBYTECODE=1
       - GH_TOKEN=${GH_TOKEN:-${FLEET_TOKEN:-${GITHUB_TOKEN:-}}}
       - FLEET_TOKEN=${FLEET_TOKEN:-}
@@ -226,6 +232,7 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - DASH_CONSOLE_TOKEN=${DASH_CONSOLE_TOKEN:-}
       - DASH_CONSOLE_ALLOWED_HOSTS=${DASH_CONSOLE_ALLOWED_HOSTS:-}
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-}
       # The console's GitHub OAuth App (GitHub page → Connect): the client ID runs
       # the device flow; the secret adds the browser flow and token revocation.
       - GITHUB_OAUTH_CLIENT_ID=${GITHUB_OAUTH_CLIENT_ID:-}

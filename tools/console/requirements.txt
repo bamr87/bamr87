@@ -3,6 +3,10 @@
 -r ../../.github/scripts/dash-gen/requirements.txt
 fastapi
 uvicorn
+# The Django backend beside the FastAPI app (backend/, dispatch.py — ADR 0006):
+# /admin/, /accounts/ and /api/v1/. A postgres:// DATABASE_URL also needs
+# psycopg; the default database is SQLite, which needs nothing more.
+django
 # The Terminal page's /api/tui is a WebSocket; without a WebSocket library
 # uvicorn answers every upgrade with a 404 ("Unsupported upgrade request").
 websockets

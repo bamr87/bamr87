@@ -1,22 +1,31 @@
 #!/usr/bin/env bash
 # ============================================================================
-# tools/console/run.sh — start the Harness Console (FastAPI + uvicorn)
+# tools/console/run.sh — start the Harness Console (FastAPI + Django, uvicorn)
 #
 # Bootstraps a private virtualenv (CONSOLE_VENV, default .venv-console at the
 # repo root — gitignored; the compose service backs it with a named volume),
 # installs tools/console/requirements.txt at LATEST (fleet dependency policy),
-# and execs uvicorn.
+# applies the Django backend's migrations, and execs uvicorn on dispatch.py:
+# /admin/, /accounts/ and /api/v1/ go to Django (backend/), the rest to the
+# FastAPI app (ADR 0006).
 #
 #   CONSOLE_HOST   bind address (default 127.0.0.1; compose sets 0.0.0.0 and
 #                  publishes the port on loopback only)
 #   CONSOLE_PORT   default 4001
 #   CONSOLE_RELOAD 1 to auto-reload on edits (development)
-#   DASH_CONSOLE_TOKEN  optional bearer token required on /api/* when set
+#   DASH_CONSOLE_TOKEN  optional bearer token required on /api/* when set,
+#                  and on every Django path but /api/v1/{healthz,readyz,version}
 #   DASH_CONSOLE_ALLOWED_HOSTS  extra Host values to answer to (comma-separated);
 #                  loopback names only by default — the DNS-rebinding guard
 #   CONSOLE_UDS    also listen on this Unix socket (serve.py) — how the `tui`
 #                  compose service reaches the same runtime; ignored with RELOAD
 #   CONSOLE_SKIP_WEB  1 to skip (re)building the page (web/ → web/dist)
+#   DASH_CONSOLE_STATE  the Django backend's state directory (default
+#                  .fleet/console: the SQLite database and, on loopback, the
+#                  generated secret key)
+#   DATABASE_URL   the backend's database instead (postgres://…); unset → SQLite
+#   DJANGO_SECRET_KEY  required when DASH_CONSOLE_ALLOWED_HOSTS names a
+#                  non-loopback host; generated once otherwise
 #
 # Usage: tools/console/run.sh            (or: tools/dash console)
 # ============================================================================
@@ -79,8 +88,14 @@ RELOAD=()
 
 echo "console: http://${HOST}:${PORT}/  (repo: $ROOT)"
 cd "$HERE"
+# The Django backend's migrations, committed and applied at every start (ADR
+# 0006 decision 7). A failure is reported and the console starts anyway: no
+# FastAPI route needs the database, and /api/v1/readyz says what is wrong.
+if ! "$VENV/bin/python" backend/manage.py migrate --noinput; then
+  echo "console: Django migrate FAILED — starting anyway; /api/v1/readyz reports the database" >&2
+fi
 if [[ -n "${CONSOLE_UDS:-}" && ${#RELOAD[@]} -eq 0 ]]; then
   export CONSOLE_HOST="$HOST" CONSOLE_PORT="$PORT"
   exec "$VENV/bin/python" serve.py
 fi
-exec "$VENV/bin/python" -m uvicorn app:app --host "$HOST" --port "$PORT" ${RELOAD[@]+"${RELOAD[@]}"}
+exec "$VENV/bin/python" -m uvicorn dispatch:app --host "$HOST" --port "$PORT" ${RELOAD[@]+"${RELOAD[@]}"}

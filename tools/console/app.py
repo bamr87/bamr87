@@ -4,7 +4,10 @@ app — the Harness Console's HTTP surface (FastAPI).
 
 Thin by design: every route is a call into core.py (state, allowlist, jobs,
 contract). Run it with tools/console/run.sh (native) or `docker compose up -d
-console`; open http://127.0.0.1:4001/. Interactive API docs at /docs.
+console`; open http://127.0.0.1:4001/. Interactive API docs at /docs. Both
+serve it through dispatch.py, which puts the Django backend (backend/, ADR
+0006) beside it on /admin/, /accounts/ and /api/v1/ and runs this module's
+Host and token checks (host_refusal, token_ok) in front of Django too.
 
 Security posture: loopback by default; an optional shared secret
 (DASH_CONSOLE_TOKEN) is required as `Authorization: Bearer …` on every /api
@@ -105,14 +108,23 @@ REMOTE_ORIGINS = {o.strip().rstrip("/").lower() for o in
 tui = tui_bridge.TuiBridge(ALLOWED_HOSTS, REMOTE_ORIGINS)
 
 
+def host_refusal(header: str | None) -> str | None:
+    """Why a request's Host header is refused, or None when the console answers
+    to it. The one check both halves of the console run: this app's middleware
+    below, and the dispatcher in front of the Django backend (dispatch.py)."""
+    host = (header or "").rsplit(":", 1)[0].strip().lower()
+    if host and host not in ALLOWED_HOSTS:
+        return (f"host '{host}' is not allowed — the console answers on loopback only; "
+                "set DASH_CONSOLE_ALLOWED_HOSTS to serve another hostname")
+    return None
+
+
 @app.middleware("http")
 async def guard_host(request: Request, call_next):
     """Reject a rebound hostname before any route sees it (see module docstring)."""
-    host = (request.headers.get("host") or "").rsplit(":", 1)[0].strip().lower()
-    if host and host not in ALLOWED_HOSTS:
-        return JSONResponse(status_code=421, content={
-            "detail": f"host '{host}' is not allowed — the console answers on loopback only; "
-                      "set DASH_CONSOLE_ALLOWED_HOSTS to serve another hostname"})
+    reason = host_refusal(request.headers.get("host"))
+    if reason:
+        return JSONResponse(status_code=421, content={"detail": reason})
     return await call_next(request)
 
 
@@ -214,17 +226,23 @@ async def remote_page(request: Request, call_next):
     return response
 
 
-def require_token(authorization: str | None = Header(default=None)) -> None:
+def token_ok(authorization: str | None) -> bool:
+    """True when DASH_CONSOLE_TOKEN is unset, or the Authorization header carries
+    it as a bearer token. Shared with the dispatcher in front of Django."""
     expected = os.environ.get("DASH_CONSOLE_TOKEN")
     if not expected:
-        return
+        return True
     # constant-time: the token is a shared secret, so don't leak its prefix
     # through comparison timing.
     # RFC 7235: the scheme is case-insensitive, and neither side should fail
     # on stray whitespace from a paste or an env file.
     scheme, _, credential = (authorization or "").strip().partition(" ")
-    if scheme.lower() != "bearer" or not _secrets.compare_digest(
-            credential.strip().encode(), expected.strip().encode()):
+    return scheme.lower() == "bearer" and _secrets.compare_digest(
+        credential.strip().encode(), expected.strip().encode())
+
+
+def require_token(authorization: str | None = Header(default=None)) -> None:
+    if not token_ok(authorization):
         raise HTTPException(status_code=401, detail="console token required")
 
 
