@@ -1726,6 +1726,9 @@ features:
     prd:
     - FR58
     - FR77
+    verified:
+      date: 2026-11-16
+      by: agent
   - id: HUB-080
     title: 'The generated repo app: every repo in the fleet opens as an app, with or without a frontend
       of its own'
