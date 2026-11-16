@@ -22,6 +22,33 @@ name: 🧭 Issue Pipeline
 #              covering the change, docs updated, body accurate. Then mark it
 #              ready for review — unless `human-review` says a person merges.
 #
+# CONTRACTS BETWEEN TIERS (.github/scripts/dash-gen/pipeline_contracts.py)
+# -----------------------------------------------------------------------
+# A label plus prose is not a handoff. Each one is machine-checked by a
+# deterministic step, never by the agent that made the claim:
+#
+#   HANDOFF   tier 1 → tier 2, `issue-pipeline-handoff/v1`
+#             (pipeline-handoff.schema.json): the issue (owner/repo#N), the
+#             owner repo (the issue's own, owned by bamr87), the checkbox
+#             acceptance criteria (at least one), the evidence bundle (or
+#             null) and the size label. After tier 1, `issues handoff record`
+#             builds it for each issue tier 1 left at `agent:ready` and records
+#             it on the issue (uploaded as `issue-handoffs` too). The queue
+#             builder validates it before an issue reaches the tier-2 work
+#             order: rebuilt from the issue as it stands, plus the recorded
+#             one's binding to this issue. A failure is left out of the work
+#             order and `issues handoff block` moves it to `agent:blocked` with
+#             the reason. A dry run shows the check in the scan summary.
+#   VERDICT   tier 3 → `agent:done`, `issue-pipeline-verdict/v1`
+#             (pipeline-verdict.schema.json): one entry per checkbox criterion
+#             of every issue the PR closes, `met` / `unmet` / `unverifiable`,
+#             and for `met` the evidence (a test id, a run URL, path#Lx-Ly).
+#             Tier 3 posts it as a ```pipeline-verdict block and may mark the
+#             PR ready and the issue `agent:done` only when `issues verdict
+#             check` exits 0. After tier 3, `issues verdict backstop` re-checks
+#             every PR it readied or marked done this run, and reverts both on
+#             a failure.
+#
 # WHY A SWEEP AND NOT AN EVENT CHAIN
 # ----------------------------------
 # Stage lives in LABELS, so every run reconciles CURRENT STATE rather than
@@ -128,6 +155,13 @@ jobs:
       implement_count: ${{ steps.queues.outputs.implement_count }}
       complete_count: ${{ steps.queues.outputs.complete_count }}
       evidence_targets: ${{ steps.queues.outputs.evidence_targets }}
+      # The contract steps' inputs (pipeline_contracts.py): which issues tier 1
+      # was given, each tier-3 PR's draft state at the start of the run, and
+      # the tier-2 handoff check's totals.
+      intake_targets: ${{ steps.queues.outputs.intake_targets }}
+      complete_targets: ${{ steps.queues.outputs.complete_targets }}
+      handoff_checked: ${{ steps.queues.outputs.handoff_checked }}
+      handoff_rejected: ${{ steps.queues.outputs.handoff_rejected }}
       publish_mode: ${{ steps.publish.outputs.mode }}
     steps:
       - uses: actions/checkout@v7
@@ -182,6 +216,8 @@ jobs:
           tools/dash-gen "${args[@]}"
 
       - name: Show queues
+        env:
+          HANDOFF_REJECTS: ${{ steps.queues.outputs.handoff_rejects }}
         run: |
           {
             echo "### 🧭 Issue pipeline — queues"
@@ -191,6 +227,12 @@ jobs:
             echo "| 1 · intake | ${{ steps.queues.outputs.intake_count }} |"
             echo "| 2 · implement | ${{ steps.queues.outputs.implement_count }} |"
             echo "| 3 · complete | ${{ steps.queues.outputs.complete_count }} |"
+            echo ""
+            echo "**Handoff contract** (\`issue-pipeline-handoff/v1\`): ${{ steps.queues.outputs.handoff_checked || 0 }} tier-2 candidate(s) checked, ${{ steps.queues.outputs.handoff_rejected || 0 }} left out."
+            if [ "${{ steps.queues.outputs.handoff_rejected || 0 }}" != "0" ]; then
+              echo ""
+              printf '%s' "${HANDOFF_REJECTS:-[]}" | jq -r '.[] | "- \(.nwo)#\(.number): \(.problems | join("; "))"'
+            fi
             echo ""
             echo "<details><summary>Tier 1 work order</summary>"
             echo ""
@@ -505,6 +547,13 @@ jobs:
             Passing a half-specified issue to tier 2 wastes a pull request and
             somebody's review.
 
+            The handoff is machine-checked. After you finish, a deterministic
+            step records each `agent:ready` issue's handoff
+            (`issue-pipeline-handoff/v1`), and tier 2 sends back to
+            `agent:blocked` any issue without a checkbox list under
+            `## Acceptance criteria` or without a size label. Do not post
+            the handoff yourself.
+
             ## Rules
             - Never close an issue. Never open a PR. Never push a commit.
             - Never edit files under `projects/` — those are submodule working
@@ -527,6 +576,38 @@ jobs:
           budget-usd: "40"
           outcome: ${{ steps.enrich.outcome }}
           usage-limit: skip
+
+      # --- the tier-1 → tier-2 HANDOFF (header: CONTRACTS BETWEEN TIERS) ----
+      # Deterministic, after the agent, and never by it: for every issue on this
+      # tier's queue that the agent left at `agent:ready`, build the handoff
+      # from the issue as it now stands and record it on the issue (appended to
+      # the agent's marker comment), so tier 2 of this run or a later one can
+      # check it. Recording is not the gate (tier 2's queue builder is), so a
+      # failed write is a warning here, not a red intake.
+      - name: Set up dash-gen
+        if: ${{ !cancelled() && env.HAS_CLAUDE_AUTH == 'true' }}
+        uses: ./.github/actions/setup/dash-gen
+
+      - name: Record tier-1 handoffs
+        id: handoff
+        if: ${{ !cancelled() && env.HAS_CLAUDE_AUTH == 'true' }}
+        continue-on-error: true
+        env:
+          TARGETS: ${{ needs.scan.outputs.intake_targets }}
+        run: tools/dash-gen issues handoff record --targets "${TARGETS:-[]}" --apply
+
+      # A hidden directory needs include-hidden-files: upload-artifact skips
+      # dot-directories by default and reports "No files were found".
+      - name: Upload handoffs
+        if: ${{ !cancelled() && env.HAS_CLAUDE_AUTH == 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: issue-handoffs
+          path: .issue-handoffs/*.json
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: ignore
+
       - name: Summary
         if: always()
         run: |
@@ -535,6 +616,7 @@ jobs:
             echo ""
             echo "- Queue: \`${{ needs.scan.outputs.intake_count }}\` issue(s)"
             echo "- Evidence bundles built: \`${{ steps.evidence.outputs.built || 0 }}\`"
+            echo "- Handoffs recorded: \`${{ steps.handoff.outputs.handoffs_recorded || 0 }}\` (\`${{ steps.handoff.outputs.handoffs_invalid || 0 }}\` fail the contract and will be blocked by tier 2)"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ========================================================================= #
@@ -596,6 +678,21 @@ jobs:
           [ -n "${{ inputs.repos }}" ] && args+=(--repos "${{ inputs.repos }}")
           [ -n "${{ inputs.max_implement }}" ] && args+=(--max-implement "${{ inputs.max_implement }}")
           tools/dash-gen "${args[@]}"
+
+      # The HANDOFF contract, enforced (header: CONTRACTS BETWEEN TIERS). The
+      # refresh above validated each shortlisted issue's handoff and left the
+      # failures out of the work order; this moves them to `agent:blocked` with
+      # the reasons, so they leave the queue instead of being re-checked every
+      # run. Deterministic, with the pipeline's own label-write token. A failed
+      # write is a warning: the issue is already out of this run's work order
+      # and is checked again on the next one.
+      - name: Block issues whose handoff failed
+        id: handoff
+        if: ${{ steps.queue.outputs.handoff_rejected != '' && steps.queue.outputs.handoff_rejected != '0' }}
+        continue-on-error: true
+        env:
+          REJECTS: ${{ steps.queue.outputs.handoff_rejects }}
+        run: tools/dash-gen issues handoff block --rejects "${REJECTS:-[]}" --apply
 
       # The credential comes from this repo's CLAUDE_AUTH_ORDER (ai_auth: in
       # bamr87/bamr87 _data/fleet.yml) — a method NAME, never a secret, in the output.
@@ -773,6 +870,7 @@ jobs:
             echo "### 🧭 Tier 2 — implement"
             echo ""
             echo "- Queue after refresh: \`${{ steps.queue.outputs.implement_count || 0 }}\` issue(s)"
+            echo "- Handoff contract: \`${{ steps.queue.outputs.handoff_checked || 0 }}\` checked, \`${{ steps.queue.outputs.handoff_rejected || 0 }}\` left out, \`${{ steps.handoff.outputs.handoffs_blocked || 0 }}\` moved to agent:blocked"
             echo "- Fleet write token usable: \`${{ steps.token.outputs.pat }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -801,6 +899,11 @@ jobs:
       FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN }}
     steps:
       - uses: actions/checkout@v7
+
+      # The agent runs `tools/dash-gen issues verdict template|check`, and the
+      # backstop after it runs `issues verdict backstop`.
+      - uses: ./.github/actions/setup/dash-gen
+        if: ${{ env.HAS_CLAUDE_AUTH == 'true' }}
 
       # Probe, never presence-check: FLEET_TOKEN against `GET /user`, exported
       # as GH_TOKEN; GITHUB_TOKEN is the unprobed last resort (hub + public).
@@ -923,23 +1026,62 @@ jobs:
             - tests cover the change and fail without it;
             - docs, README, and SCHEMA rows are current;
             - the diff contains nothing unrelated to the issue;
-            - the PR body is accurate and still carries its marker.
+            - the PR body is accurate and still carries its marker;
+            - the verdict check in Step 5 passes.
 
-            ## Step 5 — hand off
-            - **`human-review` is NOT set and everything above holds:**
+            ## Step 5 — the verdict, machine-checked
+            Whether the criteria are met is decided by a script, not taken on
+            your word (`issue-pipeline-verdict/v1`). For each PR you consider
+            done, `human-review` ones included:
+
+            1. `tools/dash-gen issues verdict template --repo <owner/repo> --pr <n>`
+               prints the verdict comment: a marker line and a
+               `pipeline-verdict` JSON block with one entry per checkbox
+               criterion of every issue the PR closes, each text verbatim.
+            2. Write it to `verdict.md` with every entry filled in. `status`
+               is `met`, `unmet` or `unverifiable`. For `met`, `evidence` is
+               required and is one of: a test id
+               (`path/test_x.py::test_name`), a run URL
+               (`https://github.com/…/actions/runs/…`) or a line anchor
+               (`path/to/file#L10-L20`). Prose is not evidence. A `note`
+               may say why an entry is not `met`. Never reword a criterion,
+               and never mark `met` what you did not verify.
+            3. Post it: `gh pr comment <n> -R <owner/repo> --body-file verdict.md`.
+               The last block counts; to correct it, post a new one. If your
+               verdict from an earlier run still stands (no new commits since),
+               do not post it again.
+            4. `tools/dash-gen issues verdict check --repo <owner/repo> --pr <n>`
+               exits 0 only when every criterion is `met` with evidence. Any
+               other exit prints what is not: fix it and repeat. An issue with
+               no checkbox criteria never passes.
+
+            ## Step 6 — hand off
+            - **`human-review` is NOT set, everything above holds and the
+              verdict check exited 0:**
               `gh pr ready <n> -R <owner/repo>`, then label each linked issue
               `agent:done`, and comment with a one-paragraph summary of what a
               reviewer should look at first.
             - **`human-review` IS set:** finish all the work, LEAVE THE PR AS A
               DRAFT, and comment that it is complete and awaiting human review,
-              listing what you verified. Do not mark it ready.
+              listing what you verified and the verdict check's result. Do not
+              mark it ready.
+            - **The verdict check fails:** leave the PR a draft and comment
+              the check's unmet list, with what would make each item pass. Say
+              plainly when only a person can meet one (a step after merge, a
+              setting, a decision).
             - **Blocked:** comment with the specific blocker and what you tried,
               leave it draft, and label the linked issue `agent:blocked`.
+
+            A deterministic step after you re-runs the verdict check on every
+            PR you marked ready or whose issue you labelled `agent:done`, and
+            reverts both where the check fails.
 
             ## Rules
             - **Never merge a pull request.** Not with `gh pr merge`, not with
               auto-merge, not ever. Handing over a green PR is the end of this
               pipeline.
+            - Never run `gh pr ready` or apply `agent:done` before
+              `tools/dash-gen issues verdict check` exits 0 for that PR.
             - Never force-push. Never push to a default branch.
             - Never modify anything under `projects/` in this checkout.
             - Do not open new PRs — you finish existing ones.
@@ -948,6 +1090,22 @@ jobs:
       # Spend on EVERY run, a budget abort FAILS the step (and publishes
       # `budget_hit`), a refused credential and a 429 are each classified —
       # one script, .github/actions/claude-cost, asserted by test_ai_budget.py.
+      # The VERDICT contract's backstop (header: CONTRACTS BETWEEN TIERS):
+      # the agent is told to mark a PR ready, and its issue agent:done, only
+      # after `issues verdict check` passes. This holds it to that. Every PR on
+      # this run's queue that was a draft at the scan and is ready now, or
+      # whose issue gained agent:done since the scan, is re-checked; where the
+      # check fails, the PR goes back to draft, that agent:done comes off, and
+      # the PR gets the unmet list. A PR already ready before the run, or an
+      # earlier run's agent:done, is left alone. Runs after a failed or capped
+      # agent too, which is when a half-finished hand-off is likeliest.
+      - name: Verdict backstop
+        id: backstop
+        if: ${{ !cancelled() && env.HAS_CLAUDE_AUTH == 'true' }}
+        env:
+          TARGETS: ${{ needs.scan.outputs.complete_targets }}
+        run: tools/dash-gen issues verdict backstop --targets "${TARGETS:-[]}" --apply
+
       - name: Report Claude run cost
         id: cost
         if: ${{ !cancelled() && env.HAS_CLAUDE_AUTH == 'true' }}
@@ -965,5 +1123,6 @@ jobs:
             echo "### 🧭 Tier 3 — complete"
             echo ""
             echo "- Queue: \`${{ needs.scan.outputs.complete_count }}\` pull request(s)"
+            echo "- Verdict backstop: \`${{ steps.backstop.outputs.backstop_checked || 0 }}\` PR(s) re-checked, \`${{ steps.backstop.outputs.backstop_reverted || 0 }}\` reverted"
             echo "- Snapshot publish route: \`${{ needs.scan.outputs.publish_mode }}\`"
           } >> "$GITHUB_STEP_SUMMARY"

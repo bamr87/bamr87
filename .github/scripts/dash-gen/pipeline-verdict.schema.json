@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/pipeline-verdict.schema.json",
+  "title": "issue-pipeline-verdict/v1",
+  "description": "Tier 3's per-criterion verdict on one pull request of the issue pipeline (.github/workflows/issue-pipeline.yml), posted on the PR as a ```pipeline-verdict fenced block (the last such block from a trusted author counts). `tools/dash-gen issues verdict check` passes only when every checkbox criterion of every issue the PR closes has exactly one entry, every entry is met, and every met entry cites evidence; an issue with no checkbox criteria is unverifiable and never passes. Tier 3 may mark the PR ready and apply agent:done only after the check passes, and the verdict backstop reverts both when it fails. Matching an entry to a criterion ignores case, code and emphasis marks, whitespace runs and trailing punctuation (pipeline_contracts.criterion_key).",
+  "type": "array",
+  "minItems": 1,
+  "items": {
+    "type": "object",
+    "required": ["issue", "criterion_text", "status", "evidence"],
+    "additionalProperties": false,
+    "properties": {
+      "issue": {
+        "description": "The issue the criterion belongs to: owner/repo#N, or #N for the PR's own repo.",
+        "type": "string",
+        "pattern": "^([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)?#[1-9][0-9]*$"
+      },
+      "criterion_text": {
+        "description": "The criterion, copied verbatim from the issue (`tools/dash-gen issues verdict template` prints them).",
+        "type": "string",
+        "minLength": 1
+      },
+      "status": {
+        "enum": ["met", "unmet", "unverifiable"]
+      },
+      "evidence": {
+        "description": "For met, required: a test id (path/test_x.py::test_y), a run URL, or a line anchor (path#Lx-Ly). Prose is not evidence. May be empty otherwise.",
+        "type": "string"
+      },
+      "note": {
+        "description": "Optional free text, for example why a criterion is unmet. Not checked.",
+        "type": "string"
+      }
+    },
+    "if": {
+      "properties": {
+        "status": {
+          "const": "met"
+        }
+      }
+    },
+    "then": {
+      "properties": {
+        "evidence": {
+          "minLength": 1
+        }
+      }
+    }
+  }
+}
