@@ -270,6 +270,56 @@ def test_decisions_route_serves_the_queue_and_never_the_token():
     assert argv == [core.DASH, "decisions", "refresh"] and remote is False
 
 
+def test_nodes_route_is_the_shared_status_document_and_never_probes_an_off_node():
+    """Over HTTP: /api/nodes is fleetcore.nodes.status_doc — the same keys
+    `tools/dash node status --json` prints and the MCP's fleet_nodes returns.
+    The committed model ships forge disabled, so no argv may name it (no ssh,
+    no docker -H); a node that does not answer is `unknown` with a 200, never a
+    5xx; polls inside the TTL share one answer; the snapshot probes nothing."""
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    import subprocess as sp
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+    nodes = core._fleet_nodes()
+
+    calls: list[list[str]] = []
+
+    def run(argv, **kw):  # every probe nodes.py and fleetcore.host make goes through here
+        calls.append(list(argv))
+        if argv[:2] == ["docker", "info"]:
+            return sp.CompletedProcess(argv, 0, json.dumps({"NCPU": 4, "MemTotal": 2**33}), "")
+        raise sp.TimeoutExpired(argv, kw.get("timeout") or 0)  # nothing else answers in time
+
+    model = nodes.load_model()
+    off = [h for h in model.workload() if not h.enabled]
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    core._NODES.clear()
+    with mock.patch.object(sp, "run", run):
+        r = client.get("/api/nodes")
+        again = client.get("/api/nodes")
+        direct = nodes.status_doc(timeout=1)
+    core._NODES.clear()
+    assert r.status_code == 200, r.text
+    doc = r.json()
+    assert set(doc) == set(direct) and doc["schema"] == "fleet-nodes/v1", set(doc) ^ set(direct)
+    assert [set(n) for n in doc["nodes"]] == [set(n) for n in direct["nodes"]]
+    assert again.json()["generated_at"] == doc["generated_at"], "inside the TTL the page's polls share one answer"
+    by = {n["name"]: n for n in doc["nodes"]}
+    edge = by[doc["edge"]]
+    assert edge["status"] == "up" and edge["docker_error"] and edge["capacity"]["cpus"] == 4, edge
+    for h in off:
+        assert by[h.name]["status"] == "off" and by[h.name]["probed"] is False
+        named = [a for a in calls if h.name in " ".join(a) or (h.ssh and h.ssh in a) or "-H" in a]
+        assert not named, f"{h.name} is not enabled and was probed: {named}"
+    with mock.patch.object(sp, "run", side_effect=AssertionError("the snapshot probed something")):
+        snap = core.nodes_doc(probe=False)
+    assert snap["probed"] is False and {n["status"] for n in snap["nodes"]} <= {"off", "unprobed"}
+
+
 def test_a_dev_stack_op_names_one_project_from_the_port_registry():
     """The Apps page starts a project's stack. Only a compose-hosted project in
     _data/ports.yml: never the hub (`dash dev up hub` starts a second core that
@@ -1046,6 +1096,7 @@ def test_api_documents_are_json_serializable():
     json.dumps(core.read_config())
     json.dumps(core.auth_status())
     json.dumps(core.workflow_atlas())
+    json.dumps(core.nodes_doc(probe=False))
 
 
 def test_a_number_field_refuses_a_figure_that_is_not_finite():

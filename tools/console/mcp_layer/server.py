@@ -692,6 +692,22 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
         return call(run)
 
     @mcp.tool(annotations=READ)
+    def fleet_nodes() -> Any:
+        """Where hub workloads run (_data/fleet.yml `nodes:`, docs/PLATFORM.md): each node's role, on/off state,
+        reachability (up · unknown · off), capacity (the Docker engine on the edge, an SSH probe on a workload node,
+        and what fleet.yml declares), the hub services placed on and running on it, the placement rows and the
+        drift between placement and what runs. A node that is not enabled is never probed. The console's /api/nodes
+        document; with no console (or one without the route) the same fleetcore function answers in this process."""
+        def run():
+            try:
+                return c.get("/api/nodes")
+            except ConsoleError as e:
+                if e.status not in (None, 404):
+                    raise
+                return fleet_fn("t_nodes")({})
+        return call(run)
+
+    @mcp.tool(annotations=READ)
     def project_detail(name: str) -> Any:
         """One registry project: its row, harness, health and links."""
         return call(c.get, f"/api/project/{name}")

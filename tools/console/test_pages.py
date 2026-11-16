@@ -72,6 +72,14 @@ def test_the_lake_and_local_planes_are_absent_whatever_this_machine_holds():
     assert d["observability"]["present"] is False and d["observability"]["planes"] == {}
     assert d["fleet/docker"]["containers"] == [] and d["index/coverage"]["projects"] == []
     assert d["tui/status"]["available"] is False
+    # The Nodes page gets the committed placement model and nothing this machine
+    # measured: no reachability, capacity, containers or drift, and it says so.
+    nodes = d["nodes"]
+    assert nodes["schema"] == "fleet-nodes/v1" and nodes["probed"] is False and nodes["drift"] == []
+    assert nodes["nodes"] and {n["status"] for n in nodes["nodes"]} <= {"off", "unprobed"}, nodes["nodes"]
+    assert all(n["reachable"] is None and n["capacity"] is None and n["containers"] is None and n["docker_error"] is None
+               for n in nodes["nodes"])
+    assert all(r["now"] == [] for r in nodes["services"]), "a running container leaked into the published plan"
     for key, doc in d.items():
         if key.startswith("project/"):
             assert doc["lake_runs"] == [] and doc["lake_lines"] == [], f"{key} carries lake rows"

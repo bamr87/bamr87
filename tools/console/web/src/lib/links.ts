@@ -40,6 +40,7 @@ export const to = {
   },
   inbox: (kind?: string) => `/inbox${kind ? `?kind=${enc(kind)}` : ''}`,
   containers: () => '/containers',
+  nodes: () => '/nodes',
   harnesses: (filter?: 'gaps') => `/harnesses${filter ? `?view=${filter}` : ''}`,
   health: () => '/harnesses/health',
   schedules: (repo?: string) => `/schedules${repo ? `?q=${enc(repo)}` : ''}`,

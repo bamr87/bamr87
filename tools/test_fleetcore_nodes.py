@@ -18,9 +18,17 @@ Fixture tests for tools/fleetcore/nodes.py — where each hub workload runs
     CLI is present;
   * the link key may open exactly the forwarded ports and is refused when
     there are none; `infra apply` refuses without --yes and a current plan;
+  * the status document (status_doc — what `dash node status --json`, GET
+    /api/nodes and the MCP's fleet_nodes return) has one shape; a node that is
+    not enabled is never probed (no `ssh`, no `docker -H` in any argv) unless
+    --assume-enabled asks; an unreachable node is `unknown` within the probe's
+    time limit and nothing is probed after it; `probe=False` runs nothing; an
+    unreadable model is a problem in the document, not an exception; drift is
+    what runs where it is not placed; the TUI's host → node map probes nothing;
   * the COMMITTED fleet.yml + docker-compose.yml resolve cleanly, enabled or not.
 
-No Docker daemon, no network, no OpenTofu (a stub `tofu` records its argv):
+No Docker daemon, no network, no OpenTofu (a stub `tofu` records its argv, a
+stub subprocess.run answers the probes and records theirs):
 
     python3 tools/test_fleetcore_nodes.py
 """
@@ -313,6 +321,161 @@ def test_infra_plan_and_the_apply_gate():
             assert n.cmd_infra(SimpleNamespace(action="plan", node="mac", yes=False)) == 2, "the edge has no infra"
         finally:
             os.environ["PATH"] = saved_path
+
+
+# --------------------------------------------------------------------------- #
+# The status document
+# --------------------------------------------------------------------------- #
+DOC_KEYS = {"schema", "generated_at", "edge", "probed", "nodes", "services", "drift", "problems"}
+NODE_KEYS = {"name", "role", "runtime", "docker", "enabled", "probed", "status", "reachable", "detail",
+             "docker_error", "capacity", "declared", "containers", "placed", "deferred"}
+
+
+def _box(service: str, project: str = "fleet", state: str = "running") -> str:
+    return json.dumps({"Names": f"{project}-{service}-1", "State": state, "Status": "Up 1h", "Ports": "",
+                       "Labels": f"com.docker.compose.project={project},com.docker.compose.service={service}"})
+
+
+class Probes:
+    """subprocess.run, stubbed for every probe nodes.py and fleetcore.host make:
+    records each argv and its time limit, answers from `answers` (first word of
+    the matching argv prefix), and fails anything it does not know."""
+
+    def __init__(self, answers: dict | None = None):
+        self.calls: list[tuple[list[str], float]] = []
+        self.answers = answers or {}
+
+    def __call__(self, argv, **kw):
+        self.calls.append((list(argv), kw.get("timeout")))
+        for prefix, answer in self.answers.items():
+            if " ".join(argv).startswith(prefix):
+                if isinstance(answer, BaseException):
+                    raise answer
+                rc, out = answer
+                return subprocess.CompletedProcess(argv, rc, out, "" if rc == 0 else out)
+        return subprocess.CompletedProcess(argv, 255, "", f"unexpected probe: {argv[0]}")
+
+    def __enter__(self):
+        self.real = subprocess.run
+        subprocess.run = self
+        return self
+
+    def __exit__(self, *exc):
+        subprocess.run = self.real
+
+    def argvs(self) -> list[str]:
+        return [" ".join(a) for a, _ in self.calls]
+
+
+EDGE_OK = {"docker ps": (0, "\n".join([_box("console"), _box("db"), _box("other", project="zer0")])),
+           "docker info": (0, json.dumps({"NCPU": 8, "MemTotal": 8 * 2**30, "ContainersRunning": 3,
+                                          "ServerVersion": "29.0"}))}
+
+
+def _status(doc=None, **kw):
+    return n.status_doc(fleet=doc or fleet(), compose=COMPOSE, root=fixture_root(), **kw)
+
+
+def test_status_doc_has_one_shape_and_never_probes_a_disabled_node():
+    with Probes(EDGE_OK) as p:
+        doc = _status(timeout=3)
+    assert set(doc) == DOC_KEYS and doc["schema"] == n.SCHEMA and doc["edge"] == "mac" and doc["probed"] is True
+    nodes = {x["name"]: x for x in doc["nodes"]}
+    assert all(set(x) == NODE_KEYS for x in doc["nodes"]), [set(x) ^ NODE_KEYS for x in doc["nodes"]]
+    assert all(x["status"] in n.STATES for x in doc["nodes"])
+    assert not [a for a in p.argvs() if a.startswith("ssh") or " -H " in a], p.argvs()
+    assert p.argvs() == ["docker ps -a --format {{json .}}", "docker info --format {{json .}}"], p.argvs()
+    assert all(t == 3 for _, t in p.calls), "every probe carries the time limit it was given"
+    forge = nodes["forge"]
+    assert (forge["status"], forge["enabled"], forge["probed"], forge["reachable"]) == ("off", False, False, None)
+    assert forge["containers"] is None and forge["capacity"] is None and forge["detail"] == n.OFF_DETAIL
+    assert forge["deferred"] == ["es", "kibana"] and forge["placed"] == [], "placed there once it is enabled"
+    mac = nodes["mac"]
+    assert (mac["status"], mac["enabled"], mac["reachable"], mac["containers"]) == ("up", True, True, 2)
+    assert mac["capacity"] == {"via": "engine", "cpus": 8, "mem_total": 8 * 2**30, "containers_running": 3,
+                               "server_version": "29.0"}
+    assert "es" in mac["placed"] and doc["drift"] == [] and doc["problems"] == []
+    json.dumps(doc)  # the API hands it to a JSON encoder as it is
+
+
+def test_assume_enabled_probes_the_node_and_drift_is_what_runs_off_its_placement():
+    answers = {**EDGE_OK, "docker ps": (0, "\n".join([_box("es"), _box("console")])),
+               "ssh -o BatchMode=yes -o ConnectTimeout=3 forge true": (0, ""),
+               "ssh -o BatchMode=yes -o ConnectTimeout=3 forge nproc": (0, f"16\n{64 * 2**30} {40 * 2**30}\n"
+                                                                          f"{900 * 2**30} {500 * 2**30}\n"),
+               "docker -H ssh://forge ps": (0, _box("kibana"))}
+    with Probes(answers) as p:
+        doc = _status(assume_enabled=True, timeout=3)
+    forge = next(x for x in doc["nodes"] if x["name"] == "forge")
+    assert (forge["status"], forge["probed"], forge["containers"]) == ("up", True, 1), forge
+    assert forge["capacity"]["via"] == "ssh" and forge["capacity"]["cpus"] == 16
+    assert forge["enabled"] is False, "assume_enabled previews; it does not turn the node on"
+    assert any(a.startswith("docker -H ssh://forge ps") for a in p.argvs())
+    # es runs on the edge but is placed on forge; shipper is not running yet, which is a start, not drift
+    assert doc["drift"] == [{"service": "es", "now": ["mac"], "runs_on": ["forge"]}], doc["drift"]
+
+
+def test_an_unreachable_node_is_unknown_within_the_time_limit_and_nothing_follows():
+    doc = fleet()
+    doc["nodes"]["hosts"]["forge"]["enabled"] = True
+    answers = {**EDGE_OK, "ssh": subprocess.TimeoutExpired(["ssh"], 5)}
+    with Probes(answers) as p:
+        out = _status(doc, timeout=3)
+    forge = next(x for x in out["nodes"] if x["name"] == "forge")
+    assert (forge["status"], forge["reachable"], forge["containers"], forge["capacity"]) == ("unknown", False, None, None)
+    assert forge["enabled"] is True and forge["probed"] is True and forge["detail"]
+    ssh = [(a, t) for a, t in p.calls if a[0] == "ssh"]
+    assert len(ssh) == 1 and ssh[0][1] <= 3 + 2, "one SSH attempt, inside the limit"
+    assert not [a for a in p.argvs() if " -H " in a], "no docker -H after the SSH probe failed"
+    assert out["problems"] == [], out["problems"]
+    assert out["drift"] == [], "an unread node's containers are unknown, not drift"
+
+
+def test_probe_false_runs_nothing_and_says_so():
+    with Probes() as p:
+        doc = _status(probe=False)
+    assert p.calls == [] and doc["probed"] is False
+    nodes = {x["name"]: x for x in doc["nodes"]}
+    assert nodes["mac"]["status"] == "unprobed" and nodes["mac"]["detail"] == n.UNPROBED_DETAIL
+    assert nodes["forge"]["status"] == "off" and all(x["containers"] is None for x in doc["nodes"])
+
+
+def test_an_unreadable_model_is_a_problem_not_an_exception():
+    with Sandbox(fleet()) as sb, Probes() as p:
+        (sb.root / "_data" / "fleet.yml").write_text("nodes: [unclosed\n")
+        doc = n.status_doc()
+    assert set(doc) == DOC_KEYS and doc["nodes"] == [] and p.calls == []
+    assert len(doc["problems"]) == 1 and "cannot be read" in doc["problems"][0], doc["problems"]
+
+
+def test_cli_json_is_the_status_doc():
+    import contextlib
+    import io
+    with Sandbox(fleet()), Probes(EDGE_OK):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = n.cmd_status(SimpleNamespace(assume_enabled=False, json=True))
+        printed = json.loads(buf.getvalue())
+        direct = n.status_doc()
+        text = io.StringIO()
+        with contextlib.redirect_stdout(text):
+            n.cmd_status(SimpleNamespace(assume_enabled=False, json=False))
+    assert rc == 0 and set(printed) == set(direct) == DOC_KEYS
+    assert [set(x) for x in printed["nodes"]] == [set(x) for x in direct["nodes"]] == [NODE_KEYS, NODE_KEYS]
+    assert printed["nodes"] == direct["nodes"] and printed["services"] == direct["services"]
+    lines = text.getvalue()
+    assert "forge" in lines and "never probed" in lines and "placement drift: 0" in lines, lines
+
+
+def test_host_nodes_maps_docker_hosts_without_probing():
+    with Probes() as p:
+        root = fixture_root()
+        assert n.host_nodes(root) == {}, "no fleet.yml: no map, no error"
+        (root / "_data").mkdir()
+        (root / "_data" / "fleet.yml").write_text(yaml.safe_dump(fleet()))
+        assert n.host_nodes(root) == {"local": {"node": "mac", "role": "edge", "enabled": True},
+                                      "forge": {"node": "forge", "role": "workload", "enabled": False}}
+    assert p.calls == []
 
 
 def test_committed_model_resolves_cleanly():

@@ -16,10 +16,11 @@ other MCP host gets the views a person sees and can run what a person can run �
 no more.
 
   read     fleet_overview · fleet_apps · fleet_inbox · fleet_docker ·
-           fleet_work · fleet_workflows · workflow_lint · fleet_graph ·
-           fleet_learning — straight from fleetcore (and dash-gen's work_board
-           and workflow_atlas) over the committed signals, the checkout and the
-           local lake; work with no console running
+           fleet_nodes · fleet_work · fleet_workflows · workflow_lint ·
+           fleet_graph · fleet_learning — straight from fleetcore (and
+           dash-gen's work_board and workflow_atlas) over the committed
+           signals, the checkout and the local lake; work with no console
+           running
   act      console_ops · console_run · console_jobs · console_job_log ·
            console_cancel — through fleetcore.client to the console, so the
            allowlist, parameter validation and the confirm-before-GitHub-write
@@ -103,6 +104,14 @@ def t_inbox(a: dict) -> dict:
 
 def t_docker(_: dict) -> dict:
     return views.docker_view(fl.load_snapshot(ROOT).rows)
+
+
+def t_nodes(_: dict) -> dict:
+    """Where hub workloads run (tools/fleetcore/nodes.py): the document `tools/dash
+    node status --json` prints and the console's /api/nodes serves. A node that
+    is not enabled is never probed; one that does not answer is `unknown`."""
+    from fleetcore import nodes  # PyYAML: only when asked
+    return nodes.status_doc()
 
 
 WORK_FIELDS = ("key", "kind", "repo", "ref", "title", "lane", "priority", "priority_source", "rank", "loop",
@@ -248,6 +257,12 @@ TOOLS: dict[str, dict] = {
             "limit": {"type": "integer", "minimum": 1, "maximum": 150}})),
     "fleet_docker": dict(fn=t_docker, annotations={"readOnlyHint": True, "openWorldHint": True},
                          schema=_schema(), description="Containers on every DASH_DOCKER_HOST, attributed to projects."),
+    "fleet_nodes": dict(fn=t_nodes, annotations={"readOnlyHint": True, "openWorldHint": True}, schema=_schema(),
+                        description=(
+        "Where hub workloads run (_data/fleet.yml `nodes:`, docs/PLATFORM.md): each node's role, on/off state, "
+        "reachability (up · unknown · off), capacity (the Docker engine on the edge, an SSH probe on a workload "
+        "node, and what fleet.yml declares), the hub services placed on and running on it, the placement rows and "
+        "the drift between placement and what runs. A node that is not enabled is never probed. Read-only.")),
     "fleet_work": dict(fn=t_work, annotations=READ, description=(
         "Every open issue, PR, roadmap spec, spec package and BACKLOG.md item, in the order the loops take "
         "it (the Work board): the human's pins and priority overrides first, the next run's picks marked, "

@@ -183,6 +183,31 @@ def test_read_tools_over_the_committed_signals():
         assert all(len(lp["arms"]) <= 3 for lp in learning["loops"])
 
 
+def test_fleet_nodes_is_the_status_document_and_never_probes_an_off_node():
+    """fleet_nodes returns fleetcore.nodes.status_doc as it is — the keys `tools/dash node
+    status --json` prints and /api/nodes serves — and the committed model's disabled
+    node is never in an argv (no ssh, no docker -H). Every probe is stubbed to time out."""
+    import subprocess
+    from fleetcore import nodes
+    seen: list[list[str]] = []
+
+    def run(argv, **kw):
+        seen.append(list(argv))
+        raise subprocess.TimeoutExpired(argv, kw.get("timeout") or 0)
+
+    real, subprocess.run = subprocess.run, run
+    try:
+        doc, err = call("fleet_nodes")
+        direct = nodes.status_doc()
+    finally:
+        subprocess.run = real
+    assert not err and doc["schema"] == "fleet-nodes/v1" and set(doc) == set(direct), doc
+    assert [set(x) for x in doc["nodes"]] == [set(x) for x in direct["nodes"]]
+    off = {h.name for h in nodes.load_model().workload() if not h.enabled}
+    assert {x["name"] for x in doc["nodes"] if x["status"] == "off"} == off
+    assert not [a for a in seen if a[0] == "ssh" or "-H" in a], seen
+
+
 class Env:
     def __init__(self, **kw):
         self.kw, self.saved = kw, {}

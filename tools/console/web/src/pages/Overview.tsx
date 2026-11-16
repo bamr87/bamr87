@@ -3,7 +3,7 @@
 // signal is. Every tile, row and source is a link to the page that explains it.
 import { Link, useNavigate } from 'react-router';
 import { Anchor, Button, Group, Paper, SimpleGrid, Stack, Text } from '@mantine/core';
-import { useStateDoc } from '../api/hooks';
+import { useNodes, useStateDoc } from '../api/hooks';
 import type { Attention, StateDoc } from '../api/types';
 import { DataTable } from '../components/DataTable';
 import { Load, Meter, PageHeader, RepoLink, Section, StatTile, Status } from '../components/ui';
@@ -107,6 +107,32 @@ function Tiles({ s }: { s: StateDoc }) {
   );
 }
 
+/** Where hub workloads run, in one line (the Nodes page in full): each node's
+ * state and the placement-drift count. The published page probes nothing, so
+ * it says drift is read on a console rather than showing a zero it never measured. */
+function NodesLine() {
+  const q = useNodes();
+  const d = q.data;
+  if (!d) return null;
+  const tone = d.problems.length ? 'crit' : !d.probed ? 'info' : d.drift.length ? 'warn' : 'good';
+  const drift = d.probed ? `${d.drift.length} service(s)` : 'read on a console';
+  return (
+    <Paper p="sm" mt="md">
+      <Group justify="space-between" wrap="wrap" gap="xs">
+        <Group gap="xs" wrap="wrap">
+          <Anchor component={Link} to={to.nodes()} fw={600} size="sm">Nodes</Anchor>
+          {d.nodes.map((n) => (
+            <Text key={n.name} size="sm" c={n.status === 'unknown' ? 'var(--warning)' : n.status === 'up' ? undefined : 'dimmed'}>
+              {n.name} <Text span size="xs" c="dimmed">{n.role} · {n.status === 'unprobed' ? 'not probed' : n.status}</Text>
+            </Text>
+          ))}
+        </Group>
+        <Status tone={tone}>placement drift: {drift}{d.problems.length ? ` · ${d.problems.length} problem(s)` : ''}</Status>
+      </Group>
+    </Paper>
+  );
+}
+
 function Freshness({ s }: { s: StateDoc }) {
   return (
     <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }} spacing="sm">
@@ -158,6 +184,7 @@ export function Overview() {
               </Group>
             </Paper>
             <Tiles s={s} />
+            <NodesLine />
             <Section title="Attention queue">
               <AttentionTable rows={attention} />
             </Section>

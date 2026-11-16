@@ -10,7 +10,7 @@ The Harness Console (browser, `tools/console/`) and the terminal dash (TTY, `too
 | `theme.py` (bashOS palette) | `/theme.css` (Mantine's variables point at it) and `/api/theme` (the Terminal page's xterm colours) | the `bashos-dark` Textual theme |
 | `client.py` | — (the console *is* the runtime) | the **Jobs** tab and the `:` palette submit jobs to the console |
 | `loopjob.py` | `/api/jobs/:id` → `loop` on a `loop-run` job (the Job page's run summary) | the Jobs tab's summary under a finished loop-run |
-| `nodes.py` | — (planned: a Nodes page, `/api/nodes`, MCP `fleet_nodes`; ADR 0003 phase 11) | — (planned: a node column on the Docker tab); today `tools/dash node` and `tools/dash infra` |
+| `nodes.py` | `/api/nodes` → **Nodes** (a card per node, the drift and the placement table) and the **Overview**'s placement-drift line; MCP `fleet_nodes`; all from `status_doc()`, which `tools/dash node status --json` prints ([docs/PLATFORM.md](../../docs/PLATFORM.md#surfaces)) | the Docker tab's Node column (`host_nodes()`: a Docker host → its node, read from the model, never probed); `tools/dash node` and `tools/dash infra` |
 | `graph.py` | `/api/graph` (one question per request: summary, find, show, impact, lineage, path, check) and the `graph-check` operation; a Graph page is planned | — (planned); today `tools/dash graph` |
 | `learn.py` | `/api/learn` (each loop's outcomes, estimate, plan and replay, shadow only) and the `learn-status` / `learn-plan` operations; a Learning page is planned | — (planned); today `tools/dash learn` |
 | `mcp_server.py` | — | — (the third surface: AI agents, below) |
@@ -37,6 +37,7 @@ The console process owns the operation allowlist and the job manager. The browse
 | `fleet_apps` | the Apps view: filter by text and level, sort like the dashboards | no |
 | `fleet_inbox` | the flagged inbox, or every open item of one repo | no |
 | `fleet_docker` | containers on every `DASH_DOCKER_HOST`, attributed to projects | no |
+| `fleet_nodes` | where hub workloads run: each node's role, on/off state, reachability (`up` · `unknown` · `off`), capacity and hub services, the placement rows and the drift; a node that is off is never probed ([docs/PLATFORM.md](../../docs/PLATFORM.md#surfaces)) | no |
 | `fleet_work` | the Work board in the loops' order: lanes, each loop's cap and next run, the human's pins and overrides first ([docs/WORK-BOARD.md](../../docs/WORK-BOARD.md)) | no |
 | `fleet_workflows` | the hub's workflows and composite actions as one model with every lint finding; one in full with `workflow`; run health and failure causes from the lake with `health` ([docs/WORKFLOW-ATLAS.md](../../docs/WORKFLOW-ATLAS.md)) | no |
 | `workflow_lint` | a draft workflow's findings against the hub's standards and `_data/fleet.yml` — nothing is written | no |

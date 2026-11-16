@@ -527,6 +527,62 @@ export interface DockerView {
   polled_at?: string;
 }
 
+/** fleetcore.nodes.status_doc (schema fleet-nodes/v1): GET /api/nodes, `tools/dash node status --json`, MCP fleet_nodes. */
+export type NodeState = 'up' | 'unknown' | 'off' | 'unprobed';
+
+export interface NodeCapacity {
+  /** engine: `docker info` on the edge (the Docker VM on a Mac); ssh: the probe of a workload node. */
+  via: 'engine' | 'ssh';
+  cpus: number;
+  mem_total?: number;
+  mem_available?: number;
+  disk_total?: number;
+  disk_free?: number;
+  containers_running?: number;
+  server_version?: string;
+}
+
+export interface FleetNode {
+  name: string;
+  role: string;
+  runtime: string;
+  docker: string;
+  enabled: boolean;
+  probed: boolean;
+  status: NodeState;
+  reachable: boolean | null;
+  detail: string;
+  docker_error: string | null;
+  capacity: NodeCapacity | null;
+  /** What _data/fleet.yml says the box has (cpus, mem_gb, disk_gb). */
+  declared: Dict<number> | null;
+  /** Hub services running there now; null when not read. */
+  containers: number | null;
+  placed: string[];
+  deferred: string[];
+}
+
+export interface NodePlanRow {
+  service: string;
+  wants: string;
+  runs_on: string[];
+  now: string[];
+  action: string;
+  reason: string;
+  deferred: boolean;
+}
+
+export interface NodesDoc {
+  schema: string;
+  generated_at: string;
+  edge: string;
+  probed: boolean;
+  nodes: FleetNode[];
+  services: NodePlanRow[];
+  drift: { service: string; now: string[]; runs_on: string[] }[];
+  problems: string[];
+}
+
 export interface LakeRun {
   id: number;
   nwo: string;

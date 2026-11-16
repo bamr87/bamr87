@@ -71,6 +71,25 @@ tools/dash infra apply forge --yes        # apply that plan (deploy step, § 10.
 
 `status`, `plan` and `key` only read. `gen` writes only `.fleet/nodes/`. Nothing in `dash node` starts, stops or deletes a container. Those verbs arrive with the phases that need them, each an approved deploy.
 
+## Surfaces
+
+Every surface reads one document, `status_doc()` in `tools/fleetcore/nodes.py` (schema `fleet-nodes/v1`). For each node it carries the role, the on/off state, the reachability, the capacity and the hub services placed on it and running on it. It also carries the placement rows, the drift between placement and what runs, and the model's problems. A test holds the surfaces' keys equal.
+
+| Surface | Where | What it shows |
+| --- | --- | --- |
+| CLI | `tools/dash node status [--json]` | the document, or one line per node and the drift |
+| Console | `GET /api/nodes`, the **Nodes** page (Fleet → Nodes) | a card per node, the drift and the placement table, plus a placement-drift line on the **Overview** |
+| MCP | `fleet_nodes` | the console's `/api/nodes`; with no console running, the same function in the MCP process |
+| TUI | the **Docker** tab's Node column | the node each Docker host is, from the model; it probes nothing |
+
+How the document is read:
+
+- **A node that is off is never probed.** A node with `enabled: false` shows as `off`: no `ssh`, no `docker -H`. Only `tools/dash node status --assume-enabled` asks for that probe.
+- **A node that does not answer is `unknown`.** It is `unknown` within the probe's time limit, never an error, and no probe follows the failed one. The console probes with a 5 s limit and shares one answer between polls for 15 s.
+- **Capacity is measured where it can be.** On a workload node it comes from the SSH probe: CPUs, free memory and free disk. On the edge it comes from `docker info`: the Docker engine's CPUs and memory, which on the Mac is the Docker VM's ceiling. What `fleet.yml` declares is shown beside it.
+- **Drift covers the nodes that were read.** A hub service counts as drift when it runs somewhere other than where it is placed.
+- **The published page probes nothing.** The Pages build shows the committed model: every node as `off` or `not probed`, the declared capacity and the placement. It says that a console reads the rest.
+
 ## The link
 
 The edge reaches every service placed elsewhere through **one SSH connection** that carries a local forward per published port. In phase 2 it becomes the `node-link` service on the `fleet` network, holding the moved services' names as network aliases and publishing their ports on the Mac's loopback. Consumers keep their addresses: the console's `ES_URL=http://elasticsearch:9200`, Claude Code's OTel export to `127.0.0.1:4318`, Kibana and Grafana in the browser. On forge the placed services bind **loopback only**, so the link is the only way in, and nothing new appears on the LAN. That is what keeps Elasticsearch's `xpack.security.enabled: false` defensible, exactly as on the Mac today.
@@ -164,6 +183,7 @@ Beacons watch disk use, services and OOM kills. The reactor answers them, and th
 | --- | --- |
 | `_data/fleet.yml` `nodes:` | The model: nodes, placement, durable volumes, the link and infrastructure settings |
 | `tools/fleetcore/nodes.py` | Resolve, validate, plan, generate; `dash node` and `dash infra` |
+| `tools/fleetcore/nodes.py` `status_doc()` | The one status document behind `dash node status --json`, `GET /api/nodes`, the Nodes page and MCP `fleet_nodes` |
 | `tools/test_fleetcore_nodes.py` | Fixture tests, the committed model included |
 | `infra/node/*.tf` | OpenTofu: a node's network and volumes |
 | `.github/workflows/infra.yml` | `fmt` and `validate` for every root module |

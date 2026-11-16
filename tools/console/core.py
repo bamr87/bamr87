@@ -878,6 +878,40 @@ def content_brief(site: str) -> dict:
 
 
 # --------------------------------------------------------------------------- #
+# NODES — where hub workloads run (tools/fleetcore/nodes.py, docs/PLATFORM.md):
+# the document `tools/dash node status --json` prints and the MCP's fleet_nodes
+# returns. A node that is not enabled is never probed; an enabled one is probed
+# with a short time limit, and the page's polls share one answer for a few
+# seconds, so an unreachable node costs one probe per window, never one per tab.
+# --------------------------------------------------------------------------- #
+NODES_TTL = 15.0
+NODES_PROBE_TIMEOUT = 5
+_NODES: dict = {}
+_NODES_LOCK = threading.Lock()
+
+
+def _fleet_nodes():
+    if str(TOOLS) not in sys.path:
+        sys.path.insert(0, str(TOOLS))
+    from fleetcore import nodes
+    return nodes
+
+
+def nodes_doc(*, probe: bool = True) -> dict:
+    """The Nodes page's document. `probe=False` is the public snapshot's: the
+    committed placement model, nothing read from any machine."""
+    nodes = _fleet_nodes()
+    if not probe:
+        return nodes.status_doc(probe=False)
+    with _NODES_LOCK:
+        if _NODES and time.monotonic() - _NODES["at"] < NODES_TTL:
+            return _NODES["doc"]
+        doc = nodes.status_doc(timeout=NODES_PROBE_TIMEOUT)
+        _NODES.update(at=time.monotonic(), doc=doc)
+        return doc
+
+
+# --------------------------------------------------------------------------- #
 # WORKFLOWS — the hub's own GitHub Actions as one model (dash-gen
 # workflow_atlas.py; docs/WORKFLOW-ATLAS.md): structure + lint from the
 # checkout (also in the public snapshot), run health from the lake (local).
