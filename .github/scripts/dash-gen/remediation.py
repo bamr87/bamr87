@@ -1054,11 +1054,14 @@ def run(args: argparse.Namespace) -> int:
     emit_output("cross_repo_count", cross)
     emit_output("billing_blocked_count", len(blocked))
 
+    # A plain issue number. CodeQL's sensitive-data heuristic reads "billing" in the key as
+    # private data (py/clear-text-logging-sensitive-data); int() ends that false trace.
+    rollup_issue = int(cfg["billing_block_issue"])
     sys.stderr.write(
         f"fleet-doctor: {total} problem workflow(s), {deduped} already tracked "
         f"({len(fixed)} by a verified fix PR), "
         f"{retired} retired, {len(blocked)} billing-blocked "
-        f"(→ {args.hub}#{cfg['billing_block_issue']}), {len(selected)} queued ({cross} cross-repo) → {args.out}\n")
+        f"(→ {args.hub}#{rollup_issue}), {len(selected)} queued ({cross} cross-repo) → {args.out}\n")
     for c in fixed:
         sys.stderr.write(f"  ✓ {c['nwo']}/{c['workflow']}: {fix_reason(verified_fix(c))}\n")
     for c in selected:
