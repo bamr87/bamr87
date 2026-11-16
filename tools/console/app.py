@@ -48,6 +48,7 @@ from pydantic import BaseModel, Field
 
 import core
 import decision_index
+import gh_projects as gp
 import github_link as ghl
 import site_docs
 import tui_bridge
@@ -986,6 +987,49 @@ def decisions(kind: str = Query(default="", pattern=r"^[a-z_]{0,20}$"),
                                     budget_s=budget or None, token=lambda: ghl.token_source()[1])
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+# GitHub Projects (v2), read-only (gh_projects.py; docs/PROJECTS-FRAMEWORK.md § 3a,
+# epic #468 P1). PROJECTS_TOKEN when it is set, else the console's own GitHub
+# identity; the token's NAME is in the answer, never its value. GET only: the
+# write half (gh_projects_write.py, constitution § 11) is not imported here.
+def _projects_token() -> tuple[str | None, str | None]:
+    return gp.resolve_token(ghl.token_source)
+
+
+@app.get("/api/gh-projects", dependencies=[Depends(require_token)])
+def gh_projects(owner: str = Query(default="", max_length=40), closed: bool = True, refresh: bool = False,
+                budget: float = Query(default=0, ge=0, le=gp.BUDGET_MAX_S)) -> dict:
+    """Every Projects (v2) board of every fleet owner (gp.OWNERS) in one document: each owner `ok` with
+    its projects, or `scope_missing` / `error` / `skipped` with the reason. `status` is fresh · partial ·
+    scope_missing · unavailable; `owner` narrows it, `closed=false` drops closed projects, `refresh`
+    skips the TTL cache, `budget` is the wall clock in seconds (0 = 15). Never part of the public
+    snapshot: a private project's title must not reach Pages. The MCP's gh_projects returns it."""
+    try:
+        return gp.projects_view(owner=owner, include_closed=closed, refresh=refresh, budget_s=budget or None,
+                                token=_projects_token)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/api/gh-projects/{project_id}/items", dependencies=[Depends(require_token)])
+def gh_project_items(project_id: str, limit: int = Query(default=gp.ITEMS_LIMIT, ge=0, le=gp.MAX_ITEMS),
+                     offset: int = Query(default=0, ge=0, le=gp.MAX_ITEMS),
+                     status: str = Query(default="", max_length=80),
+                     kind: str = Query(default="", pattern=r"^(issue|pr|draft)?$"),
+                     q: str = Query(default="", max_length=120), refresh: bool = False,
+                     budget: float = Query(default=0, ge=0, le=gp.BUDGET_MAX_S)) -> dict:
+    """One project's items, normalised (kind, repo#number, title, state, field values, FEAT/FR refs,
+    closing issues, commits) and paged: the read stops at MAX_ITEMS and says so (`capped`); `limit`
+    and `offset` page it, `status` / `kind` / `q` filter it, `counts` cover every item read. 404 when
+    no such project is readable with the console's token. The MCP's gh_project_items returns it."""
+    try:
+        return gp.items_view(project_id, limit=limit, offset=offset, status=status, kind=kind, q=q,
+                             refresh=refresh, budget_s=budget or None, token=_projects_token)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except gp.NotReadable as exc:
+        raise HTTPException(status_code=404, detail=gp.redact(str(exc)))
 
 
 @app.get("/api/keys")
