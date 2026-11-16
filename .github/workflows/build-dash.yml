@@ -16,6 +16,7 @@ on:
       - '_data/**'
       - 'tools/console/**'
       - 'tools/fleetcore/**'
+      - 'tools/sprint_record.py'     # the /sprints page's document (core.sprints_doc)
       - 'diagrams/**'
       - 'README.md'
       - '.github/scripts/dash-gen/**'
@@ -37,6 +38,7 @@ on:
       - '_data/**'
       - 'tools/console/**'
       - 'tools/fleetcore/**'
+      - 'tools/sprint_record.py'     # the /sprints page's document (core.sprints_doc)
       - 'diagrams/**'
       - 'README.md'
       - '.github/scripts/dash-gen/**'

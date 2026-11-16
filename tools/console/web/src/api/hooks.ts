@@ -10,7 +10,7 @@ import type {
   AppsDoc, AuthDoc, Capabilities, ProjectReadme, ConfigDoc, DockerView, FleetView, Job, LakeLine, LakeRun, Op,
   ProjectDetail, StateDoc, TuiStatus, Dict, GithubStatus, GhRepo, GhRepoDetail, GhAction, GhIssue,
   SiteIndex, SitePage, SitePost, GithubFleet, PullSpecs, WorkBoard, WorkItemDetail, WorkPlan,
-  WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint, RefineDoc, EvidenceDoc, TextFile, AssistDoc, JobTail,
+  WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint, RefineDoc, EvidenceDoc, TextFile, AssistDoc, JobTail, SprintsDoc,
 } from './types';
 
 const minute = 60_000;
@@ -149,6 +149,10 @@ export const usePullSpecs = (nwo: string | null, n: number | null) =>
     staleTime: 60_000,
     retry: false,
   });
+
+// --- The live expedite-sprint records (tools/sprint_record.py) ---------------
+/** Read-only: a record changes only by a pull request, so there is no mutation here. */
+export const useSprints = () => useQuery({ queryKey: ['sprints'], queryFn: () => api<SprintsDoc>('/api/sprints'), staleTime: minute });
 
 // --- The workflow atlas (dash-gen workflow_atlas.py) ------------------------
 export const useWorkflows = () => useQuery({ queryKey: ['workflows'], queryFn: () => api<WorkflowAtlas>('/api/workflows'), staleTime: minute });

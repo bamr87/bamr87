@@ -22,6 +22,7 @@ export const to = {
     const s = qs.toString();
     return `/work${s ? `?${s}` : ''}`;
   },
+  sprints: (slug?: string) => `/sprints${slug ? `?sprint=${enc(slug)}` : ''}`,
   features: () => '/features',
   engagements: () => '/engagements',
   toolbox: () => '/toolbox',

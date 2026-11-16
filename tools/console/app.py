@@ -535,6 +535,15 @@ def work_item(key: str = Query(..., max_length=200)) -> dict:
         raise HTTPException(status_code=404, detail=str(exc))
 
 
+@app.get("/api/sprints", dependencies=[Depends(require_token)])
+def sprints() -> dict:
+    """The live expedite-sprint records (_data/sprints/, `sprint/v1`, constitution § 27.7):
+    gates with who and when, phase, items, spend against the cap, trip wires, the DORA
+    placeholder and the retro, with the lint's findings. Read-only by design: a record
+    changes only by a pull request, so no route writes one."""
+    return core.sprints_doc()
+
+
 @app.get("/api/refine", dependencies=[Depends(require_token)])
 def refine() -> dict:
     """Harness refinement (JEV capability three, docs/HARNESS-REFINEMENT.md): the hub's surface
