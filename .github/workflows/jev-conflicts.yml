@@ -66,30 +66,14 @@ concurrency:
 
 jobs:
   # The kill switch. A NEW loop defaults OFF (like repo-scout.yml): this one
-  # pushes commits to other people's branches, so it stays off until a human
-  # sets vars.JEV_CONFLICTS_ENABLED to 'true'. A manual dispatch runs anyway,
-  # which is what keeps the loop testable while it is switched off.
-  gate:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      run: ${{ steps.decide.outputs.run }}
-    steps:
-      - id: decide
-        env:
-          ENABLED: ${{ vars.JEV_CONFLICTS_ENABLED }}
-          MANUAL: ${{ github.event_name != 'schedule' && github.event_name != 'push' }}
-        run: |
-          if [ "$MANUAL" = "true" ] || [ "$ENABLED" = "true" ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::JEV conflict triage is off (vars.JEV_CONFLICTS_ENABLED is not 'true'). A workflow_dispatch bypasses this."
-          fi
-
+  # pushes commits to other people's branches, so a schedule or push run needs
+  # vars.JEV_CONFLICTS_ENABLED set to 'true' by a human. A manual or
+  # repository_dispatch runs anyway, which is what keeps the loop testable
+  # while it is switched off. Switched off, the job shows as skipped and bills
+  # nothing: the switch is a job-level `if:`, not a gate job of its own, which
+  # was billed a whole minute on every push and every six hours (#838).
   triage:
-    needs: gate
-    if: ${{ needs.gate.outputs.run == 'true' }}
+    if: ${{ (github.event_name != 'schedule' && github.event_name != 'push') || vars.JEV_CONFLICTS_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
