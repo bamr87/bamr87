@@ -9,7 +9,8 @@ coverage: listed
 
 ## Conventions
 
-- Admin-edited by pull request; the console's Voices editor writes back here as a PR, never to a database copy (constitution § 23 rule 7).
+- Admin-edited by pull request, or in the console's Voices editor (`/voices`), which files the edit back here as a draft PR through `tools/voices.py pr` — never to a database copy (constitution § 23 rule 7, tools/console/README.md).
+- Keep the canonical layout (`python3 tools/voices.py render` reproduces the file byte for byte), so an editor's diff is only the edit.
 - `python3 tools/voices.py check` is the gate (schema, enums, references); `--against <file>` reports drift in a consumer's copy.
 
 ## Structure
