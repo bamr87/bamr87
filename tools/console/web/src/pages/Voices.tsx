@@ -193,7 +193,7 @@ function Rules({ site, enums, onChange, readOnly }: { site: VoiceSite; enums: En
       {readOnly || !keys.length ? null : (
         <Group>
           <Button size="xs" variant="default" leftSection={<IconPlus size={14} />}
-            onClick={() => put([...rules.slice(0, last), { activity: [], persona: keys[0] }, ...rules.slice(last)])}>Add a rule (before the default)</Button>
+            onClick={() => put([...rules.slice(0, last), { persona: keys[0] }, ...rules.slice(last)])}>Add a rule (before the default)</Button>
         </Group>
       )}
     </Stack>

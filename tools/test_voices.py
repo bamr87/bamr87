@@ -184,6 +184,26 @@ class RenderAndCheck(unittest.TestCase):
         d["sites"]["lifehacker.dev"]["assignment"].append({"activity": ["late"], "persona": "kit"})
         self.assertTrue(any("default rule must be the last" in e for e in voices.check(d)))
 
+    def test_check_reports_an_empty_activity_or_repos_list_as_never_matching(self):
+        # An empty list matches nothing in assign(), so a repos-only rule seeded with
+        # `activity: []` (what the editor's "Add a rule" once produced) silently fell
+        # through to the default while check() passed it.
+        d = data()
+        rules = d["sites"]["lifehacker.dev"]["assignment"]
+        rules.insert(0, {"activity": [], "repos": ["bamr87/x"], "persona": "margo"})
+        rules.insert(1, {"repos": [], "cadence": "daily", "persona": "tess"})
+        self.assertEqual(voices.assign(d, "lifehacker.dev", "post", repo="bamr87/x"), "kit")
+        errs = voices.check(d)
+        self.assertTrue(any("assignment[0]: activity is an empty list, so the rule never matches" in e
+                            for e in errs), errs)
+        self.assertTrue(any("assignment[1]: repos is an empty list, so the rule never matches" in e
+                            for e in errs), errs)
+        # Without the empty key the same rule is reached, and check() passes it.
+        d = data()
+        d["sites"]["lifehacker.dev"]["assignment"].insert(0, {"repos": ["bamr87/x"], "persona": "margo"})
+        self.assertEqual(voices.assign(d, "lifehacker.dev", "post", repo="bamr87/x"), "margo")
+        self.assertEqual(voices.check(d), [])
+
     def test_enums_come_from_the_schema(self):
         e = voices.enums()
         self.assertEqual(e["cadence"], ["daily", "weekly"])

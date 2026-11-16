@@ -117,8 +117,10 @@ def _validate(where: str, value, s: dict, defs: dict, errs: list[str]) -> None:
 
 def check(data) -> list[str]:
     """Every schema error, then the references the schema cannot express: an
-    assignment rule names one persona that exists, and nothing follows the
-    `default` rule (assign() stops there, so a later rule is never reached)."""
+    assignment rule names one persona that exists, and every rule can be
+    reached — nothing follows the `default` rule (assign() stops there), and no
+    rule's `activity` or `repos` is an empty list (nothing is in it, so assign()
+    always skips the rule; leaving the key out is what matches anything)."""
     schema = _schema()
     errs: list[str] = []
     _validate("", data, schema, schema.get("$defs") or {}, errs)
@@ -140,6 +142,10 @@ def check(data) -> list[str]:
                 errs.append(f"{where}: unknown persona {target!r}")
             if "default" in r and i != len(rules) - 1:
                 errs.append(f"{where}: the default rule must be the last — the rules after it are never reached")
+            for key, one in (("activity", "activity"), ("repos", "repo")):
+                if "default" not in r and r.get(key) == []:
+                    errs.append(f"{where}: {key} is an empty list, so the rule never matches — "
+                                f"leave {key} out to match any {one}")
     return errs
 
 
