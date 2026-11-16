@@ -1123,9 +1123,12 @@ def voices_stage(data, plan_id: str) -> dict:
     if p["plan_id"] != plan_id:
         raise PermissionError(f"the edit or main moved since plan {plan_id} was previewed (now {p['plan_id']}) "
                               "— preview again")
+    # Named from the server's own sha256 prefix of base + bytes (equal to the
+    # request's plan_id by the check above), never from the request's string.
+    staged_id = p["plan_id"]
     folder = voices_stage_dir()
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / f"{plan_id}.yml").write_text(p["text"], encoding="utf-8")
+    (folder / f"{staged_id}.yml").write_text(p["text"], encoding="utf-8")
     return {"plan_id": plan_id, "staged": True, "base": p["base"], "changes": p["changes"], "diff": p["diff"]}
 
 
