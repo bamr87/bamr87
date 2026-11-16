@@ -2,7 +2,7 @@
 """Harness Console MCP server — the console's HTTP API for any MCP client.
 
 Read tools wrap the console's GET routes (fleet, harness health and scorecard,
-live snapshot, sessions, jobs and logs, spend, the data lake's traces and
+live snapshot, sessions, jobs with their status and logs, spend, the data lake's traces and
 workflow lines, observability, semantic code search, deep dive, work board,
 one work item, a work-board plan's preview, the fleet's decision queue).
 Write tools (run an allowlisted op, cancel a job, flip a workflow kill switch)
@@ -55,7 +55,7 @@ from mcp_layer.client import ROOT, Console, ConsoleError, dotenv_value  # noqa: 
 VERSION = "0.2.0"
 INSTRUCTIONS = (
     "bamr87 Harness Console: the fleet's control plane. Start with console_overview, then drill in: "
-    "fleet_status, harness_health, live_snapshot, claude_telemetry, jobs_list/job_log, spend_vs_budget, lake_runs, workflow_lines, "
+    "fleet_status, harness_health, live_snapshot, claude_telemetry, jobs_list/job_status/job_log, spend_vs_budget, lake_runs, workflow_lines, "
     "code_search, deep_dive. What waits on the maintainer across every repo is ONE call: decision_queue (never a "
     "sweep of each repo). To reprioritize open work: work_board, work_item, then work_preview(plan) — it writes "
     "nothing and returns a plan_id — then, only after the user approves that diff, work_apply(plan, plan_id, "
@@ -776,13 +776,37 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
         return call(c.get, "/api/ops")
 
     @mcp.tool(annotations=READ)
-    def jobs_list(status: str = "", limit: int = 25) -> Any:
-        """Recent console jobs, newest first. status filters (running, finished, failed, ...)."""
+    def jobs_list(status: str = "", state: Literal["", "queued", "running", "stalled", "done", "failed"] = "",
+                  limit: int = 25) -> Any:
+        """Recent console jobs, newest first, each with its derived state, age_s, idle_s, stall_s and
+        diagnostics (as job_status). status filters the raw status (queued, running, succeeded, failed,
+        cancelled, interrupted); state the derived one (queued, running, stalled, done, failed)."""
         def run():
             jobs = c.get("/api/jobs")
             if status:
                 jobs = [j for j in jobs if j.get("status") == status]
+            if state:
+                jobs = [j for j in jobs if j.get("state") == state]
             return jobs[: max(1, min(limit, 200))]
+        return call(run)
+
+    @mcp.tool(annotations=READ)
+    def job_status(job_id: str) -> Any:
+        """What one console job is doing now, without its log — poll this after a job starts instead of
+        re-reading the log. state: queued, running, stalled (a running job whose log has not grown for
+        stall_s seconds), done or failed (the exact outcome stays in status); age_s since it was sent; idle_s
+        since its log last grew (null once finished); diagnostics, each {code, detail}: queue_wait (behind a
+        job holding the same lock), collector_lag (the live collector's sessions.json is stale), long_step
+        (running past the p90 of its op's recent successful runs), no_heartbeat (no log output past stall_s).
+        job_log reads the output."""
+        def run():
+            try:
+                return c.get(f"/api/jobs/{job_id}/status")
+            except ConsoleError as e:
+                if e.status == 404 and "no such job" not in str(e):
+                    raise ConsoleError("this console has no /api/jobs/{id}/status yet — it ships with "
+                                       "bamr87/bamr87#556; job_log has the raw status", 404) from None
+                raise
         return call(run)
 
     @mcp.tool(annotations=READ)
@@ -1197,7 +1221,8 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
             where = log.record(tool="job_dispatch", scope="jobs", op=op_id, params=clean, outcome="started",
                                job_id=jid, limit_s=limit, **client_label(ctx))
             out: dict[str, Any] = {"job": job, "limit_s": limit, "audit": where,
-                                   "next": "job_log(job_id) reads its log; job_cancel(job_id, confirm=true) stops it"}
+                                   "next": "job_status(job_id) says whether it is progressing; job_log(job_id) reads "
+                                           "its log; job_cancel(job_id, confirm=true) stops it"}
             wait = max(0, min(int(wait_s or 0), DISPATCH_WAIT_MAX_S))
             if wait and jid:
                 end = time.monotonic() + wait
