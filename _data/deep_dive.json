@@ -11,14 +11,14 @@
     "cycle_days": 42,
     "total": 38,
     "day": 18,
-    "processed": 8,
+    "processed": 9,
     "counts": {
-      "pending": 30,
+      "pending": 29,
       "in_progress": 0,
-      "done": 8,
+      "done": 9,
       "skipped": 0
     },
-    "progress": 0.2105,
+    "progress": 0.2368,
     "today": {
       "date": "2026-11-16",
       "cycle": 1,
@@ -37,7 +37,7 @@
     },
     "last": ".github",
     "last_date": "2026-11-13",
-    "avg_score": 45.0,
+    "avg_score": 47.8,
     "open_issues": 68,
     "open_prs": 7
   },
@@ -330,16 +330,35 @@
       "day": 13,
       "repo": "zpl-viewer",
       "scheduled": "2026-11-11",
-      "status": "pending",
-      "last_processed": null,
+      "status": "done",
+      "last_processed": "2026-11-11",
       "cycle": 1,
-      "issues": [],
-      "prs": [],
+      "issues": [
+        "https://github.com/bamr87/zpl-viewer/issues/50",
+        "https://github.com/bamr87/zpl-viewer/issues/49",
+        "https://github.com/bamr87/zpl-viewer/issues/48",
+        "https://github.com/bamr87/zpl-viewer/issues/51",
+        "https://github.com/bamr87/zpl-viewer/issues/52",
+        "https://github.com/bamr87/zpl-viewer/issues/53",
+        "https://github.com/bamr87/zpl-viewer/issues/54",
+        "https://github.com/bamr87/zpl-viewer/issues/55",
+        "https://github.com/bamr87/zpl-viewer/issues/56",
+        "https://github.com/bamr87/zpl-viewer/issues/57",
+        "https://github.com/bamr87/zpl-viewer/issues/58",
+        "https://github.com/bamr87/zpl-viewer/issues/59",
+        "https://github.com/bamr87/zpl-viewer/issues/60",
+        "https://github.com/bamr87/zpl-viewer/issues/61",
+        "https://github.com/bamr87/zpl-viewer/issues/62"
+      ],
+      "prs": [
+        "https://github.com/bamr87/zpl-viewer/pull/47",
+        "https://github.com/bamr87/zpl-viewer/pull/63"
+      ],
       "open_issues": 0,
       "open_prs": 0,
-      "findings": "",
-      "score": null,
-      "next_focus": ""
+      "findings": "Healthy core: 216 unit + 7 e2e pass, lint/tsc/docs:check clean at review (main CI now red on the Playwright/ubuntu-26.04 runner, fix in #42). P2: crafted graphic/:Z64: fields decode without size caps and can exhaust extension-host memory or freeze the preview (#50); workspace settings can define a file/dir printer and disable deploy confirmation (#49); preview resets to label 1 + initial zoom on every refresh, PNG export always label 1 (#51); shared publish.yml targets npm for the extension: #39 merged, v0.3.0 tagged, npm publish failed at the credential guard, no VSIX/Marketplace (#48). P3: unused 'unsafe-eval' + Math.random nonce (#52); c8 reports 0% (real 88%) (#53); verify kit unfilled (#54); a11y gaps (#55); UPS gaps (#56); ZPL modules outside formats/ (#57). Catalog trace for #40 is in #46; docs PR #47 adds SECURITY.md (UPS 40 -> 42/57); 5 FRs planned ZPL-008..012 (#58-#62) in #63, stacked on #46. npm audit prod 0; 12 dev-only.",
+      "score": 70.0,
+      "next_focus": "Land graphic/inflate caps (#50) and workspace deploy scoping + Restricted Mode (#49/#59); decide the release target and VSIX path before the next release (#48); then preview state (#51) and a11y (#55); #41 waits on the first fleet-tokens release."
     },
     {
       "day": 14,
