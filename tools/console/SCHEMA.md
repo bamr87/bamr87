@@ -43,6 +43,7 @@ coverage: listed
 | `live_collector.py` | file | Host-side collector writing `.dash-live/sessions.json` (the container cannot see host Claude processes) | required |
 | `mcp.sh` | file | Bootstraps `.venv-mcp` from `requirements-mcp.txt` and execs the MCP server (`tools/dash mcp`, `.mcp.json` `fleet`; `--http`, `--tunnel`, `--fleet-compat`) | required |
 | `requirements-mcp.txt` | file | The MCP layer's dependencies (`mcp`, `uvicorn`), always-latest | required |
+| `server.json` | file | The MCP layer's MCP Registry manifest (schema 2025-12-11, constitution § 16.4): `io.github.bamr87/fleet`, version equal to `mcp_layer` `VERSION`, the stdio launch through `mcp.sh` under `_meta` publisher-provided with env var names only; no packages, remotes or endpoints, never published — linted by `tools/mcp_servers_lint.py`, docs/mcp-layer.md | required |
 | `test_subscription.py` | file | Subscription-discount model tests: the 24 h worked example, degraded inputs, honest headroom without plan-limit data, metered N/A, the `/api/state` and `/api/live` blocks | required |
 | `test_mcp_layer.py` | file | MCP layer unit tests — mocked HTTP through the real protocol: writes hidden by default, destructive annotations and the confirm refusal, result trimming, tool errors without the token, HTTP bearer + Host checks | required |
 | `smoke_mcp_layer.py` | file | Live smoke test — the MCP server over stdio against the running console, or a running HTTP server with `--url` (the remote handshake; fails on zero tools): list tools and resources, call read tools | required |
