@@ -22,7 +22,10 @@ This is the read half of that view, and nothing more:
             repository (at most --max-checks): the latest run of each, its
             jobs and steps, and for a failed run its log, so the model can
             tell verified from passed-empty, never-ran, quota, real-failure
-            and cancelled. Archived repositories' runs are not read.
+            and cancelled. Claude's facts in that log (an AI check's cost) are
+            recorded from the same download, as `lake sync` does, because a
+            stored log is never downloaded again. Archived repositories' runs
+            are not read.
   record    one `workflow_reads` row per repository: the last attempt, its
             reason when it failed, and the time of the last read that worked.
 
@@ -252,7 +255,15 @@ def sync_check(conn, api: Api, nwo: str, path: str, kind: str, ai: bool, now: st
             and run.get("logs_url")
             and not conn.execute("SELECT 1 FROM logs WHERE run_id=? LIMIT 1", (run["id"],)).fetchone()):
         api.calls += 1
-        fleet_lake.store_logs(conn, api.session, run["id"], run["logs_url"], int(opts.max_log_bytes))
+        _, agent_text = fleet_lake.store_logs(conn, api.session, run["id"], run["logs_url"],
+                                              int(opts.max_log_bytes))
+        # Record Claude's facts from the same download, as fleet_lake.sync_runs does: `lake sync`
+        # takes a stored log as "already parsed" and never downloads it again, so an AI check's
+        # cost dropped here would be lost for good and `lake review` would call the run a real $0.
+        if agent_text:
+            facts = fleet_lake.parse_agent_log(agent_text)
+            if facts:
+                fleet_lake.record_agent_run(conn, run["id"], nwo, facts)
     conn.commit()
     return out
 

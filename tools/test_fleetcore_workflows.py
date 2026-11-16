@@ -20,6 +20,9 @@ from that lake. They pin:
     green CI run is verified, an API-quota failure is quota, a failure with
     no job and a workflow with no run are never-ran, a cancelled run is
     cancelled, a real error is real-failure with classify_failure's evidence;
+  * a failed AI check's log is stored with its Claude facts, so `lake sync`,
+    which never downloads a stored log again, cannot lose its cost and
+    `lake review` never calls it a real $0;
   * the sync refuses before reading anything when GITHUB_ACTIONS is set or
     the event is a pull request, and its token never comes from GITHUB_TOKEN
     (`gh auth token` runs with every token variable removed);
@@ -36,6 +39,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import datetime as dt
 import hashlib
 import io
 import json
@@ -73,6 +77,10 @@ VERIFY = ("name: Verify\non:\n  pull_request:\n  push:\n    branches: [main]\n" 
           + "jobs:\n  verify:\n    uses: bamr87/bamr87/.github/workflows/fleet-verify.yml@v2\n")
 NIGHTLY = ("name: nightly\non:\n  schedule:\n    - cron: '7 3 * * *'\n" + HEAD
            + "jobs:\n  a:\n    runs-on: ubuntu-latest\n    timeout-minutes: 5\n    steps:\n      - run: echo\n")
+# An AI check: a pull-request gate that runs Claude.
+REVIEW = ("name: Claude review\non:\n  pull_request:\n" + HEAD
+          + "jobs:\n  review:\n    runs-on: ubuntu-latest\n    timeout-minutes: 15\n    steps:\n"
+          + "      - uses: anthropics/claude-code-action@v1\n")
 
 
 def gate(name: str, on: str = "push:") -> str:
@@ -324,6 +332,36 @@ def test_logs_are_downloaded_only_for_failed_runs():
         fx.sync(gh, session)
         downloaded = sorted(int(u.rsplit("/", 1)[1]) for u in session.urls if u.startswith("https://logs/"))
         assert downloaded == [4, 7], downloaded  # not the green runs, not the zero-job or cancelled ones
+
+
+def test_a_failed_ai_checks_claude_cost_is_recorded_from_the_log_it_stores():
+    """`lake sync` takes a stored log as already parsed and never downloads it again, so the
+    sync records Claude's facts from the failed AI check's log it stores, or that run's cost
+    is lost and `lake review` calls it a real $0 ('no-claude-step')."""
+    with Fixture() as fx:
+        gh, session = fake_fleet()
+        gh.repos["bamr87/alpha"].files["review.yml"] = REVIEW
+        session.runs["review.yml"] = [run(8, "bamr87/alpha", "review.yml", "failure") | {"event": "pull_request"}]
+        session.jobs[8] = [job(81, "review", "failure", [("Run Claude", "failure")])]
+        session.logs[8] = ('2026-11-15T10:01:00Z {"type":"result","subtype":"error_max_turns","is_error":true,'
+                           '"duration_ms":90000,"num_turns":12,"total_cost_usd":4.25}\n'
+                           "2026-11-15T10:01:01Z ##[error]Process completed with exit code 1.\n")
+        fx.sync(gh, session)
+        assert "https://logs/8" in session.urls, "the failed AI check's log was not downloaded"
+        with contextlib.closing(sqlite3.connect(fx.lake / "fleet.sqlite")) as conn:
+            ai = conn.execute("SELECT ai FROM runs WHERE id=8").fetchone()
+            agent = conn.execute("SELECT nwo, cost_usd, num_turns FROM agent_runs WHERE run_id=8").fetchone()
+        assert ai == (1,), f"review.yml is an AI workflow: {ai}"
+        assert agent == ("bamr87/alpha", 4.25, 12), f"Claude's facts were not recorded: {agent}"
+        real = fleet_lake.utcnow
+        fleet_lake.utcnow = lambda: dt.datetime(2026, 11, 16, 12, tzinfo=dt.timezone.utc)
+        try:
+            ci = fleet_lake.review(fx.lake, repo="bamr87/alpha")["ci"]
+        finally:
+            fleet_lake.utcnow = real
+        review_wf = next(w for w in ci["workflows"] if w["workflow_path"] == ".github/workflows/review.yml")
+        assert review_wf["cost_usd"] == 4.25 and review_wf["cost_unknown"] == 0, review_wf
+        assert ci["cost_usd"] == 4.25 and ci["agent_runs"] == 1, ci
 
 
 def test_a_later_sync_reads_only_changed_blobs_and_drops_deleted_files():
