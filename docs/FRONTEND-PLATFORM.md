@@ -58,7 +58,7 @@ The console's **Desktop** page (`/desktop`) is the bashOS desktop in the browser
 | Get a window back | its button on the taskbar; `⌘\` cycles |
 | Open a page of the console in a window | the **bashOS** button on the taskbar lists every page; the **Console** icon opens Overview; the palette (`⌘K`) opens what you pick |
 | Arrange everything | the tile and cascade buttons on the taskbar |
-| Send someone this desktop | the link button: a `?windows=` address of ids and geometry, never of URLs |
+| Send someone this desktop | the link button: a `?windows=` address of ids and geometry, never of URLs; each app window keeps its target, device and path, so Live beside Local reopens on both targets, and anything the registry does not declare falls back to the app's default |
 | See every repo, with or without a frontend | the **Fleet** icon; a repo without one opens as the generated repo app |
 
 A console page in a window is the same page without its header and sidebar: the window is its frame, links inside it stay inside it, and the window's title and the shared layout follow where it goes. On a phone the desktop is a home screen: the icons, then one app at a time; there the **Console** icon leaves for the classic console, which has its own way around.
