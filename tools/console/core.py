@@ -2666,8 +2666,9 @@ CONFIG_SECTIONS: list[dict] = [
          "signals.max_prs": _f("int", "PRs quoted into each brief"),
      }},
     {"key": "harness", "title": "Harness health — scorecard + trip wires", "doc": "docs/HARNESS.md",
-     "blurb": "The hub watching itself: pass/fail lines and the aggregate-drift alarms "
-              "`dash harness` computes offline from the committed signals.",
+     "blurb": "The hub watching itself: pass/fail lines, the aggregate-drift alarms and the "
+              "agentic layer's wires that `dash harness` computes offline from the committed "
+              "signals. The agentic thresholds are a gated change (constitution § 29.8).",
      "fields": {
          "scorecard.completion_rate_min_pct": _f("float", "fleet workflow success rate floor"),
          "scorecard.effectiveness_min_pct": _f("float", "minutes ending in success, as a share of all minutes"),
@@ -2680,6 +2681,9 @@ CONFIG_SECTIONS: list[dict] = [
          "trip_wires.cost_spike_min_avg_min": _f("float", "…and anything cheaper than this on average"),
          "trip_wires.standing_failures_max": _f("int", "red-workflow backlog the doctor can't drain"),
          "trip_wires.credential_grace_days": _f("int", "past max_age + this, a credential is an alarm"),
+         "agentic.shadow_days": _f("int", "days a new agentic wire reports before it can count as tripped"),
+         "agentic.parity_tolerance_pct": _f("float", "a derived total further than this from its source is a gap"),
+         "agentic.unknown_cost_max_pct": _f("float", "agent runs whose cost can't be read, as a share of runs that spent"),
      }},
     {"key": "harnesses", "title": "Harnesses — the fleet deployment contract", "doc": "docs/HARNESS-OPS.md",
      "blurb": "What every owned repo must carry, how much scheduled agent work the fleet may "
