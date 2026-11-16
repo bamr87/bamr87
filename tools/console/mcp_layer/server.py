@@ -696,8 +696,10 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
         """Where hub workloads run (_data/fleet.yml `nodes:`, docs/PLATFORM.md): each node's role, on/off state,
         reachability (up · unknown · off), capacity (the Docker engine on the edge, an SSH probe on a workload node,
         and what fleet.yml declares), the hub services placed on and running on it, the placement rows and the
-        drift between placement and what runs. A node that is not enabled is never probed. The console's /api/nodes
-        document; with no console (or one without the route) the same fleetcore function answers in this process."""
+        drift between placement and what runs on the nodes named in drift_read (drift is null, not read, when no
+        node's containers could be read — never read that as no drift). A node that is not enabled is never probed.
+        The console's /api/nodes document; with no console (or one without the route) the same fleetcore function
+        answers in this process."""
         def run():
             try:
                 return c.get("/api/nodes")

@@ -206,6 +206,7 @@ def test_fleet_nodes_is_the_status_document_and_never_probes_an_off_node():
     off = {h.name for h in nodes.load_model().workload() if not h.enabled}
     assert {x["name"] for x in doc["nodes"] if x["status"] == "off"} == off
     assert not [a for a in seen if a[0] == "ssh" or "-H" in a], seen
+    assert doc["drift"] is None and doc["drift_read"] == [], "no container list was read: drift is not read, not zero"
 
 
 class Env:

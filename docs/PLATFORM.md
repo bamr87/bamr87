@@ -87,7 +87,7 @@ How the document is read:
 - **A node that is off is never probed.** A node with `enabled: false` shows as `off`: no `ssh`, no `docker -H`. Only `tools/dash node status --assume-enabled` asks for that probe.
 - **A node that does not answer is `unknown`.** It is `unknown` within the probe's time limit, never an error, and no probe follows the failed one. The console probes with a 5 s limit and shares one answer between polls for 15 s.
 - **Capacity is measured where it can be.** On a workload node it comes from the SSH probe: CPUs, free memory and free disk. On the edge it comes from `docker info`: the Docker engine's CPUs and memory, which on the Mac is the Docker VM's ceiling. What `fleet.yml` declares is shown beside it.
-- **Drift covers the nodes that were read.** A hub service counts as drift when it runs somewhere other than where it is placed.
+- **Drift covers the nodes that were read.** A hub service counts as drift when it runs somewhere other than where it is placed. `drift_read` names the nodes whose containers were listed. When it names none, `drift` is `null` and every surface says drift is **not read**, never a zero. That is the default compose console's case: it has no Docker socket, so it reaches the edge but cannot list its containers.
 - **The published page probes nothing.** The Pages build shows the committed model: every node as `off` or `not probed`, the declared capacity and the placement. It says that a console reads the rest.
 
 ## The link

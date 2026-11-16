@@ -576,9 +576,16 @@ def status_doc(*, assume_enabled: bool = False, probe: bool = True, timeout: int
     A node that is not enabled is never probed (no `ssh`, no `docker -H`) unless
     `assume_enabled`; `probe=False` probes nothing at all (the public build).
     Nothing raises past here: an unreadable model is a problem in the document,
-    an unreachable node is `unknown`."""
+    an unreachable node is `unknown`.
+
+    Drift is measured only on the nodes whose containers were read:
+    `drift_read` names them, and `drift` is None (never `[]`) when it names
+    none — a node that answers but whose Docker engine cannot be listed (the
+    default compose console has no Docker socket) leaves drift unread, not
+    zero."""
     doc: dict = {"schema": SCHEMA, "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
-                 "edge": "", "probed": probe, "nodes": [], "services": [], "drift": [], "problems": []}
+                 "edge": "", "probed": probe, "nodes": [], "services": [], "drift": None, "drift_read": [],
+                 "problems": []}
     try:
         model = load_model(fleet)
         facts = compose_facts(compose, root=root)
@@ -603,9 +610,10 @@ def status_doc(*, assume_enabled: bool = False, probe: bool = True, timeout: int
                 now.setdefault(svc, set()).add(h.name)
         doc["nodes"].append(entry)
     rows = plan_rows(res, now)
-    doc.update(edge=model.edge, services=rows, problems=res.errors,
+    read = [x["name"] for x in doc["nodes"] if x["containers"] is not None]
+    doc.update(edge=model.edge, services=rows, problems=res.errors, drift_read=read,
                drift=[{"service": r["service"], "now": r["now"], "runs_on": r["runs_on"]}
-                      for r in rows if r["now"] and set(r["now"]) != set(r["runs_on"])])
+                      for r in rows if r["now"] and set(r["now"]) != set(r["runs_on"])] if read else None)
     return doc
 
 
@@ -662,8 +670,12 @@ def cmd_status(args) -> int:
         print(f"  {n['name']:<7} {n['role']:<9} {'on ' if n['enabled'] else 'off'}  {n['docker']:<14} {state}"
               f"{held}{docker}" + (f" · {cap}" if cap else ""))
     drift = doc["drift"]
-    print(f"  placement drift: {len(drift)} service(s)" + "".join(
-        f"\n    {r['service']}: runs on {', '.join(r['now'])}, placed on {', '.join(r['runs_on'])}" for r in drift))
+    if drift is None:
+        print("  placement drift: not read (no node's containers could be read)")
+    else:
+        print(f"  placement drift: {len(drift)} service(s), read on {', '.join(doc['drift_read'])}" + "".join(
+            f"\n    {r['service']}: runs on {', '.join(r['now'])}, placed on {', '.join(r['runs_on'])}"
+            for r in drift))
     for p in doc["problems"]:
         print(f"  ✗ {p}")
     return 1 if doc["problems"] else 0

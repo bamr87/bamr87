@@ -77,8 +77,27 @@ function NodeCard({ n }: { n: FleetNode }) {
   );
 }
 
+/** The drift section's title and description. Drift is a number only when some
+ * node's containers were read: the published page reads none, and a console
+ * without a Docker socket reaches the edge but cannot list it — a zero there
+ * would never have been measured. */
+function driftText(d: NodesDoc): { title: string; description: string } {
+  if (d.drift != null) {
+    return {
+      title: `Placement drift: ${d.drift.length} service(s)`,
+      description: `A hub service running somewhere other than where it is placed, on the nodes whose containers were read: ${d.drift_read.join(', ')}.`,
+    };
+  }
+  return {
+    title: 'Placement drift: not read',
+    description: d.probed
+      ? 'No node’s containers could be read (each card says why), so drift was not measured.'
+      : 'Drift compares placement with what runs, which only a console reads.',
+  };
+}
+
 function Placement({ d }: { d: NodesDoc }) {
-  const drifted = new Set(d.drift.map((r) => r.service));
+  const drifted = new Set((d.drift ?? []).map((r) => r.service));
   return (
     <DataTable<NodePlanRow>
       rows={d.services}
@@ -90,7 +109,8 @@ function Placement({ d }: { d: NodesDoc }) {
         { key: 'service', header: 'service', sort: (r) => r.service, render: (r) => <Mono>{r.service}</Mono> },
         { key: 'wants', header: 'placed on', sort: (r) => r.wants, render: (r) => <Text size="sm">{r.wants}</Text> },
         { key: 'runs', header: 'runs on', sort: (r) => r.runs_on.join(','), render: (r) => <Text size="sm">{r.runs_on.join(', ')}</Text> },
-        ...(d.probed ? [
+        // What runs now, and so what would change, only where some node's containers were read.
+        ...(d.drift != null ? [
           { key: 'now', header: 'running now', sort: (r: NodePlanRow) => r.now.join(','), render: (r: NodePlanRow) => <Text size="sm" c={r.now.length ? undefined : 'dimmed'}>{r.now.join(', ') || '—'}</Text> },
           { key: 'action', header: 'what would change', render: (r: NodePlanRow) => <Text size="xs" c={drifted.has(r.service) ? 'var(--warning)' : 'dimmed'}>{r.action}</Text> },
         ] : []),
@@ -125,13 +145,14 @@ export function Nodes() {
               </SimpleGrid>
             ) : <Text c="dimmed">No nodes: _data/fleet.yml has no nodes: block.</Text>}
             <Text size="xs" c="dimmed">edge: {d.edge || '—'} · {d.probed ? `probed ${d.generated_at.replace('T', ' ').slice(0, 19)} UTC` : `built ${d.generated_at.slice(0, 10)}`} · <Mono dim>tools/dash node status</Mono> prints the same document</Text>
-            <Section title={`Placement drift: ${d.probed ? `${d.drift.length} service(s)` : 'not read'}`} mt="md"
-              description={d.probed ? 'A hub service running somewhere other than where it is placed, on the nodes that were read.' : 'Drift compares placement with what runs, which only a console reads.'}>
-              {d.probed && d.drift.length ? (
+            <Section title={driftText(d).title} mt="md" description={driftText(d).description}>
+              {d.drift == null ? (
+                d.probed ? <Status tone="info">not measured: no node’s containers were read</Status> : null
+              ) : d.drift.length ? (
                 <Stack gap={4}>
                   {d.drift.map((r) => <Text key={r.service} size="sm"><Mono>{r.service}</Mono> runs on {r.now.join(', ')}, placed on {r.runs_on.join(', ')}</Text>)}
                 </Stack>
-              ) : d.probed ? <Status tone="good">every running hub service is where it is placed</Status> : null}
+              ) : <Status tone="good">every running hub service is where it is placed</Status>}
             </Section>
             <Section title="Placement" description={<>Every compose service, where fleet.yml places it and where it resolves to while each node is on or off. <Mono>tools/dash node plan --assume-enabled</Mono> previews the move.</>}>
               <Placement d={d} />

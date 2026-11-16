@@ -311,6 +311,7 @@ def test_nodes_route_is_the_shared_status_document_and_never_probes_an_off_node(
     by = {n["name"]: n for n in doc["nodes"]}
     edge = by[doc["edge"]]
     assert edge["status"] == "up" and edge["docker_error"] and edge["capacity"]["cpus"] == 4, edge
+    assert doc["drift"] is None and doc["drift_read"] == [], "the edge's containers were not read: drift is not read"
     for h in off:
         assert by[h.name]["status"] == "off" and by[h.name]["probed"] is False
         named = [a for a in calls if h.name in " ".join(a) or (h.ssh and h.ssh in a) or "-H" in a]
@@ -318,6 +319,7 @@ def test_nodes_route_is_the_shared_status_document_and_never_probes_an_off_node(
     with mock.patch.object(sp, "run", side_effect=AssertionError("the snapshot probed something")):
         snap = core.nodes_doc(probe=False)
     assert snap["probed"] is False and {n["status"] for n in snap["nodes"]} <= {"off", "unprobed"}
+    assert snap["drift"] is None and snap["drift_read"] == []
 
 
 def test_a_dev_stack_op_names_one_project_from_the_port_registry():

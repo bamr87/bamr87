@@ -109,13 +109,14 @@ function Tiles({ s }: { s: StateDoc }) {
 
 /** Where hub workloads run, in one line (the Nodes page in full): each node's
  * state and the placement-drift count. The published page probes nothing, so
- * it says drift is read on a console rather than showing a zero it never measured. */
+ * it says drift is read on a console; a console that could read no node's
+ * containers says it is not read. Neither shows a zero it never measured. */
 function NodesLine() {
   const q = useNodes();
   const d = q.data;
   if (!d) return null;
-  const tone = d.problems.length ? 'crit' : !d.probed ? 'info' : d.drift.length ? 'warn' : 'good';
-  const drift = d.probed ? `${d.drift.length} service(s)` : 'read on a console';
+  const tone = d.problems.length ? 'crit' : d.drift == null ? 'info' : d.drift.length ? 'warn' : 'good';
+  const drift = d.drift != null ? `${d.drift.length} service(s)` : d.probed ? 'not read' : 'read on a console';
   return (
     <Paper p="sm" mt="md">
       <Group justify="space-between" wrap="wrap" gap="xs">

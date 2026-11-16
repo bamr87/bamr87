@@ -579,7 +579,12 @@ export interface NodesDoc {
   probed: boolean;
   nodes: FleetNode[];
   services: NodePlanRow[];
-  drift: { service: string; now: string[]; runs_on: string[] }[];
+  /** Services running somewhere other than where they are placed, on the nodes in
+   * drift_read; null when no node's containers were read (the public build, or a
+   * console with no Docker socket) — not read, never a zero. */
+  drift: { service: string; now: string[]; runs_on: string[] }[] | null;
+  /** The nodes whose containers were read, which the drift covers. */
+  drift_read: string[];
   problems: string[];
 }
 

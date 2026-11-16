@@ -35,6 +35,23 @@ Every step passed at both viewports:
 | `console-desktop-overview.png` | the Overview line: mac up, forge off, a green "placement drift: 0 service(s)" |
 | `console-mobile-overview.png` | the same at 390 wide |
 
+These four images were taken before the review fix below. That console could list the edge's containers, so its zero was measured, and the page reads the same after the fix. Only the drift description now names the nodes it covers ("…whose containers were read: mac").
+
+## A console with no Docker socket (the review fix)
+
+The default compose console has no Docker socket. It reaches the edge, which is local, but cannot list its containers. Before the fix the document then said `drift: []`, and the page and the Overview showed a green "0 service(s)" that nothing had measured. Now `status_doc()` lists in `drift_read` the nodes whose containers were read, and sets `drift` to `null` when that list is empty. Every surface then says **not read**.
+
+This pass ran a console from this branch with uvicorn on `127.0.0.1:4893` and `CONSOLE_AUTO_HEALTH=0`. `DOCKER_HOST` pointed at a socket that does not exist (`unix:///var/run/no-docker.sock`), so `docker ps` and `docker info` failed the way they do in the container. Playwright (`playwright-core` driving the system Chrome) took the screenshots on 2026-11-16. All nine checks passed at both widths, with no console errors. `GET /api/nodes` returned `probed: true`, `drift: null` and `drift_read: []`. The mac card had `containers: null` and its `docker_error` set.
+
+| Image | Viewport | What it shows |
+| --- | --- | --- |
+| `console-nosocket-desktop-nodes.png` | 1280×800 | mac is up with "containers unread: failed to connect to the docker API …" in amber, and its capacity is not measured. The section reads "Placement drift: not read" with an info chip, "not measured: no node's containers were read". There is no green line, and the placement table has no "running now" or "what would change" columns, because nothing was read |
+| `console-nosocket-mobile-nodes.png` | 390×844 | the same at phone width, with no sideways scroll |
+| `console-nosocket-desktop-overview.png` | 1280×800 | the Overview's Nodes line: mac up, forge off, and an info-tone "placement drift: not read" instead of a green zero |
+| `console-nosocket-mobile-overview.png` | 390×844 | the same line wrapped at phone width |
+
+The same case is held offline by `tools/test_fleetcore_nodes.py` `test_drift_is_not_read_when_no_node_s_containers_were_read`. It stubs `docker ps` to fail on the edge, then asserts `drift is None`, `drift_read == []` and the CLI line "placement drift: not read". `tools/console/test_console.py` asserts the same over HTTP, and so do `test_fleetcore_mcp.py` for the MCP tool and `test_pages.py` for the public snapshot.
+
 ## The terminal dash
 
 | Image | What it shows |

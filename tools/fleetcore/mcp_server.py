@@ -262,7 +262,9 @@ TOOLS: dict[str, dict] = {
         "Where hub workloads run (_data/fleet.yml `nodes:`, docs/PLATFORM.md): each node's role, on/off state, "
         "reachability (up · unknown · off), capacity (the Docker engine on the edge, an SSH probe on a workload "
         "node, and what fleet.yml declares), the hub services placed on and running on it, the placement rows and "
-        "the drift between placement and what runs. A node that is not enabled is never probed. Read-only.")),
+        "the drift between placement and what runs on the nodes named in drift_read (drift is null, not read, when "
+        "no node's containers could be read — never read that as no drift). A node that is not enabled is never "
+        "probed. Read-only.")),
     "fleet_work": dict(fn=t_work, annotations=READ, description=(
         "Every open issue, PR, roadmap spec, spec package and BACKLOG.md item, in the order the loops take "
         "it (the Work board): the human's pins and priority overrides first, the next run's picks marked, "

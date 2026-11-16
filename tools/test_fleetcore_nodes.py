@@ -24,7 +24,9 @@ Fixture tests for tools/fleetcore/nodes.py — where each hub workload runs
     --assume-enabled asks; an unreachable node is `unknown` within the probe's
     time limit and nothing is probed after it; `probe=False` runs nothing; an
     unreadable model is a problem in the document, not an exception; drift is
-    what runs where it is not placed; the TUI's host → node map probes nothing;
+    what runs where it is not placed, measured only on the nodes whose
+    containers were read (`drift_read`) and None — not read, never a zero —
+    when none was; the TUI's host → node map probes nothing;
   * the COMMITTED fleet.yml + docker-compose.yml resolve cleanly, enabled or not.
 
 No Docker daemon, no network, no OpenTofu (a stub `tofu` records its argv, a
@@ -326,7 +328,7 @@ def test_infra_plan_and_the_apply_gate():
 # --------------------------------------------------------------------------- #
 # The status document
 # --------------------------------------------------------------------------- #
-DOC_KEYS = {"schema", "generated_at", "edge", "probed", "nodes", "services", "drift", "problems"}
+DOC_KEYS = {"schema", "generated_at", "edge", "probed", "nodes", "services", "drift", "drift_read", "problems"}
 NODE_KEYS = {"name", "role", "runtime", "docker", "enabled", "probed", "status", "reachable", "detail",
              "docker_error", "capacity", "declared", "containers", "placed", "deferred"}
 
@@ -394,8 +396,33 @@ def test_status_doc_has_one_shape_and_never_probes_a_disabled_node():
     assert (mac["status"], mac["enabled"], mac["reachable"], mac["containers"]) == ("up", True, True, 2)
     assert mac["capacity"] == {"via": "engine", "cpus": 8, "mem_total": 8 * 2**30, "containers_running": 3,
                                "server_version": "29.0"}
-    assert "es" in mac["placed"] and doc["drift"] == [] and doc["problems"] == []
+    assert "es" in mac["placed"] and doc["drift"] == [] and doc["drift_read"] == ["mac"] and doc["problems"] == []
     json.dumps(doc)  # the API hands it to a JSON encoder as it is
+
+
+def test_drift_is_not_read_when_no_node_s_containers_were_read():
+    """The default compose console has no Docker socket: the edge is local, so
+    it is `up`, but `docker ps` (and `docker info`) cannot reach the engine.
+    Drift was never measured, so it is None with no node in drift_read — not
+    `[]`, which every surface would show as a green zero."""
+    no_socket = (1, "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. "
+                    "Is the docker daemon running?")
+    answers = {"docker ps": no_socket, "docker info": no_socket}
+    with Probes(answers):
+        doc = _status(timeout=5)
+    mac = next(x for x in doc["nodes"] if x["name"] == "mac")
+    assert doc["probed"] is True and mac["probed"] is True and mac["status"] == "up", mac
+    assert mac["containers"] is None and "Cannot connect" in mac["docker_error"], mac
+    assert doc["drift"] is None and doc["drift_read"] == [], (doc["drift"], doc["drift_read"])
+    assert all(r["now"] == [] for r in doc["services"])
+    json.dumps(doc)
+    import contextlib
+    import io
+    text = io.StringIO()
+    with Sandbox(fleet()), Probes(answers), contextlib.redirect_stdout(text):
+        n.cmd_status(SimpleNamespace(assume_enabled=False, json=False))
+    assert "placement drift: not read" in text.getvalue() and "placement drift: 0" not in text.getvalue(), \
+        text.getvalue()
 
 
 def test_assume_enabled_probes_the_node_and_drift_is_what_runs_off_its_placement():
@@ -413,6 +440,7 @@ def test_assume_enabled_probes_the_node_and_drift_is_what_runs_off_its_placement
     assert any(a.startswith("docker -H ssh://forge ps") for a in p.argvs())
     # es runs on the edge but is placed on forge; shipper is not running yet, which is a start, not drift
     assert doc["drift"] == [{"service": "es", "now": ["mac"], "runs_on": ["forge"]}], doc["drift"]
+    assert sorted(doc["drift_read"]) == ["forge", "mac"], doc["drift_read"]
 
 
 def test_an_unreachable_node_is_unknown_within_the_time_limit_and_nothing_follows():
@@ -429,6 +457,7 @@ def test_an_unreachable_node_is_unknown_within_the_time_limit_and_nothing_follow
     assert not [a for a in p.argvs() if " -H " in a], "no docker -H after the SSH probe failed"
     assert out["problems"] == [], out["problems"]
     assert out["drift"] == [], "an unread node's containers are unknown, not drift"
+    assert out["drift_read"] == ["mac"], "the drift covers the edge, which was read, and not forge"
 
 
 def test_probe_false_runs_nothing_and_says_so():
@@ -438,6 +467,7 @@ def test_probe_false_runs_nothing_and_says_so():
     nodes = {x["name"]: x for x in doc["nodes"]}
     assert nodes["mac"]["status"] == "unprobed" and nodes["mac"]["detail"] == n.UNPROBED_DETAIL
     assert nodes["forge"]["status"] == "off" and all(x["containers"] is None for x in doc["nodes"])
+    assert doc["drift"] is None and doc["drift_read"] == [], "nothing was read, so drift is not read, not zero"
 
 
 def test_an_unreadable_model_is_a_problem_not_an_exception():
@@ -464,7 +494,7 @@ def test_cli_json_is_the_status_doc():
     assert [set(x) for x in printed["nodes"]] == [set(x) for x in direct["nodes"]] == [NODE_KEYS, NODE_KEYS]
     assert printed["nodes"] == direct["nodes"] and printed["services"] == direct["services"]
     lines = text.getvalue()
-    assert "forge" in lines and "never probed" in lines and "placement drift: 0" in lines, lines
+    assert "forge" in lines and "never probed" in lines and "placement drift: 0 service(s), read on mac" in lines, lines
 
 
 def test_host_nodes_maps_docker_hosts_without_probing():
