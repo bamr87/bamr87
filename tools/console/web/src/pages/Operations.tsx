@@ -130,7 +130,7 @@ export function OperationPage() {
                 href={(j) => to.job(j.id)}
                 empty="Not run yet on this console (or its jobs were cleared)."
                 columns={[
-                  { key: 's', header: 'status', render: (j) => <JobStatus status={j.status} /> },
+                  { key: 's', header: 'status', render: (j) => <JobStatus status={j.status} state={j.state} /> },
                   { key: 'p', header: 'params', render: (j) => <Mono dim>{JSON.stringify(j.params ?? {})}</Mono> },
                   { key: 't', header: 'started', render: (j) => <Text size="xs" c="dimmed">{when(j.started)}</Text> },
                   { key: 'e', header: 'exit', num: true, render: (j) => j.exit_code ?? '' },

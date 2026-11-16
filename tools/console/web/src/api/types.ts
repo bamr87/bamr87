@@ -287,6 +287,24 @@ export interface Job {
   confirm?: 'write' | 'spend' | null;
   /** The key it holds while queued or running (`lake`, `loop:<loop>`), or null. */
   exclusive?: string | null;
+  // Derived each time the console reads the job (HUB-064, tools/console/docs/job-status.md);
+  // absent on the published page, whose jobs are workflow runs read from GitHub.
+  /** queued, running, stalled (running, its log quiet past stall_s), done or failed (the exact outcome stays in status). */
+  state?: 'queued' | 'running' | 'stalled' | 'done' | 'failed' | string;
+  /** Seconds since the job was sent. */
+  age_s?: number | null;
+  /** Seconds since its log last grew; null once it finished. */
+  idle_s?: number | null;
+  /** Seconds without log growth before a running job of this op reads as stalled. */
+  stall_s?: number | null;
+  /** Why it may be slow, each a code and a sentence. */
+  diagnostics?: JobDiagnostic[];
+}
+
+/** One reason a job may be slow: queue_wait, collector_lag, long_step or no_heartbeat. */
+export interface JobDiagnostic {
+  code: 'queue_wait' | 'collector_lag' | 'long_step' | 'no_heartbeat' | string;
+  detail: string;
 }
 
 /** One item of a loop-run job (tools/fleetcore/loopjob.py). */
