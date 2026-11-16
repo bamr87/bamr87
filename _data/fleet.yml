@@ -249,6 +249,21 @@ remediation:
   # for three weeks is stale *and* genuinely broken. Set 0 to switch it off.
   stale_after_days: 7             # latest run older than this ⇒ sorts below every
                                   # live candidate of the same severity, never dropped
+  # The fifth guard reads the SIZE of the waste. `high-cost-low-value` and
+  # `cancel-heavy` are shares (of minutes, of runs) over a 4-job-minute floor in
+  # actions_analytics, so one bad burst on a cheap workflow raises them, and a
+  # slot costs the doctor ~46 Opus turns. recon-engine `ci.yml` was queued on
+  # `cancel-heavy` for 4.0 wasted job-minutes in 14 days, all from one 5-commit
+  # burst its working `cancel-in-progress` guard cut short (bamr87/bamr87#823);
+  # zer0-mistakes `issue-autopilot.yml` on `high-cost-low-value` for 6.6, from
+  # one failed run (bamr87/bamr87#797). Below this many wasted job-minutes in
+  # the window those two flags, and the `min_priority` fallback they would
+  # leave behind, are dropped. Like the first three this SUPPRESSES: the waste
+  # is measured, and a record without `waste_min` is never floored. `slow` is
+  # latency and `cron-heavy` the scheduled share, so neither is touched, nor
+  # is `failing`/`flaky`. Set 0 to switch it off.
+  min_cost_waste_min: 15          # wasted job-min in the window below which
+                                  # high-cost-low-value / cancel-heavy can't queue
   # Signals ranked highest-first. A workflow matching several is ranked by its
   # strongest and reported with all of them.
   severity:

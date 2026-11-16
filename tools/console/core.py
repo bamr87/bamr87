@@ -2633,6 +2633,7 @@ CONFIG_SECTIONS: list[dict] = [
          "supersede_on_success": _f("bool", "latest green run drops a failing/flaky flag"),
          "interactive_dispatch_pct": _f("int", "≥ this % hand-dispatched ⇒ cost signals don't apply"),
          "stale_after_days": _f("int", "latest run older than this sorts below live candidates (0 = off)"),
+         "min_cost_waste_min": _f("float", "wasted job-min below this ⇒ high-cost-low-value / cancel-heavy don't queue (0 = off)"),
      }},
     {"key": "issue_pipeline", "title": "Issue pipeline — the three tiers", "doc": "docs/ISSUE-PIPELINE.md",
      "blurb": "Per-tier caps, the evidence budget, and the autonomy default. `never_merge` is "
