@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import importlib
 import json
 import os
 import re
@@ -983,7 +984,144 @@ def complete_sort_key(p: dict):
             0 if p["ci"] == "fail" else 1, 0 if p["draft"] else 1, -(p["idle_days"] or 0))
 
 
-def build_queues(repos: list[dict], cfg: dict) -> dict[str, list[dict]]:
+#: each queue's tier job and the `budget.call_sites` entry that caps it: a
+#: sprint item's tier runs only when its sprint can absorb that whole cap
+TIER_SITES = (("intake", "issue-pipeline.yml:tier1"), ("implement", "issue-pipeline.yml:tier2"),
+              ("complete", "issue-pipeline.yml:tier3"))
+
+
+class SprintHold:
+    """The expedite sprint's tier gate (constitution § 27; tools/jev/sprints.py).
+
+    An item in the active sprint's repositories is queued only while the
+    sprint's switch is armed and its ceiling can absorb the tier's FULL
+    call-site cap on top of what the sprint has spent (every ledger) and what
+    this run's earlier tiers reserved: one tier job runs all its items in one
+    session under one cap, so a tier with a sprint item reserves that cap once.
+    The item a closed sprint declared stays held until a new declaration. The
+    switch and the closed sprint are asked as an item becomes a candidate, so
+    a held item takes no slot; the ceiling is settled on the capped queues,
+    tier by tier. Every hold is listed in the snapshot's `sprint.held`, and a
+    tripped breaker in `sprint.events`.
+
+    Not yet counted: a tier job runs in the hub and batches several issues, so
+    no ledger attributes its cost to a sprint item; until the live sprint record
+    (#691) does, the ceiling sees the loop runner's, JEV's and the sprint
+    repositories' own CI spend, and each run's dispatches must fit under it.
+    """
+
+    def __init__(self, sp, sprints: list, *, caps: dict, now: dt.datetime, switch, spend_of):
+        self.sp, self.sprints, self.caps, self.now = sp, sprints, caps, now
+        self.switch, self._spend_of = switch, spend_of
+        self.held: list[dict] = []
+        self.events: list[dict] = []
+        self.reserved = 0.0
+        self._spent: dict = {}
+
+    @staticmethod
+    def key(item: dict, queue: str) -> str:
+        """The item's _data/work_queue.yml key (what a sprint declares)."""
+        return f"pr:{item['nwo']}#{item['number']}" if queue == "complete" else f"issue:{item['key']}"
+
+    def spent(self, sprint):
+        if sprint.slug not in self._spent:
+            self._spent[sprint.slug] = self._spend_of(sprint)
+        return self._spent[sprint.slug]
+
+    def _hold(self, item: dict, queue: str, verdict) -> None:
+        self.held.append({"key": self.key(item, queue), "queue": queue, "sprint": verdict.sprint.slug,
+                          "decision": verdict.decision, "reason": verdict.reason})
+        if not any(e["sprint"] == verdict.sprint.slug and e["decision"] == verdict.decision for e in self.events):
+            self.events.append(verdict.event(self.now))
+
+    def admit(self, item: dict, queue: str) -> bool:
+        """As an item becomes a candidate: False (and recorded) when the sprint's
+        switch is off or a closed sprint declared it."""
+        verdict = self.sp.gate(self.sprints, repo=item["nwo"], key=self.key(item, queue), now=self.now,
+                               cost_usd=None, spend_of=self.spent, switch=self.switch)
+        if verdict is None:
+            return True
+        self._hold(item, queue, verdict)
+        return False
+
+    def settle(self, queues: dict[str, list[dict]]) -> None:
+        """On the capped queues, in tier order: a tier holding a sprint item
+        reserves its full cap, or every sprint item leaves it (`budget-skip`)."""
+        for queue, site in TIER_SITES:
+            mine = [i for i in queues[queue] if self.sp.for_repo(self.sprints, i["nwo"], self.now)]
+            if not mine:
+                continue
+            cap = self.caps.get(site)
+            if cap is None:
+                # test_ai_budget.py fails a tier job with no cap; refuse rather than run it unpriced
+                verdict = self.sp.Verdict(self.sp.BUDGET_SKIP, f"{site} has no budget.call_sites cap to reserve",
+                                          self.sp.for_repo(self.sprints, mine[0]["nwo"], self.now))
+            else:
+                try:
+                    verdict = self.sp.gate(self.sprints, repo=mine[0]["nwo"], now=self.now, spend_of=self.spent,
+                                           cost_usd=self.reserved + float(cap))
+                except RuntimeError as exc:   # a ledger that cannot be read is not an empty one
+                    verdict = self.sp.Verdict(self.sp.BUDGET_SKIP, f"the sprint ceiling cannot be judged: {exc}",
+                                              self.sp.for_repo(self.sprints, mine[0]["nwo"], self.now))
+            if verdict is None:
+                self.reserved = round(self.reserved + float(cap), 4)
+                continue
+            for item in mine:
+                self._hold(item, queue, verdict)
+            gone = {id(i) for i in mine}
+            queues[queue] = [i for i in queues[queue] if id(i) not in gone]
+
+    def report(self) -> dict:
+        s = self.sp.active(self.sprints, self.now)
+        try:
+            spent = self.spent(s) if s is not None else None
+        except RuntimeError:   # a ledger that cannot be read: no figure (settle() held any sprint item)
+            spent = None
+        return {
+            "active": s.as_dict() if s is not None else None,
+            "declared": len(self.sprints),
+            "spent_usd": spent.spent_usd if spent else None,
+            "estimated_usd": spent.estimated_usd if spent else None,
+            "reserved_usd": self.reserved,
+            "label": self.sp.COST_LABEL,
+            "held": self.held,
+            "events": self.events,
+            "note": ("A sprint item's tier runs only when the sprint's ceiling absorbs the tier's full cap. Hub tier "
+                     "jobs batch several issues, so their own cost is not attributed to a sprint item until the "
+                     "live sprint record (#691) carries it."),
+        }
+
+
+def jev_module(name: str):
+    """tools.jev.<name>, imported lazily with the hub root APPENDED to sys.path
+    (tools/ is a namespace package), so this directory's modules keep precedence."""
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.append(str(REPO_ROOT))
+    return importlib.import_module(f"tools.jev.{name}")
+
+
+def sprint_hold(fleet: dict, cfg: dict, *, now: dt.datetime, scheduled: bool) -> SprintHold | None:
+    """The tier gate for `_data/fleet.yml` `budget.sprints`, or None when no
+    sprint is declared (nothing under tools/jev is imported then). Raises
+    tools.jev's JevError when the declaration bounds nothing: the scan refuses
+    rather than queue a sprint item unguarded. The switch is the workflow's
+    `EXPEDITE_SPRINT_ENABLED` on a schedule; a dispatch or a hand run bypasses it."""
+    if not ((fleet.get("budget") or {}).get("sprints")):
+        return None
+    sp = jev_module("sprints")
+    sprints = sp.load_sprints(fleet)
+    if not sprints:
+        return None
+    ledger = jev_module("ledger")
+    sites = (fleet.get("budget") or {}).get("call_sites") or {}
+    hub = cfg["hub"]
+    return SprintHold(sp, sprints, caps={site: sites.get(site) for _, site in TIER_SITES}, now=now,
+                      switch=sp.once(lambda: sp.read_switch(scheduled=scheduled)),
+                      spend_of=lambda s: sp.spend(s, ai_ledger=sp.ai_ledger_path(), jev=ledger.Ledger.load(),
+                                                  ci=sp.ci_rows(), hub=hub))
+
+
+def build_queues(repos: list[dict], cfg: dict, sprint: SprintHold | None = None) -> dict[str, list[dict]]:
     t = cfg["tiers"]
     intake: list[dict] = []
     ready: list[dict] = []
@@ -999,14 +1137,14 @@ def build_queues(repos: list[dict], cfg: dict) -> dict[str, list[dict]]:
                          "private": r["private"],
                          "default_branch": r["default_branch"]})
             if item["stage"] == "intake" and item["autonomy"] != "blocked":
-                if per_repo < t["intake"]["max_per_repo"]:
+                if per_repo < t["intake"]["max_per_repo"] and (sprint is None or sprint.admit(item, "intake")):
                     intake.append(item)
                     per_repo += 1
             elif item["stage"] == "ready" and item["autonomy"] != "blocked":
                 # A PR for an issue whose prerequisite is still open is a
                 # wasted implement slot; it waits (with deps_reason) instead.
                 # Intake is not held back: enriching it is still useful.
-                if not item.get("open_blockers"):
+                if not item.get("open_blockers") and (sprint is None or sprint.admit(item, "implement")):
                     ready.append(item)
         for p in r["prs"]:
             if not p["pipeline"]:
@@ -1015,9 +1153,10 @@ def build_queues(repos: list[dict], cfg: dict) -> dict[str, list[dict]]:
             # merge-ready — T3's job is finished on it.
             if not p["draft"] and p["ci"] == "pass":
                 continue
-            complete.append({**p, "nwo": r["nwo"], "repo": r["name"],
-                             "repo_url": r["repo_url"],
-                             "default_branch": r["default_branch"]})
+            pitem = {**p, "nwo": r["nwo"], "repo": r["name"], "repo_url": r["repo_url"],
+                     "default_branch": r["default_branch"]}
+            if sprint is None or sprint.admit(pitem, "complete"):
+                complete.append(pitem)
 
     intake.sort(key=queue_sort_key)
     ready.sort(key=queue_sort_key)
@@ -1035,11 +1174,14 @@ def build_queues(repos: list[dict], cfg: dict) -> dict[str, list[dict]]:
         if len(capped_ready) >= t["implement"]["max_issues"]:
             break
 
-    return {
+    queues = {
         "intake": intake[: t["intake"]["max_issues"]],
         "implement": capped_ready,
         "complete": complete[: t["complete"]["max_prs"]],
     }
+    if sprint is not None:
+        sprint.settle(queues)
+    return queues
 
 
 # --------------------------------------------------------------------------- #
@@ -1380,6 +1522,15 @@ def run(args: argparse.Namespace) -> int:
             emit_output(f"{k}_count", 0)
         return 0
 
+    # An expedite sprint's tier gate (budget.sprints), read before any API call:
+    # a declaration that bounds nothing stops the scan rather than run unguarded.
+    try:
+        sprint = sprint_hold(load_yaml(Path(args.config)), cfg, now=now_utc(),
+                             scheduled=os.environ.get("GITHUB_EVENT_NAME") == "schedule")
+    except RuntimeError as exc:   # tools.jev's JevError
+        sys.stderr.write(f"issue_pipeline: budget.sprints cannot be read: {exc}\n")
+        return 2
+
     try:
         from github import Github, Auth
     except ImportError:
@@ -1432,7 +1583,10 @@ def run(args: argparse.Namespace) -> int:
                          f"{deps['lookups']} lookup(s)\n")
     for cyc in deps["cycles"]:
         sys.stderr.write(f"  ! dependency cycle: {' → '.join(cyc)}\n")
-    queues = build_queues(repos, cfg)
+    queues = build_queues(repos, cfg, sprint)
+    if sprint is not None and sprint.held:
+        sys.stderr.write(f"Expedite sprint: {len(sprint.held)} item(s) held — "
+                         + "; ".join(f"{h['key']} ({h['decision']})" for h in sprint.held) + "\n")
     # Gap analysis needs each issue's comment history; run it only over the two
     # capped issue queues so the API cost tracks the queue, not the backlog.
     enrich_candidates(gh, queues["intake"] + queues["implement"], cfg)
@@ -1451,6 +1605,9 @@ def run(args: argparse.Namespace) -> int:
     (out_dir / "issue-workorder-t3.md").write_text(render_t3(queues["complete"], cfg, counts))
 
     report = build_report(repos, queues, cfg, skipped, queue, queue_problems, deps)
+    if sprint is not None:
+        # the circuit breaker's record for this run (constitution § 27.3); #691's live record will carry it
+        report["sprint"] = sprint.report()
     if not args.no_snapshot:
         out = Path(args.out)
         out.parent.mkdir(parents=True, exist_ok=True)

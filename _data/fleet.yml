@@ -788,6 +788,36 @@ budget:
     monthly_usd: 50
     scheduled_stop_pct: 80     # a --scheduled run stops at $40, leaving the rest for a manual run
 
+  # EXPEDITE SPRINTS — the per-sprint ceiling and circuit breaker (constitution
+  # § 27, docs/EXPEDITE-SPRINTS.md, tools/jev/sprints.py). Declaring a sprint is
+  # Amr's Gate A: he pins its item in _data/work_queue.yml `order:` and commits
+  # its entry here. Shape, one entry per sprint:
+  #
+  #   <slug>:                          # lowercase letters, digits, hyphens
+  #     item: issue:<owner>/<repo>#<n> # the work-queue key he pinned (pr:, roadmap:, spec:, backlog: too)
+  #     repos: [<owner>/<repo>]        # where its loops work; optional when `item` names the repo
+  #     usd: 30                        # the ceiling, API-equivalent (estimate), for the whole sprint
+  #     hours: 72                      # the appetite: the time box runs from `declared`
+  #     declared: 2026-11-20T15:00:00Z
+  #     ends: 2026-11-23T15:00:00Z     # optional; the earlier of this and declared + hours wins
+  #     note: why, in a line           # optional, never read by a loop
+  #
+  # Inside its time box every loop attempt on a sprint repo is sprint work: the
+  # loop runner, JEV tiers 1-2 and the issue pipeline's tier jobs run it only
+  # when the sprint's spend (the AI ledger's loop rows, JEV's ledger, the sprint
+  # repos' own CI runs) plus the attempt's FULL call-site cap fits under `usd`;
+  # otherwise `budget-skip`, JEV hands the PR to jev:needs-human, and the
+  # breaker is recorded as an event. The issue pipeline reserves each tier's cap
+  # once a run; its hub jobs batch issues, so their own cost reaches the
+  # ceiling only once the live sprint record (#691) carries it. When the time box
+  # closes the sprint is over and its item stays held until a new declaration
+  # (never extended). A ceiling sits INSIDE every cap above and never raises one:
+  # `usd` above harnesses.budget.monthly_ai_usd, a cap that is .inf/.nan/0 or
+  # negative, and two sprints whose boxes overlap (WIP 1) are refused at load.
+  # vars.EXPEDITE_SPRINT_ENABLED = 'false' stops every sprint loop (switches:
+  # hub/expedite-sprint). Changing this block is a gated change (§ 12.3).
+  sprints: {}
+
 # --------------------------------------------------------------------------- #
 # JEV — the harness-level agent logic engine (docs/JEV.md).
 #
@@ -2306,6 +2336,10 @@ switches:
       state: 'on'
       reason: null
       expires: null
+    expedite:
+      state: 'on'
+      reason: null
+      expires: null
   loops:
     hub/api-keys:
       repo: bamr87/bamr87
@@ -2532,6 +2566,26 @@ switches:
       verified: false
       note: one local LaunchAgent (tools/install-weekly.sh), not a workflow; its three slots are weekly.schedule, local time
       flip: set `weekly.enabled` in _data/fleet.yml by PR
+    hub/expedite-sprint:
+      repo: bamr87/bamr87
+      workflow: tools/jev/sprints.py
+      group: expedite
+      owner: bamr87
+      scope: sprint
+      gate:
+        kind: repo_variable
+        name: EXPEDITE_SPRINT_ENABLED
+        semantics: opt_out
+      default: 'on'
+      state: unverified
+      verified: false
+      flip: 'gh variable set EXPEDITE_SPRINT_ENABLED -R bamr87/bamr87 --body false  # stop every sprint loop; record the flip here in the same PR'
+      dispatch_bypasses: true
+      note: >-
+        the sprint-scope switch (constitution § 27.6): it matters only while budget.sprints has an active sprint, and
+        stops that sprint's items in every loop — the issue pipeline's queue steps and jev-conflicts.yml are handed
+        vars.EXPEDITE_SPRINT_ENABLED, and the local loop runner and conflict sweep read it on --scheduled
+        (tools/jev/sprints.py); not a workflow of its own
     hub/backlog-fanout:
       repo: bamr87/bamr87
       workflow: .github/workflows/backlog-fanout.yml

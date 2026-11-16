@@ -173,6 +173,11 @@ jobs:
 
       - name: Build tier queues
         id: queues
+        env:
+          # The expedite sprint's switch (constitution § 27.6, tools/jev/sprints.py): on a
+          # schedule, 'false' holds every item of the active sprint out of the queues; a
+          # dispatch bypasses it. It matters only while _data/fleet.yml budget.sprints declares one.
+          EXPEDITE_SPRINT_ENABLED: ${{ vars.EXPEDITE_SPRINT_ENABLED }}
         run: |
           args=(issues --print)
           [ -n "${{ inputs.repos }}" ] && args+=(--repos "${{ inputs.repos }}")
@@ -591,6 +596,8 @@ jobs:
       # through in the SAME run instead of waiting a day for the next sweep.
       - name: Refresh the tier-2 queue
         id: queue
+        env:
+          EXPEDITE_SPRINT_ENABLED: ${{ vars.EXPEDITE_SPRINT_ENABLED }}   # the sprint's switch, as in the scan
         run: |
           args=(issues --no-snapshot)
           [ -n "${{ inputs.repos }}" ] && args+=(--repos "${{ inputs.repos }}")

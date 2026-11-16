@@ -2,7 +2,7 @@
 
 > The fleet's standard for one top-priority, time-boxed sprint at a time (constitution § 27, amendment `expedite-sprints`), driven end to end by the existing loops with three gates only Amr passes.
 
-> **Status:** proposed. The lane rule and process are this standard; the sprint ceiling (#689), DORA projection (#690) and live record (#691) are follow-ups under epic #687. Research write-up: https://cursor.com/canvas/store-ecae274f-8a58-44f1-9d6f-1810735ef947/c859cd74-6625-43b3-a8fe-c4588a912dcd
+> **Status:** proposed. The lane rule and process are this standard; the sprint ceiling and circuit breaker are built ([below](#the-sprint-ceiling-and-circuit-breaker), #689); the DORA projection (#690) and live record (#691) are follow-ups under epic #687. Research write-up: https://cursor.com/canvas/store-ecae274f-8a58-44f1-9d6f-1810735ef947/c859cd74-6625-43b3-a8fe-c4588a912dcd
 
 ## What an expedite sprint is
 
@@ -34,6 +34,20 @@ The Kanban expedite class of service (WIP 1, preempts other work), run with inci
 6. Outgoing messages (posts, emails) are drafts until Amr merges or sends.
 7. Hands off Amr's Mac until an approved deploy step (§ 10.5).
 8. DORA metrics are a guide per app, never a target.
+
+## The sprint ceiling and circuit breaker
+
+Declared in [`_data/fleet.yml`](../_data/fleet.yml) `budget.sprints` (the shape is documented there) and checked by [`tools/jev/sprints.py`](../tools/jev/sprints.py) in every loop a sprint drives (#689).
+
+- **Declaration (Gate A).** Amr pins the item in `_data/work_queue.yml` `order:` and commits its entry: `item` (the work-queue key), `repos` (optional when the item names its repository), `usd` (the ceiling, API-equivalent (estimate)), `hours` (the appetite), `declared`, and an optional `ends` (the earlier of `ends` and `declared + hours` wins, so neither extends the other).
+- **Refused at load.** A ceiling or appetite that is `.inf`, `.nan`, 0 or negative; a ceiling above `harnesses.budget.monthly_ai_usd` (a sprint sits inside the caps, § 27.4); an unknown key; an end that is not after the declaration; two sprints whose time boxes overlap (WIP 1). A refused declaration stops every loop that checks sprints until it is fixed, and `test_ai_budget.py` and `tools/test_jev_sprints.py` keep one off `main`.
+- **Scope.** Inside its time box, every loop attempt on one of the sprint's repositories is sprint work.
+- **The ceiling.** Before it spends on a sprint item, each loop asks whether the sprint's spend plus the attempt's **full** call-site cap fits under `usd`. The loop runner (`tools/dash loop run`) asks after the monthly `budget.loops` check, under the same budget lock. JEV runs tier 0 always and tiers 1 and 2 only inside the ceiling; past it the conflict goes to `jev:needs-human`. The issue pipeline reserves, per run and in tier order, the full cap of each tier job that would run a sprint item (T1 $40, T2 $60, T3 $60); a tier that does not fit holds its sprint items. A sprint whose `usd` is below a step's call-site cap never runs that step.
+- **Spend.** Summed inside the time box from the ledgers that already exist: the AI ledger's local loop rows (and the runner's unledgered charges) on a sprint repository, JEV's ledger rows on one, and `_data/ai_usage.yml` `ci_ledger` runs of a sprint repository's own workflows. The hub's CI runs are never attributed, because its workflows run fleet-wide loops. A ledger that records only a day counts every row of a day the time box touches. A figure that cannot be read stops the attempt rather than reading as $0.
+- **Not yet counted.** The issue pipeline's tier jobs run in the hub and batch several issues in one session, so no ledger attributes their cost to a sprint item. Each run's dispatches must still fit under the ceiling, and the live sprint record (#691) will carry their cost.
+- **Circuit breaker.** At the cap the attempt is skipped (`budget-skip`), nothing extends the sprint, and the stop is recorded: an event (`sprint-stop`, with the spend against the cap) in the loop runner's `run.json` `events`, a JEV ledger row and the `jev:needs-human` comment, and `sprint.held` / `sprint.events` in `_data/issue_pipeline.yml`. What the sprint already produced stays as it was filed: T2's pull requests are drafts, and the loop runner's previews are dry runs until `--apply`. When the time box closes the sprint is over: its repositories go back to their lanes, and the declared item stays held (`budget-skip`) until a new declaration.
+- **Kill switch.** `vars.EXPEDITE_SPRINT_ENABLED` (opt-out; § 17 entry `hub/expedite-sprint` in `_data/fleet.yml` `switches:`). On a scheduled run, `'false'` stops the active sprint's items in every loop, before tier 0, so not even a $0 merge commit is pushed (`sprint-off`). The issue pipeline's queue steps and `jev-conflicts.yml` are handed the variable; `tools/dash loop run --scheduled` and a scheduled local conflict sweep read it with `gh variable get` and refuse when they cannot. A manual run bypasses it, as a `workflow_dispatch` bypasses every § 17 switch.
+- **Reading it.** `tools/dash loop budget` prints the active sprint against its ceiling; the issue pipeline snapshot's `sprint:` block shows its spend, the run's reservations and what was held.
 
 ## Worked example — bash-365.com consultation inquiry
 

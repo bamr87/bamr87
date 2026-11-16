@@ -543,6 +543,71 @@ def test_a_conflict_past_every_tier_still_goes_to_a_person_on_any_host():
         assert staged(stage).outcome == "escalated" and stage.calls == ["escalate"], stage.calls
 
 
+# --------------------------------------------------------------------------- #
+# an expedite sprint's ceiling and switch (tools/jev/sprints.py, #689)
+# --------------------------------------------------------------------------- #
+def _sprint_world(usd: float, spent: float, *, scheduled_off: bool = False):
+    """STAGED with one active sprint on bamr87/demo, a JEV ledger that has spent
+    `spent` on it today, and every other ledger pointed at nothing."""
+    import dataclasses
+    import datetime as dt
+
+    from tools.jev import sprints as sp
+    now = dt.datetime.now(dt.UTC)
+    sprints = sp.load_sprints({"budget": {"sprints": {"pilot": {
+        "item": "issue:bamr87/demo#1", "usd": usd, "hours": 4,
+        "declared": sp.iso(now - dt.timedelta(hours=1))}}}})
+    led = Ledger(path=Path("/nonexistent"))
+    if spent:
+        led.append(Resolution(repo="bamr87/demo", pr=7, tier="tier2", outcome="resolved",
+                              date=now.date().isoformat(), cost_usd=spent))
+    env = {"DASH_AI_LEDGER": str(Path(tempfile.mkdtemp()) / "none.json"),
+           "JEV_CI_USAGE": str(Path(tempfile.mkdtemp()) / "none.yml")}
+    if scheduled_off:
+        env[sp.SWITCH] = "false"
+    return dataclasses.replace(STAGED, sprints=sprints), led, env
+
+
+def _staged_in(cfg, led, env, stage: Stage, **kw):
+    saved = {k: os.environ.get(k) for k in env}
+    os.environ.update(env)
+    try:
+        with stage:
+            return cf.resolve(cfg, pr(author="bamr87", head_repo="bamr87/demo", repo="bamr87/demo"), ledger=led, **kw)
+    finally:
+        for k, v in saved.items():
+            os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+
+
+def test_a_sprint_at_its_cap_skips_the_model_tiers_and_hands_the_conflict_to_a_person():
+    cfg, led, env = _sprint_world(usd=5.0, spent=4.9)
+    stage = Stage(cls.TIER1, ci=False)
+    res = _staged_in(cfg, led, env, stage)
+    assert res.outcome == "escalated" and stage.calls == ["escalate"], (res, stage.calls)
+    assert "sprint pilot ceiling" in res.reason and "$4.90" in res.reason, res.reason
+    assert [r["outcome"] for r in led.resolutions] == ["resolved", "escalated"], "the stop is recorded in the ledger"
+    # inside the ceiling the same conflict climbs as before
+    cfg, led, env = _sprint_world(usd=5.0, spent=1.0)
+    stage = Stage(cls.TIER1, ci=False)
+    assert _staged_in(cfg, led, env, stage).outcome == "resolved" and stage.calls == ["model:tier1", "push", "gate:tier1"]
+
+
+def test_tier0_still_runs_for_a_sprint_at_its_cap():
+    cfg, led, env = _sprint_world(usd=5.0, spent=5.0)
+    stage = Stage(cls.TIER0, ci=False, tier0_works=True)
+    assert _staged_in(cfg, led, env, stage).outcome == "resolved" and stage.calls == ["push"], stage.calls
+
+
+def test_the_sprint_switch_stops_jev_on_the_sprints_prs_tier0_included():
+    cfg, led, env = _sprint_world(usd=50.0, spent=0.0, scheduled_off=True)
+    stage = Stage(cls.TIER0, ci=True, tier0_works=True)
+    res = _staged_in(cfg, led, env, stage, scheduled=True)
+    assert res.outcome == "skipped" and "switched off" in res.reason and stage.calls == [], (res, stage.calls)
+    assert led.resolutions == [], "a switched-off sprint leaves no row and no label"
+    stage = Stage(cls.TIER0, ci=True, tier0_works=True)
+    assert _staged_in(cfg, led, env, stage).outcome == "resolved", "a manual run bypasses the switch"
+
+
 def test_the_tiers_a_host_may_run():
     cfg = JevConfig(auto_tiers=["tier0", "tier1"], ci_tiers=["tier0"])
     saved = os.environ.pop("GITHUB_ACTIONS", None)

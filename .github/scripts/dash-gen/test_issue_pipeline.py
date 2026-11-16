@@ -498,6 +498,105 @@ def test_tier3_queue():
 
 
 # --------------------------------------------------------------------------- #
+# an expedite sprint's tier gate (tools/jev/sprints.py, #689)
+# --------------------------------------------------------------------------- #
+SPRINT_REPO = "bash-365/bash-365.com"
+SITES = {"issue-pipeline.yml:tier1": 40, "issue-pipeline.yml:tier2": 60, "issue-pipeline.yml:tier3": 60}
+
+
+def sprint_fleet(usd: float, *, declared: str = "2026-11-20T15:00:00Z", hours: float = 72) -> dict:
+    return {"budget": {"call_sites": dict(SITES), "sprints": {"pilot": {
+                "item": f"issue:{SPRINT_REPO}#1", "usd": usd, "hours": hours, "declared": declared}}},
+            "harnesses": {"budget": {"monthly_ai_usd": 200}}}
+
+
+def sprint_gate(usd: float, spent: float, *, env: dict | None = None, scheduled: bool = False,
+                now: str = "2026-11-20T18:00:00+00:00", **kw):
+    sp = ip.jev_module("sprints")
+    doc = sprint_fleet(usd, **kw)
+    return ip.SprintHold(sp, sp.load_sprints(doc), caps=dict(SITES), now=ip.dt.datetime.fromisoformat(now),
+                         switch=sp.once(lambda: sp.read_switch(scheduled=scheduled, env=env or {})),
+                         spend_of=lambda s: sp.Spend(spent_usd=spent))
+
+
+def sprint_repos():
+    """The sprint's repo with one issue at each tier, and a repo outside it."""
+    def sissue(n, stage):
+        i = issue(n, stage=stage)
+        i["key"] = f"{SPRINT_REPO}#{n}"
+        return i
+    inside = repo(SPRINT_REPO, issues=[sissue(1, "ready"), sissue(2, "intake")], prs=[pr(3)])
+    outside = repo("bamr87/quiet", issues=[issue(20, stage="ready"), issue(21)], prs=[pr(22)])
+    return [inside, outside]
+
+
+def test_sprint_gate():
+    print("\nexpedite sprint tier gate")
+    cfg = ip.deep_merge(CFG, {"hub": HUB})
+
+    def keys(q):
+        return {k: sorted(f"{c['nwo']}#{c['number']}" for c in v) for k, v in q.items()}
+
+    roomy = sprint_gate(usd=180, spent=0)
+    q = ip.build_queues(sprint_repos(), cfg, roomy)
+    check("inside its ceiling every sprint item is queued",
+          f"{SPRINT_REPO}#1" in keys(q)["implement"] and f"{SPRINT_REPO}#2" in keys(q)["intake"]
+          and f"{SPRINT_REPO}#3" in keys(q)["complete"], str(keys(q)))
+    check("each tier with a sprint item reserves its full cap once", roomy.reserved == 160.0, str(roomy.reserved))
+
+    capped = sprint_gate(usd=30, spent=22.5)
+    q = ip.build_queues(sprint_repos(), cfg, capped)
+    flat = sum(keys(q).values(), [])
+    check("a sprint at its cap queues none of its items (budget-skip)",
+          not [k for k in flat if k.startswith(SPRINT_REPO)], str(flat))
+    check("…and the rest of the fleet is untouched",
+          {"bamr87/quiet#20", "bamr87/quiet#21", "bamr87/quiet#22"} <= set(flat), str(flat))
+    check("every held item says budget-skip",
+          capped.held and {h["decision"] for h in capped.held} == {"budget-skip"}, str(capped.held))
+    check("the circuit breaker is recorded once, as a stop event",
+          [e["event"] for e in capped.events] == ["sprint-stop"] and capped.events[0]["cap_usd"] == 30.0,
+          str(capped.events))
+    rep = capped.report()
+    check("the snapshot carries the sprint, its spend and what it held",
+          rep["active"]["slug"] == "pilot" and rep["spent_usd"] == 22.5 and len(rep["held"]) == 3
+          and "API-equivalent" in rep["label"], str(rep))
+
+    tight = sprint_gate(usd=90, spent=0)
+    q = ip.build_queues(sprint_repos(), cfg, tight)
+    check("tiers reserve in order: T1's $40 fits $90, then T2's $60 does not",
+          f"{SPRINT_REPO}#2" in keys(q)["intake"] and f"{SPRINT_REPO}#1" not in keys(q)["implement"]
+          and f"{SPRINT_REPO}#3" not in keys(q)["complete"] and tight.reserved == 40.0,
+          f"{keys(q)} reserved={tight.reserved}")
+
+    off = sprint_gate(usd=180, spent=0, scheduled=True, env={"EXPEDITE_SPRINT_ENABLED": "false"})
+    q = ip.build_queues(sprint_repos(), cfg, off)
+    flat = sum(keys(q).values(), [])
+    check("the sprint switch holds every sprint item on a schedule (sprint-off)",
+          not [k for k in flat if k.startswith(SPRINT_REPO)] and {h["decision"] for h in off.held} == {"sprint-off"},
+          f"{flat} {off.held}")
+    check("…and a held item takes no slot", off.reserved == 0 and "bamr87/quiet#20" in flat, str(flat))
+    manual = sprint_gate(usd=180, spent=0, scheduled=False, env={"EXPEDITE_SPRINT_ENABLED": "false"})
+    q = ip.build_queues(sprint_repos(), cfg, manual)
+    check("a dispatch or a hand run bypasses the switch", f"{SPRINT_REPO}#1" in keys(q)["implement"], str(keys(q)))
+
+    closed = sprint_gate(usd=180, spent=0, now="2026-11-24T00:00:00+00:00")
+    q = ip.build_queues(sprint_repos(), cfg, closed)
+    flat = sum(keys(q).values(), [])
+    check("after the time box the declared item stays held, the repo's other work runs",
+          f"{SPRINT_REPO}#1" not in flat and f"{SPRINT_REPO}#2" in flat and closed.reserved == 0
+          and [h["key"] for h in closed.held] == [f"issue:{SPRINT_REPO}#1"], f"{flat} {closed.held}")
+
+    check("no declared sprint, no gate (nothing under tools/jev is imported)",
+          ip.sprint_hold({"budget": {"sprints": {}}}, cfg, now=ip.now_utc(), scheduled=True) is None)
+    try:
+        ip.sprint_hold(sprint_fleet(float("inf")), cfg, now=ip.now_utc(), scheduled=True)
+        refused = False
+    except RuntimeError as exc:
+        refused = "budget.sprints.pilot.usd" in str(exc)
+    check("a declaration that bounds nothing stops the scan", refused)
+
+
+# --------------------------------------------------------------------------- #
 # markers, links, config
 # --------------------------------------------------------------------------- #
 def test_markers_and_config():
@@ -651,6 +750,7 @@ def main() -> int:
     test_queues()
     test_dependencies()
     test_tier3_queue()
+    test_sprint_gate()
     test_markers_and_config()
     test_real_fleet_config()
     test_render()

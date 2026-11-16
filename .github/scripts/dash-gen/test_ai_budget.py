@@ -42,7 +42,10 @@ Guarded here:
   * a budget abort is detected from either tell the CLI gives;
   * the local loop runner's monthly ceiling (`budget.loops`, tools/jev/loop.py)
     covers at least one full-cap attempt of every step that runs locally, and
-    `budget.loops` + `budget.jev` stay inside harnesses.budget.monthly_ai_usd.
+    `budget.loops` + `budget.jev` stay inside harnesses.budget.monthly_ai_usd;
+  * `budget.sprints` is declared, and every expedite sprint's ceiling and
+    appetite are finite numbers above 0 inside harnesses.budget.monthly_ai_usd
+    (constitution § 27.4: a sprint never raises a cap).
 
 Deliberately dependency-light — no network, no gh, no pytest. Needs only PyYAML:
 
@@ -587,6 +590,40 @@ def check_loops_budget(fleet: dict) -> None:
               f"(${ceiling:g})", usd + jev <= ceiling)
 
 
+def check_sprints_budget(fleet: dict) -> None:
+    """`budget.sprints` (constitution § 27.4, tools/jev/sprints.py): declared, a
+    mapping, and every expedite sprint's ceiling and appetite bound something and
+    sit inside harnesses.budget.monthly_ai_usd — a sprint never raises a cap. The
+    engine refuses the same at load; this keeps a bad one off main."""
+    budget = fleet.get("budget") or {}
+    sprints = budget.get("sprints")
+    check("budget.sprints is declared as a mapping (empty until Amr declares a sprint)", isinstance(sprints, dict))
+    ceiling = ((fleet.get("harnesses") or {}).get("budget") or {}).get("monthly_ai_usd")
+    for slug, spec in (sprints if isinstance(sprints, dict) else {}).items():
+        spec = spec if isinstance(spec, dict) else {}
+        usd, hours = spec.get("usd"), spec.get("hours")
+        check(f"sprint {slug}: usd is a finite number above 0", _bounds(usd))
+        check(f"sprint {slug}: hours is a finite number above 0", _bounds(hours))
+        check(f"sprint {slug}: usd (${usd}) stays inside harnesses.budget.monthly_ai_usd (${ceiling})",
+              _bounds(usd) and _bounds(ceiling) and usd <= ceiling)
+
+
+def check_sprints_budget_gate(fleet: dict) -> None:
+    """The sprint gate above fails a declaration whose money bounds nothing."""
+    good = {"item": "issue:bamr87/bamr87#1", "usd": 10, "hours": 24, "declared": "2026-11-20"}
+    cases = (("usd .inf", {**good, "usd": math.inf}), ("usd .nan", {**good, "usd": math.nan}),
+             ("usd 0", {**good, "usd": 0}), ("usd -5", {**good, "usd": -5}), ("hours .inf", {**good, "hours": math.inf}),
+             ("usd above the monthly ceiling", {**good, "usd": 10_000}))
+    for label, spec in cases:
+        trial = copy.deepcopy(fleet)
+        trial.setdefault("budget", {})["sprints"] = {"trial": spec}
+        mark = len(CHECKS)
+        check_sprints_budget(trial)
+        verdicts = CHECKS[mark:]
+        del CHECKS[mark:]
+        check(f"the sprint gate fails a sprint with {label}", any(not ok for _, ok in verdicts))
+
+
 def _bounds(value) -> bool:
     """A cap or ceiling that bounds something: a finite number above 0. YAML's
     `.inf` passes `> 0`, and `x <= inf` is always true, so a bare `> 0` gate
@@ -624,6 +661,8 @@ def main() -> int:
     check_workflows(fleet)
     check_loops_budget(fleet)
     check_loops_budget_gate(fleet)
+    check_sprints_budget(fleet)
+    check_sprints_budget_gate(fleet)
     check_abort_contract(call_sites())
     check_ledger()
     check_wrapper()
