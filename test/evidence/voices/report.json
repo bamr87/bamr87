@@ -1,0 +1,256 @@
+{
+  "id": "voices",
+  "title": "The Voices page shows the fleet voice model and keeps editing on a console",
+  "features": [
+    "HUB-NEW:voices-editor"
+  ],
+  "path": "verify/scenarios/voices.yml",
+  "started": "2026-11-16T05:59:51.393Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/voices",
+          "ok": true,
+          "ms": 623
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Margo Backlog"
+          },
+          "ok": true,
+          "ms": 37
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "check passes"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Runs on a console"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Kit Commitson"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "voices-personas",
+          "ok": true,
+          "file": "test/evidence/voices/desktop-voices-personas.png",
+          "ms": 35
+        },
+        {
+          "step": "click",
+          "arg": "role=tab[name=/Assignment/]",
+          "ok": true,
+          "ms": 133
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=everything else"
+          },
+          "ok": true,
+          "ms": 9
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "The first rule that matches wins"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 2
+        },
+        {
+          "step": "screenshot",
+          "arg": "voices-assignment",
+          "ok": true,
+          "file": "test/evidence/voices/desktop-voices-assignment.png",
+          "ms": 46
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/voices/desktop-voices-personas.png",
+        "test/evidence/voices/desktop-voices-assignment.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4664/voices/"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/voices",
+          "ok": true,
+          "ms": 611
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Margo Backlog"
+          },
+          "ok": true,
+          "ms": 17
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "check passes"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Runs on a console"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Kit Commitson"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "voices-personas",
+          "ok": true,
+          "file": "test/evidence/voices/mobile-voices-personas.png",
+          "ms": 19
+        },
+        {
+          "step": "click",
+          "arg": "role=tab[name=/Assignment/]",
+          "ok": true,
+          "ms": 145
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=everything else"
+          },
+          "ok": true,
+          "ms": 7
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "The first rule that matches wins"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "voices-assignment",
+          "ok": true,
+          "file": "test/evidence/voices/mobile-voices-assignment.png",
+          "ms": 28
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/voices/mobile-voices-personas.png",
+        "test/evidence/voices/mobile-voices-assignment.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4664/voices/"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-11-16T05:59:53.216Z",
+  "base": "http://127.0.0.1:4664"
+}

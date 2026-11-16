@@ -1,0 +1,20 @@
+# features/features.d/voices-editor.yml — compiled into features.yml at merge (amendment 0002)
+id: HUB-NEW
+slug: voices-editor
+title: "The Voices editor: the fleet voice model edited in the console and filed back as a draft PR"
+description: "Content → Voices (/voices, GET /api/voices) loads _data/voices/voices.yml, the one voices/v1 copy lifehacker.dev and zer0-CMS read (constitution § 23 rule 7), with its tools/voices.py check errors and a banner when it differs from origin/main. Defaults, each site's profile, its personas (voice, tone, the schema's style enums, topics cover/exclude, beats, repos, enabled) and its assignment rules are forms. Preview (POST /api/voices/preview) renders the edit in the file's canonical layout and diffs it against main with a plan id, writing nothing; the dry run stages those bytes outside the working tree; the voices-pr operation then files them through the OPS remote-write path (§ 11.8): confirm-gated, the token probed with gh api user, the plan re-checked against a fresh main, refused with --scheduled, a dirty engine or an open voices PR, one chore/voices-* branch and one draft PR that changes only voices.yml. There is no database copy. The published page shows the model read-only."
+implemented: true
+status: shipped
+surface: ui
+link: tools/console/web/src/pages/Voices.tsx
+docs: tools/console/README.md
+tags: [ console, content, voices, write-back ]
+date: 2026-11-15
+tests:
+  - tools/test_voices.py
+  - tools/console/test_console.py
+scenarios:
+  - verify/scenarios/voices.yml
+evidence:
+  - test/evidence/voices
+prd: [TBD]
