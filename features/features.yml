@@ -1907,6 +1907,12 @@ features:
     date: 2026-11-05
     prd:
     - FR84
+    tests:
+    - tools/test_sprint_record.py
+    scenarios:
+    - verify/scenarios/sprints.yml
+    evidence:
+    - test/evidence/sprints
   - id: HUB-087
     title: 'Expedite sprints: one accelerated, monitored pilot at a time run by the fleet''s agentic loops'
     description: A hub standard (constitution § 27) for a Kanban-style expedite lane (WIP 1) driven end
