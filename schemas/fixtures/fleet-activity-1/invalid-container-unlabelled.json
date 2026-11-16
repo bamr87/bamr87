@@ -1,0 +1,18 @@
+{
+  "schema": "fleet-activity/1",
+  "event_id": "b6a1f0d2-1c3e-4f5a-8b7c-9d0e1f2a3b4c",
+  "ts": "2026-11-15T03:12:44Z",
+  "source": "container",
+  "kind": "container.oom",
+  "seq": 77,
+  "node": "mac",
+  "repo": "bamr87/bamr87",
+  "container": "fleet-elasticsearch-1",
+  "service": "elasticsearch",
+  "run_id": "4e5f6a7b8c9d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091",
+  "payload": {
+    "action": "oom",
+    "image": "docker.elastic.co/elasticsearch/elasticsearch:9.5.3",
+    "mem_limit_bytes": 2147483648
+  }
+}

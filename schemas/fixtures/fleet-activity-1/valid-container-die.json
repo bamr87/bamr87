@@ -1,0 +1,19 @@
+{
+  "schema": "fleet-activity/1",
+  "event_id": "c7b2a1e3-2d4f-4a6b-9c8d-0e1f2a3b4c5d",
+  "ts": "2026-11-15T03:12:45Z",
+  "source": "container",
+  "kind": "container.die",
+  "seq": 78,
+  "node": "mac",
+  "project": "bamr87",
+  "repo": "bamr87/bamr87",
+  "container": "fleet-elasticsearch-1",
+  "service": "elasticsearch",
+  "run_id": "4e5f6a7b8c9d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091",
+  "payload": {
+    "action": "die",
+    "exit_code": 137,
+    "oom_killed": true
+  }
+}

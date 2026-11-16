@@ -33,6 +33,7 @@ coverage: listed
 | `pages/` | dir | The public site's Markdown — `profile/` pages and `posts/` — served by `tools/console/site_docs.py` (docs/CONSOLE-PAGES.md) | required |
 | `projects/` | dir | The fleet: one submodule per project (contract generated from the registry) | required |
 | `site/` | dir | MkDocs build output | generated |
+| `schemas/` | dir | Versioned JSON Schemas for the events the hub's runtime pieces exchange (`fleet-activity-1.json`, the activity replay envelope), each with fixtures and a contract test | required |
 | `specs/` | dir | The Universal Project Standard: requirement specs every fleet repo is built to (twin: `_data/specs.yml`, generated) | required |
 | `templates/` | dir | Seedable artifacts fanned out to submodules (CI, release, schema kits) | required |
 | `tools/` | dir | Dash CLI, gates, generators, and fleet scripts | required |
@@ -69,6 +70,7 @@ coverage: listed
 - New dash subcommand, loop, gate, scenario, site or submodule → also its F5 entry in `.vscode/launch.json` (+ `tasks.json`, the picker, the `.vscode/README.md` line) in the same change (constitution § 20)
 - New harness/loop diagram → `diagrams/<name>.<type>.json`, then `tools/render-diagrams.sh`
 - New registry → `_data/`, registered in `_data/SCHEMA.md`
+- New versioned event or contract schema → `schemas/<name>-<major>.json` with its fixtures (schemas/SCHEMA.md)
 - New fleet dev-stack service or project → `_data/ports.yml`, then `tools/fleet-compose.py sync`
 - New project → `.gitmodules` + `_data/projects.yml`, then `tools/gen-projects-schema.py`
 

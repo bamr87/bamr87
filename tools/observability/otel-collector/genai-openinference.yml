@@ -1,0 +1,137 @@
+# ---------------------------------------------------------------------------
+# GenAI <-> OpenInference attribute map: the ONE place the fleet records how an
+# agent span's attributes line up across three vocabularies (FR69, HUB-072):
+#
+#   claude_code    what Claude Code's native OTel spans carry today
+#   gen_ai         the OpenTelemetry GenAI semantic conventions, the trace
+#                  shape FR69 names
+#   openinference  what Phoenix reads to render LLM / TOOL / AGENT spans
+#
+# Semantic-convention versions this map was written against. GenAI is still
+# `development` upstream, so bump these here and re-check every row when a
+# collector or Claude Code release moves them (plan § 6, "semconv churn"):
+#
+#   GenAI          open-telemetry/semantic-conventions-genai @ e6658f1 (2026-11-06),
+#                  schema_url https://opentelemetry.io/schemas/gen-ai-dev/1.42.0-dev.
+#                  GenAI moved out of open-telemetry/semantic-conventions, whose
+#                  v1.45.0 keeps only deprecated gen-ai models and a pointer here.
+#   OpenInference  Arize-ai/openinference spec/semantic_conventions.md @ 7f295ae (2026-11-12)
+#   Claude Code    https://code.claude.com/docs/en/monitoring-usage (traces are beta)
+#
+# Read by tools/test_activity_contract.py: every row marked `collector: applied`
+# must be set by config.yaml's transform/openinference, and every attribute that
+# transform sets must be a row here. P1 (#619) adds the recorded-span test that
+# runs a fixture span through these rows. Attributes not listed pass through
+# untouched. A `content:` row is gated by `_data/fleet.yml`
+# `observability.claude_code.content.<flag>` and stays off unless that flag is on.
+# ---------------------------------------------------------------------------
+schema: genai-openinference/v1
+
+semconv:
+  gen_ai:
+    repo: open-telemetry/semantic-conventions-genai
+    ref: e6658f14c9d9ea0760825f029cb82e7673f48fab
+    date: '2026-11-06'
+    schema_url: https://opentelemetry.io/schemas/gen-ai-dev/1.42.0-dev
+    stability: development
+    core: open-telemetry/semantic-conventions v1.45.0
+  openinference:
+    repo: Arize-ai/openinference
+    path: spec/semantic_conventions.md
+    ref: 7f295ae26cff766ee6057b50561ce6fa285d2222
+    date: '2026-11-12'
+  claude_code:
+    doc: https://code.claude.com/docs/en/monitoring-usage
+    traces: beta # CLAUDE_CODE_ENHANCED_TELEMETRY_BETA, observability.claude_code.traces_beta
+
+collector: tools/observability/otel-collector/config.yaml # processor transform/openinference
+
+# gen_ai.operation.name (or Claude Code's span name) -> openinference.span.kind
+span_kinds:
+  - { claude_code: claude_code.interaction, gen_ai_operation: invoke_agent, openinference: AGENT, collector: applied }
+  - { claude_code: claude_code.llm_request, gen_ai_operation: chat, openinference: LLM, collector: applied }
+  - { claude_code: claude_code.tool, gen_ai_operation: execute_tool, openinference: TOOL, collector: applied }
+  - { gen_ai_operation: text_completion, openinference: LLM }
+  - { gen_ai_operation: generate_content, openinference: LLM }
+  - { gen_ai_operation: embeddings, openinference: EMBEDDING }
+  - { gen_ai_operation: retrieval, openinference: RETRIEVER }
+  - { gen_ai_operation: invoke_workflow, openinference: CHAIN }
+default_span_kind: CHAIN # any span still without a kind, as the transform's last kind statement does
+
+attributes:
+  - openinference: llm.provider
+    gen_ai: gen_ai.provider.name
+    collector: applied # the constant anthropic on claude_code.llm_request
+  - openinference: llm.system
+    gen_ai: gen_ai.provider.name
+    collector: applied
+    note: GenAI folded gen_ai.system into gen_ai.provider.name; OpenInference keeps llm.system (the API shape) apart from llm.provider (the host). Both are anthropic for a direct Anthropic call.
+  - openinference: llm.model_name
+    gen_ai: gen_ai.request.model
+    claude_code: model
+    collector: applied
+  - openinference: llm.response.model_name
+    gen_ai: gen_ai.response.model
+  - openinference: llm.token_count.prompt
+    gen_ai: gen_ai.usage.input_tokens
+    claude_code: input_tokens + cache_read_tokens + cache_creation_tokens
+    collector: applied
+    note: Both targets INCLUDE cached tokens. Claude Code's input_tokens excludes them, so the transform sums the three.
+  - openinference: llm.token_count.completion
+    gen_ai: gen_ai.usage.output_tokens
+    claude_code: output_tokens
+    collector: applied
+  - openinference: llm.token_count.prompt_details.cache_read
+    gen_ai: gen_ai.usage.cache_read.input_tokens
+    claude_code: cache_read_tokens
+    collector: applied
+  - openinference: llm.token_count.prompt_details.cache_write
+    gen_ai: gen_ai.usage.cache_write.input_tokens
+    claude_code: cache_creation_tokens
+    collector: applied
+  - openinference: llm.token_count.total
+    claude_code: llm.token_count.prompt + output_tokens
+    collector: applied
+    note: GenAI has no total; it is derived.
+  - openinference: llm.token_count.completion_details.reasoning
+    gen_ai: gen_ai.usage.reasoning.output_tokens
+  - openinference: llm.finish_reason
+    gen_ai: gen_ai.response.finish_reasons
+    note: GenAI's is an array, OpenInference's one string; the first reason maps.
+  - openinference: llm.invocation_parameters
+    gen_ai: gen_ai.request.*
+    note: OpenInference takes one JSON object of the request parameters (temperature, max_tokens, top_p, top_k, stop_sequences, seed).
+  - openinference: tool.name
+    gen_ai: gen_ai.tool.name
+    claude_code: tool_name
+    collector: applied
+  - openinference: tool.description
+    gen_ai: gen_ai.tool.description
+  - openinference: tool_call.id
+    gen_ai: gen_ai.tool.call.id
+    note: On the TOOL span itself OpenInference names the same id tool.id.
+  - openinference: tool_call.function.arguments
+    gen_ai: gen_ai.tool.call.arguments
+    content: tool_content
+  - openinference: output.value
+    gen_ai: gen_ai.tool.call.result
+    content: tool_content
+    note: On TOOL spans.
+  - openinference: input.value
+    gen_ai: gen_ai.input.messages
+    claude_code: user_prompt
+    collector: applied
+    content: user_prompts
+    note: The transform copies user_prompt only when Claude Code did not already replace it with <REDACTED>.
+  - openinference: llm.input_messages
+    gen_ai: gen_ai.input.messages
+    content: user_prompts
+  - openinference: llm.output_messages
+    gen_ai: gen_ai.output.messages
+    content: assistant_responses
+  - openinference: session.id
+    gen_ai: gen_ai.conversation.id
+    claude_code: session.id
+    note: The same key in Claude Code and OpenInference, so it passes through; it is also the run_id of hook and session activity events.
+  - openinference: agent.name
+    gen_ai: gen_ai.agent.name

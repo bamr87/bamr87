@@ -228,12 +228,12 @@ Nothing appears on the Pages dash. The committed `_data/*.yml` aggregates stay t
 
 | Path | What |
 | --- | --- |
-| [`_data/fleet.yml`](../_data/fleet.yml) `observability:` | The contract — retention, datasets, redaction prefixes, portal ids, image versions, the code-index URLs, and `claude_code:` (the OTel client settings) |
+| [`_data/fleet.yml`](../_data/fleet.yml) `observability:` | The contract — retention, datasets, redaction prefixes, portal ids, image versions, the code-index URLs, `claude_code:` (the OTel client settings) and `activity:` (the activity replay store's switch, sources and caps; off, nothing reads it yet — [FLEET-ACTIVITY-REPLAY-DECISIONS.md](prd/FLEET-ACTIVITY-REPLAY-DECISIONS.md)) |
 | [`kilo.jsonc`](../kilo.jsonc) | Kilo Code indexing for this worktree. URLs and model must agree with `observability.indexing` |
-| [`tools/observability/`](../tools/observability/) | Logstash pipelines, the Filebeat config, the OTel collector + Prometheus configs, and the rendered ES/Kibana/Grafana objects |
+| [`tools/observability/`](../tools/observability/) | Logstash pipelines, the Filebeat config, the OTel collector + Prometheus configs, the GenAI ↔ OpenInference attribute map (`otel-collector/genai-openinference.yml`), and the rendered ES/Kibana/Grafana objects |
 | [`.github/scripts/dash-gen/fleet_observe.py`](../.github/scripts/dash-gen/fleet_observe.py) | Shipper, ECS mappers, renderers, status |
 | [`.github/scripts/dash-gen/fleet_lake.py`](../.github/scripts/dash-gen/fleet_lake.py) | `iter_log_entries()` and the `shipments` ledger |
 | [`templates/elk/`](../templates/elk/README.md) | The per-repo kit |
 | `docker-compose.yml` profiles `elk` + `metrics` | The log stack, plus `otel-collector` and `prometheus` (Claude Code's native telemetry) |
 
-Tests: `test_fleet_observe.py` (the mappers), `test_observe_contract.py` (compose ↔ `fleet.yml` ↔ saved objects, both directions), `templates/elk/tests/` (the kit). All offline, all in `tools/run-all-tests.sh`.
+Tests: `test_fleet_observe.py` (the mappers), `test_observe_contract.py` (compose ↔ `fleet.yml` ↔ saved objects, both directions), `tools/test_activity_contract.py` (the activity envelope and the attribute map ↔ the collector's transform), `templates/elk/tests/` (the kit). All offline, all in `tools/run-all-tests.sh`.

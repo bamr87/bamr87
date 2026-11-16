@@ -15,6 +15,12 @@ Guards the properties that make the order safe to change fleet-wide:
   * the projected variable is `CLAUDE_AUTH_ORDER=<order>` per repo, and nothing
     at all is projected while `ai_auth:` is undeclared or has errors.
 
+It also holds the shape of `observability.activity:`, the activity replay
+store's switch and caps (HUB-072, #618): off by default, every cap a positive
+integer, sources inside the envelope's enum, and the one redaction list
+referenced rather than copied. tools/test_activity_contract.py checks the same
+block against the schema's fixtures.
+
 No network, no gh, no pytest — PyYAML only:
 
     python3 tools/test_fleet_config.py
@@ -22,6 +28,7 @@ No network, no gh, no pytest — PyYAML only:
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -330,6 +337,66 @@ def test_inventory_reads_the_workspace_from_scope_and_tolerates_org_scoped_keys(
     assert [r["scope_workspace_id"] for r in inv] == ["wrkspc_A", None, "wrkspc_B"], inv
 
 
+# --------------------------------------------------------------------------- #
+# observability.activity — the activity replay store's switch and caps (#618)
+# --------------------------------------------------------------------------- #
+ACTIVITY_CAPS = ("max_events_per_s", "payload_max_bytes", "spool_max_events", "stream_maxlen", "hook_budget_ms")
+
+
+def _dotted(doc: dict, path: str):
+    for part in path.split("."):
+        assert isinstance(doc, dict) and part in doc, f"{path}: no {part!r}"
+        doc = doc[part]
+    return doc
+
+
+def _activity() -> dict:
+    act = _dotted(fc.load(fc.FLEET), "observability.activity")
+    assert isinstance(act, dict), "observability.activity must be a mapping"
+    return act
+
+
+def test_the_activity_block_ships_off_and_bounded():
+    """Off until Amr approves the deploy step (§ 10.5); every cap a positive
+    integer the code enforces (NFR13); retention by monthly partition, with
+    rollups kept longer than raw rows."""
+    act = _activity()
+    assert act.get("enabled") is False, "activity capture stays off until the deploy step is approved"
+    assert act.get("profile") == "activity", act.get("profile")
+    caps = act.get("caps") or {}
+    for key in ACTIVITY_CAPS:
+        val = caps.get(key)
+        assert isinstance(val, int) and not isinstance(val, bool) and val > 0, f"caps.{key} = {val!r}"
+    assert caps["hook_budget_ms"] <= 50, "a hook must return within 50 ms (#620 acceptance, NFR4)"
+    ret = act.get("retention") or {}
+    assert ret.get("partition") == "month", ret
+    assert 0 < ret.get("raw_days", 0) < ret.get("rollup_days", 0), ret
+    bus, store = act.get("bus") or {}, act.get("store") or {}
+    assert bus.get("channel") and bus.get("stream"), bus
+    assert store.get("service") == "db", "the store lives in the shared Postgres, no new engine"
+    assert act.get("resource_samples") == "metrics", "container samples belong to Prometheus, not the ledger"
+
+
+def test_the_activity_sources_are_an_allowlist_inside_the_envelope():
+    act = _activity()
+    path = fc.REPO_ROOT / str(act.get("schema") or "")
+    assert path.is_file(), f"observability.activity.schema names no file: {act.get('schema')!r}"
+    schema = json.loads(path.read_text(encoding="utf-8"))
+    known = set(schema["properties"]["source"]["enum"])
+    sources = act.get("sources") or []
+    assert sources and len(set(sources)) == len(sources), sources
+    assert set(sources) <= known, f"not in {act['schema']}: {sorted(set(sources) - known)}"
+    assert "harness" not in sources, "harness is reserved for the harness protocol (#626)"
+
+
+def test_the_activity_block_references_the_one_redaction_list():
+    live = fc.load(fc.FLEET)
+    ref = _activity().get("redact")
+    assert ref == "observability.logs.redact", "one redaction list for every plane: referenced, never copied"
+    prefixes = _dotted(live, ref)
+    assert isinstance(prefixes, list) and prefixes and all(isinstance(p, str) and p for p in prefixes), prefixes
+
+
 def main() -> int:
     failures = 0
     for name, fn in sorted(globals().items()):
@@ -340,7 +407,7 @@ def main() -> int:
             except AssertionError as exc:
                 failures += 1
                 print(f"  ✗ {name}: {exc}")
-    print(f"{'FAIL' if failures else 'OK'} — fleet-config auth-order tests")
+    print(f"{'FAIL' if failures else 'OK'} — fleet-config auth-order and activity-block tests")
     return 1 if failures else 0
 
 

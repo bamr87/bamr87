@@ -1452,7 +1452,8 @@ features:
     - visualization
     date: 2026-11-03
     tests:
-    - na: design-only PRD; nothing implemented yet
+    - tools/test_activity_contract.py
+    - tools/test_fleet_config.py
     prd:
     - FR5
     - FR7

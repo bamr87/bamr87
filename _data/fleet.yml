@@ -1588,6 +1588,52 @@ observability:
     endpoint: http://127.0.0.1:6006
     doc: docs/HARNESS-OPS.md
 
+  # ---- Activity: the fleet activity replay store (HUB-072) ------------------ #
+  # Not a fourth plane: an ordered ledger of EVENTS and pointers (trace_id,
+  # run_id, container) that the replay view (epic #624) animates. Spans stay in
+  # Phoenix, resource samples in Prometheus, log text in Elasticsearch.
+  #
+  # P0 (#618) froze this block and the envelope schemas/fleet-activity-1.json;
+  # nothing reads either yet. P2 (#620) builds the hook, the engine-events
+  # collector and the writer against them, and every number below is a cap the
+  # code enforces, never a target. The reasons are in
+  # docs/prd/FLEET-ACTIVITY-REPLAY-DECISIONS.md; tools/test_fleet_config.py
+  # holds the block to its shape.
+  activity:
+    # Off until Amr approves the deploy step (constitution § 10.5). It gates the
+    # compose profile and the hook alike: while false the hook exits 0 at once
+    # and nothing is spooled.
+    enabled: false
+    profile: activity # `docker compose --profile activity`: the collector + writer (P2); nothing without it
+    schema: schemas/fleet-activity-1.json
+    # The allowlist: a producer whose source is not listed writes nothing.
+    # `harness` is reserved for the harness protocol (#626) and joins the list
+    # only when its payload profile lands.
+    sources: [container, hook, session, job, fleet_event]
+    bus:
+      channel: 'fleet:activity' # Redis PUBLISH: the live push, best effort
+      stream: 'fleet:activity' # Redis XADD: the durable hand-off to the writer
+    store:
+      service: db # the shared Postgres; no new storage engine
+      schema: fleet_activity # one append-only table, partitioned by month of ts
+    caps:
+      max_events_per_s: 50 # per (node, source) stream; over-cap events are dropped and counted, never queued
+      payload_max_bytes: 4096 # serialized, after redaction; a bigger payload is replaced by a size marker
+      spool_max_events: 5000 # the local fire-and-forget spool, oldest dropped first (tools/fleet_activity.py)
+      stream_maxlen: 100000 # XADD MAXLEN ~ on the Redis tail; Postgres holds the history
+      hook_budget_ms: 50 # a hook returns within this or gives up; it never changes Claude Code's exit status
+    retention:
+      partition: month # one partition per calendar month of ts
+      raw_days: 14 # a partition is rolled up and dropped once its NEWEST row is older than this
+      rollup_days: 180 # per-minute summaries kept this long
+    # ONE redaction list for every plane: a dotted path to it, never a copy.
+    redact: observability.logs.redact
+    # Container resource SAMPLES are not captured here. The OTel docker_stats
+    # receiver puts them in Prometheus (#598), and the replay reads them from
+    # there by container and time. This store keeps resource EVENTS (oom, die
+    # with its exit code, health_status) from the engine's event stream.
+    resource_samples: metrics
+
   # ---- Code index: Qdrant, written by Kilo Code ----------------------------- #
   # Not a fourth question. Logs/metrics/traces still answer what was said, how
   # much, and what shape a run had. This is the store Kilo's semantic search
