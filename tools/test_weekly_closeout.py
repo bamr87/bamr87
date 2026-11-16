@@ -123,8 +123,7 @@ def test_caps_model_and_least_privilege():
 def test_secrets_are_passed_by_name_only():
     for stem, *_r in LANES.values():
         secrets = lane_call(stem)["secrets"]
-        # OAuth only for now (2026-11-15): ANTHROPIC_API_KEY is no longer passed to the lane.
-        assert set(secrets) == {"CLAUDE_CODE_OAUTH_TOKEN", "GH_PAT"}, stem
+        assert set(secrets) == {"CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "GH_PAT"}, stem
         assert secrets["GH_PAT"] == "${{ secrets.FLEET_TOKEN }}"
 
 
@@ -149,21 +148,26 @@ def test_workflows_contain_no_force_push_or_merge_commands():
 
 
 def test_the_feature_fragment_and_docs_cover_the_family():
-    # Before `jev number` runs on main the feature is a pending fragment; after
-    # it (4e4a8f1 compiled it as HUB-115 / FR131) it lives in features.yml and
-    # the fragment is gone. Accept either, or the test breaks every later PR.
+    # Before merge the feature is a fragment with placeholder ids; after merge JEV
+    # (tools/jev/number.py) assigns the ids, compiles it into features.yml and
+    # deletes the fragment (amendment 0002), so accept whichever form is present.
     frag_path = ROOT / "features" / "features.d" / "weekly-closeout.yml"
     if frag_path.exists():
         frag = yaml.safe_load(frag_path.read_text(encoding="utf-8"))
         assert frag["id"] == "HUB-NEW" and frag["prd"] == ["FR-NEW:weekly-closeout"], frag["prd"]
         assert [r["key"] for r in frag["prd_new"]] == ["weekly-closeout"]
     else:
-        features = yaml.safe_load((ROOT / "features" / "features.yml").read_text(encoding="utf-8"))["features"]
-        entry = next(f for f in features if f.get("link") == ".github/workflows/weekly-closeout.yml")
-        assert re.fullmatch(r"HUB-\d+", entry["id"]), entry["id"]
-        assert len(entry["prd"]) == 1 and re.fullmatch(r"FR\d+", entry["prd"][0]), entry["prd"]
-        assert "tools/test_weekly_closeout.py" in entry["tests"], entry["tests"]
-    doc =(ROOT / "docs" / "WEEKLY-CLOSEOUT.md").read_text(encoding="utf-8")
+        index = yaml.safe_load((ROOT / "features" / "features.yml").read_text(encoding="utf-8"))
+        entries = [f for f in index["features"] if f.get("docs") == "docs/WEEKLY-CLOSEOUT.md"]
+        assert len(entries) == 1, [f.get("id") for f in entries]
+        feat = entries[0]
+        assert re.fullmatch(r"HUB-\d+", feat["id"]), feat["id"]
+        assert "tools/test_weekly_closeout.py" in feat.get("tests", []), feat.get("tests")
+        assert feat["prd"] and all(re.fullmatch(r"FR\d+", r) for r in feat["prd"]), feat["prd"]
+        prd = (ROOT / "PRD.md").read_text(encoding="utf-8")
+        for req in feat["prd"]:
+            assert f"| {req} | {feat['id']} |" in prd, (req, feat["id"])
+    doc = (ROOT / "docs" / "WEEKLY-CLOSEOUT.md").read_text(encoding="utf-8")
     for needle in ("User stories", "Failure modes", "WEEKLY_CLOSEOUT_ENABLED", "WEEKLY_GATHER_ENABLED",
                    "WEEKLY_FINALIZE_ENABLED", "Grok", "loop-run", "mcp_writes_enabled", "harness-console-http"):
         assert needle in doc, needle
