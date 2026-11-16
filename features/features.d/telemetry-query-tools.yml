@@ -1,0 +1,15 @@
+id: HUB-NEW
+slug: telemetry-query-tools
+title: "Telemetry query tools: prom_query, logs_search and traces_query, read-only and capped"
+description: "tools/console/telemetry_query.py answers an agent's own question over the fleet's three telemetry planes, without Grafana, Kibana or Phoenix: prom_query runs PromQL against Prometheus with every metric selector held to claude_code_* (a __name__ matcher, a bare {...} selector, an unknown function and info() are refused before any request), logs_search filters Elasticsearch logs-fleet.* by repo, run, trace, session, event, level, time and text, and traces_query reads one trace, one session or the slowest traces of the Phoenix project claude-code-otel with span kind, model, tokens, latency and status. Limits: a 30-day window, 200 series (then truncated), 100 hits, 50 rows and a 10 s timeout; the index and the project are fixed; identity labels and fields are dropped and every returned string passes a secret and email redactor; cost is labelled API-equivalent (estimate). Served as GET /api/telemetry/prom, /logs and /traces and as three read-only MCP tools; tested offline with one case per limit over recorded response shapes behind a socket guard."
+implemented: true
+status: shipped
+prd: [FR26]
+surface: infra
+link: tools/console/telemetry_query.py
+docs: docs/OBSERVABILITY.md
+tags: [ console, mcp, observability, claude-code, otel, telemetry ]
+date: 2026-11-15
+tests:
+  - tools/console/test_telemetry_query.py
+  - tools/console/test_mcp_layer.py

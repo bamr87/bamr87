@@ -121,6 +121,20 @@ Cost is Claude Code's own list-price figure and is always labelled **API-equival
 
 **Live vs retroactive.** OTel is forward-only from the moment it is enabled; `dash lake sessions` reads transcripts back to day one. They answer different questions and both stay. Dollar figures from either are Claude Code's own estimates, not an invoice.
 
+### Query surfaces — `prom_query`, `logs_search`, `traces_query`
+
+`/api/claude-telemetry` answers one fixed question. Three read-only routes answer the caller's own, so an agent can audit raw telemetry without opening Grafana, Kibana or Phoenix (`tools/console/telemetry_query.py`, epic bamr87/bamr87#446 phase 1). Each is a console route and an MCP tool of the same name:
+
+| MCP tool | Route | Store | Limits |
+| --- | --- | --- | --- |
+| `prom_query` | `GET /api/telemetry/prom?query=&start=&end=&step=` | Prometheus `/api/v1/query`, or `/query_range` when `start` is given | every metric selector must name a `claude_code_*` metric: a `__name__` matcher, a bare `{…}` selector, an unknown function and `info()` (it joins `target_info`) are refused before any request; the window and every `[range]` or subquery ≤ 30 days; ≤ 200 series, then `truncated: true`; the step is raised to keep ≤ 500 points a series |
+| `logs_search` | `GET /api/telemetry/logs?repo=&run=&trace=&session=&event=&level=&since=&until=&text=&limit=` | Elasticsearch, always `logs-fleet.*` (the caller never names an index) | filters are `bool` filter clauses on `fleet.repo`/`fleet.project`, `ci.run_id`, `trace.id`, `claude.session_id`/`llm.session_id` (prefix), `event.action` and `log.level`; `text` is a `simple_query_string` over `message` (no fuzzy or slop operators, ≤ 200 characters); the window ≤ 30 days (default 24 h); ≤ 100 hits, newest first |
+| `traces_query` | `GET /api/telemetry/traces?session=&trace_id=&slowest=&since=&limit=` | Phoenix REST `/v1/projects/claude-code-otel/spans` or `/traces`; the project is fixed | `trace_id` gives that trace's spans, `session` the session's spans (an attribute filter on `session.id`), neither the window's traces, slowest first with `slowest`; each span carries its kind, model, tokens, latency and status; ≤ 50 rows; the window ≤ 30 days |
+
+All three share the rest. Every request times out after 10 s. A refused query is a `422` that says why, and an unreachable store is a `502` that names it. Identity never comes back: Prometheus' `user_email`, `user_id`, `user_account_id`, `user_account_uuid`, `organization_id` and `process_owner` labels are dropped, and a log hit carries only an allowlist of fields (never `user.*`, `claude.user_*` or the tool parameters). Every returned string then passes a redactor for `sk-ant-`, `ghp_`/`gho_`/`ghs_`/`ghu_`/`ghr_`, `github_pat_`, `AIza`, `Bearer …`, JWTs and email addresses, on top of the redaction `enrich` already applied at ingest. Session ids are returned whole, because they are the join key between the three planes. Cost fields are labelled API-equivalent (estimate). Times are `now`, `now-6h`, `6h`, unix seconds or ISO 8601.
+
+Env: `PROMETHEUS_URL` and `ELASTICSEARCH_URL` (shared with `claude_telemetry.py`), `PHOENIX_COLLECTOR_ENDPOINT` (shared with the lake), and `PHOENIX_API_KEY`, which is sent as a bearer token only when it is set and is never returned. With Phoenix authentication on and no key, `traces_query` answers `502` and names the variable. Tests: `python3 tools/console/test_telemetry_query.py`, with one case per limit and contract cases over `test_telemetry_query_fixtures.json` in each store's response shape; a socket guard fails any case that opens a connection.
+
 ### API-equivalent value vs the Claude subscription
 
 Every Claude dollar figure the fleet measures — `claude_code_cost_usage_USD_total` here, the CLI's `total_cost_usd` in CI (`_data/ai_usage.yml`), the lake's session totals — is Claude Code pricing its own tokens at **API list prices**. It is emitted under subscription (OAuth / Claude Max) logins too, so it is an **API-equivalent value, not money spent**. What is billed is the flat subscription, `harnesses.budget.monthly_ai_usd` ($200/month). `tools/console/subscription.py` sets the two side by side as a discounted rate, and the console's Live and Costs pages and the MCP `spend_vs_budget` tool show the result:
@@ -235,5 +249,6 @@ Nothing appears on the Pages dash. The committed `_data/*.yml` aggregates stay t
 | [`.github/scripts/dash-gen/fleet_lake.py`](../.github/scripts/dash-gen/fleet_lake.py) | `iter_log_entries()` and the `shipments` ledger |
 | [`templates/elk/`](../templates/elk/README.md) | The per-repo kit |
 | `docker-compose.yml` profiles `elk` + `metrics` | The log stack, plus `otel-collector` and `prometheus` (Claude Code's native telemetry) |
+| [`tools/console/claude_telemetry.py`](../tools/console/claude_telemetry.py), [`tools/console/telemetry_query.py`](../tools/console/telemetry_query.py) | The console's read side: the fixed `/api/claude-telemetry` document, and the `prom_query` / `logs_search` / `traces_query` query surfaces |
 
-Tests: `test_fleet_observe.py` (the mappers), `test_observe_contract.py` (compose ↔ `fleet.yml` ↔ saved objects, both directions), `templates/elk/tests/` (the kit). All offline, all in `tools/run-all-tests.sh`.
+Tests: `test_fleet_observe.py` (the mappers), `test_observe_contract.py` (compose ↔ `fleet.yml` ↔ saved objects, both directions), `templates/elk/tests/` (the kit), `tools/console/test_claude_telemetry.py` and `tools/console/test_telemetry_query.py` (the console's read side). All offline, all in `tools/run-all-tests.sh`.

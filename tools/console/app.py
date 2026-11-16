@@ -53,6 +53,7 @@ import site_docs
 import tui_bridge
 import live
 import claude_telemetry
+import telemetry_query
 
 # The core both surfaces share (tools/fleetcore): the fleet views the TUI
 # renders, the keys v1 table, and the bashOS palette.
@@ -411,6 +412,52 @@ def claude_telemetry_doc(window: str = Query(default="24h", pattern="^(1h|24h|7d
         return claude_telemetry.snapshot(window, session, limit)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
+
+
+def _telemetry_query(fn, **kw) -> dict:
+    """A telemetry_query.py call: a refused query is the caller's 422, an unreachable store a 502."""
+    try:
+        return fn(**kw)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except telemetry_query.UpstreamError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.get("/api/telemetry/prom", dependencies=[Depends(require_token)])
+def telemetry_prom(query: str = Query(..., min_length=1, max_length=telemetry_query.MAX_QUERY_CHARS),
+                   start: str | None = Query(default=None, max_length=40),
+                   end: str | None = Query(default=None, max_length=40),
+                   step: str | None = Query(default=None, max_length=16)) -> dict:
+    """PromQL over claude_code_* metrics only (telemetry_query.py): ≤ 200 series, ≤ 30-day window, 10 s."""
+    return _telemetry_query(telemetry_query.prom_query, query=query, start=start, end=end, step=step)
+
+
+@app.get("/api/telemetry/logs", dependencies=[Depends(require_token)])
+def telemetry_logs(repo: str | None = Query(default=None, max_length=201),
+                   run: str | None = Query(default=None, max_length=20),
+                   trace: str | None = Query(default=None, max_length=64),
+                   session: str | None = Query(default=None, max_length=64),
+                   event: str | None = Query(default=None, max_length=64),
+                   level: str | None = Query(default=None, max_length=10),
+                   since: str | None = Query(default=None, max_length=40),
+                   until: str | None = Query(default=None, max_length=40),
+                   text: str | None = Query(default=None, max_length=telemetry_query.MAX_TEXT_CHARS),
+                   limit: int = Query(default=20, ge=1, le=telemetry_query.MAX_HITS)) -> dict:
+    """Log hits from Elasticsearch logs-fleet.* (telemetry_query.py): ≤ 100, allowlisted fields, redacted."""
+    return _telemetry_query(telemetry_query.logs_search, repo=repo, run=run, trace=trace, session=session,
+                            event=event, level=level, since=since, until=until, text=text, limit=limit)
+
+
+@app.get("/api/telemetry/traces", dependencies=[Depends(require_token)])
+def telemetry_traces(session: str | None = Query(default=None, max_length=128),
+                     trace_id: str | None = Query(default=None, max_length=32),
+                     slowest: bool = Query(default=False),
+                     since: str | None = Query(default=None, max_length=40),
+                     limit: int = Query(default=10, ge=1, le=telemetry_query.MAX_SPANS)) -> dict:
+    """Spans or traces of Phoenix project claude-code-otel (telemetry_query.py): ≤ 50, 10 s."""
+    return _telemetry_query(telemetry_query.traces_query, session=session, trace_id=trace_id, slowest=slowest,
+                            since=since, limit=limit)
 
 
 @app.get("/api/lake", dependencies=[Depends(require_token)])

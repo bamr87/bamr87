@@ -476,6 +476,44 @@ class ClaudeTelemetryTool(unittest.TestCase):
         self.assertEqual(fc.calls[-1][:3], ("GET", "/api/claude-telemetry", {"window": "1h", "limit": 20, "session": "abcd"}))
 
 
+class TelemetryQueryTools(unittest.TestCase):
+    """prom_query, logs_search, traces_query (bamr87/bamr87#447): read-only, one console route each."""
+    ROUTES = {"/api/telemetry/prom": {"series": []}, "/api/telemetry/logs": {"hits": []},
+              "/api/telemetry/traces": {"spans": []}}
+
+    def test_registered_as_read_tools(self):
+        tools = {t.name: t for t in anyio.run(srv.build_server(FakeConsole(), allow_writes=False, scopes="").list_tools)}
+        for name in ("prom_query", "logs_search", "traces_query"):
+            self.assertIn(name, tools)
+            a = tools[name].annotations
+            self.assertTrue(a.read_only_hint and not a.destructive_hint and a.idempotent_hint, name)
+            self.assertIn("API-equivalent (estimate)" if name != "traces_query" else "claude-code-otel",
+                          tools[name].description)
+
+    def test_each_calls_its_route_with_only_what_was_set(self):
+        fc = FakeConsole(self.ROUTES)
+        server = srv.build_server(fc)
+        call(server, "prom_query", {"query": "claude_code_session_count_total", "start": "6h"})
+        self.assertEqual(fc.calls[-1][:3], ("GET", "/api/telemetry/prom",
+                                            {"query": "claude_code_session_count_total", "start": "6h"}))
+        call(server, "logs_search", {"level": "error", "limit": 500})
+        self.assertEqual(fc.calls[-1][:3], ("GET", "/api/telemetry/logs", {"level": "error", "since": "24h", "limit": 100}))
+        call(server, "traces_query", {"slowest": True, "limit": 99})
+        self.assertEqual(fc.calls[-1][:3], ("GET", "/api/telemetry/traces", {"slowest": "true", "since": "24h", "limit": 50}))
+
+    def test_a_console_without_the_routes_names_the_issue(self):
+        res, text = call(srv.build_server(FakeConsole()), "prom_query", {"query": "claude_code_session_count_total"})
+        self.assertTrue(res.is_error if hasattr(res, "is_error") else res.isError)
+        self.assertIn("bamr87/bamr87#447", text)
+
+    def test_a_refusal_is_a_tool_error_with_the_reason(self):
+        fc = FakeConsole({"/api/telemetry/prom": ConsoleError("console GET /api/telemetry/prom -> 422: metric 'up' "
+                                                               "is outside the allowlist", 422)})
+        res, text = call(srv.build_server(fc), "prom_query", {"query": "up"})
+        self.assertIn("allowlist", text)
+        self.assertNotIn("s3cret-token", text)
+
+
 class MergedFleet(unittest.TestCase):
     """tools/fleetcore/mcp_server.py folded in: same names, the legacy writes only on --fleet-compat or writes on."""
     LEGACY_READ = {"fleet_overview", "fleet_apps", "fleet_inbox", "fleet_docker", "fleet_work",
