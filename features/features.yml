@@ -1193,19 +1193,22 @@ features:
     description: A reusable hub workflow (.github/workflows/pr-review.yml) and per-repo stub that run every
       PR check, post one sticky summary updated in place (silent when clean), severity-tagged deduplicated
       inline findings and a fleet signature footer, as github-actions or the fleet app, never Amr's token;
-      proposed by amendment fleet-pr-review.
-    implemented: false
-    status: planned
+      proposed by amendment fleet-pr-review. Shipped so far are the CI-failure sticky (amendment
+      ci-failure-summary) and inline findings from each check's fleet-findings artifact; AI review (§ 19.7)
+      and the fleet-app identity (bamr87/bamr87#565) are still to come.
+    implemented: true
+    status: partial
     surface: infra
-    link: docs/amendments/0017-fleet-pr-review.md
-    docs: docs/amendments/0017-fleet-pr-review.md
+    link: .github/workflows/pr-review.yml
+    docs: templates/pr-review/README.md
     tags:
     - ci
     - governance
     - review
     date: 2026-11-01
     tests:
-    - na: planned; tests land with the implementation issue
+    - .github/scripts/dash-gen/test_pr_review.py
+    - .github/scripts/dash-gen/test_workflow_atlas.py
     prd:
     - FR61
   - id: HUB-066

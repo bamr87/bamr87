@@ -8,7 +8,13 @@ Usage: python3 .github/scripts/dash-gen/test_pr_review.py
 """
 from __future__ import annotations
 
+import io
+import json
+import os
+import re
 import sys
+import tempfile
+import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -30,9 +36,13 @@ class FakeGh(P.Gh):
     def __init__(self, routes: dict, logs: dict | None = None):
         super().__init__(REPO)
         self.routes, self.logs, self.writes = routes, logs or {}, []
+        self.blobs: dict = {}
+        self.read: list[str] = []
+        self.refuse: set[int] = set()
 
     def get(self, path):
         self.calls += 1
+        self.read.append(path)
         for key in sorted(self.routes, key=len, reverse=True):
             if path.startswith(key):
                 return self.routes[key]
@@ -41,6 +51,15 @@ class FakeGh(P.Gh):
     def text(self, path):
         self.calls += 1
         return self.logs.get(path.split("/")[-2], "")
+
+    def blob(self, path):
+        self.calls += 1
+        return self.blobs[path.split("/")[-2]]
+
+    def post_review_comment(self, number, payload):
+        if payload["line"] in self.refuse:
+            raise RuntimeError("gh api pulls/7/comments: HTTP 422 line could not be resolved")
+        self.writes.append(("inline", number, payload))
 
     def default_branch(self):
         return "main"
@@ -280,6 +299,231 @@ def test_a_long_failure_stays_under_the_comment_limit():
     body = gh.writes[0][2]
     assert len(body) <= P.MAX_BODY and "more failed workflow(s)" in body
     assert body.rstrip().endswith("run=https://example.test/run -->") and P.STATE_RX.search(body), "the footer survives"
+
+
+# ------------------------------------------------------------------- findings (§ 19.3)
+# A patch that adds lines 2 to 31 of the new file, between two context lines.
+PATCH = "@@ -1,2 +1,32 @@\n line one\n" + "".join(f"+added {n}\n" for n in range(2, 32)) + " line last"
+
+
+def finding(path="docs/a.md", line=3, rule="MD013", severity="warning", kind="docs", message="Line too long"):
+    return {"path": path, "line": line, "rule": rule, "severity": severity, "kind": kind, "message": message}
+
+
+def artifact(*items, raw: str | None = None, member: str = "findings.jsonl") -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr(member, raw if raw is not None else "".join(json.dumps(i) + "\n" for i in items))
+    return buf.getvalue()
+
+
+def fworld(*zips, runs=None, author="bamr87", ref="feature", review=None, comments=None, sha=SHA, sizes=None):
+    """A PR whose head carries one `fleet-findings` artifact per zip, each from the
+    matching run (the first run by default)."""
+    runs = runs or [run(conclusion="success")]
+    gh = world(runs, comments=comments)
+    gh.routes["pulls/7"] = {"head": {"sha": SHA, "ref": ref}, "user": {"login": author}}
+    gh.routes["pulls/7/files"] = [{"filename": "docs/a.md", "patch": PATCH}, {"filename": "src/x.py", "patch": PATCH},
+                                  {"filename": "img.png"}]
+    gh.routes["pulls/7/comments"] = review or []
+    gh.routes["actions/artifacts?name="] = {"artifacts": [
+        {"id": 900 + i, "name": "fleet-findings", "size_in_bytes": (sizes or {}).get(i, len(z)), "expired": False,
+         "created_at": "2026-11-07T01:30:00Z", "workflow_run": {"id": runs[min(i, len(runs) - 1)]["id"], "head_sha": sha}}
+        for i, z in enumerate(zips)]}
+    gh.blobs = {str(900 + i): z for i, z in enumerate(zips)}
+    return gh
+
+
+def inline(gh) -> list[dict]:
+    return [w[2] for w in gh.writes if w[0] == "inline"]
+
+
+def test_added_lines_reads_only_what_the_patch_adds():
+    patch = "@@ -10,3 +10,4 @@ def f():\n ctx\n-gone\n+new a\n+new b\n ctx\n\\ No newline at end of file\n@@ -40 +41,2 @@\n+x\n ctx"
+    assert P.added_lines(patch) == {11, 12, 41}
+    assert P.added_lines("") == set()
+
+
+def test_a_clean_run_posts_nothing():
+    gh = fworld(artifact())  # a check that found nothing uploads an empty file
+    assert go(gh).startswith("nothing failing and no comment") and not gh.writes
+    quiet = fworld()  # no artifact at all: one listing call, nothing else
+    assert go(quiet) == "nothing failing and no comment" and not quiet.writes
+    assert not [p for p in quiet.read if p.startswith(("pulls/7/files", "pulls/7/comments"))]
+
+
+def test_a_finding_on_the_diff_is_posted_inline_with_its_severity_key_and_signature():
+    gh = fworld(artifact(finding(kind="code", severity="error", rule="E501")))
+    assert "posted 1 inline" in go(gh)
+    [payload] = inline(gh)
+    assert (payload["path"], payload["line"], payload["side"], payload["commit_id"]) == ("docs/a.md", 3, "RIGHT", SHA)
+    body = payload["body"]
+    assert body.startswith("**Error**") and "`E501`" in body and "Line too long" in body
+    assert f"<!-- fleet:finding key={P.finding_key('docs/a.md', 3, 'E501')} -->" in body
+    assert body.rstrip().endswith("<!-- fleet:source=tests trigger=workflow_run run=https://example.test/run -->")
+    assert not [w for w in gh.writes if w[0] != "inline"], "a green run still writes no sticky"
+
+
+def test_duplicate_findings_are_not_reposted():
+    twice = fworld(artifact(finding(), finding(message="the same place and rule, said again")))
+    go(twice)
+    assert len(inline(twice)) == 1, "one (path, line, rule) is one comment"
+    body = inline(twice)[0]["body"]
+    again = fworld(artifact(finding()), review=[{"id": 1, "user": {"type": "Bot"}, "body": body}])
+    assert "posted 0 inline" in go(again) and not again.writes, "a later push does not repost"
+    other_rule = fworld(artifact(finding(rule="MD009")), review=[{"id": 1, "user": {"type": "Bot"}, "body": body}])
+    go(other_rule)
+    assert len(inline(other_rule)) == 1, "another rule on the same line is another finding"
+    forged = fworld(artifact(finding()), review=[{"id": 1, "user": {"type": "User"}, "body": body}])
+    go(forged)
+    assert len(inline(forged)) == 1, "a person quoting the key cannot hide a finding"
+
+
+def test_a_second_push_edits_the_sticky_and_counts_the_findings():
+    old = P.MARKER + '\n<!-- fleet:pr-review-state {"sha":"b","runs":[[5,1]]} -->'
+    posted = P.finding_body({**finding(), "source": "tests"}, "workflow_run", "https://example.test/run")
+    gh = fworld(artifact(finding(), finding(line=4, severity="error", kind="code")), runs=[run()],
+                comments=[{"id": 9, "body": old}], review=[{"id": 1, "user": {"type": "Bot"}, "body": posted}])
+    go(gh)
+    stickies = [w for w in gh.writes if w[0] != "inline"]
+    assert [w[:2] for w in stickies] == [("edit", 9)], gh.writes
+    assert "**Findings on this commit's diff:** 1 error, 1 warning" in stickies[0][2]
+    assert len(inline(gh)) == 1 and inline(gh)[0]["line"] == 4, "only the new finding is posted"
+    state = json.loads(P.STATE_RX.search(stickies[0][2]).group(1))
+    assert state["findings"] == {"error": 1, "warning": 1}
+    same = fworld(artifact(finding(), finding(line=4, severity="error", kind="code")), runs=[run()],
+                  comments=[{"id": 9, "body": stickies[0][2]}],
+                  review=[{"id": 1, "user": {"type": "Bot"}, "body": posted},
+                          {"id": 2, "user": {"type": "Bot"}, "body": inline(gh)[0]["body"]}])
+    assert go(same).startswith("comment is already current") and not same.writes
+
+
+def test_dependabot_and_release_prs_skip_content_and_docs_findings():
+    items = (finding(kind="docs"), finding(line=4, kind="content", rule="C1"), finding(line=5, kind="code", rule="E1"))
+    for who in ({"author": "dependabot[bot]"}, {"ref": "release-please--branches--main"}):
+        gh = fworld(artifact(*items), **who)
+        go(gh)
+        assert [p["line"] for p in inline(gh)] == [5], (who, inline(gh))
+    person = fworld(artifact(*items))
+    go(person)
+    assert len(inline(person)) == 3, "a person's PR gets every kind"
+
+
+def test_a_malformed_artifact_posts_nothing():
+    good = json.dumps(finding()) + "\n"
+    bad_lines = {
+        "not JSON": "{not json",
+        "an extra key": json.dumps({**finding(), "url": "x"}),
+        "a missing key": json.dumps({k: v for k, v in finding().items() if k != "kind"}),
+        "a severity outside the set": json.dumps(finding(severity="critical")),
+        "a kind outside the set": json.dumps(finding(kind="style")),
+        "a path that climbs out": json.dumps(finding(path="../etc/passwd")),
+        "an absolute path": json.dumps(finding(path="/etc/passwd")),
+        "a line as text": json.dumps({**finding(), "line": "3"}),
+        "a line as a boolean": json.dumps({**finding(), "line": True}),
+        "a rule with markup": json.dumps(finding(rule="<b>x</b>")),
+        "an empty message": json.dumps(finding(message="  ")),
+        "a message over the limit": json.dumps(finding(message="x" * (P.MAX_MESSAGE + 1))),
+        "a list, not an object": json.dumps([finding()]),
+    }
+    for why, line in bad_lines.items():
+        gh = fworld(artifact(raw=good + line + "\n"))
+        result = go(gh)
+        assert not gh.writes and "1 artifact(s) rejected" in result, (why, result, gh.writes)
+    for why, blob in {"not a zip": b"PK\x03\x04 broken", "no .jsonl in it": artifact(raw=good, member="findings.json")}.items():
+        gh = fworld(blob)
+        assert not gh.writes and "1 artifact(s) rejected" in go(gh), why
+    utf16 = io.BytesIO()
+    with zipfile.ZipFile(utf16, "w") as z:
+        z.writestr("findings.jsonl", good.encode("utf-16"))
+    gh = fworld(utf16.getvalue())
+    assert not gh.writes and "1 artifact(s) rejected" in go(gh), "not UTF-8"
+    big = fworld(artifact(finding()), sizes={0: P.MAX_ARTIFACT_BYTES + 1})
+    assert not big.writes and "1 artifact(s) rejected" in go(big), "over the size limit"
+    many = fworld(artifact(*[finding(line=n) for n in range(1, P.MAX_FINDINGS + 2)]))
+    assert not many.writes and "1 artifact(s) rejected" in go(many), "over the findings limit"
+
+
+def test_a_malformed_artifact_does_not_stop_a_good_one():
+    runs = [run(rid=1, conclusion="success"), run(rid=2, wid=11, name="Docs", conclusion="success")]
+    gh = fworld(artifact(raw="{oops\n"), artifact(finding()), runs=runs)
+    assert "1 artifact(s) rejected" in go(gh)
+    assert len(inline(gh)) == 1 and "source=docs " in inline(gh)[0]["body"]
+
+
+def test_only_lines_this_pr_adds_get_a_finding():
+    gh = fworld(artifact(finding(line=1), finding(line=32), finding(path="README.md"), finding(path="img.png", line=2),
+                         finding(line=31, rule="R31")))
+    go(gh)
+    assert [(p["path"], p["line"]) for p in inline(gh)] == [("docs/a.md", 31)]
+
+
+def test_findings_from_another_commit_or_an_older_attempt_are_ignored():
+    gh = fworld(artifact(finding()), sha="c" * 40)
+    assert go(gh) == "nothing failing and no comment" and not gh.writes
+    stale = fworld(artifact(finding()), runs=[run(rid=5, conclusion="success")])
+    stale.routes["actions/artifacts?name="]["artifacts"][0]["workflow_run"]["id"] = 4  # not the workflow's latest run
+    assert not go(stale).count("findings") and not stale.writes
+
+
+def test_a_push_never_reads_findings():
+    gh = fworld(artifact(finding()), runs=[run(event="push", pull_requests=[])])
+    gh.routes["commits/"] = [{"number": 7, "state": "closed", "head": {"sha": "c" * 40}}]
+    go(gh)
+    assert not inline(gh) and not [p for p in gh.read if p.startswith("actions/artifacts")]
+
+
+def test_new_inline_comments_are_capped_per_review():
+    gh = fworld(artifact(*[finding(line=n, rule=f"R{n}") for n in range(2, 32)]))
+    result = go(gh)
+    assert len(inline(gh)) == P.MAX_INLINE and f"posted {P.MAX_INLINE} inline" in result, result
+
+
+def test_a_dry_run_posts_no_findings():
+    gh = fworld(artifact(finding()))
+    assert "would post 1 inline" in go(gh, dry=True) and not gh.writes
+
+
+def test_github_refusing_one_comment_does_not_stop_the_rest():
+    gh = fworld(artifact(finding(line=3), finding(line=4)))
+    gh.refuse = {3}
+    assert "posted 1 inline" in go(gh) and [p["line"] for p in inline(gh)] == [4]
+
+
+def test_an_api_error_in_findings_still_leaves_the_failure_summary():
+    gh = fworld(artifact(finding()), runs=[run()])
+    real_get = gh.get
+
+    def get(path):
+        if path.startswith("actions/artifacts"):
+            raise RuntimeError("gh api actions/artifacts: HTTP 403")
+        return real_get(path)
+    gh.get = get
+    result = go(gh)
+    assert [w[:2] for w in gh.writes] == [("post", 7)] and "findings not read: gh api actions/artifacts" in result, result
+
+
+def test_a_finding_message_cannot_render_markup_or_mention_anyone():
+    gh = fworld(artifact(finding(message="@bamr87 see [here](http://evil.test) <img src=x> ghp_" + "a" * 36)))
+    go(gh)
+    shown = inline(gh)[0]["body"].split("<!--")[0]
+    for raw in (r"(?<!\\)@bamr87", r"(?<!\\)\]\(", r"(?<!\\)<img", "ghp_"):
+        assert not re.search(raw, shown), (raw, shown)
+
+
+def test_the_job_summary_lists_every_finding_and_what_happened():
+    with tempfile.TemporaryDirectory() as d:
+        out = Path(d) / "summary.md"
+        os.environ["GITHUB_STEP_SUMMARY"] = str(out)
+        try:
+            go(fworld(artifact(finding(), finding(path="README.md")), author="dependabot[bot]"))
+            go(fworld(artifact(finding(kind="code")), artifact(raw="nope\n"),
+                      runs=[run(rid=1, conclusion="success"), run(rid=2, wid=11, name="Lint", conclusion="success")]))
+        finally:
+            del os.environ["GITHUB_STEP_SUMMARY"]
+        text = out.read_text(encoding="utf-8")
+    assert "skipped: docs check on a Dependabot PR" in text and "| posted |" in text
+    assert "Rejected: `fleet-findings` from Lint" in text and "not JSON" in text
 
 
 def main() -> int:
