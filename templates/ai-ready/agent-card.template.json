@@ -1,0 +1,50 @@
+{
+  "name": "__PROJECT_NAME__",
+  "description": "__AGENT_DESCRIPTION__",
+  "supportedInterfaces": [
+    {
+      "url": "__AGENT_URL__",
+      "protocolBinding": "JSONRPC",
+      "protocolVersion": "1.0"
+    }
+  ],
+  "provider": {
+    "organization": "__OWNER__",
+    "url": "https://github.com/__OWNER__"
+  },
+  "version": "__AGENT_VERSION__",
+  "documentationUrl": "https://github.com/__OWNER__/__PROJECT_NAME__#readme",
+  "capabilities": {
+    "streaming": false,
+    "pushNotifications": false,
+    "extendedAgentCard": false
+  },
+  "securitySchemes": {
+    "bearer": {
+      "httpAuthSecurityScheme": {
+        "scheme": "Bearer",
+        "description": "A bearer token issued by the agent's operator; never committed, never in the card."
+      }
+    }
+  },
+  "securityRequirements": [
+    {
+      "schemes": {
+        "bearer": {
+          "list": []
+        }
+      }
+    }
+  ],
+  "defaultInputModes": ["text/plain", "application/json"],
+  "defaultOutputModes": ["text/plain", "application/json"],
+  "skills": [
+    {
+      "id": "__SKILL_ID__",
+      "name": "__SKILL_NAME__",
+      "description": "__SKILL_DESCRIPTION__",
+      "tags": ["__PROJECT_NAME__"],
+      "examples": ["__SKILL_EXAMPLE__"]
+    }
+  ]
+}
