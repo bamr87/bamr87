@@ -19,6 +19,9 @@ Guards the invariants that decide whether the daily loop is useful or a nuisance
   * a workflow that has not RUN since it went red must not outrank one that is
     failing today — and must not be dropped either, because staleness is absence
     of evidence, not evidence of health (bamr87/bamr87#200);
+  * a cost flag over a few wasted minutes must not buy a slot, while `slow`,
+    `cron-heavy` and every correctness signal stay out of the floor's reach
+    (bamr87/bamr87#823);
   * "no verdicts" must never be published as "0% success".
 
 Deliberately dependency-light — no network, no gh. Runs either way:
@@ -52,6 +55,11 @@ CFG = {
     "interactive_dispatch_pct": 60,
     "productive_schedule_pct": 90,
     "stale_after_days": 7,
+    # Off in the shared config, so each check before "waste floor" pins the one
+    # guard it names: several of their fixtures waste under 15 job-minutes, and
+    # the floor would hide a regression in that guard. The floor's own checks
+    # switch it on.
+    "min_cost_waste_min": 0,
     "severity": dict(remediation.DEFAULT_SEVERITY),
 }
 
@@ -323,6 +331,23 @@ def main() -> int:
     cands_cz = build(triage(), usage(dict(canary, waste_min=4.0)))
     check("…and when it records wasted minutes",
           len(cands_cz) == 1 and "cron-heavy" in cands_cz[0]["signals"])
+    # A loop behind its kill switch: every cron firing is a free `skipped` run,
+    # so 100% scheduled raises cron-heavy with no verdict to clear it
+    # (fleet-pm.yml, 7 skipped runs, 0.0 job-min).
+    off = dict(wf("bamr87/bamr87", "Fleet PM review", ".github/workflows/fleet-pm.yml",
+                  runs=7, flags=["cron-heavy"], avg=0.0, p95=0.0, waste=0.0,
+                  total=0.0, priority=0.0, dispatch_pct=0.0,
+                  events={"schedule": 7}),
+               sched_pct=100.0, success_rate_pct=None, effectiveness_pct=None,
+               success=0, failure=0, cancelled=0)
+    check("a switched-off cron (every run skipped, 0 min) is not queued on cron-heavy",
+          build(triage(), usage(off)) == [] and remediation.is_switched_off(off))
+    check("…but a cron that executed is not switched off",
+          not remediation.is_switched_off(dict(off, success=1, total_min=1.0)))
+    off_legacy = {k: v for k, v in off.items()
+                  if k not in ("success", "failure", "cancelled")}
+    check("…and a snapshot without verdict counts behaves as before",
+          len(build(triage(), usage(off_legacy))) == 1)
     # A snapshot from before `success_rate_pct` / `waste_min` reads as not green.
     bare = {k: v for k, v in canary.items()
             if k not in ("success_rate_pct", "waste_min")}
@@ -543,6 +568,90 @@ def main() -> int:
         [dict(aged[0], _where="submodule")], CFG, HUB, usage(), triage(),
         {"total": 2, "deduped": 0, "retired": 0})
     check("a live candidate carries no stale note", "no run since" not in live_md)
+
+    # --- the waste floor (bamr87/bamr87#823) -------------------------------- #
+    # The live case: bamr87/recon-engine `ci.yml` in the 2026-11-15 snapshot.
+    # Eleven runs, 7 green and 4 cancelled, all four from ONE 5-commit burst
+    # pushed ~6 s apart and cut short by a working `cancel-in-progress` guard.
+    # 4.0 wasted job-minutes in 14 days met `cancel-heavy`'s 4-minute floor
+    # and took a cross-repo doctor slot to conclude "no workflow change".
+    print("waste floor:")
+    floored = dict(CFG, min_cost_waste_min=15)
+    recon = dict(wf("bamr87/recon-engine", "CI", path, runs=11,
+                    flags=["cancel-heavy"], avg=1.64, p95=2.0, waste=4.0,
+                    total=18.0, priority=8.0, last_conclusion="success",
+                    dispatch_pct=0.0),
+                 cancel_min=4.0, success_rate_pct=100.0,
+                 effectiveness_pct=77.8, wall_avg_min=0.31)
+    check("a cancel-heavy workflow that wasted 4 job-min is not queued",
+          build(triage(), usage(recon), cfg=floored) == [])
+    cands_recon = build(triage(), usage(recon), cfg=dict(CFG, min_cost_waste_min=0))
+    check("min_cost_waste_min: 0 switches the floor off, and the burst queues again",
+          len(cands_recon) == 1 and cands_recon[0]["signals"] == {"cancel-heavy"})
+    check("…and the committed _data/fleet.yml keeps it out",
+          build(triage(), usage(recon),
+                cfg=remediation.load_config(remediation.FLEET_DEFAULT)) == [])
+
+    # Above the floor the same flag is real work, and the floor is "fewer than".
+    churn = dict(recon, waste_min=20.0, cancel_min=20.0, priority=40.0)
+    cands_churn = build(triage(), usage(churn), cfg=floored)
+    check("cancel-heavy at 20 wasted job-min is still queued",
+          len(cands_churn) == 1 and cands_churn[0]["signals"] == {"cancel-heavy"})
+    check("…and so is a workflow exactly at the floor",
+          len(build(triage(), usage(dict(recon, waste_min=15.0)), cfg=floored)) == 1)
+
+    # bamr87/bamr87#797's shape: zer0-mistakes `issue-autopilot.yml` in the
+    # 2026-11-09 snapshot, `high-cost-low-value` from 1 success and 1 failure
+    # beside 98 skipped or cancelled runs, 6.6 wasted job-minutes. Its priority
+    # clears `min_priority`, so dropping the flag alone would hand it straight
+    # back to the fallback: the floor has to skip that too.
+    autopilot = dict(wf("bamr87/zer0-mistakes", "🧭 Issue Autopilot",
+                        ".github/workflows/issue-autopilot.yml", runs=100,
+                        flags=["high-cost-low-value"], avg=0.14, p95=1.0,
+                        waste=6.6, total=13.6, priority=13.2,
+                        last_conclusion="failure", dispatch_pct=0.0),
+                     cancel_min=0.3, effectiveness_pct=51.6)
+    check("…the fixture's priority clears min_priority on its own",
+          autopilot["priority"] >= CFG["min_priority"])
+    check("high-cost-low-value on 6.6 wasted job-min is not queued, not even by the fallback",
+          build(triage(), usage(autopilot), cfg=floored) == [])
+
+    # Only the two flags that measure waste. `slow` is latency (a green workflow
+    # can be slow and waste nothing), `cron-heavy` is the scheduled share, and
+    # correctness is never the floor's business.
+    slow_cheap = wf("bamr87/a", "Long", path, runs=10, flags=["slow"],
+                    avg=13.46, p95=18.48, waste=2.0, total=134.6,
+                    last_conclusion="success", dispatch_pct=0.0)
+    cands_slow = build(triage(), usage(slow_cheap), cfg=floored)
+    check("a slow-only workflow under the floor is unaffected",
+          len(cands_slow) == 1 and cands_slow[0]["signals"] == {"slow"})
+    red_cheap = wf("bamr87/a", "Red", path, runs=10,
+                   flags=["failing", "high-cost-low-value"], waste=6.0,
+                   last_conclusion="failure", dispatch_pct=0.0)
+    cands_rc = build(triage(), usage(red_cheap), cfg=floored)
+    check("a failing workflow under the floor keeps `failing`, minus the cost flag",
+          len(cands_rc) == 1 and cands_rc[0]["signals"] == {"failing"})
+    cron_cheap = dict(wf("bamr87/a", "Nightly", path, runs=14, flags=["cron-heavy"],
+                         waste=2.0, total=14.0, last_conclusion="success",
+                         dispatch_pct=0.0),
+                      sched_pct=100.0, success_rate_pct=85.7)
+    cands_cc = build(triage(), usage(cron_cheap), cfg=floored)
+    check("cron-heavy under the floor is unaffected",
+          len(cands_cc) == 1 and cands_cc[0]["signals"] == {"cron-heavy"})
+    check("the floor's signals are cost signals, and slow is not one of them",
+          remediation.WASTE_SIGNALS < remediation.COST_SIGNALS
+          and "slow" not in remediation.WASTE_SIGNALS)
+
+    # Suppress on a measurement, never on its absence.
+    unmeasured = {k: v for k, v in recon.items() if k != "waste_min"}
+    check("a record without waste_min is never floored",
+          len(build(triage(), usage(unmeasured), cfg=floored)) == 1)
+    check("load_config defaults min_cost_waste_min to 15 when absent",
+          remediation.load_config(Path("/nonexistent/fleet.yml")).get(
+              "min_cost_waste_min") == 15)
+    check("the committed _data/fleet.yml declares the knob",
+          ((remediation.load_yaml(remediation.FLEET_DEFAULT).get("remediation")
+            or {}).get("min_cost_waste_min") or 0) > 0)
 
     # --- no verdicts ≠ 0% (actions_analytics) ------------------------------- #
     # germinate's committed record read `failure: 0` beside `success_rate_pct:
