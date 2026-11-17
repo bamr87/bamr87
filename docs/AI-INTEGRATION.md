@@ -13,6 +13,8 @@ One page for the whole AI layer: what runs where, how it authenticates, and the 
 
 ## Auth & secrets
 
+> **OAuth only for now (2026-11-15).** `ANTHROPIC_API_KEY` is disabled: `ai_auth:` defaults to `oauth`, no call site passes the key, and `claude-auth` / `claude-run` skip `api_key` in any order, so the sections below describe the restorable mechanism, not today's behaviour. The secret is left in place; reverting that change restores the key.
+
 Every Claude call site tries its credentials **in the order its repo's `CLAUDE_AUTH_ORDER` variable names**. The order is configured per repo and per group in [`_data/fleet.yml`](../_data/fleet.yml) `ai_auth:`. The fleet default is `oauth,api_key`, the house convention since 2026-07: `CLAUDE_CODE_OAUTH_TOKEN` first, `ANTHROPIC_API_KEY` as the fallback. See [Auth order per repo](#auth-order-per-repo).
 
 | Secret | Used by | Required? |

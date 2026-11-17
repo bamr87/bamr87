@@ -9,6 +9,10 @@ the plan trustworthy as the record of an editorial decision:
     collections, files without front matter are not documents, invalid YAML
     is a finding rather than a crash, filename date prefixes count as dates,
     and _config.yml's exclude list is honoured — except under explicit roots;
+  * a site's own contract shapes what is counted: its `exclude:` takes
+    directory prefixes and globs whose `*` crosses directories, its
+    `quality.require` replaces the default list, and a pillar's `paths:`
+    claims untagged documents by prefix (bash-365.com relies on all three);
   * git history dates documents from real commits, and a SHALLOW clone's
     boundary commit (which "adds" every file) does not date the whole site;
   * the analysis buckets ages, splits human from bot commits, measures pillar
@@ -157,6 +161,37 @@ def test_explicit_roots_bypass_config_exclude_and_classify_by_first_dir():
         docs, _ = ca.scan_tree(tree, site, c)
         assert [d["path"] for d in docs] == ["vault/paradoxes/liar.md"], docs
         assert docs[0]["collection"] == "paradoxes"
+    finally:
+        shutil.rmtree(tmp)
+
+
+def test_site_exclude_require_and_paths_shape_what_is_counted():
+    """The bash-365.com contract in miniature: structural pages excluded by
+    prefix, exact path and a glob that reaches nested section indexes; an
+    evergreen page asked for no date or tags; an untagged case study claimed
+    by a `paths:` pillar."""
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        tree = tmp / "site"
+        _write(tree, "_config.yml", "collections_dir: pages\n")
+        page = "---\ntitle: {}\ndescription: An evergreen page, with a description but no date and no tags.\n---\nx\n"
+        for rel in ("pages/_about/settings/theme.md", "pages/search.md", "pages/_posts/2000-01-01-index.md",
+                    "pages/_posts/erp/2000-01-01-index.md", "pages/_toolkit/price-index.md",
+                    "pages/_case-studies/erp-upgrade.md"):
+            _write(tree, rel, page.format(Path(rel).stem))
+        c = ca._merge(ca.DEFAULTS, {})
+        site = {"name": "s", "roots": [], "quality": c["quality"],
+                "exclude": ["pages/_about/settings", "pages/search.md", "pages/_posts/*-index.md"]}
+        docs, _ = ca.scan_tree(tree, site, c)
+        by = {d["path"]: d for d in docs}
+        assert sorted(by) == ["pages/_case-studies/erp-upgrade.md", "pages/_toolkit/price-index.md"], sorted(by)
+        assert {"missing-date", "missing-tags"} <= set(by["pages/_case-studies/erp-upgrade.md"]["issues"])
+        site["quality"] = ca._merge(c["quality"], {"require": ["title", "description"]})
+        docs, _ = ca.scan_tree(tree, site, c)
+        found = {i for d in docs for i in d["issues"]}
+        assert not found & {"missing-date", "missing-tags", "missing-title", "missing-description"}, found
+        pillar = {"id": "erp-finance", "match": {"paths": ["pages/_case-studies/"]}}
+        assert [d["path"] for d in docs if ca.pillar_matches(d, pillar)] == ["pages/_case-studies/erp-upgrade.md"]
     finally:
         shutil.rmtree(tmp)
 

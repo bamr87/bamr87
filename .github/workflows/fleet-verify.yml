@@ -34,8 +34,9 @@ name: fleet-verify
 # 2026-11 both cases waited out the timeout and passed: 22 of the 25 repos on
 # this workflow ran no scenarios at all (docs/WORKFLOW-OPTIMIZATION.md).
 #
-# Auth (house convention): CLAUDE_CODE_OAUTH_TOKEN preferred, ANTHROPIC_API_KEY
-# fallback — callers pass `secrets: inherit`. A missing credential SKIPS the
+# Claude auth: OAuth only (CLAUDE_CODE_OAUTH_TOKEN). ANTHROPIC_API_KEY disabled for now
+# (2026-11-15); to restore, re-add the secrets.ANTHROPIC_API_KEY reference.
+# Callers pass `secrets: inherit`. A missing credential SKIPS the
 # agent step with a notice; it never fails the scenario half.
 #
 # The hub's composite actions (claude-auth, claude-cost) are taken from the
@@ -107,7 +108,7 @@ jobs:
       pull-requests: write
       id-token: write
     env:
-      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
     steps:
       - name: Checkout this repository
         uses: actions/checkout@v7
@@ -333,7 +334,7 @@ jobs:
         if: ${{ inputs.agent }}
         run: |
           if [ "$HAS_CLAUDE_AUTH" != "true" ]; then
-            echo "::notice::agent pass requested but neither CLAUDE_CODE_OAUTH_TOKEN nor ANTHROPIC_API_KEY is set — skipping (docs/AI-INTEGRATION.md)"
+            echo "::notice::agent pass requested but CLAUDE_CODE_OAUTH_TOKEN is not set (OAuth only; ANTHROPIC_API_KEY is disabled for now) — skipping (docs/AI-INTEGRATION.md)"
           fi
 
       - name: Write the verification brief
@@ -372,7 +373,6 @@ jobs:
         with:
           order: ${{ vars.CLAUDE_AUTH_ORDER }}
           has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Claude Code verification pass
         if: ${{ inputs.agent && env.HAS_CLAUDE_AUTH == 'true' && steps.app.outputs.started == 'true' }}
@@ -380,7 +380,6 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
-          anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
           # ALLOWLIST: the browser (Playwright MCP), the runner, and read/write of
           # files in the tree. No git write verbs, no gh, no network beyond the
           # MCP — publishing the report is the workflow's job below.

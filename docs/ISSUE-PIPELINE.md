@@ -9,6 +9,7 @@ The loop that turns an **open issue** into a **merge-ready pull request**, in th
 | **Workflow** | [`.github/workflows/issue-pipeline.yml`](../.github/workflows/issue-pipeline.yml) | daily 07:37 UTC + dispatch |
 | **Queue builder** | [`.github/scripts/dash-gen/issue_pipeline.py`](../.github/scripts/dash-gen/issue_pipeline.py) | `dash issues` |
 | **Evidence harness** | [`tools/issue-evidence.sh`](../tools/issue-evidence.sh) | `dash evidence <repo> <n>` |
+| **Tier contracts** | [`pipeline_contracts.py`](../.github/scripts/dash-gen/pipeline_contracts.py), [handoff](../.github/scripts/dash-gen/pipeline-handoff.schema.json) and [verdict](../.github/scripts/dash-gen/pipeline-verdict.schema.json) schemas | `dash issues handoff …`, `dash issues verdict …` |
 | **Config** | [`_data/fleet.yml`](../_data/fleet.yml) → `issue_pipeline:` | caps, taxonomy, autonomy |
 | **Snapshot** | `_data/issue_pipeline.yml` (committed) | rendered at `/issue-pipeline/` |
 | **Tests** | `python3 .github/scripts/dash-gen/test_issue_pipeline.py` | no network, no pytest |
@@ -29,20 +30,57 @@ log excerpts trimmed to the failing lines, a screenshot for stacks that render o
 vs actual, scope, mechanically checkable acceptance criteria, references — with the reporter's original words preserved verbatim in a collapsed section.
 4. **Labels**: type, priority, size, plus an assignee.
 5. **A decision**: `agent:ready` (tier 2 may implement it) or `agent:blocked` with one specific question and a recommendation.
+6. **A handoff**, recorded by a deterministic step after the agent, never by it: the issue, its repo, its checkbox acceptance criteria, its evidence bundle and its size, as `issue-pipeline-handoff/v1` ([contracts](#contracts-between-tiers)).
 
 ### Tier 2 — implement
 
-Takes an `agent:ready` issue, implements it on `agent/issue-<n>`, and opens a **draft** PR — in the hub, or in the submodule that owns the code. Tests and docs are part of the change, not a follow-up: the PR body must show the test failing before and passing after. The issue moves to `agent:in-pr`.
+Takes an `agent:ready` issue whose handoff passes the [contract](#contracts-between-tiers) (one that fails never reaches the work order and moves to `agent:blocked` with the reason), implements it on `agent/issue-<n>`, and opens a **draft** PR — in the hub, or in the submodule that owns the code. Tests and docs are part of the change, not a follow-up: the PR body must show the test failing before and passing after. The issue moves to `agent:in-pr`.
 
 **Visual repos.** When the target declares a visual-evidence standard (zer0-mistakes: `.github/skills/visual-evidence/SKILL.md`), the artifacts that standard asks for — generated before/after evidence and refreshed pixel baselines — are part of the change too, and they can only be *rendered*: inside a Playwright Docker image against a live site. **The runner has Docker**, and the tier's allowlist includes `docker`, `node`, `ruby`, `curl` and the repo's `test/` and `scripts/` entry points, so the agent runs the repo's tooling (`python3 scripts/ci/visual_evidence_autogen.py all --base origin/main`) before opening the PR. That is what makes a UI PR green on its **first** CI run. This was learned from [bamr87/zer0-mistakes#454](https://github.com/bamr87/zer0-mistakes/pull/454): an agent that believed Docker was gated shipped a README in place of the montages and left nine stale baselines that three passes could diagnose but none could refresh. The repo side of the fix is zer0-mistakes' `visual-evidence-autogen.yml`, which renders whatever an author could not; the hub side is this allowlist and prompt.
 
 ### Tier 3 — complete
 
-Drives a pipeline PR to genuinely mergeable: CI green (root cause fixed, never `continue-on-error`), tests covering the change, docs and `SCHEMA.md` rows current, body accurate. Then `gh pr ready` and the issue moves to `agent:done`.
+Drives a pipeline PR to genuinely mergeable: CI green (root cause fixed, never `continue-on-error`), tests covering the change, docs and `SCHEMA.md` rows current, body accurate. Then it posts a per-criterion verdict, and only when `dash issues verdict check` passes does it run `gh pr ready` and move the issue to `agent:done`; a deterministic backstop reverts both when the check fails ([contracts](#contracts-between-tiers)).
 
 A red pixel-snapshot or evidence-gate check on a visual repo is a producible artifact, not a code bug: tier 3 runs the same Docker-based tooling as tier 2, **looks at the expected/actual/diff montage**, and regenerates baselines only when the diff is the change the PR describes. A diff that is not the described change is a regression to fix, never to bless.
 
 **It never merges.** Handing over a green, reviewable PR is the end of the pipeline.
+
+## Contracts between tiers
+
+A label plus prose is not a handoff. Tier 1 used to mark an issue `agent:ready` and tier 2 took its word for it; tier 3 wrote that every acceptance criterion was met, in its own words, and labelled the issue `agent:done`. Nothing checked either claim ([ADP-01](agentic-patterns/patterns/01-prompt-chaining.md), [ADP-11](agentic-patterns/patterns/11-goal-setting-and-monitoring.md)). Two contracts in [`pipeline_contracts.py`](../.github/scripts/dash-gen/pipeline_contracts.py) close that, each enforced by a deterministic step rather than by the agent that made the claim. Both judge the same thing: the issue's **checkbox acceptance criteria**. When the body has an `Acceptance criteria` (or `Definition of done`, `Done when`) section holding checkboxes, those are the criteria; otherwise every checkbox is. The reporter's original, preserved below the house template's marker, fenced code and plain bullets never count.
+
+### The handoff: tier 1 → tier 2
+
+`issue-pipeline-handoff/v1`, [`pipeline-handoff.schema.json`](../.github/scripts/dash-gen/pipeline-handoff.schema.json):
+
+| Field | Rule |
+| --- | --- |
+| `issue` | `owner/repo#N`, and it is the issue being checked |
+| `owner_repo` | the issue's own repo, owned by the hub's owner: tier 2 opens its PR there |
+| `acceptance_criteria` | at least one checkbox criterion |
+| `evidence` | the last evidence bundle a trusted author (owner, member, collaborator or a bot) posted on the issue (`key` for this issue, `at`, `url`), or `null` when none was built; a stranger's evidence marker is ignored, so a comment naming another issue cannot get this one blocked |
+| `size` | one of the size labels |
+
+1. **Recorded after tier 1.** `dash issues handoff record` builds the handoff for each issue on tier 1's queue that the agent left at `agent:ready`, uploads it as the `issue-handoffs` artifact, and records it on the issue: appended to tier 1's marker comment between hidden markers, replaced in place on a later run.
+2. **Checked before tier 2.** The queue builder rebuilds the handoff from the issue as it stands (a person may have edited it since) and validates it, and it checks that the handoff tier 1 recorded is bound to this issue: one copied from another issue, or carried along by a transfer, names another `issue` or `owner_repo`. Only the capped tier-2 shortlist is checked, so it costs no extra request.
+3. **A failure is held back and blocked.** The issue is left out of `issue-workorder-t2.md` (listed at its end with the reasons) and reported in the snapshot's `handoff:` block, and tier 2's next step moves it to `agent:blocked`, off `agent:ready`, with a comment naming each problem. Its slot is not refilled that run. Fix the issue, then put `agent:ready` back; tier 2 checks it again.
+
+A dry run (`dry_run: true`) shows the check in the scan summary without blocking anything. `dash issues handoff check --repo R --issue N` runs it read-only on one issue. On 2026-11-15, 34 of the 35 issues then at `agent:ready` passed; the one that failed had its acceptance criteria as plain bullets.
+
+### The verdict: tier 3 → `agent:done`
+
+`issue-pipeline-verdict/v1`, [`pipeline-verdict.schema.json`](../.github/scripts/dash-gen/pipeline-verdict.schema.json). Tier 3 posts it on the PR as a fenced code block with the info string `pipeline-verdict`, holding a JSON array with one entry per checkbox criterion of every issue the PR closes:
+
+| Field | Rule |
+| --- | --- |
+| `issue` | `owner/repo#N`, or `#N` for the PR's own repo |
+| `criterion_text` | the criterion verbatim (`dash issues verdict template` prints them); matched ignoring case, code and emphasis marks, whitespace runs and trailing punctuation |
+| `status` | `met`, `unmet` or `unverifiable` |
+| `evidence` | required for `met`: a test id that names a test (the path of a test or spec file, optionally with `::name`, `[param]` or `:line`, such as `tools/test_x.py::test_y` or `spec/x_spec.rb:42`, or a `::`-qualified id with a test or spec name in it), a run URL, or a line anchor (`path#L10-L20`); a word such as `tested` or `manual-test` is not a test id, and prose is not evidence |
+| `note` | optional, not checked |
+
+`dash issues verdict check --repo R --pr N` reads the last such block from a trusted author (owner, member, collaborator or a bot; anyone can comment on a public PR) and exits 0 only when every criterion of every issue has exactly one entry and all of them are `met` with evidence. A missing, duplicate or unlisted entry fails, and so does an issue with no checkbox criteria: it is `unverifiable`, because there is nothing to check a claim against. Tier 3 may run `gh pr ready` and apply `agent:done` only after the check passes; otherwise the PR stays a draft with the unmet list. After tier 3, `dash issues verdict backstop` re-checks every PR on its queue that was a draft at the scan and is ready now, or whose issue gained `agent:done` since the scan. Where the check fails, the PR goes back to draft, that `agent:done` comes off, and the PR gets the unmet list. A PR that was already ready before the run, or an earlier run's `agent:done`, is left alone.
 
 ## State lives in labels
 
@@ -104,6 +142,8 @@ Everything selective happens in Python, before any model runs:
 | the gap list, and who can close each | ready vs blocked, and why |
 | caps and the cross-repo sub-cap | the root cause of a red check |
 | marker-based dedupe | |
+| the handoff check: criteria, owner repo, size, evidence | the acceptance criteria themselves (tier 1) |
+| the verdict check: one `met` with evidence per criterion | each criterion's verdict and its evidence (tier 3) |
 
 The agents act on a pre-vetted, capped, deduped list — the same guarantee that keeps the remediation loop from spamming the fleet. An agent that misreads a signal wastes a review, not a weekend.
 
@@ -160,6 +200,13 @@ tools/dash issues --repos bamr87/it-journey --no-snapshot --print
 tools/dash issues --sync-labels            # preview
 tools/dash issues --sync-labels --apply    # write
 
+# Would tier 2 take this issue? (the handoff check, read-only)
+tools/dash issues handoff check --repo bamr87/it-journey --issue 42
+
+# Tier 3's verdict for a pipeline PR: the block to fill in, then the check
+tools/dash issues verdict template --repo bamr87/it-journey --pr 57
+tools/dash issues verdict check --repo bamr87/it-journey --pr 57
+
 # Build one issue's evidence bundle locally
 tools/dash evidence bamr87/it-journey 42
 open .evidence/it-journey-42/evidence.md
@@ -174,6 +221,7 @@ Dispatch inputs: `tiers` (`all`/`1`/`2`/`3`/`1-2`/`2-3`), `repos`, the three cap
 
 - **Draft PRs only. No tier may merge.** `autonomy.never_merge` is `true` and every prompt says so explicitly.
 - **Nothing under `projects/` is ever edited** — those are submodule working trees. Cross-repo work happens in a scratch clone.
+- **Claims are checked, not trusted.** Tier 2 starts only from an issue whose handoff passes, and tier 3's "done" is a verdict a script checks, with a backstop that reverts it ([contracts](#contracts-between-tiers)).
 - **Issue text is never executed.** Anyone can open an issue and the runner holds
 a fleet token, so `issue-evidence.sh` *extracts and reports* candidate repro commands but only runs what a caller passes via `--cmd`. The issue body reaches the harness through a file, never through argv.
 - **Credentials are scrubbed** from every log the harness writes, and the clone
