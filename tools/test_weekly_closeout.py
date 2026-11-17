@@ -123,7 +123,8 @@ def test_caps_model_and_least_privilege():
 def test_secrets_are_passed_by_name_only():
     for stem, *_r in LANES.values():
         secrets = lane_call(stem)["secrets"]
-        assert set(secrets) == {"CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "GH_PAT"}, stem
+        # OAuth only for now (2026-11-15): ANTHROPIC_API_KEY is no longer passed to the lane.
+        assert set(secrets) == {"CLAUDE_CODE_OAUTH_TOKEN", "GH_PAT"}, stem
         assert secrets["GH_PAT"] == "${{ secrets.FLEET_TOKEN }}"
 
 

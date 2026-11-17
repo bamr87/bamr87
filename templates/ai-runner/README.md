@@ -23,6 +23,8 @@ Every AI lane in the fleet is the same job: gate on a repo variable, check a cre
 | `<LANE>_ENABLED` repo **variable** | The kill switch. Default OFF: a lane idles until it is `true` | per scheduled lane |
 | The verification harness | Whatever proves the agent's work (`scripts/ci/run-all.sh`, `make cms-all`, …) — passed as `pre-run`/`post-run`, or run by the agent | per repo |
 
+> **OAuth only for now (2026-11-15):** the runner ignores `ANTHROPIC_API_KEY` and `api_key` in the order, so lanes run on `CLAUDE_CODE_OAUTH_TOKEN` alone and there is no Claude API fallback; the secret itself is untouched, and reverting the change restores the key.
+
 Canonical environment (no repo prefix, so nothing is repo-specific): `CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY`, `AI_MODEL`, `AI_FORCE_API`, `AI_MAX_TURNS`, `AI_USAGE_DIR`, `AI_ROLE`, `AI_REPO_ROOT`.
 
 ## Exit contract

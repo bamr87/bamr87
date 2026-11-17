@@ -55,7 +55,9 @@ name: 🧭 Issue Pipeline
 #                tier3 has nothing to read. Probed for real, not just presence-
 #                checked — a set-but-expired token has silently degraded this
 #                fleet's automation before.
-#   CLAUDE_CODE_OAUTH_TOKEN  preferred Claude auth; ANTHROPIC_API_KEY fallback.
+#   CLAUDE_CODE_OAUTH_TOKEN  Claude auth (OAuth only for now).
+# Claude auth: OAuth only (CLAUDE_CODE_OAUTH_TOKEN). ANTHROPIC_API_KEY disabled for now
+# (2026-11-15); to restore, re-add the secrets.ANTHROPIC_API_KEY reference.
 #
 # Docs: docs/ISSUE-PIPELINE.md
 
@@ -252,7 +254,7 @@ jobs:
     outputs:
       usage_limit: ${{ steps.cost.outputs.usage_limit }}
     env:
-      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v7
 
@@ -333,7 +335,7 @@ jobs:
       - name: Report missing Claude auth
         if: ${{ env.HAS_CLAUDE_AUTH != 'true' }}
         run: |
-          echo "::warning::No Claude auth (CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY) — tier 1 enrichment is skipped. Evidence bundles were still built and uploaded."
+          echo "::warning::No Claude auth (CLAUDE_CODE_OAUTH_TOKEN; ANTHROPIC_API_KEY is disabled for now) — tier 1 enrichment is skipped. Evidence bundles were still built and uploaded."
 
       # The credential comes from this repo's CLAUDE_AUTH_ORDER (ai_auth: in
       # bamr87/bamr87 _data/fleet.yml) — a method NAME, never a secret, in the output.
@@ -344,7 +346,6 @@ jobs:
         with:
           order: ${{ vars.CLAUDE_AUTH_ORDER }}
           has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Enrich issues
         id: enrich
@@ -356,7 +357,6 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
-          anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
           github_token: ${{ env.GH_TOKEN }}
           # Turn budget must clear a FULL-capacity intake run: tiers.intake.max_issues (8)
           # issues plus evidence.max_runs (6) bundles to read. A run at exactly that
@@ -558,7 +558,7 @@ jobs:
     outputs:
       usage_limit: ${{ steps.cost.outputs.usage_limit }}
     env:
-      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
       FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN }}
     steps:
       - uses: actions/checkout@v7
@@ -606,7 +606,6 @@ jobs:
         with:
           order: ${{ vars.CLAUDE_AUTH_ORDER }}
           has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Implement
         id: implement
@@ -621,7 +620,6 @@ jobs:
           WRITE_TOKEN_OK: ${{ steps.token.outputs.pat }}
         with:
           claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
-          anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
           github_token: ${{ env.GH_TOKEN }}
           # Turn budget must be sized against `timeout-minutes: 90`, not guessed:
           # T2 implements up to `tiers.implement.max_issues` (3) issues end to end
@@ -797,7 +795,7 @@ jobs:
       id-token: write
       actions: read          # read the PRs' failing CI logs
     env:
-      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
       FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN }}
     steps:
       - uses: actions/checkout@v7
@@ -824,7 +822,6 @@ jobs:
         with:
           order: ${{ vars.CLAUDE_AUTH_ORDER }}
           has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Complete
         id: complete
@@ -838,7 +835,6 @@ jobs:
           FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN }}
         with:
           claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
-          anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
           github_token: ${{ env.GH_TOKEN }}
           # Same sizing as T2, and T3 is the more turn-hungry of the two: its loop
           # is "read checks -> read failing log -> fix -> push -> re-check" over up

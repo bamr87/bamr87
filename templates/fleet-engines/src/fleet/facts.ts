@@ -68,6 +68,11 @@ function commandLines(yamlText: string): string {
     .join('\n');
 }
 
+/** Whether a `${{ … }}` expression in `cmd` (see commandLines) reads `secrets.<name>`. */
+function wiresSecret(cmd: string, name: string): boolean {
+  return new RegExp(`\\$\\{\\{[^}]*\\bsecrets\\.${name}\\b`).test(cmd);
+}
+
 // ── dash type (cost-grouping) classifier ──────────────────────────────────────
 
 // Ordered rules, matched against "<name> <path>" lowercased; the FIRST rule with any
@@ -363,8 +368,11 @@ function aiFactsOf(yamlText: string): AiFacts {
     ...uniqueCaptures(yamlText, /--agent[= ]([A-Za-z0-9_-]+)/g),
   ].filter((a, i, all) => all.indexOf(a) === i);
 
-  const hasOauth = /CLAUDE_CODE_OAUTH_TOKEN/.test(yamlText);
-  const hasKey = /ANTHROPIC_API_KEY/.test(yamlText);
+  // Auth counts only a live `${{ … secrets.NAME … }}` wiring, never a bare mention: the
+  // OAuth-only kit names ANTHROPIC_API_KEY in comments and log lines ("disabled for
+  // now"), and ai-lane.yml keeps an unread `ANTHROPIC_API_KEY:` secret declaration.
+  const hasOauth = wiresSecret(cmd, 'CLAUDE_CODE_OAUTH_TOKEN');
+  const hasKey = wiresSecret(cmd, 'ANTHROPIC_API_KEY');
   const authMode: AiFacts['authMode'] =
     hasOauth && hasKey ? 'oauth-first' : hasOauth ? 'oauth-only' : hasKey ? 'api-key-only' : 'none';
 
