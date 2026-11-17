@@ -1,11 +1,12 @@
 kit: pr-review
-version: 0.1.0
+version: 0.2.0
 source: bamr87/bamr87 templates/pr-review/
 seeded-by: tools/fanout.sh --kit pr-review (fanout.yml, kit pr-review)
 files: pr-review.yml
 spec: constitution § 19; specs/WORK.md UPS-WORK-17; reusable .github/workflows/pr-review.yml
-updated: 2026-11-06
+updated: 2026-11-15
 changelog: |
+  0.2.0 — the stub declares a workflow-level concurrency group (pr-review-caller-<head sha>, cancel-in-progress false), so repos whose tests require one on every workflow (githubai) accept it; named apart from the reusable's group because a caller and callee sharing one deadlock. 0.1.0 archived for --upgrade.
   0.1.0 — thin caller of the reusable pr-review.yml: CI failures summarized in one sticky comment.
 notes: |
   - Snapshot to archive/ before editing this template so --upgrade can still

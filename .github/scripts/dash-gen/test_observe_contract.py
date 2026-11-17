@@ -369,7 +369,10 @@ def test_kilo_indexing_agrees_with_the_contract_and_includes_submodules():
     assert f":-{contract['qdrant_version']}}}" in ELK["qdrant"]["image"], ELK["qdrant"]["image"]
     assert ENV.get("QDRANT_VERSION") == contract["qdrant_version"]
     assert cfg["ollama"]["baseUrl"] == contract["embedder"]
-    assert "projects/" not in (REPO_ROOT / ".gitignore").read_text()
+    rules = [ln.strip() for ln in (REPO_ROOT / ".gitignore").read_text().splitlines()
+             if ln.strip() and not ln.lstrip().startswith("#")]
+    hiding = [r for r in rules if r.lstrip("/").rstrip("/*") == "projects"]
+    assert not hiding, f".gitignore hides the submodule tree from the indexer: {hiding}"
     assert not (REPO_ROOT / ".kilocodeignore").exists()
     coverage = fo.submodule_coverage(REPO_ROOT)
     assert coverage["declared"] > 0

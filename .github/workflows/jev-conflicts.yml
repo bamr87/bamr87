@@ -111,6 +111,8 @@ jobs:
         run: |
           python3 -m tools.jev conflicts budget --scheduled | tee -a "$GITHUB_STEP_SUMMARY"
 
+      # Claude auth: OAuth only (CLAUDE_CODE_OAUTH_TOKEN). ANTHROPIC_API_KEY disabled for now
+      # (2026-11-15); to restore, re-add the secrets.ANTHROPIC_API_KEY reference.
       # The model credential, in this repo's own CLAUDE_AUTH_ORDER. Tiers 1 and
       # 2 need it; tier 0 and tier 3 do not, and the run still does useful work
       # with no credential at all.
@@ -119,7 +121,6 @@ jobs:
         with:
           order: ${{ vars.CLAUDE_AUTH_ORDER }}
           has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Install Claude Code
         if: ${{ steps.claude-auth.outputs.method != 'none' }}
@@ -155,7 +156,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
           CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
-          ANTHROPIC_API_KEY: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
           DRY: ${{ (github.event_name == 'workflow_dispatch' && inputs.dry-run) && '--dry-run' || '' }}
           SCHEDULED: ${{ (github.event_name == 'schedule' || github.event_name == 'push') && '--scheduled' || '' }}
         run: |

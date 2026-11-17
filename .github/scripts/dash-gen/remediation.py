@@ -526,6 +526,24 @@ def is_green_zero_waste(w: dict) -> bool:
     return float(w.get("waste_min") or 0) <= 0.0
 
 
+def is_switched_off(w: dict) -> bool:
+    """Every run in the window was skipped: no verdict, no billed minute.
+
+    A loop behind its `vars.<NAME>_ENABLED` kill switch (a standing rule for
+    every scheduled agent loop) still fires its cron, and each firing is a
+    `skipped` run that costs nothing. Those runs count toward `runs` and
+    `sched_pct`, so `cron-heavy` fires at 100% scheduled — but with no verdict
+    `success_rate_pct` is null and the green guard cannot clear it, which
+    queued `fleet-pm.yml` (7 skipped runs, 0.0 job-min) on cron-heavy alone.
+    Requires the verdict counts to be present, so an older snapshot without
+    them behaves as it did.
+    """
+    if not all(k in w for k in ("success", "failure", "cancelled")):
+        return False
+    verdicts = sum(int(w.get(k) or 0) for k in ("success", "failure", "cancelled"))
+    return verdicts == 0 and float(w.get("total_min") or 0) <= 0.0
+
+
 # --------------------------------------------------------------------------- #
 # guard 4 — staleness (reads the clock, not the verdict)
 # --------------------------------------------------------------------------- #
@@ -645,9 +663,11 @@ def usage_candidates(usage: dict, cfg: dict, owner: str) -> dict[str, dict]:
             suppressed |= raw & COST_SIGNALS
         if productive:
             suppressed |= raw & PRODUCTIVE_SUPPRESSES
-        elif cfg["productive_schedule_pct"] <= 100 and is_green_zero_waste(w):
+        elif cfg["productive_schedule_pct"] <= 100 and (
+                is_green_zero_waste(w) or is_switched_off(w)):
             # Under the scheduled share the guard asks for, but as green and as
-            # free of waste: `cron-heavy` goes, the cost signals stay.
+            # free of waste — or switched off, every run skipped at no cost:
+            # `cron-heavy` goes, the cost signals stay.
             suppressed |= raw & GREEN_ZERO_WASTE_SUPPRESSES
         signals -= suppressed
 

@@ -26,12 +26,13 @@ Claude Code configuration that makes the dash self-managing.
 | `agents/verifier.md` | sub-agent: the acceptance tester that follows `verify-feature` and never claims what it did not observe |
 | `skills/run-dash/` | Orchestration hub: whole-repo project map + per-project "work order" (branch, stack, run cmd, context) for dispatching into a submodule; serve/screenshot the Jekyll dash. Driven by `driver.py` |
 | `commands/harness/` | `/harness:status`, `:inventory`, `:health`, `:decisions`, `:graph`, `:gates`, `:refine`, `:learn`, `:lake` — observe and gate the harness ([below](#slash-commands-the-harness-and-its-loops-one-stage-at-a-time)) |
-| `commands/loops/` | `/loops:list` and one command per loop (`:pulse`, `:issues`, `:conflicts`, `:pm`, `:credentials`, `:evolution`, `:scout`, `:fanout`, `:upkeep`) — run one stage of a loop ([below](#slash-commands-the-harness-and-its-loops-one-stage-at-a-time)) |
+| `commands/loops/` | `/loops:list` and one command per loop (`:pulse`, `:issues`, `:conflicts`, `:pm`, `:credentials`, `:evolution`, `:scout`, `:fanout`, `:upkeep`, `:weekly`) — run one stage of a loop ([below](#slash-commands-the-harness-and-its-loops-one-stage-at-a-time)) |
 | `commands/console/` | `/console:ops`, `:run`, `:jobs` — the Harness Console's whole operation allowlist ([below](#slash-commands-the-harness-and-its-loops-one-stage-at-a-time)) |
 | `commands/register-project.md` | `/register-project` — add/reconcile a project |
 | `commands/adopt-release.md` | `/adopt-release <repo>` — adopt the standardized release-please pipeline (scaffold + PR) |
 | `commands/adopt-schema.md` | `/adopt-schema <submodule>` — seed the Pyramid Schema kit into one submodule (preview → apply → PR) |
 | `commands/future-features.md` | `/future-features <idea>` — draft a full feature spec + place it on the right repo's roadmap |
+| `commands/weekly.md` | `/weekly [close\|prepare\|plan\|confirm]` — run a stage of the weekly routine as a preview and walk through it; `--apply` only on Amr's yes (docs/WEEKLY.md) |
 | `agents/feature-scout.md` | sub-agent that scans the session thread for latent feature ideas and proposes roadmap-ready specs (review/approval before backlog) |
 | `hooks/` | `SessionStart` + `Stop` hooks that make the Future-Features pipeline active in **every** session (see `hooks/README.md`) |
 | `settings.json` | registers the hooks above |
@@ -50,7 +51,7 @@ Three namespaces, one per subdirectory of `commands/` (Claude Code types `comman
 | Namespace | Commands | What they do |
 | --- | --- | --- |
 | `/harness:` | `status`, `inventory`, `health`, `decisions`, `graph`, `gates`, `refine`, `learn`, `lake` | Observe and gate the harness: the scorecard, the AI-workflow inventory against the standard, the agent contract, the decision queue, the fleet graph, the hub's gates, Harness² refinement, outcome learning and the data lake. All $0 but `refine reflect`, which asks first |
-| `/loops:` | `list`, then one per loop: `pulse`, `issues`, `conflicts`, `pm`, `credentials`, `evolution`, `scout`, `fanout`, `upkeep` | Run ONE stage of a loop. The first argument is the stage, the rest its target: `/loops:scout plan`, `/loops:scout rehearse kvlite`, `/loops:scout run kvlite`, `/loops:scout publish <run_id>`, `/loops:scout ci` |
+| `/loops:` | `list`, then one per loop: `pulse`, `issues`, `conflicts`, `pm`, `credentials`, `evolution`, `scout`, `fanout`, `upkeep`, `weekly` | Run ONE stage of a loop. The first argument is the stage, the rest its target: `/loops:scout plan`, `/loops:scout rehearse kvlite`, `/loops:scout run kvlite`, `/loops:scout publish <run_id>`, `/loops:scout ci` |
 | `/console:` | `ops`, `run`, `jobs` | The whole allowlist: list or show operations, run any one with its parameters, and follow the console's jobs |
 
 The stages every agent loop shares (`/loops:list` prints them):

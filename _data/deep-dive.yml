@@ -8,7 +8,7 @@ label: deep-dive
 cycle: 1
 cycle_start: '2026-10-30'
 cycle_days: 42
-refreshed_at: '2026-11-13T12:25:41Z'
+refreshed_at: '2026-11-16T12:34:38Z'
 repos:
 - day: 1
   repo: it-journey
@@ -29,7 +29,7 @@ repos:
   - https://github.com/bamr87/it-journey/pull/875
   - https://github.com/bamr87/it-journey/pull/901
   open_issues: 6
-  open_prs: 1
+  open_prs: 0
   findings: 'Early manual run (2026-10-29, scheduled 2026-10-30). UPS conformance 45/58, 8 MUST failing: page_feedback off (FB-01/FE-13), issue templates lack type labels (WORK-09), fleet actions @main (WORK-10, needs-human), tracked site-quality package-lock (QA-40/REPO-07), vendored unwrap-prose drift + docs summary (fixed in PR #875). Bugs: make test checks removed pages/_posts; /feed.xml has 0 entries. Catalog lists retired posts/docs/notebooks as tbd. Planned FR-ITJ-014 quest feed, FR-ITJ-015 page feedback.'
   score: 72.0
   next_focus: 'Verify #875 merged and FR-ITJ-014/015 shipped; workflow pinning (#873); quest UI/UX at 390px; catalog retirement (#868).'
@@ -271,8 +271,8 @@ repos:
 - day: 14
   repo: law-ai
   scheduled: '2026-11-12'
-  status: pending
-  last_processed: null
+  status: done
+  last_processed: '2026-11-12'
   cycle: 1
   issues:
   - https://github.com/bamr87/law-ai/issues/242
@@ -298,9 +298,10 @@ repos:
   - https://github.com/bamr87/law-ai/pull/233
   open_issues: 17
   open_prs: 3
-  findings: ''
-  score: null
-  next_focus: ''
+  findings: 'Cycle 1 day 14 (owner pass by Law AI Lead). UPS conformance 53/71 automated checks pass, 9 MUST failing (most already tracked: /version #208, README link #212, SECURITY.md/issue forms #213, spec-gate #217, fleet-dod/lockfiles BL-20261026-04); governance_lint ok. New: prod accepts default SECRET_KEY (signs JWTs and the LSAT shuffle HMAC) and ALLOWED_HOSTS=* (#221); lsat-static WCAG 2.5.3 nav label-in-name and other axe findings (#222, nav fixed in draft #235); views not in the URL so #article permalinks open Overview (#223); question card shows section twice because type==section for all 211 items (#224); Makefile Playwright 1.63 vs lock 1.64.1 (#225); lawmode defaults to OpenAI gpt-4o against constitution section 1 and has no CI (#226, needs Amr); no code scanning on a public repo (#227); catalog misses shipped surfaces, PRD section 5 has no requirement ids (#228). Feature requests #229-#232 planned as LAWAI-018..021 in draft #234; docs drift and BACKLOG mirror in draft #233.
+    Dependabot: 2 medium (minimatch).'
+  score: 66.0
+  next_focus: 'Amr: lawmode revive/fold/retire (#226); CodeQL default setup vs workflow (#227); land #219 then fix the Makefile tag (#225). Agents: SECRET_KEY/ALLOWED_HOSTS deploy checks (#221), URL-routed views (#223), remaining a11y items (#222), catalog entries for shipped surfaces (#228).'
 - day: 15
   repo: .github
   scheduled: '2026-11-13'
@@ -322,8 +323,8 @@ repos:
   prs:
   - https://github.com/bamr87/.github/pull/23
   - https://github.com/bamr87/.github/pull/24
-  open_issues: 0
-  open_prs: 0
+  open_issues: 11
+  open_prs: 2
   findings: Governance docs conform (AGENTS/PRD/catalog/constitution; governance_lint ok) and actionlint is clean, but publish.yml splices inputs.tag/version into run blocks (zizmor template-injection) and templates secrets into guards; GHCR pushes on any Dockerfile, multi-arch without QEMU, latest on pre-releases; detect-stack@main defeats @v1 pinning; actions 1-3 majors stale, no Dependabot, no timeouts/concurrency; nothing runs actionlint here; starter template scaffolds @main and the D3-deprecated release-please; constitution s7 gates are kit defaults; private vuln reporting off and main unprotected (needs Amr).
   score: 62.0
   next_focus: 'Verify #11/#12/#14 landed and v1 moved; check zer0-mistakes and zer0-CMS moved off @main; confirm #20 job.workflow_sha works from a private caller; re-run zizmor.'
@@ -333,10 +334,15 @@ repos:
   status: pending
   last_processed: null
   cycle: 1
-  issues: []
-  prs: []
-  open_issues: 0
-  open_prs: 0
+  issues:
+  - https://github.com/bamr87/lifehacker.dev/issues/819
+  - https://github.com/bamr87/lifehacker.dev/issues/818
+  - https://github.com/bamr87/lifehacker.dev/issues/817
+  - https://github.com/bamr87/lifehacker.dev/issues/816
+  prs:
+  - https://github.com/bamr87/lifehacker.dev/pull/820
+  open_issues: 4
+  open_prs: 1
   findings: ''
   score: null
   next_focus: ''
@@ -346,10 +352,16 @@ repos:
   status: pending
   last_processed: null
   cycle: 1
-  issues: []
-  prs: []
-  open_issues: 0
-  open_prs: 0
+  issues:
+  - https://github.com/bamr87/gitorio/issues/184
+  - https://github.com/bamr87/gitorio/issues/183
+  - https://github.com/bamr87/gitorio/issues/182
+  - https://github.com/bamr87/gitorio/issues/181
+  - https://github.com/bamr87/gitorio/issues/180
+  prs:
+  - https://github.com/bamr87/gitorio/pull/185
+  open_issues: 5
+  open_prs: 1
   findings: ''
   score: null
   next_focus: ''

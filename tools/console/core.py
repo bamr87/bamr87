@@ -68,6 +68,9 @@ TOOLS = REPO_ROOT / "tools"
 DASH = str(TOOLS / "dash")
 DASH_GEN = str(TOOLS / "dash-gen")
 DASH_GEN_DIR = REPO_ROOT / ".github" / "scripts" / "dash-gen"
+if str(TOOLS) not in sys.path:  # tools/fleetcore, the core every surface shares
+    sys.path.insert(0, str(TOOLS))
+from fleetcore import yamlio  # noqa: E402
 JOB_DIR = Path(os.environ.get("DASH_CONSOLE_JOBS") or (Path(tempfile.gettempdir()) / "dash-console"))
 # The local data lake (dash-gen lake) and the Phoenix trace store it exports
 # to — the other two services of the local stack (docs/HARNESS-OPS.md).
@@ -104,21 +107,27 @@ TOKEN_ENV = ["FLEET_TOKEN", "GH_TOKEN", "GITHUB_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN
 # a hand-kept copy of them had drifted and refused every input of
 # issue-pipeline, token-rotation, reconcile-registry and update-submodules.
 DISPATCH_WORKFLOWS = ("fanout", "fleet-pulse", "issue-pipeline", "token-rotation", "repo-evolution", "repo-scout",
-                      "build-dash", "reconcile-registry", "update-submodules", "backlog-fanout", "jev-conflicts",
-                      "fleet-pm")
+                      "weekly-closeout", "weekly-gather", "weekly-finalize", "build-dash", "reconcile-registry",
+                      "update-submodules", "backlog-fanout", "jev-conflicts", "fleet-pm")
 
 
 # --------------------------------------------------------------------------- #
 # yaml + time helpers
 # --------------------------------------------------------------------------- #
 def load_yaml(path: Path):
-    if not path.exists():
-        return None
+    """A committed signal, parsed once per version of the file (fleetcore.yamlio):
+    a request reads the same ten files the last one did. Absent or unreadable is None."""
     try:
-        with path.open() as fh:
-            return yaml.safe_load(fh)
+        return yamlio.load(path)
     except (yaml.YAMLError, OSError):
         return None
+
+
+def _dash_gen_on_path() -> None:
+    """dash-gen's modules are imported by bare name. Once: these helpers run on
+    every request, and an insert per call grew sys.path without bound."""
+    if str(DASH_GEN_DIR) not in sys.path:
+        sys.path.insert(0, str(DASH_GEN_DIR))
 
 
 def parse_stamp(value) -> dt.datetime | None:
@@ -207,7 +216,7 @@ def git_info() -> dict:
 def describe_cron(cron: str) -> str:
     """Reuse dash-gen's cron helpers when importable (same repo, same math)."""
     try:
-        sys.path.insert(0, str(DASH_GEN_DIR))
+        _dash_gen_on_path()
         import harness_registry  # noqa: WPS433
         return harness_registry.describe_cron(cron)
     except Exception:
@@ -240,6 +249,15 @@ LOOPS = [
     {"id": "repo_scout", "title": "Repo scout — daily issue proposals", "workflow": "repo-scout",
      "schedule_key": "repo_scout", "doc": "docs/SCOUT.md",
      "outputs": [], "local_ops": ["scout", "refine-plan"]},
+    {"id": "weekly_closeout", "title": "Weekly close-out — Friday cleanup of open work", "workflow": "weekly-closeout",
+     "schedule_key": "weekly_closeout", "doc": "docs/WEEKLY-CLOSEOUT.md",
+     "outputs": [], "local_ops": ["triage", "decisions-refresh"]},
+    {"id": "weekly_gather", "title": "Weekly gather — Saturday draft of next week's plan", "workflow": "weekly-gather",
+     "schedule_key": "weekly_gather", "doc": "docs/WEEKLY-CLOSEOUT.md",
+     "outputs": [], "local_ops": ["decisions"]},
+    {"id": "weekly_finalize", "title": "Weekly finalize — Sunday week-ahead brief", "workflow": "weekly-finalize",
+     "schedule_key": "weekly_finalize", "doc": "docs/WEEKLY-CLOSEOUT.md",
+     "outputs": [], "local_ops": ["decisions"]},
     {"id": "harness_fanout", "title": "Harness fan-out — mass deploy / update", "workflow": "fanout",
      "schedule_key": None, "doc": "docs/HARNESS-OPS.md",
      "outputs": [], "local_ops": ["gaps", "deploy-gaps"]},
@@ -481,7 +499,7 @@ def capabilities() -> dict:
 # LAKE — the local data lake + trace export, read through dash-gen's module
 # --------------------------------------------------------------------------- #
 def _lake_module():
-    sys.path.insert(0, str(DASH_GEN_DIR))
+    _dash_gen_on_path()
     import fleet_lake  # noqa: WPS433
     return fleet_lake
 
@@ -501,13 +519,13 @@ def lake_status(probe: bool = True) -> dict:
 # OBSERVABILITY — the three local planes, read through dash-gen's module
 # --------------------------------------------------------------------------- #
 def _observe_module():
-    sys.path.insert(0, str(DASH_GEN_DIR))
+    _dash_gen_on_path()
     import fleet_observe  # noqa: WPS433
     return fleet_observe
 
 
 def _index_module():
-    sys.path.insert(0, str(DASH_GEN_DIR))
+    _dash_gen_on_path()
     import fleet_index  # noqa: WPS433
     return fleet_index
 
@@ -647,19 +665,27 @@ def frame_src() -> list[str]:
 
     A missing origin here is not an error anyone sees: the browser refuses the
     frame and writes one line to a console nobody has open.
+
+    The console asks on every response (its Content-Security-Policy names
+    these), so fleet.yml is re-read only when it changed, as
+    fleetcore.apps.target_origins re-reads the two registries.
     """
+    def build() -> list[str]:
+        contract = observe.load_contract()
+        portal = contract.get("portal") or {}
+        urls = list(portal.get("frame_src") or [])
+        for url in ((contract.get("logs") or {}).get("kibana"),
+                    (contract.get("metrics") or {}).get("grafana"),
+                    (contract.get("traces") or {}).get("endpoint")):
+            if url and url not in urls:
+                urls.append(url)
+        return urls
+
     try:
-        contract = _observe_module().load_contract()
+        observe = _observe_module()
+        return list(yamlio.cached("console.frame_src", (observe.FLEET_DEFAULT,), build))
     except Exception:
         return []
-    portal = contract.get("portal") or {}
-    urls = list(portal.get("frame_src") or [])
-    for url in ((contract.get("logs") or {}).get("kibana"),
-                (contract.get("metrics") or {}).get("grafana"),
-                (contract.get("traces") or {}).get("endpoint")):
-        if url and url not in urls:
-            urls.append(url)
-    return urls
 
 
 def lake_runs(limit: int = 50) -> list[dict]:
@@ -778,7 +804,7 @@ def _rel(path: Path) -> str:
 
 
 def _content_module():
-    sys.path.insert(0, str(DASH_GEN_DIR))
+    _dash_gen_on_path()
     import content_atlas  # noqa: WPS433
     return content_atlas
 
@@ -874,7 +900,7 @@ def content_brief(site: str) -> dict:
 # checkout (also in the public snapshot), run health from the lake (local).
 # --------------------------------------------------------------------------- #
 def _atlas_module():
-    sys.path.insert(0, str(DASH_GEN_DIR))
+    _dash_gen_on_path()
     import workflow_atlas  # noqa: WPS433
     return workflow_atlas
 
@@ -968,7 +994,7 @@ _WORK_LOCK = threading.Lock()
 
 
 def _work_module():
-    sys.path.insert(0, str(DASH_GEN_DIR))
+    _dash_gen_on_path()
     import work_board  # noqa: WPS433
     return work_board
 
@@ -1305,6 +1331,27 @@ def _conflicts_resolve(params: dict) -> list[str]:
         raise ValueError("pr must be owner/repo#number (blank = sweep every conflicting pull request)")
     argv = [DASH, "conflicts", "resolve", "--pr", pr] if pr else [DASH, "conflicts", "sweep"]
     return argv + (["--dry-run"] if _flag(params, "dry_run") else [])
+
+
+# The PR queue's `who` values (tools/fleetcore/prqueue.py WHO; test_console.py holds the two equal).
+PRQ_WHO = ("amr", "agent", "loop", "author")
+PRQ_PLAN_RX = re.compile(r"^[0-9a-f]{16}$")
+
+
+def _prs_queue(params: dict) -> list[str]:
+    who = str(params.get("who") or "").strip()
+    if who and who not in PRQ_WHO:
+        raise ValueError(f"who must be one of {list(PRQ_WHO)}")
+    return [DASH, "prs", "queue", "--limit", "500"] + (["--who", who] if who else [])
+
+
+def _prs_apply(params: dict, op: str) -> list[str]:
+    """`tools/dash prs apply --plan-id <id>`: the plan a person previewed, re-planned from live GitHub and
+    refused when it moved; `--expect-op` keeps an agent plan off prs-act and the rest off prs-agent."""
+    plan_id = str(params.get("plan_id") or "").strip()
+    if not PRQ_PLAN_RX.fullmatch(plan_id):
+        raise ValueError("plan_id must be the 16-hex id a plan returned (POST /api/prs/plan, or tools/dash prs plan)")
+    return [DASH, "prs", "apply", "--plan-id", plan_id, "--expect-op", op] + (["--apply"] if _flag(params, "apply") else [])
 
 
 def _pm(params: dict) -> list[str]:
@@ -2000,6 +2047,41 @@ OPS: dict[str, dict] = {
                               desc="Reads every open pull request and gate-labelled issue of the fleet again under "
                                    "decisions.refresh_budget_s and rewrites the index; fails unless the read finished "
                                    "clean, so a scheduled run cannot hide a stale index. Read-only, $0."),
+    # The PR queue (docs/PR-QUEUE.md): every open pull request, who moves it next, and bulk actions. A
+    # plan is made from live GitHub by POST /api/prs/plan (or `tools/dash prs plan`) and writes only its
+    # plan file; these two apply a plan by its id, after re-planning and refusing one that moved.
+    "prs": dict(title="PR queue: every open pull request, who moves it next", group="observe",
+                argv=_prs_queue, needs_token=True,
+                desc="tools/dash prs — every open pull request of the hub and the registry repos with its checks "
+                     "collapsed per check (a cancelled run followed by a success is green), the review gate "
+                     "(§ 12.3, closeout.py's rules), the repo's merge method and who moves it next "
+                     "(docs/PR-QUEUE.md). Read-only, $0.",
+                params=["who"], meta=lambda: {"choices": {"who": ["", *PRQ_WHO]}}),
+    "prs-refresh": dict(title="PR queue: read GitHub now", group="observe",
+                        argv=lambda p: [DASH, "prs", "refresh"], needs_token=True,
+                        desc="Reads the decision index and every pull request's checks, files and triage comment "
+                             "again under pr_queue.refresh_budget_s. Read-only, $0."),
+    "prs-act": dict(title="PR queue: apply a reviewed bulk action", group="plan",
+                    argv=lambda p: _prs_apply(p, "prs-act"), needs_token=True, exclusive="prs",
+                    remote=lambda p: _flag(p, "apply"),
+                    desc="tools/dash prs apply --plan-id <id> — re-plans the action from live GitHub and refuses a "
+                         "plan whose pull requests moved since the preview (§ 11.4); with `apply` it runs each "
+                         "pull request's op once: mark ready, update branch (a base merge, never a force-push), "
+                         "re-run cancelled or failed checks one at a time, post or edit the next-action comment, "
+                         "add needs-amr; close and merge only while pr_queue.close / pr_queue.merge are enabled "
+                         "(off until an amendment says a merge the maintainer confirms here is his own). Without "
+                         "apply it only says whether the preview still matches. A GitHub write, so it asks first.",
+                    params=["plan_id", "apply"]),
+    "prs-agent": dict(title="PR queue: a capped local Claude Code session per pull request", group="plan",
+                      argv=lambda p: _prs_apply(p, "prs-agent"), needs_token=True, needs="claude", exclusive="prs",
+                      remote=lambda p: _flag(p, "apply"), confirm="spend",
+                      desc="tools/dash prs apply --plan-id <id> for an `agent` plan (local:pr-queue-agent, § 10.9): "
+                           "for each pull request, a clone of its head outside the hub, one headless session "
+                           "(ai-run --isolate: no GitHub credential; pr_queue.agent's model, turns and dollars, "
+                           "API-equivalent, an estimate) that fixes its failing checks or the requested changes, "
+                           "an edit to a path the repo keeps agents out of refused, then one commit pushed without "
+                           "force and needs-amr added (a model's change is gated). Spends, so it asks first.",
+                      params=["plan_id", "apply"]),
     "agents": dict(title="Agent inventory: every agent against the efficacy contract (check)", group="observe",
                    argv=lambda p: [DASH, "agents", "--check"], needs_token=False,
                    desc="tools/dash agents --check — every CI agent step, JEV loop step, conflict tier and LaunchAgent "
@@ -2410,7 +2492,8 @@ class JobManager:
                                and getattr(j, "exclusive", None) == exclusive), None)
                 if holder is not None:
                     what = (f"is already writing the {exclusive}" if exclusive == "lake"
-                            else f"already holds {exclusive} (one local run of a loop at a time)")
+                            else f"already holds {exclusive}" + (" (one local run of a loop at a time)"
+                                                                 if str(exclusive).startswith("loop:") else ""))
                     raise JobConflict(
                         f"'{holder.op}' (job {holder.id}) {what} — wait for it to finish, then run '{op_id}'")
             self.jobs[job.id] = job
@@ -2606,6 +2689,9 @@ CONFIG_SECTIONS: list[dict] = [
          ("rotate_tokens", "weekly credential rotation"),
          ("repo_evolution", "weekly proactive per-repo improvement pass"),
          ("repo_scout", "daily proactive issue proposals — a sample of repos a day"),
+         ("weekly_closeout", "Friday 13:17 Denver — close out open PRs, branches and clones"),
+         ("weekly_gather", "Saturday 10:17 Denver — draft next week's plan"),
+         ("weekly_finalize", "Sunday 16:17 Denver — week-ahead brief"),
      )}},
     {"key": "remediation", "title": "Remediation — the doctor's guardrails", "doc": "docs/DAILY-ANALYSIS.md",
      "blurb": "Blast radius and eligibility of the daily auto-fix loop. Raising max_candidates "

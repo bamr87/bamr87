@@ -71,7 +71,16 @@ class LoopSwitchesTests(unittest.TestCase):
                 continue
             with self.subTest(loop=key):
                 text = (ROOT / e["workflow"]).read_text()
-                self.assertIn(f"vars.{e['gate']['name']}", text)
+                name = e["gate"]["name"]
+                if re.search(r"^\s*uses:\s*\S*\.github/workflows/ai-lane\.ya?ml@", text, re.M):
+                    # an ai-lane caller gates through the lane's `switch` input: the reusable
+                    # lane reads vars[inputs.switch] (and a dispatch bypasses it), so the
+                    # caller names the variable instead of spelling `vars.<NAME>`
+                    self.assertRegex(text, rf"(?m)^\s*switch:\s*{name}\s*(#.*)?$", "ai-lane caller's switch input")
+                    lane = (WORKFLOWS / "ai-lane.yml").read_text()
+                    self.assertIn("vars[inputs.switch]", lane)
+                else:
+                    self.assertIn(f"vars.{name}", text)
 
     def test_no_secret_values(self) -> None:
         blob = yaml.safe_dump(self.sw)
