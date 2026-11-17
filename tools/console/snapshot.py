@@ -86,6 +86,7 @@ STATIC_ROUTES: dict[str, tuple[str, str]] = {
     "desktop": ("Desktop", "The bashOS desktop: an icon for every fleet app, each opened in a window with the same controls."),
     "apps": ("Apps", "Every fleet frontend in one place: open the live site or a local stack inside the console, at any device size."),
     "inbox": ("Inbox", "Flagged issues, pull requests and failing workflows across the fleet."),
+    "prs": ("PR queue", "Every open pull request, who moves it next, and bulk actions an agent carries out once the maintainer confirms."),
     "roadmap": ("Roadmap", "Planned features across the fleet, by status and priority."),
     "work": ("Work board", "Every open issue, PR, roadmap spec and backlog item, in the order the loops take them."),
     "sprints": ("Sprints", "The live expedite-sprint record: the three gates with who and when, the phase, items, spend against the cap, trip wires and the retro."),

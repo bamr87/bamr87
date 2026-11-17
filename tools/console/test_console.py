@@ -96,8 +96,43 @@ def test_argv_shapes_are_exact_and_never_shell():
         # a dev-stack op takes a project from the port registry, not any name
         argv, _ = core.build_argv(op_id, {"target": "gitorio" if op_id.startswith("dev-") else "alpha", "workflow": "fleet-pulse", "fields": {},
                                           "kind": "gate", "id": "doc-check", "loop": first["loop"],
-                                          "step": first["step"]})
+                                          "step": first["step"], "plan_id": "0123456789abcdef"})
         assert all(isinstance(a, str) for a in argv) and "bash" not in argv[0], (op_id, argv)
+
+
+def test_pr_queue_ops_apply_a_plan_by_id_and_ask_first():
+    """prs-act / prs-agent take only a plan id: the plan itself (targets, ops, bytes) was made from live GitHub
+    and previewed, and the CLI re-plans and refuses it if it moved. With apply they write, so they ask."""
+    sys.path.insert(0, str(core.REPO_ROOT / "tools"))
+    from fleetcore import prqueue
+    assert core.PRQ_WHO == prqueue.WHO
+    argv, remote = core.build_argv("prs-act", {"plan_id": "0123456789abcdef"})
+    assert argv[-5:] == ["apply", "--plan-id", "0123456789abcdef", "--expect-op", "prs-act"] and remote is False
+    argv, remote = core.build_argv("prs-act", {"plan_id": "0123456789abcdef", "apply": True})
+    assert argv[-1] == "--apply" and remote is True
+    argv, remote = core.build_argv("prs-agent", {"plan_id": "0123456789abcdef", "apply": "true"})
+    assert "prs-agent" in argv and remote is True and core.OPS["prs-agent"]["confirm"] == "spend"
+    assert core.OPS["prs-agent"]["needs"] == "claude" and core.OPS["prs-act"]["exclusive"] == "prs"
+    for bad in ({}, {"plan_id": "../../etc"}, {"plan_id": "0123456789ABCDEF"}, {"plan_id": "0" * 17}):
+        try:
+            core.build_argv("prs-act", bad)
+        except ValueError:
+            continue
+        raise AssertionError(f"accepted {bad}")
+    assert core.build_argv("prs", {"who": "amr"})[0][-2:] == ["--who", "amr"]
+    try:
+        core.build_argv("prs", {"who": "everyone"})
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("accepted an unknown who")
+    jm = core.JobManager(Path(tempfile.mkdtemp()))
+    try:
+        jm.submit("prs-act", {"plan_id": "0123456789abcdef", "apply": True})
+    except PermissionError:
+        pass
+    else:
+        raise AssertionError("an apply ran without confirm=true")
 
 
 def test_dispatch_validates_workflow_and_inputs():
@@ -268,6 +303,39 @@ def test_decisions_route_serves_the_queue_and_never_the_token():
     assert argv == [core.DASH, "decisions", "queue", "--repos"] and remote is False
     argv, remote = core.build_argv("decisions-refresh", {})
     assert argv == [core.DASH, "decisions", "refresh"] and remote is False
+
+
+def test_pr_queue_routes_read_plan_and_never_apply():
+    """Over HTTP: /api/prs is the queue (refresh=never reads no GitHub), a bad filter is refused, a plan is
+    refused before any GitHub read when its targets are malformed, a stored plan and result are served by
+    id only, and no route writes to GitHub: applying is the prs-act job behind the confirm."""
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+    import pr_queue
+
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    with tempfile.TemporaryDirectory() as tmp, \
+            mock.patch.dict(os.environ, {"DASH_DECISIONS_INDEX": str(Path(tmp) / "index.json"),
+                                         "DASH_PRQUEUE_DIR": str(Path(tmp) / "prqueue")}), \
+            mock.patch.object(pr_queue, "run", side_effect=AssertionError("no gh call may run")):
+        doc = client.get("/api/prs", params={"refresh": "never"}).json()
+        assert (doc["schema"], doc["status"], doc["rows"]) == ("pr-queue/v1", "unavailable", []), doc
+        assert {a["id"]: a["enabled"] for a in doc["actions"]}["merge"] is False
+        assert client.get("/api/prs", params={"refresh": "never", "kind": "everything"}).status_code == 400
+        assert client.get("/api/prs", params={"refresh": "never", "gate": "maybe"}).status_code == 422
+        assert client.post("/api/prs/plan", json={"action": "ready", "prs": ["not a ref"]}).status_code == 400
+        assert client.post("/api/prs/plan", json={"action": "explode", "prs": ["o/a#1"]}).status_code == 400
+        assert client.post("/api/prs/plan", json={"action": "ready", "prs": []}).status_code == 422
+        assert client.get("/api/prs/plan/0123456789abcdef").status_code == 404
+        assert client.get("/api/prs/plan/../../etc").status_code in (400, 404)
+        assert client.get("/api/prs/result/zz").status_code == 400
+    routes = {getattr(r, "path", "") for r in console_app.app.routes}
+    assert not any(p.startswith("/api/prs") and ("apply" in p or "merge" in p) for p in routes), routes
 
 
 def test_a_dev_stack_op_names_one_project_from_the_port_registry():
@@ -472,6 +540,124 @@ def test_embed_urls_and_frame_src_come_from_the_contract():
     assert "kiosk" in embeds["metrics"], "grafana would render its full chrome inside the pane"
     for src in sources:
         assert src.startswith("http://127.0.0.1:"), f"{src} is not loopback — the planes are local-only"
+
+
+def test_the_frame_policy_reads_fleet_yml_once_per_version():
+    """The Content-Security-Policy is built for every response, and it used to
+    parse fleet.yml each time, on the event loop: 60 ms in which no other
+    response moved. An unchanged file is read once; a changed one at once."""
+    observe = core._observe_module()
+    saved, real = observe.FLEET_DEFAULT, observe.load_contract
+    tmp = Path(tempfile.mkdtemp(prefix="console-frame-src-"))
+    reads = []
+
+    def counting(*args, **kwargs):
+        reads.append(1)
+        return real(*args, **kwargs)
+
+    def write(origin: str, age: int) -> None:
+        # Dated in the past: a file touched in the last two seconds is never
+        # kept (fleetcore.yamlio), and this test is about the kept one.
+        (tmp / "fleet.yml").write_text(f"observability:\n  portal:\n    frame_src: ['{origin}']\n", encoding="utf-8")
+        past = time.time() - age
+        os.utime(tmp / "fleet.yml", (past, past))
+
+    try:
+        observe.FLEET_DEFAULT, observe.load_contract = tmp / "fleet.yml", counting
+        write("http://127.0.0.1:5999", 60)
+        first = core.frame_src()
+        assert "http://127.0.0.1:5999" in first, first
+        for _ in range(5):
+            assert core.frame_src() == first
+        assert len(reads) == 1, f"fleet.yml was parsed {len(reads)} times for one version of it"
+        first.append("https://evil.test")
+        assert "https://evil.test" not in core.frame_src(), "a caller's list is its own"
+        write("http://127.0.0.1:5998", 30)
+        assert "http://127.0.0.1:5998" in core.frame_src(), "a changed fleet.yml must reach the policy at once"
+    finally:
+        observe.FLEET_DEFAULT, observe.load_contract = saved, real
+        shutil.rmtree(tmp, ignore_errors=True)
+    assert core.frame_src() and "http://127.0.0.1:5998" not in core.frame_src(), "the hub's own contract is back"
+
+
+def test_reading_the_signals_does_not_grow_sys_path():
+    """Each helper that borrows a dash-gen module prepended its directory again
+    on every call, and frame_src runs for every response: a console left
+    running searched a path thousands of entries long for each new import."""
+    def read_everything() -> None:
+        core.frame_src()
+        core.describe_cron("7 * * * *")
+        for borrow in (core._observe_module, core._atlas_module, core._work_module, core._content_module):
+            borrow()
+
+    read_everything()
+    before = list(sys.path)
+    for _ in range(3):
+        read_everything()
+    assert sys.path == before, f"sys.path grew by {len(sys.path) - len(before)}"
+
+
+def test_documents_are_compressed_and_an_event_stream_is_not():
+    """Nothing was compressed: /api/work crossed the wire as 770 KB and the
+    page's script as 1.3 MB. A document and the script are now gzipped for a
+    client that asks and untouched for one that does not; an event stream is
+    left alone, because a compressor holds a stream back until its buffer fills."""
+    try:
+        from fastapi.middleware.gzip import GZipMiddleware
+        from fastapi.testclient import TestClient
+        from starlette.applications import Starlette
+        from starlette.responses import StreamingResponse
+        from starlette.routing import Route
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+
+    gz = next((m for m in console_app.app.user_middleware if m.cls is GZipMiddleware), None)
+    assert gz is not None, "the console compresses nothing"
+    assert console_app.app.user_middleware[0] is gz, "compression must be outermost, after the headers are set"
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    token = os.environ.get("DASH_CONSOLE_TOKEN")
+    auth = {"Authorization": f"Bearer {token}"} if token else {}
+    r = client.get("/api/ops", headers={**auth, "Accept-Encoding": "gzip"})
+    assert r.status_code == 200 and r.headers.get("content-encoding") == "gzip", dict(r.headers)
+    assert "accept-encoding" in r.headers.get("vary", "").lower(), "a cache must key on the encoding"
+    assert "frame-ancestors 'self'" in r.headers.get("content-security-policy", ""), "the policy survives compression"
+    plain = client.get("/api/ops", headers={**auth, "Accept-Encoding": "identity"})
+    assert "content-encoding" not in plain.headers and plain.json() == r.json()
+    assert plain.headers.get("content-length") == str(len(plain.content)), "an uncompressed answer keeps its length"
+
+    # /api/live/stream never ends, so the same middleware, with the console's
+    # own settings, is asked about a stream that does.
+    async def stream(_request):
+        async def events():
+            yield b"data: " + b"x" * 4096 + b"\n\n"
+        return StreamingResponse(events(), media_type="text/event-stream")
+
+    probe = Starlette(routes=[Route("/s", stream)])
+    probe.add_middleware(GZipMiddleware, **gz.kwargs)
+    s = TestClient(probe).get("/s", headers={"Accept-Encoding": "gzip"})
+    assert s.status_code == 200 and "content-encoding" not in s.headers, "an event stream was compressed"
+
+
+def test_a_signal_is_parsed_once_and_each_reader_gets_its_own_copy():
+    """/api/state read ten files and parsed all of them for every request.
+    Now a file is parsed once per version, and because every reader gets its
+    own copy, one request's edits to a document never reach the next."""
+    assert core.load_yaml(core.DATA / "no-such-signal.yml") is None
+    assert core.load_yaml(core.DATA) is None, "a directory is unreadable, not a crash"
+    first = core.load_yaml(core.DATA / "fleet.yml")
+    assert isinstance(first, dict) and first.get("hub"), "the hub's own contract"
+    first.clear()
+    again = core.load_yaml(core.DATA / "fleet.yml")
+    assert again.get("hub"), "a reader's change leaked into the next read"
+    tmp = Path(tempfile.mkdtemp(prefix="console-load-yaml-"))
+    try:
+        (tmp / "bad.yml").write_text("a: [1, 2\n", encoding="utf-8")
+        assert core.load_yaml(tmp / "bad.yml") is None, "a signal that does not parse is absent"
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def test_the_policy_names_exactly_the_origins_the_apps_page_frames():
