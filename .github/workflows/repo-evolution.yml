@@ -39,7 +39,9 @@ name: 🌿 Repo Evolution
 #                silently degraded this fleet's automation before. Without a
 #                working token the run fails BEFORE any Claude spend — a pass
 #                that cannot be delivered is money burned.
-#   CLAUDE_CODE_OAUTH_TOKEN  preferred Claude auth; ANTHROPIC_API_KEY fallback.
+#   CLAUDE_CODE_OAUTH_TOKEN  Claude auth (OAuth only for now).
+# Claude auth: OAuth only (CLAUDE_CODE_OAUTH_TOKEN). ANTHROPIC_API_KEY disabled for now
+# (2026-11-15); to restore, re-add the secrets.ANTHROPIC_API_KEY reference.
 #
 # Docs: docs/EVOLUTION.md · brief template: .github/evolution/ · tests:
 # .github/scripts/dash-gen/test_evolution.py (asserts this file against
@@ -98,7 +100,7 @@ jobs:
       branch_prefix: ${{ steps.plan.outputs.branch_prefix }}
       label: ${{ steps.plan.outputs.label }}
     env:
-      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v7
 
@@ -109,7 +111,7 @@ jobs:
       - name: Require Claude auth
         if: ${{ env.HAS_CLAUDE_AUTH != 'true' }}
         run: |
-          echo "::error::No Claude auth. Set CLAUDE_CODE_OAUTH_TOKEN (preferred) or ANTHROPIC_API_KEY. See docs/AI-INTEGRATION.md."
+          echo "::error::No Claude auth. Set CLAUDE_CODE_OAUTH_TOKEN (OAuth only; ANTHROPIC_API_KEY is disabled for now). See docs/AI-INTEGRATION.md."
           exit 1
 
       # A secret can be SET and still be dead. Probe it for real (`GET /user`)
@@ -196,7 +198,7 @@ jobs:
       max-parallel: ${{ fromJson(needs.plan.outputs.max_parallel) }}
       matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
     env:
-      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
       NAME: ${{ matrix.name }}
       NWO: ${{ matrix.nwo }}
       BASE: ${{ matrix.branch }}
@@ -244,7 +246,6 @@ jobs:
         with:
           order: ${{ vars.CLAUDE_AUTH_ORDER }}
           has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Evolve
         id: evolve
@@ -267,7 +268,6 @@ jobs:
           JEV_STEP_SHA256: 2b71212375dd6853e044ba44b87fedb678d53571ede1ea31cde1a03870aeb34b
         with:
           claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
-          anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
           # BUDGET: one repo per job, so both caps are per repo. The turn cap is
           # the LITERAL of _data/fleet.yml evolution.max_turns and the model the
           # LITERAL of evolution.model (an exact id: `opus` resolved to it); the

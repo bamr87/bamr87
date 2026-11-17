@@ -368,9 +368,12 @@ def test_workflow_contract() -> None:
     sc = step(scout, "Scout")
     args = sc["with"]["claude_args"]
     prompt = " ".join(JEV.render_prompt(SPEC, JEV.matrix_expressions(SPEC)).split())
-    check("each credential is gated on the chosen method",
+    # OAuth only for now (2026-11-15): ANTHROPIC_API_KEY is disabled, so the
+    # step must not be handed the key at all.
+    check("the OAuth token is gated on the chosen method, and no API key is passed (OAuth only)",
           "steps.claude-auth.outputs.method == 'oauth'" in sc["with"]["claude_code_oauth_token"]
-          and "steps.claude-auth.outputs.method == 'api_key'" in sc["with"]["anthropic_api_key"])
+          and "anthropic_api_key" not in sc["with"]
+          and "api-key" not in auth["with"])
     m = re.search(r"--max-turns\s+(\d+)", args)
     check("--max-turns literal equals fleet.yml scout.max_turns", m and int(m.group(1)) == int(fleet["scout"]["max_turns"]))
     m = re.search(r"--max-budget-usd\s+(\d+)", args)

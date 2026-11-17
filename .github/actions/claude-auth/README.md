@@ -2,6 +2,8 @@
 
 Choose which Claude credential a `claude-code-action` step uses, in the order the repo's `CLAUDE_AUTH_ORDER` variable names.
 
+> **OAuth only for now (2026-11-15):** the default order is `oauth` and `api_key` is skipped in any order, so `method` is `oauth` or `none`. The `api-key` and `check-api-key` inputs are still accepted but unread; callers no longer pass the key. To restore, see the header of `action.yml`.
+
 ## Why
 
 Until 2026-09 every call site hard-coded OAuth-first:
@@ -28,11 +30,9 @@ That made the order a fleet-wide constant, and "fallback" meant *absent*, never 
   with:
     order: ${{ vars.CLAUDE_AUTH_ORDER }}
     has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
-    api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 - uses: anthropics/claude-code-action@v1
   with:
     claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
-    anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
 ```
 
 The action is referenced remotely, even from the hub's own workflows. Several of them check out another repository at the workspace root, where a `./.github/actions/…` path would resolve inside that repository instead of this one.
