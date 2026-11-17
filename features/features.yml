@@ -2416,9 +2416,10 @@ features:
       action or ai-lane workflow, a bare claude -p, a vendored runner, or another provider''s key. It used
       to know the first one only, which hid 56 of the fleet''s 117 AI workflows, 63 agents from _data/agents.yml
       and a 13-way cron collision. Each harness is graded against the standard declared in _data/fleet.yml
-      harnesses.standard: ten controls read from the workflow file, each traced to its rule (exact model,
-      dollar and turn caps, kill switch, ordered credential, trusted-author gate, least privilege, timeout,
-      off-the-hour cron, a fleet route), counted only where they can bind. A harness that falls short carries
+      harnesses.standard: twelve controls read from the workflow file, each traced to its rule (exact model,
+      dollar and turn caps, kill switch, ordered credential, trusted-author gate, least privilege, no wildcard
+      bot allowlist, no pull_request_target checkout of a PR head, timeout, off-the-hour cron, a fleet route),
+      counted only where they can bind. A harness that falls short carries
       its lever: kit-upgrade, kit-adopt, lane-adopt, fix-controls, factory-recompile, hub-fix or retire.
       Whether a kit copy is upgradeable is the fan-out''s own byte comparison, run at scan time, not the
       stamp. The console''s Harness inventory page lists one row per harness with its route, caps, verdict
@@ -2758,3 +2759,84 @@ features:
     - tools/test_weekly_closeout.py
     prd:
     - FR131
+  - id: HUB-116
+    title: 'On-premise compute node: local LLMs and Claude Code sessions on Amr''s own machine (planned)'
+    description: 'Plan only: enrol Amr''s new on-premise machine (Ryzen 9 9950X3D2, 64 GB, Radeon RX 9070
+      XT 16 GB, picked up 2026-11-10) as a second workload node in _data/fleet.yml nodes:, disabled until
+      its deploy step. It serves local LLMs through Ollama on its loopback (Vulkan baseline, ROCm in a container
+      compared; no CUDA), hosts Claude Code sessions (ssh + tmux, bashOS''s oneos-remote, and the hub''s
+      own headless entry points tools/dash loop | conflicts | weekly | refine under systemd user timers),
+      cleans its own worktrees, clones and idle session state with the weekly classifier, and closes the
+      weekly console lanes'' R6:no-local-entry gap with a local adapter; a self-hosted runner is optional
+      and fenced by constitution § 30.5. Cost is stated honestly: $0 metered API spend and no hosted minutes
+      for what moves onto the node, the same Claude subscription for Claude Code sessions, and a measured
+      electricity cost. Phased P0–P6 rollout in docs/ONPREM-COMPUTE.md.'
+    implemented: false
+    status: planned
+    surface: infra
+    link: docs/ONPREM-COMPUTE.md
+    docs: docs/ONPREM-COMPUTE.md
+    tags:
+    - platform
+    - nodes
+    - local-llm
+    - claude-code
+    - weekly
+    - housekeeping
+    - cost
+    date: 2026-11-15
+    tests:
+    - na: plan only; phases P2–P6 add their tests (tools/test_fleetcore_nodes.py for the node entry, the
+        weekly and JEV suites for the timers and the local tier)
+    prd:
+    - FR64
+    - FR56
+    - FR65
+    - FR130
+    - FR131
+    - FR132
+    - FR133
+    - NFR32
+  - id: HUB-117
+    title: 'PR queue: every open pull request, who moves it next, and bulk actions an agent carries out
+      once Amr confirms'
+    description: 'The console''s /prs page (also /api/prs, the MCP''s pr_queue and tools/dash prs) lists
+      every open pull request of the hub and the registry repos in one queue, built on the decision index
+      plus one batched detail read per pull request: checks collapsed per check to the latest run on the
+      head commit (a cancelled run followed by a success is green, so verify kit 0.1.0''s label-burst false
+      red stops hiding green pull requests), the review gate and its reason from tools/weekly/closeout.py''s
+      own rules, the merge method the repo allows, whether an agent may merge it under § 12.2, who moves
+      it next (Amr, an agent, a loop or the author) and the 2026-11-15 triage comment''s next action as
+      a hint. Filters by repo, kind (security, Dependabot, release, fan-out batch, AI harness, ratification,
+      draft), gate and who; fan-out batches group by head branch; select all, select filtered or a batch,
+      then plan one bulk action from live GitHub (mark ready, update branch, re-run cancelled or failed
+      checks one at a time, post or edit the next-action comment, add needs-amr, a capped local Claude Code
+      session, close, merge) and apply that exact plan through the console''s confirm-gated job API, which
+      re-plans and refuses a plan whose pull requests moved. Merge and close stay off behind pr_queue switches
+      until an amendment says a merge the maintainer confirms in the console is his own.'
+    implemented: true
+    status: partial
+    surface: ui
+    link: tools/console/web/src/pages/PrQueue.tsx
+    docs: docs/PR-QUEUE.md
+    tags:
+    - console
+    - pull-requests
+    - decisions
+    - bulk-actions
+    - fleetcore
+    - mcp
+    - governance
+    date: 2026-11-15
+    tests:
+    - tools/test_fleetcore_prqueue.py
+    - tools/console/test_pr_queue.py
+    - tools/console/test_mcp_layer.py
+    - tools/console/test_console.py
+    scenarios:
+    - verify/scenarios/pr-queue.yml
+    evidence:
+    - test/evidence/pr-queue
+    prd:
+    - FR134
+    - FR135

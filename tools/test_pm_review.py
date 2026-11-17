@@ -568,8 +568,73 @@ class GatherTests(unittest.TestCase):
     def test_the_module_holds_no_mutation_and_no_writer(self):
         src = Path(pm.__file__).read_text()
         self.assertNotIn("mutation", pm.PRS_Q)
+        self.assertNotIn("mutation", pm.PRS_STATE_Q)
         for needle in ("gh.call(", ".execute(", "gw.apply(", '"POST"', '"PATCH"', '"DELETE"', "os.environ["):
             self.assertNotIn(needle, src, f"tools/pm_review.py must stay read-only: found {needle}")
+
+
+class PrCiTests(unittest.TestCase):
+    """A PR's CI reads past a cancelled run that a later run of the same check superseded: GitHub's rollup
+    state counts it as a failure (zer0-mistakes' evidence gate under a label burst, 2026-11-15), and the
+    review would file `pr_ci_red` and set the board's CI to Red for a green PR (tools/check_rollup.py)."""
+
+    class Gh:
+        def __init__(self, *answers):
+            self.answers, self.queries = list(answers), []
+
+        def graphql(self, query, variables):
+            self.queries.append(query)
+            answer = self.answers.pop(0)
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
+
+    @staticmethod
+    def doc(rollup):
+        pr = {"number": 7, "isDraft": False, "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN", "reviewDecision": None,
+              "headRefName": "dependabot/npm/x", "closingIssuesReferences": {"nodes": []},
+              "commits": {"nodes": [{"commit": {"statusCheckRollup": rollup}}]}}
+        return {"data": {"repository": {"pullRequests": {"nodes": [pr]}}}}
+
+    @staticmethod
+    def rollup(*nodes, more=False):
+        return {"state": "FAILURE", "contexts": {"pageInfo": {"hasNextPage": more}, "nodes": list(nodes)}}
+
+    @staticmethod
+    def check(conclusion, started):
+        return {"__typename": "CheckRun", "name": "Visual evidence gate", "status": "COMPLETED", "conclusion": conclusion,
+                "startedAt": started, "completedAt": started, "checkSuite": {"workflowRun": {"workflow": {"name": "Evidence gate"}}}}
+
+    def ci(self, rollup):
+        res, err = pm.pr_details(self.Gh(self.doc(rollup)), "bamr87/alpha")
+        self.assertIsNone(err)
+        return res["7"]["ci"]
+
+    def test_a_superseded_cancelled_run_is_not_red(self):
+        cancelled, passed = self.check("CANCELLED", "2026-11-14T05:31:38Z"), self.check("SUCCESS", "2026-11-14T05:31:43Z")
+        self.assertIn("contexts(", pm.PRS_Q)
+        self.assertEqual(self.ci(self.rollup(cancelled, passed)), "SUCCESS")
+        self.assertEqual(pm.CI_OPTION[self.ci(self.rollup(cancelled, passed))], "Green")
+        self.assertEqual(self.ci(self.rollup(cancelled)), "FAILURE", "a lone cancelled run")
+        self.assertEqual(self.ci(self.rollup(passed, self.check("FAILURE", "2026-11-14T05:40:00Z"))), "FAILURE", "a pass, then a failure")
+        self.assertEqual(self.ci(self.rollup(cancelled, passed, more=True)), "FAILURE", "the contexts were not all read")
+        self.assertEqual(self.ci({"state": "FAILURE"}), "FAILURE", "no contexts: GitHub's state")
+        self.assertIsNone(self.ci(None))
+
+    def test_a_query_github_fails_is_asked_again_for_the_state_alone(self):
+        gh = self.Gh(pb.GhError("HTTP 502: Bad Gateway"), self.doc({"state": "FAILURE"}))
+        res, err = pm.pr_details(gh, "bamr87/alpha")
+        self.assertEqual((res["7"]["ci"], err), ("FAILURE", None))
+        self.assertEqual(gh.queries, [pm.PRS_Q, pm.PRS_STATE_Q])
+        self.assertNotIn("contexts(", pm.PRS_STATE_Q)
+        gh = self.Gh(pb.GhError("HTTP 502: Bad Gateway"), pb.GhError("HTTP 504: Gateway Timeout"))
+        self.assertEqual(pm.pr_details(gh, "bamr87/alpha"), ({}, "HTTP 502: Bad Gateway"))
+
+    def test_a_refused_graphql_is_not_asked_twice(self):
+        gh = self.Gh(pb.GhError("gh: GitHub GraphQL is not available from Claude Code sessions (HTTP 403)"))
+        res, err = pm.pr_details(gh, "bamr87/alpha")
+        self.assertEqual((res, len(gh.queries)), ({}, 1))
+        self.assertIn("GraphQL", err)
 
 
 class CliTests(unittest.TestCase):

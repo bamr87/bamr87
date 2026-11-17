@@ -36,10 +36,12 @@ one place that answers, for ~40 repos at once:
              or ai-lane workflow, a bare `claude -p`, a vendored runner, or
              another provider's key — and the controls the constitution asks
              of it (pinned model, dollar and turn caps, kill switch, ordered
-             auth, trusted-author gate, least privilege, timeout, off-the-hour
-             cron). Each harness carries what it is missing and the LEVER that
-             rebuilds it: a kit upgrade, a kit re-seed, a move onto the
-             reusable lane, a blueprint recompile, a hub fix, or retirement.
+             auth, trusted-author gate, least privilege, no wildcard bot
+             allowlist, no pull_request_target checkout of a PR head, timeout,
+             off-the-hour cron). Each harness carries what it is missing and
+             the LEVER that rebuilds it: a kit upgrade, a kit re-seed, a move
+             onto the reusable lane, a blueprint recompile, a hub fix, or
+             retirement.
 
 This file is a CONSUMED INTERFACE: GitFactory's Fleet Studio (gitorio
 specs/012-fleet-studio) reads the committed output as its fleet roster and
@@ -142,6 +144,24 @@ TIMEOUT_RX = re.compile(r"^\s*timeout-minutes:\s*\S", re.M)
 UNTRUSTED_TRIGGERS = {"issue_comment", "issues", "pull_request_review",
                       "pull_request_review_comment", "pull_request_target", "discussion",
                       "discussion_comment"}
+# claude-code-action checks a human actor's repository permission before it
+# runs; a bot on its `allowed_bots` list is waved through unchecked ("Allowed
+# bots are not checked for repository permissions"), so '*' lets any GitHub
+# App's comment spend the credential. The fallback for a file YAML cannot parse.
+ALLOWED_BOTS_RX = re.compile(r"^\s*allowed_bots:\s*([^#\n]*?)\s*(?:#.*)?$", re.M)
+# A pull_request_target run holds the base repo's secrets and a write token.
+# Checking out the PR's head (or its merge ref, which contains the head) runs
+# a stranger's code with both. These expressions name that code; a checkout
+# whose `ref:` or `repository:` carries one checks it out.
+PR_HEAD_RX = re.compile(
+    r"github\.event\.pull_request\.(?:head\.(?:sha|ref|repo\.full_name)|merge_commit_sha)\b|"
+    r"github\.head_ref\b|refs/pull/[^\n'\"]*?/(?:head|merge)\b")
+# The same thing done in a run step: `gh pr checkout`, or a git command that
+# fetches or checks out the PR's ref on the same line.
+RUN_HEAD_RX = re.compile(
+    r"\bgh\s+pr\s+checkout\b|"
+    r"\bgit\s+(?:fetch|checkout|switch|pull|worktree\s+add)\b[^\n]*"
+    r"(?:\bpull/|github\.event\.pull_request\.(?:head\.(?:sha|ref)|merge_commit_sha)|github\.head_ref)")
 # The per-invocation dollar ceiling, as a `claude_args` flag or a claude-run
 # `max-budget-usd:` input. Recorded beside max_turns because turns bound
 # iterations, not spend (_data/fleet.yml `budget:`).
@@ -238,6 +258,14 @@ DEFAULT_STANDARD = {
             "applies": list(ALL_KINDS)},
         "least-privilege": {
             "title": "declares top-level permissions, never write-all",
+            "rule": "bamr87/bamr87#514",
+            "applies": list(ALL_KINDS)},
+        "no-wildcard-bots": {
+            "title": "never lets every bot start the run (allowed_bots '*')",
+            "rule": "bamr87/bamr87#514",
+            "applies": list(ALL_KINDS)},
+        "safe-pr-target": {
+            "title": "never checks out a PR's head on pull_request_target",
             "rule": "bamr87/bamr87#514",
             "applies": list(ALL_KINDS)},
         "timeout": {
@@ -732,8 +760,62 @@ def classify_workflow(path: str, text: str) -> dict:
         open_triggers = UNTRUSTED_TRIGGERS & set(info["triggers"])
         info["author_gate"] = bool(AUTHOR_GATE_RX.search(code)) if open_triggers else None
         info["least_privilege"] = _least_privilege(data, code)
+        # None when there is nothing to ask: no claude-code-action step to
+        # carry an allowlist, no pull_request_target run to check out a head.
+        info["wildcard_bots"] = _wildcard_bots(data, code, routes)
+        info["pr_target_head_checkout"] = _pr_target_head_checkout(data, info["triggers"])
         info["timeout"] = bool(TIMEOUT_RX.search(code)) or bool(defaults.get("timeout"))
     return info
+
+
+def _steps(data: dict) -> Iterable[dict]:
+    """Every step of every job, in file order."""
+    jobs = data.get("jobs")
+    for job in (jobs.values() if isinstance(jobs, dict) else []):
+        steps = job.get("steps") if isinstance(job, dict) else None
+        for step in (steps if isinstance(steps, list) else []):
+            if isinstance(step, dict):
+                yield step
+
+
+def _wildcard_bots(data, code: str, routes: list[str]) -> bool | None:
+    """Whether a claude-code-action step lets every bot start the run
+    (`allowed_bots: '*'`, alone or in the list). None when the file has no
+    such step, or when no step names '*' and one hands the list over as an
+    expression: decided at run time, so the file cannot say."""
+    if "claude-code-action" not in routes:
+        return None
+    if isinstance(data, dict):
+        values = []
+        for step in _steps(data):
+            inputs = step.get("with")
+            if (str(step.get("uses") or "").startswith(CLAUDE_ACTION_MARKER)
+                    and isinstance(inputs, dict) and inputs.get("allowed_bots") is not None):
+                values.append(str(inputs["allowed_bots"]))
+    else:
+        values = [m.group(1) for m in ALLOWED_BOTS_RX.finditer(code)]
+    if any("*" in (t.strip().strip("'\"") for t in v.split(",")) for v in values):
+        return True
+    return None if any("${{" in v for v in values) else False
+
+
+def _pr_target_head_checkout(data, triggers: list[str]) -> bool | None:
+    """Whether a pull_request_target workflow checks out the PR's head: an
+    actions/checkout whose `ref:` or `repository:` names it, or a run step
+    that fetches or checks it out. None on any other trigger: a plain
+    pull_request run from a fork gets no secrets and a read-only token. (A
+    file YAML cannot parse never reads as pull_request_target: its triggers
+    come from the cron fallback alone.)"""
+    if "pull_request_target" not in triggers or not isinstance(data, dict):
+        return None
+    for step in _steps(data):
+        inputs = step.get("with") if isinstance(step.get("with"), dict) else {}
+        if str(step.get("uses") or "").startswith("actions/checkout") and any(
+                PR_HEAD_RX.search(str(inputs.get(k) or "")) for k in ("ref", "repository")):
+            return True
+        if isinstance(step.get("run"), str) and RUN_HEAD_RX.search(step["run"]):
+            return True
+    return False
 
 
 def _least_privilege(data, code: str) -> bool:
@@ -807,6 +889,14 @@ def _cap(h: dict, fact: str):
     return None if fact in (h.get("runtime") or []) else False
 
 
+def _never(h: dict, fact: str):
+    """A fact that must be false. A row with no value for it has nothing for
+    the control to bind: no step that could do the thing, or a scan stored
+    before the fact was recorded."""
+    value = h.get(fact)
+    return None if value is None else not value
+
+
 CONTROL_CHECKS = {
     "standard-route": lambda h, cfg: bool(
         (cfg["standard"]["routes"].get(h.get("route")) or {}).get("standard")),
@@ -819,6 +909,8 @@ CONTROL_CHECKS = {
     "trusted-author": lambda h, cfg: h.get("author_gate"),
     "least-privilege": lambda h, cfg: (
         None if _called_only(h) else bool(h.get("least_privilege"))),
+    "no-wildcard-bots": lambda h, cfg: _never(h, "wildcard_bots"),
+    "safe-pr-target": lambda h, cfg: _never(h, "pr_target_head_checkout"),
     "timeout": lambda h, cfg: bool(h.get("timeout")),
     "off-hour-cron": lambda h, cfg: (
         not any(_fires_on_the_hour(c) for c in h["crons"]) if h.get("crons") else None),
@@ -1522,6 +1614,10 @@ def harness_row(repo_name: str | None, info: dict, text: str, hub_version: str |
         "author_gate": info.get("author_gate"),
         "least_privilege": bool(info.get("least_privilege")),
         "timeout": bool(info.get("timeout")),
+        # null = nothing to ask (no claude-code-action step; not a
+        # pull_request_target workflow), as `author_gate` is
+        "wildcard_bots": info.get("wildcard_bots"),
+        "pr_target_head_checkout": info.get("pr_target_head_checkout"),
     }
 
 
