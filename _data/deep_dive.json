@@ -2,15 +2,15 @@
   "schema": "deep-dive/v1",
   "owner": "bamr87",
   "label": "deep-dive",
-  "refreshed_at": "2026-11-15T12:23:35Z",
+  "refreshed_at": "2026-11-16T12:34:38Z",
   "summary": {
-    "as_of": "2026-11-15",
+    "as_of": "2026-11-16",
     "cycle": 1,
     "cycle_start": "2026-10-30",
     "cycle_end": "2026-12-10",
     "cycle_days": 42,
     "total": 38,
-    "day": 17,
+    "day": 18,
     "processed": 8,
     "counts": {
       "pending": 30,
@@ -20,14 +20,6 @@
     },
     "progress": 0.2105,
     "today": {
-      "date": "2026-11-15",
-      "cycle": 1,
-      "day": 17,
-      "cycle_days": 42,
-      "kind": "scheduled",
-      "repo": "gitorio"
-    },
-    "next": {
       "date": "2026-11-16",
       "cycle": 1,
       "day": 18,
@@ -35,11 +27,19 @@
       "kind": "scheduled",
       "repo": "SCHEMA"
     },
+    "next": {
+      "date": "2026-11-17",
+      "cycle": 1,
+      "day": 19,
+      "cycle_days": 42,
+      "kind": "scheduled",
+      "repo": "bashos"
+    },
     "last": ".github",
     "last_date": "2026-11-13",
     "avg_score": 45.0,
-    "open_issues": 59,
-    "open_prs": 6
+    "open_issues": 68,
+    "open_prs": 7
   },
   "repos": [
     {
@@ -64,7 +64,7 @@
         "https://github.com/bamr87/it-journey/pull/901"
       ],
       "open_issues": 6,
-      "open_prs": 1,
+      "open_prs": 0,
       "findings": "Early manual run (2026-10-29, scheduled 2026-10-30). UPS conformance 45/58, 8 MUST failing: page_feedback off (FB-01/FE-13), issue templates lack type labels (WORK-09), fleet actions @main (WORK-10, needs-human), tracked site-quality package-lock (QA-40/REPO-07), vendored unwrap-prose drift + docs summary (fixed in PR #875). Bugs: make test checks removed pages/_posts; /feed.xml has 0 entries. Catalog lists retired posts/docs/notebooks as tbd. Planned FR-ITJ-014 quest feed, FR-ITJ-015 page feedback.",
       "score": 72.0,
       "next_focus": "Verify #875 merged and FR-ITJ-014/015 shipped; workflow pinning (#873); quest UI/UX at 390px; catalog retirement (#868)."
@@ -415,10 +415,17 @@
       "status": "pending",
       "last_processed": null,
       "cycle": 1,
-      "issues": [],
-      "prs": [],
-      "open_issues": 0,
-      "open_prs": 0,
+      "issues": [
+        "https://github.com/bamr87/lifehacker.dev/issues/819",
+        "https://github.com/bamr87/lifehacker.dev/issues/818",
+        "https://github.com/bamr87/lifehacker.dev/issues/817",
+        "https://github.com/bamr87/lifehacker.dev/issues/816"
+      ],
+      "prs": [
+        "https://github.com/bamr87/lifehacker.dev/pull/820"
+      ],
+      "open_issues": 4,
+      "open_prs": 1,
       "findings": "",
       "score": null,
       "next_focus": ""
@@ -430,10 +437,18 @@
       "status": "pending",
       "last_processed": null,
       "cycle": 1,
-      "issues": [],
-      "prs": [],
-      "open_issues": 0,
-      "open_prs": 0,
+      "issues": [
+        "https://github.com/bamr87/gitorio/issues/184",
+        "https://github.com/bamr87/gitorio/issues/183",
+        "https://github.com/bamr87/gitorio/issues/182",
+        "https://github.com/bamr87/gitorio/issues/181",
+        "https://github.com/bamr87/gitorio/issues/180"
+      ],
+      "prs": [
+        "https://github.com/bamr87/gitorio/pull/185"
+      ],
+      "open_issues": 5,
+      "open_prs": 1,
       "findings": "",
       "score": null,
       "next_focus": ""

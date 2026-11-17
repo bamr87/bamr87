@@ -14,7 +14,7 @@
 | `verifier.template.md` | `.claude/agents/verifier.md` | The acceptance-tester subagent persona that follows the skill and never claims what it did not observe. |
 | `EVIDENCE-README.template.md` | (reference) | The shape of a `test/evidence/<slug>/README.md`. |
 | `VERSION` | — | Kit provenance + changelog. |
-| `archive/` | — | The shapes earlier kit versions seeded (`verify-0.1.0.yml`, `verify.template-0.1.0.yml`, `runner-0.1.0.mjs`), so `--upgrade` can tell an untouched seed from a hand-edited copy. Snapshot the outgoing shape here before editing `verify.yml`, `verify.template.yml` or `runner.mjs`, or bumping `VERSION`. |
+| `archive/` | — | The shapes earlier kit versions seeded (`verify-0.1.0.yml`, `verify-0.2.0.yml`, `verify.template-0.1.0.yml`, `runner-0.1.0.mjs`), so `--upgrade` can tell an untouched seed from a hand-edited copy. Snapshot the outgoing shape here before editing `verify.yml`, `verify.template.yml` or `runner.mjs`, or bumping `VERSION`. |
 
 ## Seed it
 

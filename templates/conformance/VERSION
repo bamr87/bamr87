@@ -1,11 +1,18 @@
 kit: conformance
-version: 0.1.0
+version: 0.2.0
 source: bamr87/bamr87 templates/conformance/
 seeded-by: tools/fanout.sh --kit standardize --artifacts conformance (fanout.yml, kit standardize)
-files: conformance.yml
+files: conformance.yml, archive/conformance-0.1.0.yml
 spec: specs/CONFORMANCE.md (UPS in-repo gate); checker tools/conformance.py; reusable .github/workflows/fleet-conformance.yml
-updated: 2026-09-01
+updated: 2026-11-14
 changelog: |
+  0.2.0 — the caller pins the hub's floating major tag: fleet-conformance.yml@v2
+  with `hub-ref: v2`, so the checker runs at the same version as the
+  workflow (docs/WORKFLOW-VERSIONING.md). 0.1.0 called @main, which fails
+  UPS-QA-40 and UPS-WORK-10 in every repo that took it (24 callers on
+  2026-11-14). The caller now carries a `# kit: conformance vX.Y.Z` stamp.
+  archive/conformance-0.1.0.yml keeps the old shape, so --upgrade
+  recognises the byte-identical machine seeds and repins them.
   0.1.0 — initial thin caller of the reusable fleet-conformance.yml workflow.
   Advisory by default (gate: false); a repo flips it once its MUST rows pass.
 notes: |

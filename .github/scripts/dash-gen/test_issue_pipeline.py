@@ -19,7 +19,13 @@ Guards the invariants that decide whether the pipeline is useful or a nuisance:
     such repos (and every open issue they held) from the pipeline entirely;
   * a config override in _data/fleet.yml must MERGE with the defaults, not
     replace them: a fleet.yml that sets one cap must not silently delete the
-    label taxonomy the agents apply.
+    label taxonomy the agents apply;
+  * the tier-1 → tier-2 HANDOFF contract (pipeline_contracts, #534) passes a
+    complete issue and keeps one with no checkbox criteria, or a handoff bound
+    to another repo, out of the tier-2 work order with the reason;
+  * the tier-3 VERDICT contract (#537) passes only when every criterion is met
+    with evidence: a missing criterion, a `met` without evidence and an issue
+    with no checkboxes all fail, and the backstop reverts what tier 3 asserted.
 
 Deliberately dependency-light — no network, no gh, no pytest. Needs only PyYAML:
 
@@ -28,7 +34,9 @@ Deliberately dependency-light — no network, no gh, no pytest. Needs only PyYAM
 
 from __future__ import annotations
 
+import datetime as dt
 import inspect
+import json
 import sys
 import tempfile
 from pathlib import Path
@@ -36,6 +44,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import issue_pipeline as ip  # noqa: E402
+import pipeline_contracts as pc  # noqa: E402
+import yaml  # noqa: E402
 
 HUB = "bamr87/bamr87"
 CFG = ip.DEFAULT_CONFIG
@@ -94,6 +104,10 @@ def check(name: str, cond: bool, detail: str = "") -> None:
     else:
         FAILURES.append(f"{name}{': ' + detail if detail else ''}")
         print(f"  FAIL {name}{': ' + detail if detail else ''}")
+        # Under `python3 -m pytest` the test_* functions are collected one by
+        # one and main() never runs, so a failed check must raise to count.
+        if "pytest" in sys.modules:
+            raise AssertionError(f"{name}{': ' + detail if detail else ''}")
 
 
 # --------------------------------------------------------------------------- #
@@ -849,6 +863,552 @@ def test_render():
     check("T3 honours human-review in the prompt it hands the agent",
           "Do NOT mark it ready" in out3)
     check("T3 never instructs a merge", "gh pr merge" not in out3)
+    p2 = dict(p, labels=[], human_review=False)
+    out4 = ip.render_t3([p2], CFG, counts)
+    check("T3 names the verdict check, and only marks ready after it passes",
+          "issues verdict check --repo bamr87/x --pr 4" in out4
+          and "only after the verdict check passes" in out4
+          and out4.index("verdict check") < out4.index("gh pr ready"))
+
+
+# --------------------------------------------------------------------------- #
+# the tier-1 → tier-2 handoff contract (#534)
+# --------------------------------------------------------------------------- #
+OWNER = "bamr87"
+SIZES = CFG["labels"]["sizes"]
+
+# A body in the house template tier 1 writes: criteria under their heading,
+# a fenced block and a non-criteria checklist that must not count, and the
+# reporter's original (with checkboxes of its own) preserved below the marker.
+T1_BODY = """Tightened summary.
+
+## Reproduction
+
+```
+- [ ] not a criterion: inside a fence
+```
+
+## Acceptance criteria
+- [ ] `tools/dash triage` exits 0 when the snapshot is absent.
+- [x] A regression test fails before the fix and passes after
+      it, in `test_fleet_triage.py`.
+- [ ] Docs updated.
+
+## Tasks
+- [ ] not a criterion: a task list outside the section
+
+---
+<!-- original report preserved verbatim below -->
+<details><summary>Original report by @someone</summary>
+
+- [ ] not a criterion: the reporter's own checklist
+
+</details>
+"""
+NO_CRITERIA_BODY = """The dash crashes. Acceptance: it should not.
+
+## Acceptance criteria
+- it works (a bullet, not a checkbox)
+"""
+EVIDENCE = {"key": "bamr87/x#7", "at": "2026-11-12T07:43:51Z",
+            "url": "https://github.com/bamr87/x/issues/7#issuecomment-1"}
+
+
+def handoff_candidate(number=7, *, nwo="bamr87/x", body=T1_BODY, labels=None,
+                      evidence=EVIDENCE, recorded=None, private=False):
+    c = issue(number, title="dash triage crashes", body=body,
+              labels=labels if labels is not None else ["bug", "P1", "size:s", STATE["ready"]],
+              stage="ready")
+    c.update({"key": f"{nwo}#{number}", "nwo": nwo, "repo": nwo.split("/")[-1],
+              "repo_url": "u", "category": "dash", "status": "active",
+              "stack": ["python"], "private": private, "default_branch": "main",
+              "evidence": evidence, "_handoff_recorded": recorded})
+    return c
+
+
+def comment(body, *, cid=1, assoc="OWNER", user_type="User"):
+    return {"id": cid, "body": body, "html_url": f"https://github.com/bamr87/x/issues/7#issuecomment-{cid}",
+            "author_association": assoc, "user_type": user_type}
+
+
+def test_acceptance_parsing():
+    print("\nacceptance criteria — what both contracts are judged against")
+    crit = pc.parse_acceptance_criteria(T1_BODY)
+    check("only the Acceptance criteria section counts, in order",
+          crit == ["`tools/dash triage` exits 0 when the snapshot is absent.",
+                   "A regression test fails before the fix and passes after it, in "
+                   "`test_fleet_triage.py`.",
+                   "Docs updated."], str(crit))
+    check("fences, other checklists and the preserved original never count",
+          not any("not a criterion" in c for c in crit), str(crit))
+    bold = "**Acceptance criteria**\n- [ ] Schema committed.\n- [ ] Tests pass.\n\nGuardrails: none."
+    check("a bold `Acceptance criteria` label opens the section too",
+          pc.parse_acceptance_criteria(bold) == ["Schema committed.", "Tests pass."],
+          str(pc.parse_acceptance_criteria(bold)))
+    loose = "Do these:\n- [ ] one\n* [X] two\n1. [ ] three\n- [ ] one"
+    check("without a section every checkbox counts, ticked or not, de-duplicated",
+          pc.parse_acceptance_criteria(loose) == ["one", "two", "three"],
+          str(pc.parse_acceptance_criteria(loose)))
+    check("plain bullets are not checkbox criteria",
+          pc.parse_acceptance_criteria(NO_CRITERIA_BODY) == [])
+    numbered = ("## 3. Scope\n- [ ] not a criterion\n\n## 4. ✅ Acceptance criteria\n"
+                "- [ ] Covered by\n  acceptance tests in CI.\n- [ ] Documented.\n")
+    check("a numbered or decorated heading opens the section, and a continuation line "
+          "that starts with 'acceptance' stays part of its item",
+          pc.parse_acceptance_criteria(numbered)
+          == ["Covered by acceptance tests in CI.", "Documented."],
+          str(pc.parse_acceptance_criteria(numbered)))
+    check("criteria match regardless of case, code marks and a trailing period",
+          pc.criterion_key("`Tools/Dash triage` exits 0.") == pc.criterion_key("tools/dash triage exits 0"))
+
+
+def test_handoff_contract():
+    print("\nhandoff contract — tier 1 → tier 2")
+    cfg = ip.deep_merge(CFG, {"tiers": {"implement": {"max_issues": 5}}})
+
+    # 1. VALID: a complete issue passes and reaches the tier-2 work order with
+    #    its criteria and evidence.
+    good = handoff_candidate()
+    doc = pc.build_handoff(nwo="bamr87/x", number=7, body=T1_BODY,
+                           labels=good["labels"], sizes=SIZES, evidence=EVIDENCE,
+                           built_at="2026-11-15T00:00:00Z")
+    probs = pc.validate_handoff(doc, nwo="bamr87/x", number=7, sizes=SIZES, owner=OWNER)
+    check("a complete handoff is valid", probs == [], str(probs))
+    check("the handoff carries issue, owner repo, criteria, evidence and size",
+          doc["issue"] == "bamr87/x#7" and doc["owner_repo"] == "bamr87/x"
+          and len(doc["acceptance_criteria"]) == 3 and doc["size"] == "size:s"
+          and (doc["evidence"] or {}).get("url") == EVIDENCE["url"], json.dumps(doc))
+    kept, rejected = ip.gate_handoffs([good], cfg)
+    check("the tier-2 gate keeps a valid issue", kept == [good] and rejected == [])
+    t2 = ip.render_t2(kept, cfg, {"repos": 1, "open_issues": 1})
+    check("the tier-2 work order lists the handoff's criteria and evidence",
+          "1. `tools/dash triage` exits 0" in t2 and EVIDENCE["url"] in t2, t2)
+    secret = handoff_candidate(9, nwo="bamr87/private-thing", private=True,
+                               evidence=dict(EVIDENCE, key="bamr87/private-thing#9"))
+    kept_private, _ = ip.gate_handoffs([secret], cfg)
+    t2 = ip.render_t2(kept_private, cfg, {"repos": 1, "open_issues": 1})
+    check("a private repo's criteria stay out of the (public) work order artifact",
+          kept_private == [secret] and "tools/dash triage" not in t2 and "private" in t2, t2)
+
+    # 2. INVALID — missing acceptance criteria.
+    bare = handoff_candidate(8, body=NO_CRITERIA_BODY, evidence=None)
+    kept, rejected = ip.gate_handoffs([bare, handoff_candidate()], cfg)
+    reasons = (bare.get("_handoff") or {}).get("problems") or []
+    check("an issue with no checkbox criteria is rejected",
+          rejected == [bare] and len(kept) == 1, str(reasons))
+    check("…with the reason", any("no acceptance criteria" in p for p in reasons), str(reasons))
+    t2 = ip.render_t2(kept, cfg, {"repos": 1, "open_issues": 2}, rejected)
+    head, _, tail = t2.partition("Left out by the handoff contract")
+    check("…it is not in the work order, only in the left-out list",
+          "bamr87/x#8 —" not in head and "bamr87/x#8: no acceptance criteria" in tail, t2)
+    actions = pc.plan_block({"nwo": "bamr87/x", "number": 8, "problems": reasons},
+                            ready=STATE["ready"], blocked=STATE["blocked"])
+    check("…and tier 2 moves it to agent:blocked, off agent:ready, with the reason",
+          [a["op"] for a in actions] == ["add_labels", "remove_label", "comment"]
+          and actions[0]["labels"] == [STATE["blocked"]] and actions[1]["label"] == STATE["ready"]
+          and "no acceptance criteria" in actions[2]["body"], str(actions))
+
+    # 3. INVALID — wrong owner repo: the handoff tier 1 recorded is bound to
+    #    another repo (copied, or the issue was transferred).
+    foreign = dict(doc, issue="bamr87/other#7", owner_repo="bamr87/other")
+    rec = {"doc": foreign, "error": None, "url": "u"}
+    moved = handoff_candidate(recorded=rec)
+    kept, rejected = ip.gate_handoffs([moved], cfg)
+    reasons = moved["_handoff"]["problems"]
+    check("a recorded handoff for another owner repo is rejected",
+          rejected == [moved] and any("owner_repo is bamr87/other" in p for p in reasons),
+          str(reasons))
+    outside = dict(doc, owner_repo="someone-else/x")
+    reasons = pc.validate_handoff(outside, nwo="bamr87/x", number=7, sizes=SIZES, owner=OWNER)
+    check("an owner repo outside the hub's owner is rejected",
+          any("outside bamr87/" in p for p in reasons), str(reasons))
+
+    # The rest of the contract.
+    check("a size outside the taxonomy, or none, is rejected",
+          pc.validate_handoff(dict(doc, size=None), nwo="bamr87/x", number=7, sizes=SIZES,
+                              owner=OWNER) != []
+          and pc.validate_handoff(dict(doc, size="size:huge"), nwo="bamr87/x", number=7,
+                                  sizes=SIZES, owner=OWNER) != [])
+    check("evidence for another issue is rejected",
+          any("bundle is for" in p for p in pc.validate_handoff(
+              dict(doc, evidence={"key": "bamr87/x#9"}), nwo="bamr87/x", number=7,
+              sizes=SIZES, owner=OWNER)))
+    check("an issue with no evidence bundle may still pass (evidence is null)",
+          pc.validate_handoff(dict(doc, evidence=None), nwo="bamr87/x", number=7,
+                              sizes=SIZES, owner=OWNER) == [])
+    check("a recorded handoff is checked for its binding only, not its stale content",
+          pc.validate_handoff(dict(doc, acceptance_criteria=[]), nwo="bamr87/x", number=7,
+                              sizes=SIZES, owner=OWNER, content=False) == [])
+    unreadable = handoff_candidate(recorded={"doc": None, "error": "not valid JSON", "url": "u"})
+    check("an unreadable recorded handoff is rejected",
+          ip.gate_handoffs([unreadable], cfg)[1] == [unreadable])
+
+    # Recording it on the issue, and reading it back.
+    block = pc.render_handoff_block(doc)
+    back, err = pc.parse_handoff(f"tier 1's comment\n\n{block}\n")
+    check("a recorded handoff round-trips", back == doc and err is None, str(err))
+    check("the block is fenced so a backtick run in a criterion cannot close it",
+          "````json" in pc.render_handoff_block(dict(doc, acceptance_criteria=["a ``` b"])))
+    t1_comment = comment(f'{ip.marker(1, "bamr87/x#7")}\n\nEvidence and analysis.', cid=11)
+    plan = pc.plan_record(nwo="bamr87/x", number=7, body=T1_BODY, labels=good["labels"],
+                          comments=[t1_comment], sizes=SIZES, owner=OWNER, built_at="t")
+    check("tier 1's handoff is appended to its own marker comment",
+          plan["action"]["op"] == "patch" and plan["action"]["comment_id"] == 11
+          and plan["action"]["body"].startswith(t1_comment["body"])
+          and pc.parse_handoff(plan["action"]["body"])[0]["issue"] == "bamr87/x#7")
+    again = pc.plan_record(nwo="bamr87/x", number=7, body=T1_BODY, labels=good["labels"],
+                           comments=[comment(plan["action"]["body"], cid=11)], sizes=SIZES,
+                           owner=OWNER, built_at="t2")
+    check("re-recording replaces the block in place (one handoff per issue)",
+          again["action"]["body"].count("issue-pipeline-handoff key=") == 1
+          and pc.parse_handoff(again["action"]["body"])[0]["built_at"] == "t2")
+    huge = comment(ip.marker(1, "bamr87/x#7") + "x" * pc.MAX_COMMENT_CHARS, cid=12)
+    plan = pc.plan_record(nwo="bamr87/x", number=7, body=T1_BODY, labels=good["labels"],
+                          comments=[huge], sizes=SIZES, owner=OWNER)
+    check("a tier-1 comment too long to grow gets the handoff in a comment of its own",
+          plan["action"]["op"] == "create")
+    stranger = comment(block.replace("bamr87/x#7", "bamr87/other#7"), assoc="NONE")
+    check("a handoff block from a stranger is ignored",
+          pc.recorded_handoff([stranger]) is None
+          and pc.recorded_handoff([comment(block)])["doc"] == doc)
+
+    # A stranger's evidence marker: anyone can comment on a public issue, and
+    # one naming another issue would get this ready issue blocked.
+    ours = comment('<!-- issue-evidence key="bamr87/x#7" at="2026-11-12T07:43:51Z" -->\nbundle',
+                   cid=21, user_type="Bot", assoc="NONE")
+    theirs = comment('<!-- issue-evidence key="bamr87/other#9" at="2026-11-15T00:00:00Z" -->',
+                     cid=22, assoc="NONE")
+    check("a stranger's evidence marker is ignored when the handoff is built",
+          pc.evidence_from_comments([ours, theirs])["key"] == "bamr87/x#7"
+          and pc.evidence_from_comments([theirs]) is None)
+    plan = pc.plan_record(nwo="bamr87/x", number=7, body=T1_BODY, labels=good["labels"],
+                          comments=[ours, theirs], sizes=SIZES, owner=OWNER, built_at="t")
+    check("…so tier 1 records a valid handoff with its own bundle",
+          plan["problems"] == [] and plan["handoff"]["evidence"]["key"] == "bamr87/x#7",
+          str(plan["problems"]))
+    then = dt.datetime(2026, 11, 12, 7, 43, 51, tzinfo=dt.timezone.utc)
+    seen, ev, held = ip.comment_signals([dict(ours, created_at=then),
+                                         dict(theirs, created_at=then),
+                                         dict(comment(block, cid=23), created_at=then)], ttl=7)
+    check("…and the tier-2 gate's comment scan ignores it too",
+          ev is not None and ev["key"] == "bamr87/x#7" and ev["url"].endswith("-21")
+          and [c["id"] for c in held] == [23], str(ev))
+    _, ev, _ = ip.comment_signals([dict(theirs, created_at=then)], ttl=7)
+    check("…so it can neither block the issue nor pass as its evidence", ev is None, str(ev))
+    poisoned = handoff_candidate(evidence=ev)
+    check("…and the issue stays in the tier-2 work order",
+          ip.gate_handoffs([poisoned], cfg)[1] == [], str(poisoned.get("_handoff")))
+
+    class FakeComment:
+        def __init__(self, body, assoc, user_type):
+            self.body, self.html_url, self.created_at = body, "https://c", then
+            self._rawData = {"author_association": assoc, "user": {"type": user_type}}
+
+    slim = ip.slim_comment(FakeComment("b", "NONE", "User"))
+    check("enrich_candidates reads each comment's author from the listing (_rawData)",
+          slim["author_association"] == "NONE" and slim["user_type"] == "User"
+          and "comment_signals(comments" in _source_of(ip.enrich_candidates)
+          and "slim_comment(com)" in _source_of(ip.enrich_candidates))
+
+    report = ip.build_report([repo("bamr87/x")], {"intake": [], "implement": [], "complete": []},
+                             CFG, {}, handoff=ip.handoff_summary(
+                                 [dict(bare), dict(bare, private=True, key="bamr87/p#1")], 3))
+    check("the snapshot reports the check, listing only public rejects",
+          report["handoff"]["checked"] == 3 and len(report["handoff"]["rejected"]) == 1
+          and report["handoff"]["rejected_private_omitted"] == 1, str(report["handoff"]))
+
+
+def test_handoff_schema_file():
+    """The JSON Schema and the stdlib validator must describe one contract."""
+    print("\nhandoff + verdict schema files")
+    here = Path(ip.__file__).resolve().parent
+    hs = json.loads((here / "pipeline-handoff.schema.json").read_text())
+    check("handoff schema: required fields are the validator's",
+          hs["required"] == list(pc.HANDOFF_FIELDS), str(hs["required"]))
+    check("handoff schema: properties are the validator's, no more",
+          set(hs["properties"]) == set(pc.HANDOFF_FIELDS) | set(pc.HANDOFF_OPTIONAL)
+          and hs["additionalProperties"] is False)
+    check("handoff schema: the schema tag and size taxonomy agree",
+          hs["properties"]["schema"]["const"] == pc.HANDOFF_SCHEMA == hs["title"]
+          and hs["properties"]["size"]["enum"] == ip.DEFAULT_SIZES
+          and hs["properties"]["size"]["enum"] == ip.load_config(ip.FLEET)["labels"]["sizes"])
+    vs = json.loads((here / "pipeline-verdict.schema.json").read_text())
+    item = vs["items"]
+    check("verdict schema: required fields and statuses are the checker's",
+          item["required"] == list(pc.VERDICT_FIELDS)
+          and item["properties"]["status"]["enum"] == list(pc.VERDICT_STATUSES)
+          and set(item["properties"]) == set(pc.VERDICT_FIELDS) | set(pc.VERDICT_OPTIONAL)
+          and vs["title"] == pc.VERDICT_SCHEMA)
+
+
+# --------------------------------------------------------------------------- #
+# the tier-3 verdict contract (#537)
+# --------------------------------------------------------------------------- #
+ISSUE_REF = "bamr87/x#7"
+CRITERIA = pc.parse_acceptance_criteria(T1_BODY)
+GOOD_EVIDENCE = ["tools/test_fleet_triage.py::test_absent_snapshot",
+                 "https://github.com/bamr87/x/actions/runs/123",
+                 "docs/DAILY-ANALYSIS.md#L10-L20"]
+
+
+def verdicts(statuses=("met", "met", "met"), evidence=GOOD_EVIDENCE, skip=()):
+    return [{"issue": ISSUE_REF, "criterion_text": c, "status": s, "evidence": e}
+            for i, (c, s, e) in enumerate(zip(CRITERIA, statuses, evidence)) if i not in skip]
+
+
+def test_verdict_contract():
+    print("\nverdict contract — tier 3 → agent:done")
+    issues = {ISSUE_REF: T1_BODY}
+
+    # The four cases the issue names.
+    r = pc.check_verdicts(verdicts(), issues, default_nwo="bamr87/x")
+    check("all criteria met with evidence passes", r["pass"] is True, json.dumps(r))
+    r = pc.check_verdicts(verdicts(skip=(1,)), issues, default_nwo="bamr87/x")
+    check("a criterion with no verdict fails",
+          r["pass"] is False and any("no verdict for: A regression test" in p
+                                     for p in r["issues"][0]["problems"]), json.dumps(r))
+    r = pc.check_verdicts(verdicts(evidence=(GOOD_EVIDENCE[0], "", GOOD_EVIDENCE[2])),
+                          issues, default_nwo="bamr87/x")
+    check("met without evidence fails",
+          r["pass"] is False
+          and r["issues"][0]["criteria"][1]["verdict"] == "met-without-evidence", json.dumps(r))
+    r = pc.check_verdicts([], {ISSUE_REF: NO_CRITERIA_BODY}, default_nwo="bamr87/x")
+    check("an issue with no checkboxes reports unverifiable and does not pass",
+          r["pass"] is False and r["issues"][0]["status"] == "unverifiable", json.dumps(r))
+
+    # The rest of the contract.
+    r = pc.check_verdicts(verdicts(statuses=("met", "unmet", "met")), issues,
+                          default_nwo="bamr87/x")
+    check("an unmet criterion fails", r["pass"] is False
+          and any(p.startswith("unmet:") for p in r["issues"][0]["problems"]))
+    r = pc.check_verdicts(verdicts(statuses=("met", "unverifiable", "met")), issues,
+                          default_nwo="bamr87/x")
+    check("an unverifiable criterion fails", r["pass"] is False)
+    r = pc.check_verdicts(verdicts() + verdicts()[:1], issues, default_nwo="bamr87/x")
+    check("two verdicts for one criterion fail", r["pass"] is False
+          and r["issues"][0]["criteria"][0]["verdict"] == "duplicate")
+    extra = verdicts() + [{"issue": "#7", "criterion_text": "something else", "status": "met",
+                           "evidence": GOOD_EVIDENCE[1]}]
+    r = pc.check_verdicts(extra, issues, default_nwo="bamr87/x")
+    check("a verdict for a criterion the issue does not list fails", r["pass"] is False)
+    stray = verdicts() + [{"issue": "bamr87/x#99", "criterion_text": "x", "status": "met",
+                           "evidence": GOOD_EVIDENCE[1]}]
+    check("a verdict for an issue the PR does not close fails",
+          pc.check_verdicts(stray, issues, default_nwo="bamr87/x")["pass"] is False)
+    check("no verdict block at all fails",
+          pc.check_verdicts(None, issues, default_nwo="bamr87/x")["pass"] is False)
+    check("a PR that closes no issue fails",
+          pc.check_verdicts(verdicts(), {}, default_nwo="bamr87/x")["pass"] is False)
+    loose = [dict(v, criterion_text=v["criterion_text"].upper().rstrip(".").replace("`", ""),
+                  issue="#7") for v in verdicts()]
+    check("criterion text and #N refs are matched leniently (case, code marks, period)",
+          pc.check_verdicts(loose, issues, default_nwo="bamr87/x")["pass"] is True)
+    bad_shape = verdicts()[:2] + [{"issue": ISSUE_REF, "criterion_text": CRITERIA[2],
+                                   "status": "done", "evidence": GOOD_EVIDENCE[2]}]
+    check("a status outside met/unmet/unverifiable fails",
+          pc.check_verdicts(bad_shape, issues, default_nwo="bamr87/x")["pass"] is False)
+
+    for ev in GOOD_EVIDENCE + ["tests/unit/test_x.py::TestA::test_b[case-1]",
+                               "spec/models/user_spec.rb:42", "src/app.py#L7",
+                               "templates/ai-runner/tests/contract.sh",
+                               "src/__tests__/App.test.tsx", "pkg/store/cache_test.go",
+                               "src/test/java/FooTest.java", "spec/x_spec.rb[1:2]",
+                               "crate::tests::it_works", "test_module::test_name"]:
+        check(f"evidence {ev!r} is accepted", pc.evidence_ok(ev))
+    # A word with `test` or `spec` in it does not name a test (#537: `met`
+    # without evidence fails), nor does a file that is not a test.
+    for ev in ("", "  ", "I checked it by hand", "see the PR", "scripts/latest.py", None, 3,
+               "test", "tests", "tested", "Tested", "manual-test", "not-tested",
+               "unit-tests", "verified-by-tests", "specs", "manual.test", "contest.py",
+               "docs/Testament.md", "Tested::Manually", "foo::bar"):
+        check(f"evidence {ev!r} is refused", not pc.evidence_ok(ev))
+    words = verdicts(evidence=("tested", "manual-test", GOOD_EVIDENCE[2]))
+    r = pc.check_verdicts(words, issues, default_nwo="bamr87/x")
+    check("`met` citing a word (`tested`, `manual-test`) instead of a test fails",
+          r["pass"] is False and [c["verdict"] for c in r["issues"][0]["criteria"]]
+          == ["met-without-evidence", "met-without-evidence", "met"], json.dumps(r))
+
+    # Reading the block from the PR, and the template tier 3 fills in.
+    first = "```pipeline-verdict\n[]\n```"
+    second = "intro\n```pipeline-verdict\n" + json.dumps(verdicts()) + "\n```\n"
+    got, err = pc.parse_verdicts(["PR body", first, second])
+    check("the last pipeline-verdict block wins", got == verdicts() and err is None)
+    got, err = pc.parse_verdicts(["```pipeline-verdict\n{not json\n```"])
+    check("an unreadable block is reported, not ignored", got is None and "not valid JSON" in err)
+    check("no block at all is (None, None)", pc.parse_verdicts(["nothing here"]) == (None, None))
+    tpl = pc.render_verdict_template(issues)
+    entries, _ = pc.parse_verdicts([tpl])
+    check("the template lists every criterion verbatim and does not pass as is",
+          [e["criterion_text"] for e in entries] == CRITERIA
+          and pc.check_verdicts(entries, issues, default_nwo="bamr87/x")["pass"] is False)
+    filled = [dict(e, status="met", evidence=ev) for e, ev in zip(entries, GOOD_EVIDENCE)]
+    check("…and passes once every entry is met with evidence",
+          pc.check_verdicts(filled, issues, default_nwo="bamr87/x")["pass"] is True)
+    check("a PR body's Closes/Fixes/Resolves links are the issues judged",
+          pc.linked_refs("Closes #7\nFixes bamr87/y#2. Resolves #7. Mentions #9", "bamr87/x")
+          == ["bamr87/x#7", "bamr87/y#2"])
+
+
+def test_verdict_backstop():
+    print("\nverdict backstop — after tier 3")
+    fail = pc.check_verdicts(verdicts(skip=(0,)), {ISSUE_REF: T1_BODY}, default_nwo="bamr87/x")
+    ok = pc.check_verdicts(verdicts(), {ISSUE_REF: T1_BODY}, default_nwo="bamr87/x")
+    target = {"nwo": "bamr87/x", "number": 4, "draft": True, "linked_issues": [7]}
+    done = {ISSUE_REF: [STATE["in_pr"], STATE["done"]]}
+    acts = pc.plan_backstop(target, pr_draft=False, issue_labels=done, result=fail,
+                            done=STATE["done"], pr_ref="bamr87/x#4")
+    check("a PR tier 3 marked ready on a failing verdict goes back to draft, "
+          "agent:done comes off, and the PR says why",
+          [a["op"] for a in acts] == ["pr_undo_ready", "remove_label", "comment"]
+          and acts[1]["label"] == STATE["done"] and acts[1]["number"] == 7
+          and pc.BACKSTOP_MARKER in acts[2]["body"] and "no verdict for" in acts[2]["body"],
+          str(acts))
+    check("a passing verdict is left alone",
+          pc.plan_backstop(target, pr_draft=False, issue_labels=done, result=ok,
+                           done=STATE["done"], pr_ref="r") == [])
+    before = dict(target, draft=False)
+    acts = pc.plan_backstop(before, pr_draft=False, issue_labels=done, result=fail,
+                            done=STATE["done"], pr_ref="r")
+    check("a PR that was already ready before the run keeps its state; only agent:done comes off",
+          [a["op"] for a in acts] == ["remove_label", "comment"], str(acts))
+    check("a PR tier 3 neither readied nor marked done is not touched",
+          pc.plan_backstop(target, pr_draft=True, issue_labels={ISSUE_REF: [STATE["in_pr"]]},
+                           result=fail, done=STATE["done"], pr_ref="r") == [])
+    earlier = dict(before, done_at_scan=[ISSUE_REF])
+    check("an agent:done an earlier run applied is not this run's claim, so it stays",
+          pc.plan_backstop(earlier, pr_draft=False, issue_labels=done, result=fail,
+                           done=STATE["done"], pr_ref="r") == [])
+
+    # The scan records which linked issues were already done.
+    r = repo("bamr87/x", issues=[issue(7, stage="done"), issue(8, stage="in-pr")],
+             prs=[pr(4, linked=[7, 8])])
+    got = ip.complete_targets([{**r["prs"][0], "nwo": "bamr87/x"}], [r])
+    check("complete_targets carries the draft state and the issues done at the scan",
+          got == [{"nwo": "bamr87/x", "number": 4, "draft": True, "linked_issues": [7, 8],
+                   "done_at_scan": ["bamr87/x#7"]}], str(got))
+
+
+def test_contract_github_io():
+    """The `gh` half, with `gh` stubbed: what each write sends, and whose
+    verdict block is read."""
+    print("\ncontract writes and reads through gh (stubbed)")
+    calls: list[tuple[list[str], str | None]] = []
+    replies: dict[str, str] = {}
+
+    def fake_gh(args, *, stdin=None):
+        calls.append((list(args), stdin))
+        for key, out in replies.items():
+            if key in " ".join(args):
+                return out
+        if "labels/agent%3Aready" in " ".join(args):
+            raise pc.GhError("gh api: Label does not exist (HTTP 404)")
+        return ""
+
+    real = pc.gh
+    pc.gh = fake_gh
+    try:
+        for a in pc.plan_block({"nwo": "bamr87/x", "number": 8, "problems": ["p"]},
+                               ready=STATE["ready"], blocked=STATE["blocked"]):
+            pc.apply_action(a)
+        sent = [(" ".join(a[:4]), json.loads(s) if s else None) for a, s in calls]
+        check("block: POST the label, DELETE the old one (a 404 is fine), POST the comment",
+              sent[0] == ("api -X POST repos/bamr87/x/issues/8/labels", {"labels": ["agent:blocked"]})
+              and sent[1][0] == "api -X DELETE repos/bamr87/x/issues/8/labels/agent%3Aready"
+              and sent[2][0] == "api -X POST repos/bamr87/x/issues/8/comments"
+              and "Blocked by the tier-1" in sent[2][1]["body"], str(sent))
+        calls.clear()
+        pc.apply_action({"op": "pr_undo_ready", "nwo": "bamr87/x", "number": 4})
+        check("backstop: the PR goes back to draft with `gh pr ready --undo`",
+              calls[0][0] == ["pr", "ready", "4", "-R", "bamr87/x", "--undo"], str(calls))
+
+        calls.clear()
+
+        def failing_patch(args, *, stdin=None):
+            calls.append((list(args), stdin))
+            if "PATCH" in args:
+                raise pc.GhError("gh api: Validation Failed (HTTP 422)")
+            return ""
+        pc.gh = failing_patch
+        pc.apply_action({"op": "patch", "nwo": "bamr87/x", "comment_id": 11, "body": "b",
+                         "fallback": {"op": "create", "nwo": "bamr87/x", "number": 7,
+                                      "body": "block"}})
+        check("a refused PATCH falls back to a comment of its own",
+              [c[0][2] for c in calls] == ["PATCH", "POST"]
+              and json.loads(calls[1][1]) == {"body": "block"}, str(calls))
+
+        # Reads: only a trusted author's block counts.
+        pc.gh = fake_gh
+        calls.clear()
+        honest = verdicts(statuses=("met", "unmet", "met"))
+        forged = verdicts()  # all met, posted later by someone outside the repo
+        replies.clear()
+        replies.update({
+            "repos/bamr87/x/pulls/4": json.dumps({
+                "body": "Closes #7", "draft": True, "html_url": "u", "state": "open",
+                "author_association": "OWNER", "user": {"type": "User"}}),
+            "repos/bamr87/x/issues/4/comments": "\n".join(json.dumps(c) for c in (
+                {"id": 1, "body": "```pipeline-verdict\n" + json.dumps(honest) + "\n```",
+                 "author_association": "OWNER", "user_type": "User"},
+                {"id": 2, "body": "```pipeline-verdict\n" + json.dumps(forged) + "\n```",
+                 "author_association": "NONE", "user_type": "User"})),
+            "repos/bamr87/x/issues/7": json.dumps({"body": T1_BODY,
+                                                   "labels": [{"name": "agent:in-pr"}]}),
+        })
+        result, inp = pc.check_pr("bamr87/x", 4)
+        check("the verdict check reads the trusted author's block, not a stranger's later one",
+              result["pass"] is False and inp["verdicts"] == honest
+              and list(inp["issues"]) == ["bamr87/x#7"], json.dumps(result)[:300])
+    finally:
+        pc.gh = real
+
+
+def test_workflow_wiring():
+    """The contract steps are only useful if the workflow runs them, in order."""
+    print("\nissue-pipeline.yml wiring")
+    path = ip.REPO_ROOT / ".github" / "workflows" / "issue-pipeline.yml"
+    wf = yaml.safe_load(path.read_text())
+    jobs = wf["jobs"]
+
+    def steps(job):
+        return jobs[job]["steps"]
+
+    def index(job, needle):
+        for i, s in enumerate(steps(job)):
+            if needle in str(s.get("run", "")) or needle in str((s.get("with") or {}).get("prompt", "")):
+                return i
+        return -1
+
+    def step_id(job, sid):
+        return next((i for i, s in enumerate(steps(job)) if s.get("id") == sid), -1)
+
+    outs = jobs["scan"]["outputs"]
+    check("scan publishes the targets the contract steps read",
+          all(k in outs for k in ("intake_targets", "complete_targets", "handoff_checked",
+                                  "handoff_rejected")), str(sorted(outs)))
+    rec = index("tier1", "issues handoff record")
+    check("tier 1 records handoffs after the agent, for real (--apply)",
+          rec > step_id("tier1", "enrich") and "--apply" in steps("tier1")[rec]["run"]
+          and "intake_targets" in str(steps("tier1")[rec].get("env")))
+    blk = index("tier2", "issues handoff block")
+    check("tier 2 blocks the handoff rejects after the refresh and before implementing",
+          step_id("tier2", "queue") < blk < step_id("tier2", "implement")
+          and "--apply" in steps("tier2")[blk]["run"]
+          and "handoff_rejects" in str(steps("tier2")[blk].get("env")))
+    bs = index("tier3", "issues verdict backstop")
+    check("tier 3's backstop runs after the agent, for real, on the scan's targets",
+          bs > step_id("tier3", "complete") and "--apply" in steps("tier3")[bs]["run"]
+          and "complete_targets" in str(steps("tier3")[bs].get("env"))
+          and "!cancelled()" in str(steps("tier3")[bs].get("if")))
+    prompt = str(steps("tier3")[step_id("tier3", "complete")]["with"]["prompt"])
+    check("the tier-3 prompt emits the verdict block and runs the check before ready",
+          "pipeline-verdict" in prompt and "issues verdict check" in prompt
+          and prompt.index("issues verdict check") < prompt.index("gh pr ready"))
+    for job in ("tier1", "tier3"):
+        check(f"{job} sets up dash-gen before it calls tools/dash-gen",
+              any("setup/dash-gen" in str(s.get("uses", "")) for s in steps(job)))
+    header = path.read_text().split("\non:", 1)[0]
+    check("the workflow header documents both contracts",
+          pc.HANDOFF_SCHEMA in header and pc.VERDICT_SCHEMA in header)
 
 
 class FakePaginatedList:
@@ -919,6 +1479,13 @@ def main() -> int:
     test_markers_and_config()
     test_real_fleet_config()
     test_render()
+    test_acceptance_parsing()
+    test_handoff_contract()
+    test_handoff_schema_file()
+    test_verdict_contract()
+    test_verdict_backstop()
+    test_contract_github_io()
+    test_workflow_wiring()
     print()
     if FAILURES:
         print(f"FAILED — {len(FAILURES)} check(s):")

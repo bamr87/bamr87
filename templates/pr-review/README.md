@@ -6,6 +6,7 @@
 | --- | --- |
 | `pr-review.yml` | The per-repo stub: a `workflow_run` of every workflow, calling `bamr87/bamr87/.github/workflows/pr-review.yml` |
 | `VERSION` | Kit provenance and changelog |
+| `archive/` | Byte-exact earlier stubs (`pr-review-<version>.yml`), so `--upgrade` recognises an untouched seed |
 
 ## What the comment says
 
@@ -25,11 +26,16 @@ It uses a `workflow_run` trigger because that is the only event that sees every 
 
 `workflow_run` runs from the default branch, so the stub takes effect once merged. To turn it off in one repo, set the repository variable `PR_REVIEW_ENABLED` to `false`.
 
+Since 0.2.0 the stub declares its own workflow-level `concurrency` group, `pr-review-caller-<head sha>`, with `cancel-in-progress: false`: one review per head commit at a time, and a later completion queues rather than cancels, so no update is dropped. Some repos require a concurrency group on every workflow (githubai's `tests/test_workflows.py`). The key matches the reusable workflow's `pr-review-<head sha>` group, but the name must differ: GitHub cancels a run whose caller and called workflow hold the same group, reporting a deadlock.
+
 ## Seeding
 
 ```bash
-tools/fanout.sh --kit pr-review --target <name|all>           # dry run
-tools/fanout.sh --kit pr-review --target <name|all> --apply   # one PR per repo
+tools/fanout.sh --kit pr-review --target <name|all>                       # dry run
+tools/fanout.sh --kit pr-review --target <name|all> --apply               # one PR per repo
+tools/fanout.sh --kit pr-review --target <name|all> --upgrade --apply     # refresh untouched older stubs
 ```
 
 The stub calls the hub at `@v2`, so a repo adopts it after the tag that carries `pr-review.yml`.
+
+`--upgrade` replaces a repo's stub only when it is byte-identical to the current template or to a shape in `archive/`; a hand-edited copy is left alone. Snapshot the outgoing stub into `archive/pr-review-<version>.yml` (with `__KIT_VERSION__` rendered) before changing the template. To refresh a stub that was appended to an open PR rather than merged, set `FANOUT_BRANCH` and `FANOUT_BASE_BRANCH` to that PR's head branch and `FANOUT_PR_APPEND=1`.

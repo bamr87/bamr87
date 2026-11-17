@@ -6,8 +6,8 @@ Every AI lane in the fleet is the same job: gate on a repo variable, check a cre
 
 | Reference | Use it when | What it gives you |
 | --- | --- | --- |
-| `uses: bamr87/bamr87/.github/actions/claude-run@main` | You keep your own workflow shape (a planning job feeding a matrix, a multi-job pipeline, a `workflow_run` trigger) and only want the model step | Claude Code first, OAuth-first, model from the consumer's `_data/ai.yml`, optional API fallback and metering, exit 1 on attempted-and-failed. Inputs: `prompt`, `agent`, `tools`, `mcp`, `system`, `out`, `model`, `max-turns`, `max-budget-usd`, `permission-mode` (`acceptEdits` by default; `default` keeps the `tools` allowlist as the whole grant, for a reviewer that must not write; `plan` reads only) |
-| `uses: bamr87/bamr87/.github/workflows/ai-lane.yml@main` | The lane IS the standard shape | Everything above plus the kill switch (`switch:` names the `*_ENABLED` variable; `workflow_dispatch` bypasses it), the bot guard, named concurrency (writers never cancelled), a probed `GH_PAT` exported as `GH_TOKEN`, Ruby/Node/Python setup, `pre-run`/`post-run` hooks for the repo's own harness, the `result-file` assertion ("the agent produced nothing" is RED), and an artifact |
+| `uses: bamr87/bamr87/.github/actions/claude-run@v2` | You keep your own workflow shape (a planning job feeding a matrix, a multi-job pipeline, a `workflow_run` trigger) and only want the model step | Claude Code first, OAuth-first, model from the consumer's `_data/ai.yml`, optional API fallback and metering, exit 1 on attempted-and-failed. Inputs: `prompt`, `agent`, `tools`, `mcp`, `system`, `out`, `model`, `max-turns`, `max-budget-usd`, `permission-mode` (`acceptEdits` by default; `default` keeps the `tools` allowlist as the whole grant, for a reviewer that must not write; `plan` reads only) |
+| `uses: bamr87/bamr87/.github/workflows/ai-lane.yml@v2` | The lane IS the standard shape | Everything above plus the kill switch (`switch:` names the `*_ENABLED` variable; `workflow_dispatch` bypasses it), the bot guard, named concurrency (writers never cancelled), a probed `GH_PAT` exported as `GH_TOKEN`, Ruby/Node/Python setup, `pre-run`/`post-run` hooks for the repo's own harness, the `result-file` assertion ("the agent produced nothing" is RED), and an artifact |
 
 [`ai-lane.template.yml`](ai-lane.template.yml) is a complete caller: copy it once per lane and fill `__LANE__`, `__SWITCH__`, `__AGENT__`, `__PROJECT_NAME__` and `__CRON__`. The cron is a placeholder on purpose: twelve lanes kept the example cron the template used to carry and so all woke at Monday 06:17 UTC, so each lane now has to pick its own slot (an odd minute, in an hour and weekday the hub's `/schedules` page shows as free). A filled copy passes the fleet harness standard as it stands: it names the kill switch, top-level permissions, and a turn cap with a dollar cap sized to it (`max-turns: "120"`, `max-budget-usd: "20"`; change both together). Least privilege is declared **there** — a called workflow inherits the caller job's `permissions` and can only narrow them.
 
@@ -22,6 +22,8 @@ Every AI lane in the fleet is the same job: gate on a repo variable, check a cre
 | `tools/unwrap-prose.py`, `.prose-excludes` | Post-run one-paragraph-per-line normalizer (the `prose` kit's gate) and its extra excludes, one extended regex per line | optional |
 | `<LANE>_ENABLED` repo **variable** | The kill switch. Default OFF: a lane idles until it is `true` | per scheduled lane |
 | The verification harness | Whatever proves the agent's work (`scripts/ci/run-all.sh`, `make cms-all`, …) — passed as `pre-run`/`post-run`, or run by the agent | per repo |
+
+> **OAuth only for now (2026-11-15):** the runner ignores `ANTHROPIC_API_KEY` and `api_key` in the order, so lanes run on `CLAUDE_CODE_OAUTH_TOKEN` alone and there is no Claude API fallback; the secret itself is untouched, and reverting the change restores the key.
 
 Canonical environment (no repo prefix, so nothing is repo-specific): `CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY`, `AI_MODEL`, `AI_FORCE_API`, `AI_MAX_TURNS`, `AI_USAGE_DIR`, `AI_ROLE`, `AI_REPO_ROOT`.
 
@@ -48,9 +50,9 @@ AI_RUNNER_SUT=scripts/ai/run.sh bash <hub>/templates/ai-runner/tests/contract.sh
 
 ## Migrating a vendored copy
 
-1. Replace `uses: ./.github/actions/claude-run` with `uses: bamr87/bamr87/.github/actions/claude-run@main` in every workflow (the inputs are identical).
+1. Replace `uses: ./.github/actions/claude-run` with `uses: bamr87/bamr87/.github/actions/claude-run@v2` in every workflow (the inputs are identical).
 2. Delete `.github/actions/claude-run/` and `scripts/ai/run.sh`; keep the companions in the table above.
 3. Delete the vendored copy of the contract test; it lives here now.
 4. Where a lane is the standard shape, collapse it to the caller template and delete the hand-rolled gate/concurrency/setup steps.
 
-Versioning: `VERSION` here is the kit's version (`# kit: ai-runner vX.Y.Z` stamps the caller template, which IS a file a repo holds and so is archived for `--upgrade`); the runtime is consumed at `@main`. Tagged refs are a deliberate second step once the fleet wants a rollback lever it has never needed.
+Versioning: `VERSION` here is the kit's version (`# kit: ai-runner vX.Y.Z` stamps the caller template, which IS a file a repo holds and so is archived for `--upgrade`); the runtime is consumed at the hub's floating major tag, `@v2` (kit 0.4.0). Until 0.4.0 it was `@main`, which put every runner change in every lane on merge and failed UPS-QA-40 and UPS-WORK-10; a runner fix now reaches lanes with the next hub release, and moving `v2` back is the rollback lever (docs/WORKFLOW-VERSIONING.md).

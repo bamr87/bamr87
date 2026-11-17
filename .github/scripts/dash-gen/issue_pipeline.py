@@ -38,6 +38,16 @@ That choice is deliberate:
 Hidden markers in comments/PR bodies are the audit trail and the second dedupe
 guard; the labels are the state machine.
 
+CONTRACTS BETWEEN TIERS, NOT PROSE
+----------------------------------
+A label is where an issue is, not proof that it is ready or done. Two
+machine-checked contracts (pipeline_contracts.py) hold the tiers to their
+claims: the HANDOFF tier 1 gives tier 2 (`issue-pipeline-handoff/v1`), checked
+by `gate_handoffs` before an issue reaches the tier-2 work order, and the
+VERDICT tier 3 must post before a PR is marked ready and its issue done
+(`issue-pipeline-verdict/v1`). Their commands are `issues handoff
+record|block|check` and `issues verdict check|template|backstop`.
+
 Auth: a token from GH_TOKEN / GITHUB_TOKEN, else `gh auth token`. Unreachable
 repos are recorded, never fatal. Exit status is 0 with an empty queue — a fleet
 with nothing to triage is the healthy steady state.
@@ -55,6 +65,7 @@ import sys
 from pathlib import Path
 
 import actions_analytics  # owner_repo, resolve_token, as_utc
+import pipeline_contracts as pc  # the tier-to-tier contracts: handoff + verdict
 import work_queue  # the human's order + priority overrides (_data/work_queue.yml)
 
 try:
@@ -749,6 +760,46 @@ def _pr_ci_state(repo, sha: str) -> str:
     return "pass"
 
 
+def slim_comment(com) -> dict:
+    """What comment_signals reads from one PyGithub IssueComment. Its author's
+    association and type come from `_rawData`, which the listing already
+    returned, so this costs no per-comment GET."""
+    raw = com._rawData  # noqa: SLF001 — no lazy per-comment GET
+    return {"body": com.body or "", "html_url": com.html_url,
+            "created_at": com.created_at,
+            "author_association": raw.get("author_association"),
+            "user_type": (raw.get("user") or {}).get("type")}
+
+
+def comment_signals(comments: list[dict], ttl: int) -> tuple[set[int], dict | None, list[dict]]:
+    """What enrich_candidates takes from one issue's comments (slim_comment
+    shape, oldest first): the pipeline tiers whose markers appear, the last
+    evidence bundle a TRUSTED author posted, with its freshness, and the
+    comments that may hold a recorded handoff.
+
+    Anyone can comment on a public issue. A stranger's evidence marker naming
+    another issue would make the handoff check move this one to `blocked`, and
+    a fresh-looking one would skip the evidence build, so it is ignored, as a
+    stranger's recorded handoff or verdict is (pipeline_contracts.is_trusted).
+    """
+    seen_tiers: set[int] = set()
+    evidence = None
+    handoff_comments: list[dict] = []
+    for com in comments:
+        cbody = com.get("body") or ""
+        for m in MARKER_RE.finditer(cbody):
+            seen_tiers.add(int(m.group(1)))
+        em = EVIDENCE_MARKER_RE.search(cbody)
+        if em and pc.is_trusted(com.get("author_association"), com.get("user_type")):
+            age = age_days(com.get("created_at"))
+            evidence = {"key": em.group(1), "at": str(com.get("created_at")),
+                        "age_days": age, "url": com.get("html_url"),
+                        "fresh": age is not None and age <= ttl}
+        if "issue-pipeline-handoff key=" in cbody:
+            handoff_comments.append(com)
+    return seen_tiers, evidence, handoff_comments
+
+
 def enrich_candidates(gh, cands: list[dict], cfg: dict) -> None:
     """Second pass over the CAPPED shortlist only: comments → evidence freshness.
 
@@ -761,21 +812,16 @@ def enrich_candidates(gh, cands: list[dict], cfg: dict) -> None:
     ttl = cfg["evidence"]["ttl_days"]
     for c in cands:
         nwo, num = c["key"].split("#")
-        seen_tiers: set[int] = set()
-        evidence = None
+        comments: list[dict] = []
         try:
             issue = gh.get_repo(nwo).get_issue(int(num))
             for com in issue.get_comments():
-                cbody = com.body or ""
-                for m in MARKER_RE.finditer(cbody):
-                    seen_tiers.add(int(m.group(1)))
-                if EVIDENCE_MARKER_RE.search(cbody):
-                    age = age_days(com.created_at)
-                    evidence = {"at": str(com.created_at), "age_days": age,
-                                "url": com.html_url,
-                                "fresh": age is not None and age <= ttl}
+                comments.append(slim_comment(com))
         except (GithubException, ValueError):
             pass
+        seen_tiers, evidence, handoff_comments = comment_signals(comments, ttl)
+        # The handoff tier 1 recorded (pipeline_contracts), for gate_handoffs.
+        c["_handoff_recorded"] = pc.recorded_handoff(handoff_comments)
         c["evidence"] = evidence
         c["tiers_seen"] = sorted(seen_tiers)
         c["needs_evidence"] = bool(cfg["evidence"]["enabled"]
@@ -1345,6 +1391,89 @@ def build_queues(repos: list[dict], cfg: dict, sprint: SprintHold | None = None)
 
 
 # --------------------------------------------------------------------------- #
+# the tier-1 → tier-2 handoff contract (pipeline_contracts, #534)
+# --------------------------------------------------------------------------- #
+def contract_settings(cfg: dict) -> dict:
+    """What the contracts read from the config: the size taxonomy, the state
+    labels, and the owner whose repos the pipeline may open PRs in."""
+    return {"sizes": list(cfg["labels"]["sizes"]), "state": cfg["labels"]["state"],
+            "owner": str(cfg["hub"]).split("/", 1)[0]}
+
+
+def gate_handoffs(cands: list[dict], cfg: dict) -> tuple[list[dict], list[dict]]:
+    """Validate each tier-2 candidate's handoff: (kept, rejected).
+
+    Runs after enrich_candidates, which read the issue's comments. The handoff
+    is REBUILT from the issue as it stands (a person may have edited it since
+    tier 1, and state lives on the issue, not in a stale copy) and validated in
+    full; the handoff tier 1 RECORDED, when there is one, must also be bound to
+    this issue (its issue reference and owner repo), which catches a handoff
+    copied from another issue or carried along by a transfer. Each candidate
+    gets `_handoff` (the rebuilt document, its problems, whether one was
+    recorded) for the work order; a rejected one is left out of it, and the
+    workflow moves it to `agent:blocked` with the problems
+    (`issues handoff block`). Its slot is not refilled this run.
+    """
+    kept: list[dict] = []
+    rejected: list[dict] = []
+    for c in cands:
+        rec = c.get("_handoff_recorded")
+        doc, problems = handoff_problems(
+            nwo=c["nwo"], number=c["number"], body=c.get("_body") or "",
+            labels=c.get("labels") or [], evidence=c.get("evidence") or None,
+            recorded=rec, cfg=cfg)
+        c["_handoff"] = {"doc": doc, "problems": problems, "recorded": bool(rec)}
+        (rejected if problems else kept).append(c)
+    return kept, rejected
+
+
+def handoff_problems(*, nwo: str, number: int, body: str, labels: list[str],
+                     evidence: dict | None, recorded: dict | None,
+                     cfg: dict) -> tuple[dict, list[str]]:
+    """The handoff rebuilt from the issue as it stands, and every problem with
+    it or with the binding of the handoff tier 1 recorded (gate_handoffs)."""
+    st = contract_settings(cfg)
+    doc = pc.build_handoff(nwo=nwo, number=number, body=body, labels=labels,
+                           sizes=st["sizes"], evidence=evidence,
+                           built_by="issue-pipeline tier 2 gate")
+    problems = pc.validate_handoff(doc, nwo=nwo, number=number, sizes=st["sizes"],
+                                   owner=st["owner"])
+    if recorded:
+        if recorded.get("error"):
+            problems.append(f"recorded handoff: {recorded['error']}")
+        else:
+            problems += [f"recorded handoff: {p}" for p in pc.validate_handoff(
+                recorded["doc"], nwo=nwo, number=number, sizes=st["sizes"],
+                owner=st["owner"], content=False)]
+    return doc, problems
+
+
+def complete_targets(complete: list[dict], repos: list[dict]) -> list[dict]:
+    """The tier-3 queue as the verdict backstop reads it: each PR's draft state
+    and which of its linked issues were already `done` at the scan, so the
+    backstop reverts only what tier 3 asserted during this run."""
+    stage = {(r["nwo"], i["number"]): i["stage"] for r in repos for i in r["issues"]}
+    return [{"nwo": p["nwo"], "number": p["number"], "draft": bool(p["draft"]),
+             "linked_issues": list(p.get("linked_issues") or []),
+             "done_at_scan": [pc.issue_ref(p["nwo"], n) for n in p.get("linked_issues") or []
+                              if stage.get((p["nwo"], n)) == "done"]}
+            for p in complete]
+
+
+def handoff_summary(rejected: list[dict], checked: int) -> dict:
+    """The snapshot's `handoff:` block. A private repo's rejects are counted,
+    not listed: _data/ is public."""
+    public = [c for c in rejected if not c.get("private")]
+    return {
+        "schema": pc.HANDOFF_SCHEMA,
+        "checked": checked,
+        "rejected": [{"key": c["key"], "url": c.get("url"), "title": c.get("title"),
+                      "problems": c["_handoff"]["problems"]} for c in public],
+        "rejected_private_omitted": len(rejected) - len(public),
+    }
+
+
+# --------------------------------------------------------------------------- #
 # work orders
 # --------------------------------------------------------------------------- #
 def _hdr(title: str, cfg: dict, counts: dict) -> list[str]:
@@ -1423,12 +1552,26 @@ def render_t1(q: list[dict], cfg: dict, counts: dict) -> str:
     return "\n".join(L)
 
 
-def render_t2(q: list[dict], cfg: dict, counts: dict) -> str:
+def _render_handoff_rejects(rejected: list[dict], cfg: dict) -> list[str]:
+    if not rejected:
+        return []
+    L = ["---", "", f"## Left out by the handoff contract (`{pc.HANDOFF_SCHEMA}`)", "",
+         f"These were next in line, but their handoff failed. The workflow moves each one "
+         f"to `{cfg['labels']['state']['blocked']}` with the reasons before you start. "
+         f"Do not implement them.", ""]
+    for c in rejected:
+        L.append(f"- {c['nwo']}#{c['number']}: "
+                 + "; ".join((c.get("_handoff") or {}).get("problems") or []))
+    return L + [""]
+
+
+def render_t2(q: list[dict], cfg: dict, counts: dict,
+              rejected: list[dict] | None = None) -> str:
     L = _hdr("Tier 2 — implementation work order", cfg, counts)
     if not q:
         L += ["**Nothing to implement.** No issue is at `agent:ready` without an "
               "open PR. Do not pull work forward from tier 1.", ""]
-        return "\n".join(L)
+        return "\n".join(L + _render_handoff_rejects(rejected or [], cfg))
     L += [f"{len(q)} issue(s) queued (cap {cfg['tiers']['implement']['max_issues']}, "
           f"≤{cfg['tiers']['implement']['max_cross_repo']} outside the hub). "
           f"Every PR is a DRAFT.", ""]
@@ -1455,11 +1598,24 @@ def render_t2(q: list[dict], cfg: dict, counts: dict) -> str:
               f"- **On success:** label the issue "
               f"`{cfg['labels']['state']['in_pr']}` and remove "
               f"`{cfg['labels']['state']['ready']}`.", ""]
+        h = (c.get("_handoff") or {}).get("doc")
+        if h:
+            crit = h.get("acceptance_criteria") or []
+            ev = h.get("evidence") or {}
+            L += [f"- **Handoff** (`{pc.HANDOFF_SCHEMA}`, checked): "
+                  f"{len(crit)} acceptance criteria. Implement and verify each one; "
+                  f"tier 3 must show evidence for every one of them"
+                  + (". The repo is private, so read them on the issue: this work "
+                     "order is uploaded as a public artifact." if c.get("private") else ":"), ""]
+            if not c.get("private"):
+                L += [f"    {n}. {text}" for n, text in enumerate(crit, 1)] + [""]
+            L += [f"- **Evidence bundle:** {ev['url']}" if ev.get("url") else
+                  "- **Evidence bundle:** none recorded. Reproduce from the issue body.", ""]
         if c["autonomy"] == "assisted":
             L += [f"- ⚠️ **Assisted:** {c['autonomy_reason']}. Implement fully, "
                   f"but tier 3 will NOT mark this ready for review — a human "
                   f"does.", ""]
-    return "\n".join(L)
+    return "\n".join(L + _render_handoff_rejects(rejected or [], cfg))
 
 
 def render_t3(q: list[dict], cfg: dict, counts: dict) -> str:
@@ -1492,15 +1648,23 @@ def render_t3(q: list[dict], cfg: dict, counts: dict) -> str:
                      "`continue-on-error`, do not delete the failing test.")
         L += ["- **Definition of done:** CI green · tests cover the change · docs "
               "and the nearest `README.md`/`SCHEMA.md` updated · PR body accurate "
-              "and still carrying its marker · no unrelated diff.", ""]
+              "and still carrying its marker · no unrelated diff · a passing "
+              "verdict check.", "",
+              f"- **Verdict** (`{pc.VERDICT_SCHEMA}`): "
+              f"`tools/dash-gen issues verdict template --repo {p['nwo']} --pr {p['number']}` "
+              f"prints every criterion of the linked issue(s); fill in each one, post it on "
+              f"the PR, then `tools/dash-gen issues verdict check --repo {p['nwo']} "
+              f"--pr {p['number']}` must exit 0.", ""]
         if p["human_review"]:
             L += [f"- ⚠️ **`{cfg['labels']['state']['human_review']}` is set** — "
                   f"finish the work, leave the PR as a DRAFT, and comment that "
                   f"it awaits human review. Do NOT mark it ready.", ""]
         else:
-            L += [f"- **On green:** `gh pr ready {p['number']} -R {p['nwo']}` and "
+            L += [f"- **On green, and only after the verdict check passes:** "
+                  f"`gh pr ready {p['number']} -R {p['nwo']}` and "
                   f"label the linked issue(s) "
-                  f"`{cfg['labels']['state']['done']}`.", ""]
+                  f"`{cfg['labels']['state']['done']}`. A failing check is reverted "
+                  f"by the verdict backstop after you finish.", ""]
     return "\n".join(L)
 
 
@@ -1540,7 +1704,7 @@ def backlog_list(repos: list[dict]) -> tuple[list[dict], int]:
 def build_report(repos: list[dict], queues: dict, cfg: dict,
                  skipped: dict[str, list[str]],
                  queue: dict | None = None, queue_problems: list[str] | None = None,
-                 deps: dict | None = None) -> dict:
+                 deps: dict | None = None, handoff: dict | None = None) -> dict:
     stage_totals: dict[str, int] = {}
     for r in repos:
         for k, v in r["counts"].items():
@@ -1596,6 +1760,9 @@ def build_report(repos: list[dict], queues: dict, cfg: dict,
         # open blocker holds back, the cycles found, the request budget used.
         "dependencies": deps or {"blocked": 0, "cycles": [], "lookups": 0,
                                  "unresolved": []},
+        # The tier-1 → tier-2 handoff contract (gate_handoffs): how many tier-2
+        # candidates were checked and which failed, with the reasons.
+        "handoff": handoff or handoff_summary([], 0),
         "backlog": backlog,
         "backlog_private_omitted": omitted,
         "pipeline_prs": pipeline_prs,
@@ -1666,6 +1833,8 @@ def run(args: argparse.Namespace) -> int:
         if val is not None:
             k = "max_prs" if key == "complete" else "max_issues"
             cfg["tiers"][key][k] = val
+    if getattr(args, "issues_cmd", None):
+        return run_contract(args, cfg)
 
     registry = ensure_hub(load_registry(Path(args.registry)))
     if args.repos:
@@ -1782,16 +1951,25 @@ def run(args: argparse.Namespace) -> int:
     for c in need_ev[cfg["evidence"]["max_runs"]:]:
         c["needs_evidence"] = False
         c["evidence_deferred"] = True
+    # The handoff contract: a candidate whose handoff fails never reaches the
+    # tier-2 work order; tier 2's next step moves it to agent:blocked.
+    checked = len(queues["implement"])
+    queues["implement"], rejected = gate_handoffs(queues["implement"], cfg)
+    for c in rejected:
+        sys.stderr.write(f"  ! handoff {c['key']}: "
+                         f"{'; '.join(c['_handoff']['problems'])}\n")
 
     counts = {"repos": len(repos),
               "open_issues": sum(len(r["issues"]) for r in repos)}
     out_dir = Path(args.workorder_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "issue-workorder-t1.md").write_text(render_t1(queues["intake"], cfg, counts))
-    (out_dir / "issue-workorder-t2.md").write_text(render_t2(queues["implement"], cfg, counts))
+    (out_dir / "issue-workorder-t2.md").write_text(
+        render_t2(queues["implement"], cfg, counts, rejected))
     (out_dir / "issue-workorder-t3.md").write_text(render_t3(queues["complete"], cfg, counts))
 
-    report = build_report(repos, queues, cfg, skipped, queue, queue_problems, deps)
+    report = build_report(repos, queues, cfg, skipped, queue, queue_problems, deps,
+                          handoff_summary(rejected, checked))
     if sprint is not None:
         # the circuit breaker's record for this run (constitution § 27.3), with every run's reservations
         report["sprint"] = sprint.report()
@@ -1816,19 +1994,230 @@ def run(args: argparse.Namespace) -> int:
         [{"nwo": c["nwo"], "number": c["number"], "ref": c["default_branch"],
           "slug": f"{c['nwo'].split('/')[-1]}-{c['number']}"}
          for c in queues["intake"] if c.get("needs_evidence")]))
+    # For the deterministic contract steps: tier 1 records the handoff of every
+    # issue it was given, the verdict backstop needs each tier-3 PR's draft
+    # state at the start of the run, and tier 2 blocks the handoff rejects.
+    emit_output("intake_targets", json.dumps(
+        [{"nwo": c["nwo"], "number": c["number"], "private": bool(c.get("private"))}
+         for c in queues["intake"]]))
+    emit_output("complete_targets", json.dumps(complete_targets(queues["complete"], repos)))
+    emit_output("handoff_checked", checked)
+    emit_output("handoff_rejected", len(rejected))
+    emit_output("handoff_rejects", json.dumps(
+        [{"nwo": c["nwo"], "number": c["number"], "problems": c["_handoff"]["problems"]}
+         for c in rejected]))
 
     t = report["totals"]
     sys.stderr.write(
         f"issue-pipeline: {t['open_issues']} open issue(s) · stages "
         f"{t['stages']} · queued T1={t['queued_intake']} "
-        f"T2={t['queued_implement']} T3={t['queued_complete']} → {out_dir}\n")
+        f"T2={t['queued_implement']} T3={t['queued_complete']} · handoff "
+        f"{checked - len(rejected)}/{checked} passed → {out_dir}\n")
     if args.print:
         for tier, key in ((1, "intake"), (2, "implement"), (3, "complete")):
             for c in queues[key]:
                 sys.stdout.write(
                     f"T{tier}  {c.get('priority', '--'):<3} "
                     f"{c['nwo']}#{c['number']}  {c['title'][:70]}\n")
+        for c in rejected:
+            sys.stdout.write(f"T2✗ {c.get('priority', '--'):<3} {c['nwo']}#{c['number']}  "
+                             f"handoff: {'; '.join(c['_handoff']['problems'])[:120]}\n")
     return 0
+
+
+# --------------------------------------------------------------------------- #
+# the contract commands: `issues handoff …` and `issues verdict …`
+# --------------------------------------------------------------------------- #
+def _json_arg(value: str, flag: str) -> list:
+    if not (value or "").strip():
+        return []
+    try:
+        data = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"{flag}: not JSON ({exc.msg})") from exc
+    if not isinstance(data, list):
+        raise SystemExit(f"{flag}: expected a JSON array")
+    return data
+
+
+def _split_ref(ref: str) -> tuple[str, int]:
+    nwo, _, num = ref.partition("#")
+    return nwo, int(num)
+
+
+def _act(actions: list[dict], apply: bool) -> int:
+    """Perform (or, without --apply, print) planned writes; the failures."""
+    failed = 0
+    for a in actions:
+        if not apply:
+            sys.stdout.write(f"    [dry-run] {pc.describe(a)}\n")
+            continue
+        try:
+            pc.apply_action(a)
+            sys.stdout.write(f"    ✓ {pc.describe(a)}\n")
+        except pc.GhError as exc:
+            failed += 1
+            sys.stdout.write(f"::warning::{pc.describe(a)} failed: {exc}\n")
+    return failed
+
+
+def run_contract(args: argparse.Namespace, cfg: dict) -> int:
+    """`dash-gen issues handoff record|block|check` and
+    `dash-gen issues verdict check|template|backstop` (pipeline_contracts)."""
+    cmd = (args.issues_cmd, getattr(args, "contract_cmd", None))
+    handlers = {("handoff", "record"): _handoff_record, ("handoff", "block"): _handoff_block,
+                ("handoff", "check"): _handoff_check, ("verdict", "check"): _verdict_check,
+                ("verdict", "template"): _verdict_template,
+                ("verdict", "backstop"): _verdict_backstop}
+    if cmd not in handlers:
+        sys.stderr.write("usage: dash-gen issues handoff {record,block,check} | "
+                         "dash-gen issues verdict {check,template,backstop} (see --help)\n")
+        return 2
+    try:
+        return handlers[cmd](args, cfg)
+    except pc.GhError as exc:
+        sys.stderr.write(f"{exc}\n")
+        return 2
+
+
+def _handoff_record(args: argparse.Namespace, cfg: dict) -> int:
+    """After tier 1: build and record the handoff of each target at agent:ready."""
+    st = contract_settings(cfg)
+    out_dir = Path(args.out_dir)
+    recorded = invalid = failed = 0
+    for t in _json_arg(args.targets, "--targets"):
+        nwo, num = str(t["nwo"]), int(t["number"])
+        try:
+            issue = pc.fetch_issue(nwo, num)
+            stage = classify_stage(issue["labels"], cfg, has_open_pr=False)
+            if stage != "ready":
+                sys.stdout.write(f"  ~ {nwo}#{num}: at `{stage}`, not "
+                                 f"`{st['state']['ready']}`; no handoff\n")
+                continue
+            plan = pc.plan_record(nwo=nwo, number=num, body=issue["body"],
+                                  labels=issue["labels"], comments=pc.fetch_comments(nwo, num),
+                                  sizes=st["sizes"], owner=st["owner"])
+        except pc.GhError as exc:
+            failed += 1
+            sys.stdout.write(f"::warning::handoff for {nwo}#{num} not recorded: {exc}\n")
+            continue
+        # The artifact is public; a private repo's criteria stay on its issue.
+        if not t.get("private"):
+            out_dir.mkdir(parents=True, exist_ok=True)
+            (out_dir / f"{nwo.split('/')[-1]}-{num}.json").write_text(
+                json.dumps(plan["handoff"], indent=2, ensure_ascii=False) + "\n")
+        recorded += 1
+        verdict = "valid" if not plan["problems"] else "FAILS: " + "; ".join(plan["problems"])
+        invalid += bool(plan["problems"])
+        sys.stdout.write(f"  · {plan['key']}: {len(plan['handoff']['acceptance_criteria'])} "
+                         f"criteria, {verdict}\n")
+        failed += _act([plan["action"]], args.contract_apply)
+    emit_output("handoffs_recorded", recorded)
+    emit_output("handoffs_invalid", invalid)
+    sys.stdout.write(f"handoff record: {recorded} recorded, {invalid} failing the contract"
+                     f"{'' if args.contract_apply else ' (dry run: no comment written)'}\n")
+    return 1 if failed else 0
+
+
+def _handoff_block(args: argparse.Namespace, cfg: dict) -> int:
+    """Tier 2: move each handoff reject to agent:blocked, with the reasons."""
+    st = contract_settings(cfg)
+    ready, blocked = st["state"]["ready"], st["state"]["blocked"]
+    failed = moved = 0
+    for r in _json_arg(args.rejects, "--rejects"):
+        nwo, num = str(r["nwo"]), int(r["number"])
+        try:
+            labels = pc.fetch_issue(nwo, num)["labels"]
+        except pc.GhError as exc:
+            failed += 1
+            sys.stdout.write(f"::warning::{nwo}#{num} not blocked: {exc}\n")
+            continue
+        if ready.lower() not in {lab.lower() for lab in labels}:
+            sys.stdout.write(f"  ~ {nwo}#{num}: no longer `{ready}`; left alone\n")
+            continue
+        sys.stdout.write(f"  · {nwo}#{num}: {'; '.join(r.get('problems') or [])}\n")
+        failed += _act(pc.plan_block(r, ready=ready, blocked=blocked), args.contract_apply)
+        moved += 1
+    emit_output("handoffs_blocked", moved)
+    return 1 if failed else 0
+
+
+def _handoff_check(args: argparse.Namespace, cfg: dict) -> int:
+    """Read-only: validate one issue's handoff exactly as the tier-2 gate does."""
+    issue = pc.fetch_issue(args.repo, args.issue)
+    comments = pc.fetch_comments(args.repo, args.issue)
+    doc, problems = handoff_problems(
+        nwo=args.repo, number=args.issue, body=issue["body"], labels=issue["labels"],
+        evidence=pc.evidence_from_comments(comments),
+        recorded=pc.recorded_handoff(comments), cfg=cfg)
+    sys.stdout.write(json.dumps({"handoff": doc, "problems": problems}, indent=2,
+                                ensure_ascii=False) + "\n")
+    return 1 if problems else 0
+
+
+def _issue_refs(args: argparse.Namespace) -> list[str] | None:
+    refs = [pc.normalize_ref(a, args.repo) for a in args.issue_refs or []]
+    if None in refs:
+        raise SystemExit("--issue takes N, #N or owner/repo#N")
+    return refs or None
+
+
+def _verdict_check(args: argparse.Namespace, cfg: dict) -> int:
+    """Read-only: does the PR's verdict pass? Exit 0 only when it does."""
+    result, _ = pc.check_pr(args.repo, args.pr, _issue_refs(args))
+    if args.json:
+        sys.stdout.write(json.dumps(result, indent=2, ensure_ascii=False) + "\n")
+    else:
+        sys.stdout.write(pc.render_verdict_report(result, pr=f"{args.repo}#{args.pr}") + "\n")
+    return 0 if result["pass"] else 1
+
+
+def _verdict_template(args: argparse.Namespace, cfg: dict) -> int:
+    """Read-only: the verdict comment to fill in, every criterion verbatim."""
+    refs = _issue_refs(args) or pc.linked_refs(pc.fetch_pr(args.repo, args.pr)["body"], args.repo)
+    if not refs:
+        sys.stderr.write(f"{args.repo}#{args.pr} closes no issue (`Closes #N`); "
+                         f"pass --issue\n")
+        return 1
+    bodies = {ref: pc.fetch_issue(*_split_ref(ref))["body"] for ref in refs}
+    sys.stdout.write(pc.render_verdict_template(bodies) + "\n")
+    return 0
+
+
+def _verdict_backstop(args: argparse.Namespace, cfg: dict) -> int:
+    """After tier 3: re-check every PR it marked ready or whose issue it marked
+    done, and revert both where the verdict check fails."""
+    done = cfg["labels"]["state"]["done"]
+    checked = reverted = failed = 0
+    for t in _json_arg(args.targets, "--targets"):
+        nwo, num = str(t["nwo"]), int(t["number"])
+        try:
+            pr = pc.fetch_pr(nwo, num)
+            refs = pc.linked_refs(pr["body"], nwo) or [
+                pc.issue_ref(nwo, n) for n in t.get("linked_issues") or []]
+            labels = {ref: pc.fetch_issue(*_split_ref(ref))["labels"] for ref in refs}
+            became_ready, marked_done = pc.asserted_this_run(
+                t, pr_draft=pr["draft"], issue_labels=labels, done=done)
+            if not (became_ready or marked_done):
+                sys.stdout.write(f"  · {nwo}#{num}: not marked ready or done this run\n")
+                continue
+            result, _ = pc.check_pr(nwo, num)
+        except pc.GhError as exc:
+            failed += 1
+            sys.stdout.write(f"::warning::{nwo}#{num} not checked: {exc}\n")
+            continue
+        checked += 1
+        actions = pc.plan_backstop(t, pr_draft=pr["draft"], issue_labels=labels,
+                                   result=result, done=done, pr_ref=f"{nwo}#{num}")
+        if not actions:
+            sys.stdout.write(f"  ✓ {nwo}#{num}: verdict check passes\n")
+            continue
+        reverted += 1
+        sys.stdout.write(f"  ✗ {nwo}#{num}: verdict check fails; reverting\n")
+        failed += _act(actions, args.contract_apply)
+    emit_output("backstop_checked", checked)
+    emit_output("backstop_reverted", reverted)
+    return 1 if failed else 0
 
 
 def load_registry(path: Path) -> list[dict]:
@@ -1877,6 +2266,53 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--print", action="store_true",
                         help="also print the queues to stdout")
     parser.set_defaults(func=run)
+
+    # The tier-to-tier contracts (pipeline_contracts.py). Optional: with no
+    # subcommand `issues` scans and builds the queues as it always has.
+    sub = parser.add_subparsers(dest="issues_cmd", metavar="{handoff,verdict}")
+    p_h = sub.add_parser("handoff", help="the tier-1 → tier-2 handoff contract "
+                                         "(issue-pipeline-handoff/v1)")
+    hs = p_h.add_subparsers(dest="contract_cmd", metavar="{record,block,check}")
+    p = hs.add_parser("record", help="after tier 1: build and record the handoff of "
+                                     "each target issue now at agent:ready")
+    p.add_argument("--targets", required=True, metavar="JSON",
+                   help='[{"nwo": "owner/repo", "number": N}, …] (the scan\'s intake_targets)')
+    p.add_argument("--out-dir", default=".issue-handoffs", metavar="DIR",
+                   help="where to write each handoff as JSON (default .issue-handoffs)")
+    p.add_argument("--apply", dest="contract_apply", action="store_true",
+                   help="record each handoff on its issue (default: dry run)")
+    p = hs.add_parser("block", help="tier 2: move each handoff reject to agent:blocked, "
+                                    "with the reasons")
+    p.add_argument("--rejects", required=True, metavar="JSON",
+                   help='[{"nwo", "number", "problems": […]}, …] (the scan\'s handoff_rejects)')
+    p.add_argument("--apply", dest="contract_apply", action="store_true",
+                   help="write the labels and the comment (default: dry run)")
+    p = hs.add_parser("check", help="read-only: validate one issue's handoff as tier 2 does")
+    p.add_argument("--repo", required=True, metavar="OWNER/REPO")
+    p.add_argument("--issue", required=True, type=int, metavar="N")
+
+    p_v = sub.add_parser("verdict", help="the tier-3 verdict contract (issue-pipeline-verdict/v1)")
+    vs = p_v.add_subparsers(dest="contract_cmd", metavar="{check,template,backstop}")
+    for name, helptext in (
+            ("check", "read-only: judge the PR's pipeline-verdict block against the "
+                      "acceptance criteria of the issues it closes; exit 0 only on a pass"),
+            ("template", "read-only: print the verdict comment to fill in, every "
+                         "criterion verbatim")):
+        p = vs.add_parser(name, help=helptext)
+        p.add_argument("--repo", required=True, metavar="OWNER/REPO")
+        p.add_argument("--pr", required=True, type=int, metavar="N")
+        p.add_argument("--issue", dest="issue_refs", action="append", metavar="REF",
+                       help="an issue to judge against (repeatable; default: the PR "
+                            "body's Closes/Fixes/Resolves links)")
+        if name == "check":
+            p.add_argument("--json", action="store_true", help="print the result as JSON")
+    p = vs.add_parser("backstop", help="after tier 3: re-check every PR it marked ready "
+                                       "or done, and revert both where the check fails")
+    p.add_argument("--targets", required=True, metavar="JSON",
+                   help='[{"nwo", "number", "draft", "linked_issues"}, …] '
+                        '(the scan\'s complete_targets)')
+    p.add_argument("--apply", dest="contract_apply", action="store_true",
+                   help="write the reverts (default: dry run)")
 
 
 def main(argv: list[str] | None = None) -> int:
