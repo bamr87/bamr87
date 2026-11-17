@@ -5,7 +5,7 @@
 // the terminal dash.
 import {
   IconActivity, IconAppWindow, IconApps, IconBox, IconDeviceDesktop, IconBrandGithub, IconBrandDocker, IconBriefcase, IconCalendarTime, IconChartBar, IconCoin,
-  IconFileText, IconGauge, IconGitBranch, IconHeartbeat, IconHome, IconInbox, IconKey, IconLayoutGrid, IconLayoutKanban, IconListCheck, IconMicroscope, IconListDetails, IconLogs,
+  IconFileText, IconGauge, IconGitBranch, IconGitPullRequest, IconHeartbeat, IconHome, IconInbox, IconKey, IconLayoutGrid, IconLayoutKanban, IconListCheck, IconMicroscope, IconListDetails, IconLogs,
   IconMail, IconPencil, IconPlayerPlay, IconPlugConnected, IconReceipt, IconRepeat, IconRoute, IconRoadSign, IconSearch, IconSettings,
   IconTerminal2, IconTool, IconTools, IconTopologyStar3, IconUser, IconFlask, IconSparkles, type Icon,
 } from '@tabler/icons-react';
@@ -54,6 +54,7 @@ export const NAV: NavSection[] = [
       { label: 'Desktop', to: '/desktop', icon: IconDeviceDesktop, hint: 'the bashOS desktop: an icon per app, each in a window with the same controls' },
       { label: 'Apps', to: '/apps', icon: IconApps, hint: 'every fleet frontend, opened here: the live site or a local stack' },
       { label: 'Inbox', to: '/inbox', icon: IconInbox, hint: 'flagged issues, PRs and failing workflows' },
+      { label: 'PR queue', to: '/prs', icon: IconGitPullRequest, hint: 'every open pull request, who moves it next, and bulk actions an agent carries out once you confirm' },
       { label: 'Roadmap', to: '/roadmap', icon: IconRoadSign, hint: 'feature specs across the fleet' },
       { label: 'Features', to: '/features', icon: IconListCheck, hint: 'what each repo does and what proves it' },
       { label: 'Engagements', to: '/engagements', icon: IconReceipt, hint: 'projects as clients: estimates and actuals' },
