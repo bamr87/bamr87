@@ -10,6 +10,10 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 - Proposed constitution § 30 / amendment `onprem-compute` and the plan [docs/ONPREM-COMPUTE.md](../docs/ONPREM-COMPUTE.md): Amr's new on-premise machine enrolled as a fleet node for local LLMs and Claude Code sessions, local models as an eval-gated tier, honest on-premise cost, node-local housekeeping for the weekend routine, and a self-hosted runner allowed only behind fences. Nothing is deployed.
 
+### Fixed
+
+- `templates/prose/` 0.5.0: the seeded `markdown-oneline.yml` checks out a pull request's head by SHA instead of by branch name, and its repair step skips the push when the head branch is already gone. An auto-merged bot PR (Dependabot, JEV numbering) has its branch deleted before the job starts, so the checkout by name failed after ~35s of retries and left a red X on a PR that had already merged. Same two hunks as the hub's own copy (bamr87/bamr87#846). `archive/` gains the outgoing 0.4.0 shape and the 0.3.0 shape (a leading blank line), which a 2026-09-13 template edit stranded without archiving: `tools/fanout.sh --kit prose --upgrade` now reaches the 11 untouched copies that carry the bug (10 on 0.3.0, 1 on 0.4.0). Three hand-edited copies (README, it-journey, gitorio) need the change by hand. `templates/prose/test_prose_kit.py` holds the template and the archive to this.
+
 ### Security
 
 - `site-quality.yml` runtime: the `basic-ftp` override moves from 6.2.3 to the patched 6.2.6, so the transitive copy under `@lhci/cli` and `pa11y` (via `get-uri`) resolves to the fixed release; the exact 6.2.3 pin had kept Dependabot from applying the advisory update.
