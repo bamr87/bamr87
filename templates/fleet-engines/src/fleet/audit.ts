@@ -1,6 +1,6 @@
 // Alignment-audit rules engine — Fleet Ops' "certification" pass. Grades one repo's
 // reverse-engineered WorkflowFacts against the real bamr87 fleet conventions
-// (ground-truthed by survey): OAuth-first Claude auth, default-OFF vars.*_ENABLED
+// (ground-truthed by survey): OAuth-only Claude auth, default-OFF vars.*_ENABLED
 // kill switches on scheduled AI, loop guards on event-triggered writers, near-universal
 // concurrency blocks, least-privilege permissions, plan/apply duality on mutating
 // crons, sticky-marker dedup on issue-filing crons, and the standard trio (a CI
@@ -177,23 +177,37 @@ function selfRetriggerSinks(f: WorkflowFacts): SinkKind[] {
 const RULES: readonly AuditRule[] = [
   wfRule(
     {
+      // The id predates the 2026-11-15 move to OAuth only; it stays stable because
+      // consumers key findings and passedRules on it.
       id: 'auth-oauth-first',
-      title: 'OAuth-first Claude auth',
+      title: 'OAuth-only Claude auth',
       severity: 'warn',
       standard:
-        'AI workflows authenticate with CLAUDE_CODE_OAUTH_TOKEN first and keep ANTHROPIC_API_KEY only as the fallback.',
+        'AI workflows authenticate with CLAUDE_CODE_OAUTH_TOKEN only; ANTHROPIC_API_KEY is not wired, not even as a fallback.',
     },
     (f) => f.ai.present,
-    (f) =>
-      f.ai.authMode === 'api-key-only'
-        ? [
+    (f) => {
+      switch (f.ai.authMode) {
+        case 'api-key-only':
+          return [
             {
               message:
-                'uses ANTHROPIC_API_KEY only; fleet convention is OAuth-first (CLAUDE_CODE_OAUTH_TOKEN with API-key fallback)',
-              fix: 'Pass claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }} first and keep anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }} as the fallback.',
+                'uses ANTHROPIC_API_KEY only; fleet convention is OAuth only (CLAUDE_CODE_OAUTH_TOKEN, no API-key fallback)',
+              fix: 'Pass claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }} and remove every secrets.ANTHROPIC_API_KEY reference.',
             },
-          ]
-        : [],
+          ];
+        case 'oauth-first':
+          return [
+            {
+              message:
+                'still wires ANTHROPIC_API_KEY as a fallback to CLAUDE_CODE_OAUTH_TOKEN; fleet convention is OAuth only (no API-key fallback)',
+              fix: 'Keep claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }} and remove every secrets.ANTHROPIC_API_KEY reference (anthropic_api_key inputs, env entries, secrets passed to reusable workflows).',
+            },
+          ];
+        default:
+          return [];
+      }
+    },
   ),
 
   wfRule(

@@ -53,6 +53,11 @@ name: 🔑 Token Rotation
 #   ANTHROPIC_API_KEY                 same, for the fallback credential. Unset
 #                                     on the hub today, which the loop reports
 #                                     and moves past rather than flagging.
+#                                     Claude auth is OAuth only for now
+#                                     (2026-11-15): this loop only MANAGES the
+#                                     secret (`managed_by: keys`, left alone)
+#                                     and never hands it to Claude; it stays
+#                                     named below for drift check (l).
 #   CLAUDE_CODE_OAUTH_REFRESH_TOKEN   optional. Present → the run can re-mint.
 #                                     Absent → propagate-and-alert only.
 #
@@ -184,6 +189,8 @@ jobs:
           #
           # The tool masks every one of these before doing anything else.
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Key management only, never a Claude run: Claude auth is OAuth only
+          # for now (2026-11-15), and ai_auth `oauth` sends the key to no repo.
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CLAUDE_CODE_OAUTH_REFRESH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_REFRESH_TOKEN }}
           RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}

@@ -2,7 +2,7 @@
 
 > How the fleet's development platform spreads its workloads across the Mac and forge, which layer owns what, and how the same definitions scale out to any cloud or on-premise cluster.
 
-The decision record is [ADR 0003](adr/0003-fleet-platform-nodes-iac-and-scale-out.md). The work is epic #594 on the [Fleet project](https://github.com/users/bamr87/projects/14), and roadmap `FF-0035`.
+The decision record is [ADR 0003](adr/0003-fleet-platform-nodes-iac-and-scale-out.md). The work is epic #594 on the [Fleet project](https://github.com/users/bamr87/projects/14), and roadmap `FF-0035`. A third node, Amr's new GPU machine as a workload node and Claude Code session host, is proposed in [ONPREM-COMPUTE.md](ONPREM-COMPUTE.md).
 
 ## The model in one paragraph
 

@@ -96,7 +96,7 @@ A repo whose default branch has failing workflows says so on its row. The count 
 
 ## The hygiene lane
 
-Reported only: pull requests with conflicts (`pr_conflicting`), failing checks (`pr_ci_red`), requested changes (`pr_changes_requested`) or 14 idle days while ready for review (`pr_idle`); an open item whose newest comment in the last two days is from someone outside the fleet and unanswered (`awaiting_reply`); per repo, the number of open issues with no type or no priority label (`unlabelled`, § 10.3); and repos the token could not read (`repo_unreachable`).
+Reported only: pull requests with conflicts (`pr_conflicting`), failing checks (`pr_ci_red`; a cancelled run that a later run of the same check superseded is not a failure, see `tools/check_rollup.py`), requested changes (`pr_changes_requested`) or 14 idle days while ready for review (`pr_idle`); an open item whose newest comment in the last two days is from someone outside the fleet and unanswered (`awaiting_reply`); per repo, the number of open issues with no type or no priority label (`unlabelled`, § 10.3); and repos the token could not read (`repo_unreachable`).
 
 ## The loop
 

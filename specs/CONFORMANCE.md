@@ -82,7 +82,7 @@ WORK  01 02 03 04 07 09 10 12
 | UX audit exists in 1 repo (law-ai) | FE-60 | `ux-audit` kit generalised from `law-ai/scripts/ux_audit.py` |
 | Three `ApiError` shapes, no envelope, no health/version contract, no OpenAPI in CI | BE-10..40 | `api` kit: middleware + client + settings + logging |
 | No `SECURITY.md`, `CONTRIBUTING.md`, CODEOWNERS, labels, dependabot fan-out; 12 owned repos without LICENSE | REPO-12..19, QA-41, AGENT-32 | `templates/community/` kit (2026-10, SDLC Wave 1); distribution through the owner `.github` repos and label-sync pending |
-| `templates/release-pipeline/` lacks `VERSION`/`archive/`; only 5 repos on release-please | QA-32 | version the kit; fan out |
+| ~~`templates/release-pipeline/` lacks `VERSION`/`archive/`~~ (kit 0.2.0, 2026-11-15: versioned, `archive/`, `adopt-release.sh --upgrade`); only 5 repos on release-please | QA-32 | fan out |
 | ~~Duplicate checkouts (`fredgar-ai`≡`edgar-data-parse`, `zer0-cms`≡`vscode-front-matter`); 4 stray unregistered dirs; `amrs-project` superseded by `djangoerp`~~ — resolved 2026-09-07: dirs renamed to their upstreams, strays removed, `amrs-project` retired (upstream deleted) | REPO-08 | done — registry + `.gitmodules` reconciled |
 | VS Code extensions: 4 toolchains, 1 with no tests, committed `node_modules` in 3 repos | QA-13, REPO-07 | `vscode-extension` profile + kit |
 | Cypress in 1 repo; pytest config in 3 places; `test/` vs `tests/` | QA-11, QA-12, REPO-02 | per-repo migration PRs (grandfather `test/`) |

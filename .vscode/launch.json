@@ -673,6 +673,16 @@
       "presentation": { "group": "4-generate", "order": 8 }
     },
     {
+      // The PR queue (docs/PR-QUEUE.md): read-only. A bulk action is planned with
+      // `tools/dash prs plan <action> --pr …` and applied on the console's /prs page.
+      "name": "🔀 PR queue: every open pull request, who moves it next",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash prs queue --limit 200 && tools/dash prs actions",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 8 }
+    },
+    {
       "name": "🗺️ Workflow atlas: list / health (from the lake)",
       "type": "node-terminal",
       "request": "launch",
@@ -1708,7 +1718,7 @@
       "id": "verifyScenario",
       "description": "Scenario id (verify/scenarios/)",
       "type": "pickString",
-      "options": ["home", "dashboard", "connect", "engagements", "features", "harnesses", "schedules", "monitor", "roadmap", "triage", "work", "workflows", "loop-run", "refine", "apps", "desktop", "repo-app", "desktop-pages", "console-shell", "console-nav", "desktop-context-menu", "nodes"],
+      "options": ["home", "dashboard", "connect", "engagements", "features", "harnesses", "schedules", "monitor", "roadmap", "triage", "work", "workflows", "loop-run", "refine", "apps", "desktop", "repo-app", "desktop-pages", "console-shell", "console-nav", "desktop-context-menu", "nodes", "pr-queue"],
       "default": "home"
     },
     {
