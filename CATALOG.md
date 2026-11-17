@@ -253,6 +253,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_projects_lint.py`](tools/test_projects_lint.py) | — |
 | [`test_quality_contract.py`](tools/test_quality_contract.py) | Tests specs/QUALITY.contract.yml against _data/specs.yml and every tool that reads it. |
 | [`test_scorecard_snapshot.py`](tools/test_scorecard_snapshot.py) | Offline fixture tests for tools/scorecard_snapshot.py (bamr87/bamr87#513): the OpenSSF Scorecard results → `security:` block of _data/conformance.yml, its --check gate,… |
+| [`test_template_pins.py`](tools/test_template_pins.py) | **Pins resolve** (#457): every `bamr87/bamr87` or `bamr87/.github` workflow or action that a caller pins at a tag or a full SHA exists at that ref. |
 | [`test_tui_fleet.py`](tools/test_tui_fleet.py) | Fixture tests for tools/fleetcore/fleet.py + host.py — the data layer the terminal dash and the console share. |
 | [`test_unwrap_prose.py`](tools/test_unwrap_prose.py) | Fixture tests for `unwrap-prose.py` — structure untouched, list items joined without leaving their list, idempotence (run by `run-all-tests.sh`) |
 | [`test_vscode_launch.py`](tools/test_vscode_launch.py) | The editor-is-a-front-door gate (constitution § 20, [`.vscode/README.md`](../.vscode/README.md)): the four `.vscode/` files parse, every `preLaunchTask`, `dependsOn`, co… |
