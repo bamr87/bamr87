@@ -252,6 +252,21 @@ remediation:
   # for three weeks is stale *and* genuinely broken. Set 0 to switch it off.
   stale_after_days: 7             # latest run older than this ⇒ sorts below every
                                   # live candidate of the same severity, never dropped
+  # The fifth guard reads the SIZE of the waste. `high-cost-low-value` and
+  # `cancel-heavy` are shares (of minutes, of runs) over a 4-job-minute floor in
+  # actions_analytics, so one bad burst on a cheap workflow raises them, and a
+  # slot costs the doctor ~46 Opus turns. recon-engine `ci.yml` was queued on
+  # `cancel-heavy` for 4.0 wasted job-minutes in 14 days, all from one 5-commit
+  # burst its working `cancel-in-progress` guard cut short (bamr87/bamr87#823);
+  # zer0-mistakes `issue-autopilot.yml` on `high-cost-low-value` for 6.6, from
+  # one failed run (bamr87/bamr87#797). Below this many wasted job-minutes in
+  # the window those two flags, and the `min_priority` fallback they would
+  # leave behind, are dropped. Like the first three this SUPPRESSES: the waste
+  # is measured, and a record without `waste_min` is never floored. `slow` is
+  # latency and `cron-heavy` the scheduled share, so neither is touched, nor
+  # is `failing`/`flaky`. Set 0 to switch it off.
+  min_cost_waste_min: 15          # wasted job-min in the window below which
+                                  # high-cost-low-value / cancel-heavy can't queue
   # Signals ranked highest-first. A workflow matching several is ranked by its
   # strongest and reported with all of them.
   severity:
@@ -652,6 +667,47 @@ decisions:
     skip_branches: [chore/jev-ratify]                # the ratification-record branch is automation's (§ 12.3)
 
 # --------------------------------------------------------------------------- #
+# PR queue — every open pull request of the hub and the registry repos, who
+# moves each one next, and bulk actions an agent carries out once the maintainer
+# confirms (docs/PR-QUEUE.md, the console's /prs, `tools/dash prs`, the MCP's
+# pr_queue). Built on the decision index above plus one batched detail read per
+# pull request (.fleet/prqueue/, gitignored). Every action is planned from live
+# GitHub first and applied only with the same plan_id after the confirm.
+#
+# `merge` and `close` stay off: § 11.2 says the console never merges, § 11.1
+# lists no pull-request close, and § 12.2 lets an agent merge only an ungated
+# pull request with a merge commit. A merge the maintainer selects and confirms
+# here is arguably his own, but the constitution has to say so first; turning
+# either on is a gated change (§ 12.3) after that amendment is ratified.
+# --------------------------------------------------------------------------- #
+pr_queue:
+  ttl_s: 600                # a pull request's detail older than this, or read before its last update, is read again
+  budget_s: 20              # the wall clock of one /api/prs answer; past it the answer is partial and says so
+  refresh_budget_s: 90      # the same for `tools/dash prs refresh`
+  detail_batch: 5           # pull requests per detail query (checks, files, comments make each one heavy)
+  concurrency: 6
+  max_targets: 50           # pull requests per plan (§ 11.5 caps a plan at 50 ops)
+  batch_min_repos: 2        # a head branch open in this many repos is a fan-out batch
+  rerun_wait_s: 900         # one re-run must finish before the next on the same pull request starts
+  merge:
+    enabled: false          # see above: off until the amendment; never_merge repos come from weekly.closeout
+  close:
+    enabled: false          # see above: off until the amendment
+  agent:                    # local:pr-queue-agent (_data/agents.yml): one capped session per pull request
+    enabled: true           # runs only on the maintainer's confirm in the console (confirm: spend)
+    model: claude-sonnet-5-5   # an exact id in ai_models.allowed (§ 13.3)
+    max_turns: 40
+    usd: 2                  # per pull request, API-equivalent (estimate); inside budget.loops.monthly_usd
+    max_prs: 5              # pull requests per run
+    timeout_s: 1800
+  repo_rules:               # a repo's own rule the queue honours, from its constitution or ADRs
+    bamr87/gitorio:
+      dependabot_merge_label: dep:merge-approved   # ADR-039: Dependabot merges go through this label
+    bamr87/it-journey:
+      agent_deny_paths:                            # the Warden Pact keeps agents out of the workflows
+        - '(^|/)\.github/workflows/'
+
+# --------------------------------------------------------------------------- #
 # Verification — the AGENT VERIFICATION standard's knobs (docs/VERIFICATION.md).
 #
 # Tests prove the code; verification proves the PRODUCT, by using it the way a
@@ -933,6 +989,26 @@ harness:
     standing_failures_max: 30     # red-workflow backlog beyond what the doctor's caps can drain
     credential_grace_days: 15     # past max_age_days + this, a credential is an alarm, not a chore
 
+  # The agentic layer (constitution § 29, epic #773 phase E2, #776): wires on
+  # the agents' own inputs, published as `agentic:` in _data/harness_health.yml.
+  # Each reads true, false or unknown (an input it needs is absent: never green,
+  # never an alarm). Source freshness reads each harness.sources entry's own
+  # slo_days below, so it has no threshold here. PROVISIONAL starting values,
+  # set from the 2026-11-15 snapshots; the wires run in shadow first, and a
+  # change to any of them is a gated change (§ 29.8).
+  agentic:
+    # A new wire is published but never counts in tripped_count until this
+    # many days after its first_seen (carried forward in harness_health.yml).
+    shadow_days: 14
+    # A parity block (actions_usage parity.actions_minutes against the billing
+    # meter, ai_usage parity.ai_ci_cost against the claude-cost result lines)
+    # further than this from its source is a measurement gap. E1 (#775) holds
+    # both to 5%; a missing block or a null gap is unknown.
+    parity_tolerance_pct: 5.0
+    # Of the CI agent runs that spent, the share whose cost could not be read
+    # from the run (ai_usage cost_source: estimated). 19.1% on 2026-11-15.
+    unknown_cost_max_pct: 25.0
+
   # ------------------------------------------------------------------------- #
   # The agentic efficacy contract (amendment `agentic-efficacy-contract`,
   # constitution § 29; the efficacy model is ADR 0009, epic bamr87/bamr87#773).
@@ -1186,6 +1262,20 @@ harness:
       switch: {config: weekly.enabled, uninstall: tools/install-weekly.sh --uninstall}
       run_record: ai-ledger
       local_entry: tools/dash weekly close
+    local:pr-queue-agent:
+      # The PR queue's `agent` bulk action (docs/PR-QUEUE.md): one capped session per
+      # pull request the maintainer selected and confirmed; no schedule, no installer.
+      declare:
+        kind: local-job
+        where: tools/console/pr_queue.py
+        trigger: "on demand: the maintainer's confirm of an agent plan on the console's /prs (the prs-agent operation)"
+        runs: ["tools/dash prs apply --plan-id <id> --apply"]
+      reads: [github-live, registry]
+      model_from: pr_queue.agent.model
+      budget_from: {per_run_usd: pr_queue.agent.usd, monthly_usd: budget.loops.monthly_usd}
+      switch: {config: pr_queue.agent.enabled}
+      run_record: ai-ledger
+      local_entry: tools/dash prs apply --plan-id <id> --apply
 
 # --------------------------------------------------------------------------- #
 # Harness refinement — JEV capability three: recursive harness refinement after
@@ -1412,6 +1502,14 @@ harnesses:
         applies: [mention-handler, scheduled-agent, event-agent]
       least-privilege:
         title: declares top-level permissions, never write-all
+        rule: "bamr87/bamr87#514"
+        applies: [mention-handler, scheduled-agent, event-agent]
+      no-wildcard-bots:
+        title: "never lets every bot start the run (allowed_bots '*')"
+        rule: "bamr87/bamr87#514"
+        applies: [mention-handler, scheduled-agent, event-agent]
+      safe-pr-target:
+        title: "never checks out a PR's head on pull_request_target"
         rule: "bamr87/bamr87#514"
         applies: [mention-handler, scheduled-agent, event-agent]
       timeout:
@@ -1668,6 +1766,8 @@ observability:
 # A site entry names a registry project (repo/live_url/branch come from
 # _data/projects.yml) or, for a site outside the registry, carries `repo:`.
 # `roots:` overrides the scan root (default: the Jekyll collections_dir);
+# `exclude:` skips paths that are structure rather than content (a directory
+# prefix, or a glob matched against the repo-relative path);
 # `quality:` overrides the hygiene rules for a site whose schema differs;
 # `dates: git` dates publication by first commit, for knowledge bases whose
 # front-matter `date` is the subject's date rather than the publish date.
@@ -1701,8 +1801,20 @@ content:
       quality: { require: [title, description, date, author, tags] }
     - name: it-journey
       quality: { require: [title, description, date, author, categories, tags], description: [120, 160] }
+    # bash-365.com's own contract (zer0.json, and scripts/content_lint.py POST_REQUIRED_FIELDS, which its
+    # CI enforces) asks for `date` and `tags` on dated posts only, so the atlas requires only a title and a
+    # description and stops asking the evergreen services, toolkit, about and case-study pages for a date
+    # or tags. `exclude:` drops the pages that are structure, not content: the admin and site pages under
+    # pages/_about, the search page, the case-study listing, and the section indexes under pages/_posts,
+    # whose front matter zer0.json says to leave alone (content_lint exempts them).
     - name: bash-365.com
-      quality: { description: [120, 155] }
+      quality: { description: [120, 155], require: [title, description] }
+      exclude:
+        - pages/_about/settings # layout: admin — the theme's configuration pages
+        - pages/_about/site # the site config page and the sitemap
+        - pages/search.md
+        - pages/_case-studies/index.md # a Liquid listing of the case studies
+        - 'pages/_posts/*-index.md' # the section indexes (2000-01-01-index.md), any depth
     # irony-works, wargames and 2005 live in the zer0-CMS monorepo now (sites/<name>/, imported with
     # their history); the original repos were deleted or archived on 2026-10-20. `registry:` points the
     # atlas at the zer0-CMS checkout and `roots:` at the site's sub-path inside it, so each site keeps
@@ -2106,7 +2218,12 @@ ai_auth:
   methods:
     oauth: CLAUDE_CODE_OAUTH_TOKEN     # subscription — `claude setup-token`
     api_key: ANTHROPIC_API_KEY         # metered — console.anthropic.com
-  default: oauth,api_key               # the house convention since 2026-07
+  # Claude auth: OAuth only (CLAUDE_CODE_OAUTH_TOKEN). ANTHROPIC_API_KEY disabled
+  # for now (2026-11-15) — the key was being rejected and, listed second, hid a
+  # working OAuth token on some paths. To restore, set this back to
+  # `oauth,api_key` (the house convention from 2026-07) and re-add the
+  # secrets.ANTHROPIC_API_KEY references the same change removed.
+  default: oauth
   groups: {}
     # metered-lanes:                   # example: content sites billed to the API key
     #   order: api_key,oauth

@@ -15,10 +15,10 @@ coverage: listed
 | `agent-context/` | dir | Agent-context kit: CLAUDE.md scaffold + @claude OAuth workflow, seeded by fanout.yml (kit standardize) | terminal |
 | `community/` | dir | Community kit: the ONE PR template carrying the fleet Definition of Done (`fleet-dod` markers), issue forms with fleet labels, `labels.yml` taxonomy, CODEOWNERS, Dependabot, CONTRIBUTING, SECURITY, Code of Conduct; distributed by owner `.github` inheritance (UPS-REPO-14..19, UPS-QA-41, UPS-WORK-03/09) | terminal |
 | `standard-ci/` | dir | Reusable CI gate caller seeded by fanout.yml (kit standardize) | terminal |
-| `release-pipeline/` | dir | release-please pipeline kit seeded by adopt-release | terminal |
-| `prose/` | dir | Prose style kit: markdown-oneline CI check enforcing one-paragraph-per-line, seeded by fanout | terminal |
+| `release-pipeline/` | dir | release-please pipeline kit seeded by adopt-release: ci.yml + release.yml callers (`bamr87/.github` release workflows pinned `@v1`), RELEASING.md, VERSION + archive (`adopt-release.sh --upgrade`) | terminal |
+| `prose/` | dir | Prose style kit: markdown-oneline CI check enforcing one-paragraph-per-line (self-healing on PRs), seeded by fanout; VERSION + archive of every seeded shape, contract test `test_prose_kit.py` | terminal |
 | `conformance/` | dir | In-repo UPS gate kit: thin caller of the reusable fleet-conformance.yml (artifact `conformance`) | terminal |
-| `pr-review/` | dir | The fleet's one PR comment: stub calling the reusable pr-review.yml (constitution § 19), seeded by fanout | terminal |
+| `pr-review/` | dir | The fleet's one PR comment: stub calling the reusable pr-review.yml (constitution § 19), seeded by fanout, VERSION + archive | terminal |
 | `ux-audit/` | dir | OPT-IN UX audit kit: R1–R13 gate + axe evidence + critique prompts (UPS-FE-53/60) | terminal |
 | `governance/` | dir | Governance kit: constitution template, amendment log (README, 0000 template, 0001 ratification record), PRD ↔ feature catalog link (specs/WORK.md UPS-WORK-15/16; validator tools/governance_lint.py; fan-out `tools/fanout.sh --kit governance`), VERSION | terminal |
 | `projects/` | dir | Work-tracking kit (constitution § 9, amendment 0003): `framework.yml` — the projects/fields/lifecycle/label-map spec checked by `tools/projects_lint.py` — and `auto-add.yml`, the reusable auto-add workflow skeleton for bamr87/.github (docs/PROJECTS-FRAMEWORK.md) | terminal |

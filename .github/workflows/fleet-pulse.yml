@@ -39,7 +39,9 @@ name: 🩺 Fleet Pulse
 #                repos' runs and to open fix PRs in submodules. Probed, never
 #                presence-checked (.github/actions/resolve-fleet-token); falls
 #                back to GITHUB_TOKEN (public + hub only).
-#   CLAUDE_CODE_OAUTH_TOKEN  preferred Claude auth; ANTHROPIC_API_KEY fallback.
+#   CLAUDE_CODE_OAUTH_TOKEN  Claude auth (OAuth only for now).
+# Claude auth: OAuth only (CLAUDE_CODE_OAUTH_TOKEN). ANTHROPIC_API_KEY disabled for now
+# (2026-11-15); to restore, re-add the secrets.ANTHROPIC_API_KEY reference.
 
 on:
   schedule:
@@ -304,7 +306,7 @@ jobs:
       id-token: write         # OIDC for claude-code-action OAuth
       actions: read           # read fleet run logs
     env:
-      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
       # The fixer needs a token that can push branches and open PRs in OTHER
       # repos. GITHUB_TOKEN cannot do that at all, so cross-repo fixes degrade
       # to hub-filed issues without FLEET_TOKEN.
@@ -344,7 +346,7 @@ jobs:
             echo "### 🩺 Fleet doctor — degraded"
             echo ""
             if [ "${HAS_CLAUDE_AUTH}" != "true" ]; then
-              echo "- ❌ No Claude auth (\`CLAUDE_CODE_OAUTH_TOKEN\` or \`ANTHROPIC_API_KEY\`) — the fixer is skipped entirely."
+              echo "- ❌ No Claude auth (\`CLAUDE_CODE_OAUTH_TOKEN\`; \`ANTHROPIC_API_KEY\` is disabled for now) — the fixer is skipped entirely."
             fi
             if [ "${{ steps.token.outputs.pat }}" != "true" ]; then
               if [ -z "${FLEET_WRITE_TOKEN}" ]; then
@@ -364,7 +366,6 @@ jobs:
         with:
           order: ${{ vars.CLAUDE_AUTH_ORDER }}
           has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Diagnose & fix
         id: fix
@@ -385,7 +386,6 @@ jobs:
           JEV_STEP_SHA256: 9c31452ae1ece613a7391b67872cc58b5185b243bc7b776750ee7109a0295d57
         with:
           claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
-          anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
           github_token: ${{ env.GH_TOKEN }}
           # BUDGET, and why it is what it is. Step 2 of the prompt costs 2 reads
           # per candidate (run log + workflow definition) and Step 3b costs 7
