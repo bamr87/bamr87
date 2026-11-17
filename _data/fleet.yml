@@ -985,6 +985,26 @@ harness:
     standing_failures_max: 30     # red-workflow backlog beyond what the doctor's caps can drain
     credential_grace_days: 15     # past max_age_days + this, a credential is an alarm, not a chore
 
+  # The agentic layer (constitution § 29, epic #773 phase E2, #776): wires on
+  # the agents' own inputs, published as `agentic:` in _data/harness_health.yml.
+  # Each reads true, false or unknown (an input it needs is absent: never green,
+  # never an alarm). Source freshness reads each harness.sources entry's own
+  # slo_days below, so it has no threshold here. PROVISIONAL starting values,
+  # set from the 2026-11-15 snapshots; the wires run in shadow first, and a
+  # change to any of them is a gated change (§ 29.8).
+  agentic:
+    # A new wire is published but never counts in tripped_count until this
+    # many days after its first_seen (carried forward in harness_health.yml).
+    shadow_days: 14
+    # A parity block (actions_usage parity.actions_minutes against the billing
+    # meter, ai_usage parity.ai_ci_cost against the claude-cost result lines)
+    # further than this from its source is a measurement gap. E1 (#775) holds
+    # both to 5%; a missing block or a null gap is unknown.
+    parity_tolerance_pct: 5.0
+    # Of the CI agent runs that spent, the share whose cost could not be read
+    # from the run (ai_usage cost_source: estimated). 19.1% on 2026-11-15.
+    unknown_cost_max_pct: 25.0
+
   # ------------------------------------------------------------------------- #
   # The agentic efficacy contract (amendment `agentic-efficacy-contract`,
   # constitution § 29; the efficacy model is ADR 0009, epic bamr87/bamr87#773).
