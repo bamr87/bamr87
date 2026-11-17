@@ -216,10 +216,10 @@ def test_heap_defaults_agree_everywhere_they_are_written():
 
 def test_every_logstash_pipeline_sets_its_workers():
     """Left unset, each pipeline gets one worker per CPU the container sees:
-    four pipelines on this bench's 11-CPU Docker VM were 44 workers against the
-    contract's 256m heap, and on 2026-11-17 a Filebeat reconnect with a few
-    thousand buffered lines ended in `OutOfMemoryError: Java heap space`. The
-    heap is sized for the machine, so the workers are sized for the heap."""
+    four pipelines on this bench's 11-CPU Docker VM were 44 workers, each with
+    its own compiled filters, on a heap sized for the machine. The workers are
+    sized for the heap, not the other way round; the heap itself is held by
+    test_heap_defaults_agree_everywhere_they_are_written."""
     pipes = yaml.safe_load((CONFIG / "logstash" / "pipelines.yml").read_text())
     total = 0
     for pipe in pipes:

@@ -13,11 +13,11 @@
 #
 # Workers are set, never left to the default. The default is one worker per
 # CPU the container sees, for each pipeline: 44 threads on this bench, each
-# with its own compiled filters and a batch in flight, against the 256m heap
-# `observability.logs.heap` sizes for the Docker VM. On 2026-11-17 Filebeat
-# reconnected with a few thousand buffered container lines and that was enough
-# for `java.lang.OutOfMemoryError: Java heap space` and an exit. The inputs
+# with its own compiled filters and a batch in flight, on a heap that
+# `observability.logs.ship.heap` sizes for a 7.7 GiB Docker VM. The inputs
 # only hand a batch to `enrich`, so one worker each; `enrich` does the work.
+# This is not what keeps the heap from running out (2026-11-17: it ran out
+# once with 44 workers and once with these five, until the heap was raised).
 # ---------------------------------------------------------------------------
 - pipeline.id: beats-in
   path.config: '/usr/share/logstash/pipeline/00-beats-in.conf'
