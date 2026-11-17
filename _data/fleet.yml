@@ -1712,6 +1712,8 @@ observability:
 # A site entry names a registry project (repo/live_url/branch come from
 # _data/projects.yml) or, for a site outside the registry, carries `repo:`.
 # `roots:` overrides the scan root (default: the Jekyll collections_dir);
+# `exclude:` skips paths that are structure rather than content (a directory
+# prefix, or a glob matched against the repo-relative path);
 # `quality:` overrides the hygiene rules for a site whose schema differs;
 # `dates: git` dates publication by first commit, for knowledge bases whose
 # front-matter `date` is the subject's date rather than the publish date.
@@ -1745,8 +1747,20 @@ content:
       quality: { require: [title, description, date, author, tags] }
     - name: it-journey
       quality: { require: [title, description, date, author, categories, tags], description: [120, 160] }
+    # bash-365.com's own contract (zer0.json, and scripts/content_lint.py POST_REQUIRED_FIELDS, which its
+    # CI enforces) asks for `date` and `tags` on dated posts only, so the atlas requires only a title and a
+    # description and stops asking the evergreen services, toolkit, about and case-study pages for a date
+    # or tags. `exclude:` drops the pages that are structure, not content: the admin and site pages under
+    # pages/_about, the search page, the case-study listing, and the section indexes under pages/_posts,
+    # whose front matter zer0.json says to leave alone (content_lint exempts them).
     - name: bash-365.com
-      quality: { description: [120, 155] }
+      quality: { description: [120, 155], require: [title, description] }
+      exclude:
+        - pages/_about/settings # layout: admin — the theme's configuration pages
+        - pages/_about/site # the site config page and the sitemap
+        - pages/search.md
+        - pages/_case-studies/index.md # a Liquid listing of the case studies
+        - 'pages/_posts/*-index.md' # the section indexes (2000-01-01-index.md), any depth
     # irony-works, wargames and 2005 live in the zer0-CMS monorepo now (sites/<name>/, imported with
     # their history); the original repos were deleted or archived on 2026-10-20. `registry:` points the
     # atlas at the zer0-CMS checkout and `roots:` at the site's sub-path inside it, so each site keeps
