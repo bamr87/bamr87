@@ -15,26 +15,26 @@ contract:
     R5: its run records reach the reflector
     R6: a local entry point
 totals:
-  agents: 141
+  agents: 142
   by_category:
     ci-agent-step: 129
     local-loop-step: 5
     jev-tier: 3
-    scheduled-local-job: 4
+    scheduled-local-job: 5
   by_kind:
     ci-scheduled: 51
     ci-event: 36
     ci-mention: 42
     loop-step: 5
     jev-tier: 3
-    local-job: 4
-  with_gaps: 132
+    local-job: 5
+  with_gaps: 133
   gaps_by_rule:
     R1: 116
-    R2: 132
+    R2: 133
     R3: 0
     R4: 2
-    R5: 2
+    R5: 3
     R6: 77
 kpis:
   accepted_per_usd:
@@ -4254,6 +4254,38 @@ agents:
   feeds_reflector: false
   local_entry: tools/dash refine reflect
   first_seen: '2026-11-07'
+  gaps:
+  - R2:missing:permission_denials,tool_errors
+  - R5:no-reflector
+- id: local:pr-queue-agent
+  kind: local-job
+  category: scheduled-local-job
+  repo: bamr87/bamr87
+  where: tools/console/pr_queue.py
+  owner: bamr87
+  trigger: 'on demand: the maintainer''s confirm of an agent plan on the console''s /prs (the prs-agent operation)'
+  runs:
+  - tools/dash prs apply --plan-id <id> --apply
+  switch:
+    config: pr_queue.agent.enabled
+  budget:
+    per_run_usd: 2.0
+    monthly_usd: 50.0
+  model: claude-sonnet-5-5
+  kpis:
+    accepted_per_usd: null
+    accepted_per_actions_min: null
+    time_to_outcome_h: null
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+    registry: maintainer (reviewed PR); reconcile-registry.yml proposes the changes
+  run_record: ai-ledger
+  feeds_reflector: false
+  local_entry: tools/dash prs apply --plan-id <id> --apply
+  first_seen: '2026-11-15'
   gaps:
   - R2:missing:permission_denials,tool_errors
   - R5:no-reflector

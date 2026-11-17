@@ -10,7 +10,7 @@ import type {
   AppsDoc, AuthDoc, Capabilities, ProjectReadme, ConfigDoc, DockerView, FleetView, Job, LakeLine, LakeRun, Op,
   ProjectDetail, StateDoc, TuiStatus, Dict, GithubStatus, GhRepo, GhRepoDetail, GhAction, GhIssue,
   SiteIndex, SitePage, SitePost, GithubFleet, PullSpecs, WorkBoard, WorkItemDetail, WorkPlan,
-  WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint, RefineDoc, EvidenceDoc, TextFile, AssistDoc, JobTail, VoicesDoc,
+  WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint, RefineDoc, EvidenceDoc, TextFile, AssistDoc, JobTail, PrQueue, VoicesDoc,
 } from './types';
 
 const minute = 60_000;
@@ -124,6 +124,10 @@ export const useAuth = () => useQuery({ queryKey: ['auth'], queryFn: () => api<A
 export const useTuiStatus = () => useQuery({ queryKey: ['tui-status'], queryFn: () => api<TuiStatus>('/api/tui/status'), refetchInterval: 10_000 });
 
 // --- The Work board (dash-gen work_board.py) --------------------------------
+/** The PR queue, as `auto` serves it (the index and the detail cache until their TTL); the page's
+ * "Read GitHub now" puts one forced read into this same cache entry. */
+export const usePrQueue = () =>
+  useQuery({ queryKey: ['prs', 'auto'], queryFn: () => api<PrQueue>('/api/prs?refresh=auto'), staleTime: 60_000, placeholderData: keepPreviousData });
 export const useWork = () => useQuery({ queryKey: ['work'], queryFn: () => api<WorkBoard>('/api/work'), staleTime: 30_000 });
 /** The board as a staged plan would leave it; nothing is written. */
 export const useWorkPreview = (plan: WorkPlan | null) =>

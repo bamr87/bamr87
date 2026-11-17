@@ -1076,3 +1076,47 @@ export interface VoicesPreview {
   ok: boolean; errors: string[]; text: string; base: string; changed: boolean; diff: string; changes: string[]; plan_id: string; drift: VoicesDrift;
 }
 export interface VoicesStaged { plan_id: string; staged: boolean; base: string; changes: string[]; diff: string }
+// The PR queue (/api/prs; tools/fleetcore/prqueue.py, docs/PR-QUEUE.md).
+export type PrWho = 'amr' | 'agent' | 'loop' | 'author';
+export type PrCheckState = 'failing' | 'action_required' | 'cancelled' | 'pending' | 'green' | 'skipped' | 'none';
+export interface PrCheckRun {
+  name: string; workflow?: string; kind: 'check' | 'status'; state: PrCheckState; conclusion?: string; status?: string;
+  url?: string; run_id?: number; superseded?: number; at?: string;
+}
+export interface PrRow {
+  key: string; repo: string; number: number; title: string; url: string; author: string; bot: boolean; draft: boolean;
+  private: boolean; labels: string[]; age_days?: number; idle_days?: number; head?: string; base?: string; head_sha?: string;
+  mergeable?: string; merge_state?: string; review?: string; files?: number;
+  checks: { state: PrCheckState; rollup?: string | null; total: number; superseded: number; failing: string[]; cancelled: string[];
+    pending: string[]; action_required: string[]; green: number; skipped: number; false_red: boolean; unread?: boolean };
+  check_runs: PrCheckRun[];
+  kinds: string[]; batch?: string;
+  gate: { gated: boolean; reason: string };
+  merge_method?: string | null;
+  agent_merge: { ok: boolean; why: string };
+  next: { who: PrWho; action: string; why: string; act?: string; command?: string };
+  triage?: { next_action?: string; question?: string; commands?: string[]; who_hint?: string; url?: string; updated_at?: string };
+  read: boolean; review_threads?: number; applies: string[];
+}
+export interface PrAction { id: string; title: string; op: string; writes: string; governed: string; enabled: boolean; why: string; spend: boolean }
+export interface PrBatch { head: string; count: number; repos: number; green: number; gated: number; draft: number; keys: string[] }
+export interface PrQueue {
+  schema: string; generated_at: string; status: string; complete: boolean; rows: PrRow[]; batches: PrBatch[];
+  counts: { total: number; who: Record<PrWho, number>; kinds: Dict<number>; gated: number; ungated: number; checks: Dict<number>;
+    false_red: number; agent_mergeable: number; unread: number; triaged: number };
+  actions: PrAction[];
+  index: { status?: string; source?: string; age_s?: number | null; read_at?: string | null; ttl_s?: number };
+  detail: { wanted: number; read: number; stale: number; ttl_s: number };
+  elapsed_s: number; budget_s: number; matched: number; outside_registry: string[];
+  warnings: string[]; errors: { stage?: string; kind?: string; message?: string }[]; hint?: string | null;
+  switches: { merge: boolean; close: boolean; agent: boolean; github_writes: boolean };
+}
+export interface PrPlanItem {
+  key: string; repo: string; number: number; title?: string; url?: string; head_sha?: string; do: boolean; skip?: string;
+  preview?: string; warnings: string[]; next?: PrRow['next']; gate?: PrRow['gate'];
+}
+export interface PrPlan {
+  schema: string; plan_id: string; action: string; title: string; op: string; params: Dict<unknown>; created_at: string;
+  enabled: boolean; why: string; governed: string; writes: string; items: PrPlanItem[]; counts: { do: number; skip: number };
+  ceiling_usd?: number; cost_label?: string; warning?: string;
+}

@@ -426,9 +426,12 @@ def test_workflow_contract() -> None:
     check("the credential is chosen by the repo's ai_auth order (claude-auth, from the hub checkout)",
           auth_step["uses"] == "./.fleet-hub/.github/actions/claude-auth"
           and "vars.CLAUDE_AUTH_ORDER" in auth_step["with"]["order"])
-    check("each credential is gated on the chosen method, never passed both",
+    # OAuth only for now (2026-11-15): ANTHROPIC_API_KEY is disabled, so the
+    # step must not be handed the key at all.
+    check("the OAuth token is gated on the chosen method, and no API key is passed (OAuth only)",
           "steps.claude-auth.outputs.method == 'oauth'" in ev_step["with"]["claude_code_oauth_token"]
-          and "steps.claude-auth.outputs.method == 'api_key'" in ev_step["with"]["anthropic_api_key"])
+          and "anthropic_api_key" not in ev_step["with"]
+          and "api-key" not in auth_step["with"])
     # ADR 0002 P3: the caps are LITERALS the step spec holds equal to fleet.yml
     # (`python3 -m tools.jev steps check`); the summary reads plan.json itself.
     check("the plan job exports no dead max_turns output (nothing reads it since the literal)",

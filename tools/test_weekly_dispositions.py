@@ -301,7 +301,8 @@ class Gate(unittest.TestCase):
                      ".claude/settings.json", ".claude/settings.local.json", ".claude/hooks/stop.sh", ".mcp.json", ".gitmodules",
                      "infra/main.tf", "compose/x.yml", "docker-compose.yml", "Dockerfile", "Dockerfile.dev", ".env", ".env.example",
                      "tools/install-weekly.sh", "tools/update-submodules.sh", "tools/dash", "tools/dash-gen", "tools/jev/loop.py",
-                     "tools/weekly/core.py", "tools/weekly/closeout.py", "tools/pm_review.py", "tools/console/gh_projects_write.py",
+                     "tools/weekly/core.py", "tools/weekly/closeout.py", "tools/pm_review.py", "tools/check_rollup.py",
+                     "tools/console/gh_projects_write.py",
                      "tools/console/core.py", "tools/console/subscription.py", "tools/console/gh_projects.py", "tools/fleetcore/graph.py",
                      "compose.yml", "compose.yaml", "projects/fleet-observe/compose.yml", "yaml.py", "setup.py", ".vscode/launch.json",
                      ".devcontainer/devcontainer.json", ".pre-commit-config.yaml",
@@ -470,6 +471,43 @@ class Gate(unittest.TestCase):
         skipped = [{"name": "a", "status": "COMPLETED", "conclusion": "SKIPPED"}, {"name": "b", "status": "COMPLETED", "conclusion": "NEUTRAL"}]
         self.assertFalse(closeout.checks_green(skipped)[0])
         self.assertEqual(self.verdict(statusCheckRollup=skipped)[0], "amr")
+
+    def test_a_cancelled_run_a_later_run_of_the_same_check_superseded_is_set_aside(self):
+        """2026-11-15: verify kit 0.1.0 and zer0-mistakes' evidence gate cancel in progress on every
+        `labeled` event, so a Dependabot or issue-pipeline label burst leaves a CANCELLED row beside the
+        run that passed; 25 fleet pull requests read red this way. Rows as `gh pr view` gives them."""
+        def run(conclusion, started, completed, status="COMPLETED", name="Visual evidence gate", workflow="Evidence gate"):
+            return {"__typename": "CheckRun", "workflowName": workflow, "name": name, "status": status,
+                    "conclusion": conclusion, "startedAt": started, "completedAt": completed}
+        ok = closeout.checks_green
+        cancelled = run("CANCELLED", "2026-11-14T05:31:38Z", "2026-11-14T05:31:40Z")
+        passed = run("SUCCESS", "2026-11-14T05:31:43Z", "2026-11-14T05:32:07Z")
+        green, why = ok([cancelled, passed])
+        self.assertTrue(green, why)
+        self.assertIn("1 cancelled run superseded", why)
+        self.assertTrue(ok([passed, cancelled])[0], "the rollup's order does not matter")
+        self.assertIsNone(self.verdict(statusCheckRollup=[cancelled, passed]), "nothing else holds it")
+        burst = [run("CANCELLED", "2026-11-14T05:31:38Z", "2026-11-14T05:31:39Z"), cancelled, passed]
+        self.assertTrue(ok(burst)[0], "a burst of three labels leaves two cancelled runs")
+        # a lone cancelled run is not green, and the routine sends it to be fixed
+        self.assertEqual(ok([cancelled]), (False, "Visual evidence gate concluded CANCELLED"))
+        self.assertEqual(self.verdict(statusCheckRollup=[cancelled])[0], "fix")
+        # a pass, then a failure of the same check: red; so is a failure, then a pass (only a cancellation is set aside)
+        failed = run("FAILURE", "2026-11-14T05:40:00Z", "2026-11-14T05:41:00Z")
+        self.assertEqual(ok([passed, failed]), (False, "Visual evidence gate concluded FAILURE"))
+        self.assertFalse(ok([run("FAILURE", "2026-11-14T05:31:30Z", "2026-11-14T05:31:35Z"), passed])[0])
+        # the latest run of a check is never set aside, even when an earlier one passed
+        self.assertFalse(ok([passed, run("CANCELLED", "2026-11-14T05:40:00Z", "2026-11-14T05:40:05Z")])[0])
+        # another check's or another workflow's pass excuses nothing
+        self.assertFalse(ok([cancelled, run("SUCCESS", "2026-11-14T05:31:43Z", "2026-11-14T05:32:07Z", name="build")])[0])
+        self.assertFalse(ok([cancelled, run("SUCCESS", "2026-11-14T05:31:43Z", "2026-11-14T05:32:07Z", workflow="CI")])[0])
+        # superseded by a run that is still going: not green yet, and it says why
+        self.assertEqual(ok([cancelled, run(None, "2026-11-14T05:31:43Z", None, status="IN_PROGRESS")]),
+                         (False, "Visual evidence gate has not finished"))
+        # a check run no workflow made, or one whose time cannot be read, is judged as it stands
+        self.assertFalse(ok([{**cancelled, "workflowName": ""}, {**passed, "workflowName": ""}])[0])
+        self.assertFalse(ok([{**cancelled, "startedAt": None}, passed])[0])
+        self.assertFalse(ok([cancelled, {**passed, "startedAt": "not a time"}])[0])
 
 
 def result(*rows):
