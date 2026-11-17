@@ -11,6 +11,7 @@ tools/dash dev list                     # every project and how it is hosted
 tools/dash dev up hub                   # devenv + console + phoenix + shared layer
 tools/dash dev up law-ai                # one project, its whole stack
 tools/dash dev up law-ai --debug        # ...with the repo's own debugpy layer
+tools/dash dev up zer0-cms --profile imagegen   # ...plus a compose profile the project keeps opt-in
 tools/dash dev up --all                 # every checked-out project at once
 tools/dash dev ps --all                 # what is running, with URLs
 tools/dash dev ports                    # the allocation table
@@ -93,11 +94,15 @@ tools/fleet-compose.py sync            # regenerate compose/fleet.env + override
 
 Variables are namespaced (`DJANGOERP_DB_PORT`, not `POSTGRES_PORT`) because the submodules' own names collide: djangoerp and barodybroject both read `POSTGRES_PORT`; zer0-cms and zer0-image-generator both read `PORT`.
 
+### Profiles
+
+A project's `profiles:` in the registry are the compose profiles `dash dev` activates for it on every command. zer0-cms needs one to start at all: each of its services is behind a profile, so a bare `up` selected nothing and answered "no service selected". Its entry activates `content` (the database, Redis, the API and its workers) and leaves `imagegen`, which builds a second image, opt-in: `tools/dash dev up zer0-cms --profile imagegen`. `--profile` can be given more than once and is passed to compose as the global flag it is, ahead of the subcommand, so `up`, `ps`, `logs` and `down` all see the same services. The smoke test reads the same key: a service behind an activated profile is expected, and one behind any other profile is optional. `tools/test_fleet_dev.py` fails when a compose-hosted project would start nothing.
+
 ## What is actually shared
 
 | Service | Shared by default | Why |
 | --- | --- | --- |
-| **Phoenix** (`fleet-phoenix`) | **Yes** | A trace sink with no schema coupling, and the hub already designates one Phoenix as the local stack's trace store that `dash lake export` feeds. law-ai and bashos each ran a third copy on the same 6006/4317. Their own is profiled out and the shared one carries the network alias `phoenix`, so their `PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:6006` keeps working untouched. |
+| **Phoenix** (`fleet-phoenix`) | **Yes** | A trace sink with no schema coupling, and the hub already designates one Phoenix as the local stack's trace store that `dash lake export` feeds. law-ai and bashos each ran a third copy on the same 6006/4317. Their own is profiled out and the shared one carries the network alias `phoenix`, so their `PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:6006` keeps working untouched. The shared one is whichever hub is running: `fleet-hub` attaches its own, and when the core from `tools/dash up` is the one running (the usual case), `dash dev up <project>` attaches the core's Phoenix to `fleet-net` under the same two aliases. Until 2026-11-17 it did not, and a project started beside the core resolved no `phoenix` host and ran without traces. Recreating the core's Phoenix drops the attachment; the next `dash dev up` restores it. |
 | **Postgres** (`fleet-db`) | No — `--profile shared-db` | One server, one database per app is correct for plain-Postgres consumers, but it changes the behaviour of a working stack, and two consumers cannot join at all: aieo runs `timescale/timescaledb`, and law-ai pins its major version with a documented dump/restore step. Those keep their own, on a deconflicted port. |
 | **Redis** (`fleet-redis`) | No — `--profile shared-db` | Safe in principle (a logical DB index per app); default-off until each consumer is moved deliberately. |
 

@@ -1253,7 +1253,7 @@
       "presentation": { "group": "7-projects", "order": 15 }
     },
     {
-      "name": "🧩 zer0-cms: content (:8117) + imagegen (:8118)",
+      "name": "🧩 zer0-cms: content (:8117)",
       "type": "node-terminal",
       "request": "launch",
       "command": "tools/dash dev up zer0-cms && tools/dash dev logs zer0-cms",
