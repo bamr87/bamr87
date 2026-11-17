@@ -160,6 +160,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-114](features/features.yml) | The weekly routine: Friday closes the week, Saturday checks next week's schedule can run, Sunday plans it | shipped | [`tools/weekly/cli.py`](tools/weekly/cli.py) · [`docs/WEEKLY.md`](docs/WEEKLY.md) | FR130 |
 | [HUB-115](features/features.yml) | Weekly close-out and weekend-prep loops, scheduled and maintained from the Harness Console | partial | [`.github/workflows/weekly-closeout.yml`](.github/workflows/weekly-closeout.yml) · [`docs/WEEKLY-CLOSEOUT.md`](docs/WEEKLY-CLOSEOUT.md) | FR131 |
 | [HUB-116](features/features.yml) | On-premise compute node: local LLMs and Claude Code sessions on Amr's own machine (planned) | planned | [`docs/ONPREM-COMPUTE.md`](docs/ONPREM-COMPUTE.md) | FR64, FR56, FR65, FR130, FR131, FR132, FR133, NFR32 |
+| [HUB-117](features/features.yml) | PR queue: every open pull request, who moves it next, and bulk actions an agent carries out once Amr confirms | partial | [`tools/console/web/src/pages/PrQueue.tsx`](tools/console/web/src/pages/PrQueue.tsx) · [`docs/PR-QUEUE.md`](docs/PR-QUEUE.md) | FR134, FR135 |
 
 **Requirement → feature trace**
 
@@ -329,6 +330,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR132 | HUB-116 |
 | FR133 | HUB-116 |
 | NFR32 | HUB-116 |
+| FR134 | HUB-117 |
+| FR135 | HUB-117 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -456,6 +459,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR131: The control plane must schedule, dispatch and maintain a weekly close-out of open project work (Friday), a draft of next week's plan (Saturday) and a week-ahead brief (Sunday) as console loops built to the fleet harness standard, each off until its kill switch is set, none able to merge, force-push or change settings.
 - FR132: The hub must run its local entry points (tools/dash loop, conflicts, weekly and refine) unchanged on an enrolled on-premise node, from the node's own git checkout, under the same kill switches, caps, AI ledger and sandbox as on the maintainer's workstation, scheduled by one timer per installer and registered in the agent inventory; the node's housekeeping acts only on its own checkouts, worktrees, clones, archives and session state, saves before it removes, reports idle or stuck Claude Code sessions without ending them, and never needs the node to be up for the fleet to work (constitution § 30; docs/ONPREM-COMPUTE.md).
 - FR133: The hub must be able to run a loop step, a JEV tier, a typed decision or an embedding job on a local model served from an enrolled on-premise node only when that model is pinned by exact tag and digest under a local provider in _data/fleet.yml ai_models.allowed and the step's eval set passes on it; the model is served on the node's loopback only, receives no secret, and runs with the step's own tool allowlist; each run is recorded in the AI ledger with cost source local ($0 metered API spend, with its energy estimate), never summed with API-equivalent or metered figures (constitution § 30; docs/ONPREM-COMPUTE.md).
+- FR134: The Harness Console must list every open pull request of the hub and the registry repos in one queue, each with its checks collapsed per check to the latest run on the head commit, its review-gate verdict and reason, the merge method its repo allows, and who moves it next, filterable by repo, kind, gate and who, with fan-out batches grouped by head branch.
+- FR135: The PR queue must let the maintainer select pull requests and apply one bulk action through a plan made from live GitHub and shown per pull request first; the plan is applied only after the maintainer confirms, only while it still matches GitHub, through the console's job API, with each result recorded; a merge or close runs only while its pr_queue switch is on.
 
 **Non-functional**
 

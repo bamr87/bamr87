@@ -63,6 +63,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/PLATFORM.md`](PLATFORM.md) | How the fleet's development platform spreads its workloads across the Mac and forge, which layer owns what, and how the same definitions scale out to any cloud or on-premise cluster. |
 | [`docs/PM.md`](PM.md) | A daily, read-only review that keeps three records in line with what GitHub actually holds: the Fleet project, the roadmap and each repo's release train. It reports what has drifted and plans the fix; a person applies it. |
 | [`docs/PORTFOLIO.md`](PORTFOLIO.md) | The portfolio standard: repository descriptions, the topic taxonomy, the homepage rule, the README skeleton and the profile index. |
+| [`docs/PR-QUEUE.md`](PR-QUEUE.md) | Every open pull request of the hub and the registry repos in one queue: its checks with superseded runs set aside, the review gate and its reason, the merge method its repo allows, and who moves it next. Select rows, choose a bulk action… |
 | [`docs/PROJECTS-FRAMEWORK.md`](PROJECTS-FRAMEWORK.md) | Status: **ratified** (amendment 0003, 2026-10-30; § 10 by 0005, § 11 by 0006) — [amendment 0003](amendments/0003-github-projects-work-tracking.md), features `github-projects-framework`, `projects-coverage-gate`, `projects-sync-console` and… |
 | [`docs/RELEASES.md`](RELEASES.md) | Release and versioning methodology across the fleet. |
 | [`docs/SCHEMA-FRAMEWORK.md`](SCHEMA-FRAMEWORK.md) | The Pyramid Schema — `SCHEMA.md` structural contracts across the fleet, and how to follow, propagate and verify them. |

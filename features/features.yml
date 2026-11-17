@@ -2785,3 +2785,46 @@ features:
     - FR132
     - FR133
     - NFR32
+  - id: HUB-117
+    title: 'PR queue: every open pull request, who moves it next, and bulk actions an agent carries out
+      once Amr confirms'
+    description: 'The console''s /prs page (also /api/prs, the MCP''s pr_queue and tools/dash prs) lists
+      every open pull request of the hub and the registry repos in one queue, built on the decision index
+      plus one batched detail read per pull request: checks collapsed per check to the latest run on the
+      head commit (a cancelled run followed by a success is green, so verify kit 0.1.0''s label-burst false
+      red stops hiding green pull requests), the review gate and its reason from tools/weekly/closeout.py''s
+      own rules, the merge method the repo allows, whether an agent may merge it under § 12.2, who moves
+      it next (Amr, an agent, a loop or the author) and the 2026-11-15 triage comment''s next action as
+      a hint. Filters by repo, kind (security, Dependabot, release, fan-out batch, AI harness, ratification,
+      draft), gate and who; fan-out batches group by head branch; select all, select filtered or a batch,
+      then plan one bulk action from live GitHub (mark ready, update branch, re-run cancelled or failed
+      checks one at a time, post or edit the next-action comment, add needs-amr, a capped local Claude Code
+      session, close, merge) and apply that exact plan through the console''s confirm-gated job API, which
+      re-plans and refuses a plan whose pull requests moved. Merge and close stay off behind pr_queue switches
+      until an amendment says a merge the maintainer confirms in the console is his own.'
+    implemented: true
+    status: partial
+    surface: ui
+    link: tools/console/web/src/pages/PrQueue.tsx
+    docs: docs/PR-QUEUE.md
+    tags:
+    - console
+    - pull-requests
+    - decisions
+    - bulk-actions
+    - fleetcore
+    - mcp
+    - governance
+    date: 2026-11-15
+    tests:
+    - tools/test_fleetcore_prqueue.py
+    - tools/console/test_pr_queue.py
+    - tools/console/test_mcp_layer.py
+    - tools/console/test_console.py
+    scenarios:
+    - verify/scenarios/pr-queue.yml
+    evidence:
+    - test/evidence/pr-queue
+    prd:
+    - FR134
+    - FR135

@@ -1,6 +1,6 @@
 # The PR queue on a running console: every open pull request, who moves it next, and a bulk action planned (never applied here).
 id: pr-queue
-feature: HUB-NEW:pr-queue
+feature: HUB-117
 title: "The PR queue lists every open pull request, filters it, selects rows and plans a bulk action"
 description: "/prs on a running console (never the public build: the queue can hold a private repo's titles) shows the who-moves-next tabs with counts, the fan-out batch buttons, the bulk action bar and the table with collapsed checks, the gate and the next move. Selecting the shown rows of one tab and planning Mark ready reads GitHub live and opens the per-pull-request plan with its id, Check it still matches and Apply; the scenario stops there and writes nothing to GitHub (run it against a console started with DASH_CONSOLE_GITHUB_WRITES=off). The public build renders the Runs on a console notice instead."
 viewports: [desktop, mobile]

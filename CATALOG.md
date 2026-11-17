@@ -149,6 +149,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`audit-standards.sh`](tools/audit-standards.sh) | Standardization conformance matrix across the submodule fleet (wrapped by `dash audit`) |
 | [`backlog_fanout.py`](tools/backlog_fanout.py) | Purpose: the BACKLOG FAN-OUT routine (HUB-027, PRD FR22/FR23). |
 | [`check-drift.sh`](tools/check-drift.sh) | **Hard drift gate** — registry/`.gitmodules` parity, README freshness, schema pyramid, and advisory GitHub-reality checks (CI + `dash status`) |
+| [`check_rollup.py`](tools/check_rollup.py) | One rule for reading a commit's checks, shared by `weekly/closeout.py` (`checks_green`), `console/decision_index.py` and `pm_review.py`: a CANCELLED check run is set asi… |
 | [`claude_code_executes_lint.py`](tools/claude_code_executes_lint.py) | Warn-then-fail lint for constitution § 26 (Claude Code executes; |
 | [`conformance.py`](tools/conformance.py) | **Executable Universal Project Standard checker** (`dash spec`): `check [path]` runs the machine-checkable rows of `_data/specs.yml` against one repo (kinds detected fro… |
 | [`dash`](tools/dash) | Unified dash CLI (`status`, `monitor`, `dev`, `serve`, `sync`, `ai`, `gen`, `harnesses`, `console`, `lake`, …) — see [docs/DASH.md](../docs/DASH.md); `dash lake sync |
@@ -198,6 +199,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`setup-terminal.sh`](tools/setup-terminal.sh) | macOS-only: bootstraps the [bashOS `chui/`](https://github.com/bamr87/bashos/tree/main/chui) terminal (Oh My Zsh, Powerlevel10k, MesloLGS Nerd Font), registers the font… |
 | [`setup.sh`](tools/setup.sh) | **Primary entrypoint** — cross-platform dev environment setup; on macOS its last step is `setup-terminal.sh` (`--skip-terminal` to opt out) |
 | [`test_backlog_fanout.py`](tools/test_backlog_fanout.py) | Fixture tests for tools/backlog_fanout.py + tools/fleet_activity.py. |
+| [`test_check_rollup.py`](tools/test_check_rollup.py) | Offline tests for `check_rollup.py`: both rollup shapes (`gh pr view` and GraphQL), same-second ordering, a run not yet started, unreadable times, only a cancellation se… |
 | [`test_claude_code_executes_lint.py`](tools/test_claude_code_executes_lint.py) | Fixture tests for tools/claude_code_executes_lint.py (constitution § 26).""" from __future__ import annotations |
 | [`test_conformance_frontend.py`](tools/test_conformance_frontend.py) | Fixture tests for the § 18 frontend-platform rows in tools/conformance.py (UPS-FE-70..73): N/A for tier none, tokens/shell per tier, warn-only until `frontend.enforce: t… |
 | [`test_conformance_work.py`](tools/test_conformance_work.py) | Fixture tests for the contract-keyed rows in tools/conformance.py: UPS-WORK-01..13 (planning & delivery), UPS-AGENT-07/08/09 (decision D4: AGENTS.md canonical, CLAUDE.md… |
@@ -216,6 +218,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_fleetcore_learn.py`](tools/test_fleetcore_learn.py) | Tests for tools/fleetcore/learn.py — outcome learning in shadow: how an output is sorted into an outcome, the estimate and its decay, the Thompson plan, the replay skill… |
 | [`test_fleetcore_mcp.py`](tools/test_fleetcore_mcp.py) | Fixture tests for tools/fleetcore/mcp_server.py — the fleet console as an MCP server, the agent's write path into the console's job API. |
 | [`test_fleetcore_nodes.py`](tools/test_fleetcore_nodes.py) | Fixture tests for tools/fleetcore/nodes.py — where each hub workload runs (ADR 0003, docs/PLATFORM.md). |
+| [`test_fleetcore_prqueue.py`](tools/test_fleetcore_prqueue.py) | Tests for tools/fleetcore/prqueue.py — the PR queue's model: collapsing superseded check runs, the review gate as tools/weekly/closeout.py encodes it, who moves each pul… |
 | [`test_fleetcore_yamlio.py`](tools/test_fleetcore_yamlio.py) | Tests for tools/fleetcore/yamlio.py — the one YAML reader the surfaces share: the same objects `yaml.safe_load` builds, one parse per version of a file, a private copy p… |
 | [`test_frontend_registry.py`](tools/test_frontend_registry.py) | Tests for tools/frontend_registry.py — the § 18 frontend: block lint and the launcher projection. |
 | [`test_governance_lint.py`](tools/test_governance_lint.py) | Tests for tools/governance_lint.py (stdlib + PyYAML). |
@@ -472,6 +475,7 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`PLATFORM.md`](docs/PLATFORM.md) | How the fleet's development platform spreads its workloads across the Mac and forge, which layer owns what, and how the same definitions scale out to any cloud or on-pre… |
 | [`PM.md`](docs/PM.md) | A daily, read-only review that keeps three records in line with what GitHub actually holds: the Fleet project, the roadmap and each repo's release train. |
 | [`PORTFOLIO.md`](docs/PORTFOLIO.md) | The portfolio standard: repository descriptions, the topic taxonomy, the homepage rule, the README skeleton and the profile index. |
+| [`PR-QUEUE.md`](docs/PR-QUEUE.md) | Every open pull request of the hub and the registry repos in one queue: its checks with superseded runs set aside, the review gate and its reason, the merge method its r… |
 | [`PROJECTS-FRAMEWORK.md`](docs/PROJECTS-FRAMEWORK.md) | Status: **ratified** (amendment 0003, 2026-10-30; § 10 by 0005, § 11 by 0006) — [amendment 0003](amendments/0003-github-projects-work-tracking.md), features `github-proj… |
 | [`RELEASES.md`](docs/RELEASES.md) | Release and versioning methodology across the fleet. |
 | [`SCHEMA-FRAMEWORK.md`](docs/SCHEMA-FRAMEWORK.md) | The Pyramid Schema — `SCHEMA.md` structural contracts across the fleet, and how to follow, propagate and verify them. |
@@ -519,6 +523,7 @@ The pages of the public site — the Harness Console built static ([`docs/CONSOL
 | Fleet | Desktop | `/desktop` | the bashOS desktop: an icon per app, each in a window with the same controls |
 | Fleet | Apps | `/apps` | every fleet frontend, opened here: the live site or a local stack |
 | Fleet | Inbox | `/inbox` | flagged issues, PRs and failing workflows |
+| Fleet | PR queue | `/prs` | every open pull request, who moves it next, and bulk actions an agent carries out once you confirm |
 | Fleet | Roadmap | `/roadmap` | feature specs across the fleet |
 | Fleet | Features | `/features` | what each repo does and what proves it |
 | Fleet | Engagements | `/engagements` | projects as clients: estimates and actuals |
