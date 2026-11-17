@@ -92,7 +92,11 @@ Releases are cut by hand from `main` until a release automation is adopted for t
 
    For a major release, create the new `vX` instead and leave the previous major where it is.
 
+4. Check the pins: `python3 tools/test_template_pins.py` resolves every `bamr87/bamr87` and `bamr87/.github` pin in `templates/` and in the hub's own workflows and actions against the tags GitHub now serves, and fails on any pin whose ref lacks the file it names.
+
 **Rollback.** If a minor or patch release breaks callers, point `vX` back at the previous `vX.Y.Z` (step 3 with the older version) and fix forward in a new patch. Never delete or move an immutable `vX.Y.Z` tag.
+
+**Pins follow the tag.** A caller pins a tag only once that tag carries the file: a new workflow or action ships in a release (and `vX` moves) before a template, or a hub reusable workflow, pins it at `@vX`. `tools/test_template_pins.py` runs in `python-tests.yml`, so a pull request that pins ahead of the tag fails, and so does the next run after a rollback that takes a pinned file away. From 2026-10-26 until v2.1.0 the `spec-driven` kit pinned `spec-gate.yml@v2` while `v2` predated the file, and law-ai's CI, pinned the same way, failed at startup ([#457](https://github.com/bamr87/bamr87/issues/457)).
 
 ## See also
 

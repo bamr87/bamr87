@@ -369,6 +369,46 @@ class QueueTests(Base):
             q.queue(self.root, refresh="never", filters={"kind": "nope"})
 
 
+class DetailTests(unittest.TestCase):
+    """The detail read's own facts: the task list, the head commit's date, whether the repo has the gate label."""
+
+    NODE = {"updatedAt": "2026-11-16T00:00:00Z", "isDraft": True, "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN",
+            "headRefOid": SHA, "body": "Private words that must not be cached.\n\n- [x] Tests pass\n- [ ] **CI is green**\n- [ ] Bug fix\n",
+            "repository": {"nameWithOwner": "o/app", "isPrivate": True, "mergeCommitAllowed": True, "gateLabel": None,
+                           "defaultBranchRef": {"name": "main"}},
+            "files": {"totalCount": 1, "nodes": [{"path": "docs/a.md", "changeType": "MODIFIED"}]},
+            "commits": {"nodes": [{"commit": {"oid": SHA, "committedDate": "2026-11-15T09:00:00Z"}}]}}
+
+    def test_the_task_list_is_kept_and_the_description_is_not(self):
+        d = q.detail_record(copy.deepcopy(self.NODE), 1.0)
+        self.assertEqual(d["tasks"], {"total": 3, "done": 1, "open": 1, "options": 1, "items": ["CI is green"], "ci_open": True})
+        self.assertEqual(d["head_at"], "2026-11-15T09:00:00Z")
+        self.assertNotIn("Private words", json.dumps(d))
+
+    def test_a_repo_without_the_gate_label_says_so_and_an_unasked_read_stays_unknown(self):
+        self.assertIs(q.detail_record(copy.deepcopy(self.NODE), 1.0)["repo"]["gate_label"], False)
+        has = copy.deepcopy(self.NODE)
+        has["repository"]["gateLabel"] = {"name": "needs-amr"}
+        self.assertIs(q.detail_record(has, 1.0)["repo"]["gate_label"], True)
+        old = copy.deepcopy(self.NODE)
+        del old["repository"]["gateLabel"]
+        self.assertNotIn("gate_label", q.detail_record(old, 1.0)["repo"])
+
+    def test_the_query_asks_for_what_the_flags_need(self):
+        for field in ("body", "committedDate", 'gateLabel: label(name:"needs-amr")'):
+            self.assertIn(field, q.DETAIL_Q)
+
+    def test_flag_filter(self):
+        rows = [{"repo": "o/a", "kinds": [], "next": {"who": "amr"}, "gate": {"gated": True}, "checks": {"state": "green"},
+                 "flags": ["unlabelled", "no-comment"]},
+                {"repo": "o/b", "kinds": [], "next": {"who": "amr"}, "gate": {"gated": False}, "checks": {"state": "green"}, "flags": []}]
+        self.assertEqual([r["repo"] for r in q.filtered(rows, {"flag": "unlabelled"})], ["o/a"])
+        self.assertEqual(len(q.filtered(rows, {})), 2)
+        with self.assertRaises(ValueError):
+            q.queue(Path(TMP), refresh="never", filters={"flag": "not-a-flag"})
+        self.assertIn("flag", q.FILTERS)
+
+
 class CliTests(unittest.TestCase):
     def test_actions_lists_the_switches(self):
         import contextlib
