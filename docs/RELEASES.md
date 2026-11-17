@@ -52,22 +52,23 @@ The **squash-merge subject** (= PR title) is what counts. `standard-ci.yml` does
 ## Adopt the pipeline in a repo
 
 ```bash
-tools/adopt-release.sh <repo>            # detect ecosystem, scaffold, open a PR
-tools/adopt-release.sh <repo> --dry-run  # build the branch locally, show the diff
+tools/adopt-release.sh <repo>                      # detect ecosystem, scaffold, open a PR
+tools/adopt-release.sh <repo> --dry-run            # build the branch locally, show the diff
+tools/adopt-release.sh <repo> --upgrade --dry-run  # an adopted repo: is its release.yml an untouched seed?
 ```
 
 It detects the ecosystem and stamps in the per-repo glue (the shared logic stays in `bamr87/.github`):
 
 ```
-.github/workflows/ci.yml        # → ci.yml@main         (skipped if the repo already has CI)
-.github/workflows/release.yml   # → release-please.yml@main → publish.yml@main
+.github/workflows/ci.yml        # → bamr87/bamr87 standard-ci.yml@v1   (skipped if the repo already has CI)
+.github/workflows/release.yml   # → release-please.yml@v1 → publish.yml@v1   (bamr87/.github)
 release-please-config.json      # release-type: ruby | node | python | simple
 .release-please-manifest.json   # {".": "<current version>"}
 CHANGELOG.md                    # seeded if missing
 RELEASING.md                    # per-repo cheat-sheet
 ```
 
-The scaffolded `ci.yml` still calls `bamr87/.github`'s unused `ci.yml` gate (`templates/release-pipeline/ci.yml`). None of the five current adopters (fredgar-ai, zer0-CMS, zer0-image-generator, zer0-mistakes, zpl-viewer) calls it today; pointing the kit at `standard-ci.yml` is a separate change.
+The templates are the release-pipeline kit, [`templates/release-pipeline/`](../templates/release-pipeline/), versioned in its `VERSION` file. Both callers pin a floating major tag, never a branch (UPS-WORK-10, UPS-QA-40); kit 0.1.0 called `bamr87/.github` at `@main`, which is how bamr87/bashos#97 failed its pin check. `--upgrade` rewrites only `release.yml`, and only when it is byte-identical to the current template or to a shape in the kit's `archive/`; a hand-edited copy is reported and left alone. `bamr87/.github`'s `release-please.yml` is the legacy caller under decision D3 (UPS-REPO-21, warn-only during its rollout); the sdlc kit seeds the hub's own `release-please.yml@v2` instead.
 
 `release-type` is chosen automatically: `ruby` (gemspec), `node` (publishable `package.json`), `python` (pyproject/setup with packaging metadata), else **`simple`** (version + changelog + GitHub Release, no package) — which covers docs, Jekyll, bash, and script repos.
 
