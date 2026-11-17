@@ -53,9 +53,14 @@ SKIP_DIRS = {".git", "node_modules", "_site", "site", "dist", "build", ".venv", 
 # repo model
 # --------------------------------------------------------------------------- #
 class Repo:
-    def __init__(self, path: Path, hub: Path):
+    def __init__(self, path: Path, hub: Path, instance: Path | None = None):
         self.path = path.resolve()
+        # Two roots (docs/adr/0011): `hub` is the FRAMEWORK checkout — the spec,
+        # the contracts, the kits and the tools a copy is compared against;
+        # `instance` is the control plane that OWNS this repo — its registry and
+        # its settings. They are the same directory unless an instance is named.
         self.hub = hub.resolve()
+        self.instance = (instance or hub).resolve()
         self._tracked: list[str] | None = None
         self._files: list[Path] | None = None
         self.registry_entry: dict | None = None   # hub registry entry; fleet mode sets it
@@ -1060,7 +1065,7 @@ def registry_entry(r) -> dict | None:
     if r.registry_entry is None:
         r.registry_entry = {}
         nwo = _origin_nwo(r)
-        reg = r.hub / "_data" / "projects.yml"
+        reg = r.instance / "_data" / "projects.yml"
         if nwo and reg.is_file():
             for e in yaml.safe_load(reg.read_text(encoding="utf-8")) or []:
                 if re.sub(r"^https://github\.com/", "", str(e.get("repo_url", ""))).rstrip("/").lower() == nwo:
@@ -1533,13 +1538,20 @@ def _freshness(r, k):
 
 
 def fleet_types(r) -> set[str]:
-    """Contract labels_source: hub _data/fleet.yml issue_pipeline.labels (types)."""
-    try:
-        cfg = yaml.safe_load((r.hub / "_data" / "fleet.yml").read_text(encoding="utf-8")) or {}
-        types = cfg["issue_pipeline"]["labels"]["types"]
-        return {str(t) for t in types} if types else set(FLEET_TYPES_FALLBACK)
-    except (OSError, KeyError, TypeError, yaml.YAMLError):
-        return set(FLEET_TYPES_FALLBACK)
+    """Contract labels_source: _data/fleet.yml issue_pipeline.labels (types).
+
+    The instance's settings win; an instance that does not set the labels gets
+    the framework's, and a checkout with neither gets the fallback.
+    """
+    for root in dict.fromkeys((r.instance, r.hub)):
+        try:
+            cfg = yaml.safe_load((root / "_data" / "fleet.yml").read_text(encoding="utf-8")) or {}
+            types = cfg["issue_pipeline"]["labels"]["types"]
+        except (OSError, KeyError, TypeError, yaml.YAMLError):
+            continue
+        if types:
+            return {str(t) for t in types}
+    return set(FLEET_TYPES_FALLBACK)
 
 
 def _form_labels(p: Path) -> list[str] | None:
@@ -1896,16 +1908,31 @@ def kinds_from_stack(entry: dict) -> list[str] | None:
     return [str(x) for x in k] if isinstance(k, list) and k else None
 
 
-def fleet(hub: Path, write: Path | None, as_json: bool) -> int:
+def instance_data(instance: Path, hub: Path, name: str) -> Path:
+    """An instance's own `_data/<name>`, else the framework's as the default."""
+    own = instance / "_data" / name
+    return own if own.is_file() else hub / "_data" / name
+
+
+def fleet(hub: Path, write: Path | None, as_json: bool, instance: Path | None = None) -> int:
+    """Check every checked-out repo of one instance's registry.
+
+    `hub` is the framework checkout (spec, contracts, kits, tools). `instance`
+    is the control plane whose `_data/projects.yml` lists the repos and whose
+    `projects/` holds them; it defaults to `hub`, the single-root layout. The
+    registry is the instance's alone; `standards.yml` is the instance's when it
+    has one, else the framework's tiers.
+    """
+    instance = instance or hub
     specs = load_specs(hub)
-    registry = yaml.safe_load((hub / "_data" / "projects.yml").read_text(encoding="utf-8")) or []
-    standards = yaml.safe_load((hub / "_data" / "standards.yml").read_text(encoding="utf-8")) or {}
+    registry = yaml.safe_load((instance / "_data" / "projects.yml").read_text(encoding="utf-8")) or []
+    standards = yaml.safe_load(instance_data(instance, hub, "standards.yml").read_text(encoding="utf-8")) or {}
     repos, skipped = [], []
     for e in registry:
         sub = e.get("submodule_path")
         if not sub:
             continue
-        path = hub / sub
+        path = instance / sub
         if not (path / ".git").exists() and not (path / "README.md").exists():
             skipped.append({"name": e["name"], "reason": "not checked out"})
             continue
@@ -1913,7 +1940,7 @@ def fleet(hub: Path, write: Path | None, as_json: bool) -> int:
         if tier in ("fork", "archived"):
             skipped.append({"name": e["name"], "reason": f"tier {tier}"})
             continue
-        repo = Repo(path, hub)
+        repo = Repo(path, hub, instance)
         repo.registry_entry = e
         kinds = kinds_from_stack(e) or profile_kinds(repo) or detect_kinds(repo)
         res = run_checks(repo, kinds, tier, specs)
@@ -1996,18 +2023,25 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--json", action="store_true")
     c.add_argument("--hub", default=str(HUB_DEFAULT), help="hub checkout holding _data/specs.yml")
     f = sub.add_parser("fleet", help="check every checked-out submodule")
-    f.add_argument("--write", nargs="?", const=str(HUB_DEFAULT / "_data" / "conformance.yml"))
+    f.add_argument("--write", nargs="?", const="",
+                   help="write the snapshot (default: the instance's _data/conformance.yml)")
     f.add_argument("--json", action="store_true")
     f.add_argument("--hub", default=str(HUB_DEFAULT))
     k = sub.add_parser("kinds", help="print detected kinds for a path")
     k.add_argument("path", nargs="?", default=".")
     k.add_argument("--hub", default=str(HUB_DEFAULT))
+    for p in (c, f, k):
+        p.add_argument("--instance", default=os.environ.get("FLEET_HOME") or None,
+                       help="the control plane that owns the repos: its _data/projects.yml and projects/ "
+                            "(default: $FLEET_HOME, else --hub; docs/adr/0011)")
     a = ap.parse_args(argv)
     hub = Path(a.hub)
+    instance = Path(a.instance) if a.instance else hub
 
     if a.cmd == "fleet":
-        return fleet(hub, Path(a.write) if a.write else None, a.json)
-    repo = Repo(Path(a.path), hub)
+        write = None if a.write is None else Path(a.write) if a.write else instance / "_data" / "conformance.yml"
+        return fleet(hub, write, a.json, instance)
+    repo = Repo(Path(a.path), hub, instance)
     if a.cmd == "kinds":
         print(",".join(detect_kinds(repo)))
         return 0
