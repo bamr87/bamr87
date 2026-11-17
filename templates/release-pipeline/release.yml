@@ -1,8 +1,13 @@
 name: Release
 
+# kit: release-pipeline v__KIT_VERSION__
 # Scaffolded by tools/adopt-release.sh — Conventional Commits drive release-please
 # (opens a release PR that bumps the version + CHANGELOG); merging it tags, releases,
 # and publishes. Shared logic lives in bamr87/.github. See release-please-config.json.
+#
+# Pinned to bamr87/.github's floating major tag, never a branch (UPS-WORK-10,
+# UPS-QA-40). `tools/adopt-release.sh <repo> --upgrade` refreshes this file while
+# it is untouched; a hand-edited copy is left alone.
 
 on:
   push:
@@ -14,7 +19,7 @@ permissions:
 
 jobs:
   release:
-    uses: bamr87/.github/.github/workflows/release-please.yml@main
+    uses: bamr87/.github/.github/workflows/release-please.yml@v1
     permissions:
       contents: write
       pull-requests: write
@@ -23,7 +28,7 @@ jobs:
   publish:
     needs: release
     if: needs.release.outputs.release_created == 'true'
-    uses: bamr87/.github/.github/workflows/publish.yml@main
+    uses: bamr87/.github/.github/workflows/publish.yml@v1
     with:
       tag: ${{ needs.release.outputs.tag_name }}
       version: ${{ needs.release.outputs.version }}
