@@ -649,6 +649,47 @@ decisions:
     skip_branches: [chore/jev-ratify]                # the ratification-record branch is automation's (§ 12.3)
 
 # --------------------------------------------------------------------------- #
+# PR queue — every open pull request of the hub and the registry repos, who
+# moves each one next, and bulk actions an agent carries out once the maintainer
+# confirms (docs/PR-QUEUE.md, the console's /prs, `tools/dash prs`, the MCP's
+# pr_queue). Built on the decision index above plus one batched detail read per
+# pull request (.fleet/prqueue/, gitignored). Every action is planned from live
+# GitHub first and applied only with the same plan_id after the confirm.
+#
+# `merge` and `close` stay off: § 11.2 says the console never merges, § 11.1
+# lists no pull-request close, and § 12.2 lets an agent merge only an ungated
+# pull request with a merge commit. A merge the maintainer selects and confirms
+# here is arguably his own, but the constitution has to say so first; turning
+# either on is a gated change (§ 12.3) after that amendment is ratified.
+# --------------------------------------------------------------------------- #
+pr_queue:
+  ttl_s: 600                # a pull request's detail older than this, or read before its last update, is read again
+  budget_s: 20              # the wall clock of one /api/prs answer; past it the answer is partial and says so
+  refresh_budget_s: 90      # the same for `tools/dash prs refresh`
+  detail_batch: 5           # pull requests per detail query (checks, files, comments make each one heavy)
+  concurrency: 6
+  max_targets: 50           # pull requests per plan (§ 11.5 caps a plan at 50 ops)
+  batch_min_repos: 2        # a head branch open in this many repos is a fan-out batch
+  rerun_wait_s: 900         # one re-run must finish before the next on the same pull request starts
+  merge:
+    enabled: false          # see above: off until the amendment; never_merge repos come from weekly.closeout
+  close:
+    enabled: false          # see above: off until the amendment
+  agent:                    # local:pr-queue-agent (_data/agents.yml): one capped session per pull request
+    enabled: true           # runs only on the maintainer's confirm in the console (confirm: spend)
+    model: claude-sonnet-5-5   # an exact id in ai_models.allowed (§ 13.3)
+    max_turns: 40
+    usd: 2                  # per pull request, API-equivalent (estimate); inside budget.loops.monthly_usd
+    max_prs: 5              # pull requests per run
+    timeout_s: 1800
+  repo_rules:               # a repo's own rule the queue honours, from its constitution or ADRs
+    bamr87/gitorio:
+      dependabot_merge_label: dep:merge-approved   # ADR-039: Dependabot merges go through this label
+    bamr87/it-journey:
+      agent_deny_paths:                            # the Warden Pact keeps agents out of the workflows
+        - '(^|/)\.github/workflows/'
+
+# --------------------------------------------------------------------------- #
 # Verification — the AGENT VERIFICATION standard's knobs (docs/VERIFICATION.md).
 #
 # Tests prove the code; verification proves the PRODUCT, by using it the way a
@@ -1175,6 +1216,20 @@ harness:
       switch: {config: weekly.enabled, uninstall: tools/install-weekly.sh --uninstall}
       run_record: ai-ledger
       local_entry: tools/dash weekly close
+    local:pr-queue-agent:
+      # The PR queue's `agent` bulk action (docs/PR-QUEUE.md): one capped session per
+      # pull request the maintainer selected and confirmed; no schedule, no installer.
+      declare:
+        kind: local-job
+        where: tools/console/pr_queue.py
+        trigger: "on demand: the maintainer's confirm of an agent plan on the console's /prs (the prs-agent operation)"
+        runs: ["tools/dash prs apply --plan-id <id> --apply"]
+      reads: [github-live, registry]
+      model_from: pr_queue.agent.model
+      budget_from: {per_run_usd: pr_queue.agent.usd, monthly_usd: budget.loops.monthly_usd}
+      switch: {config: pr_queue.agent.enabled}
+      run_record: ai-ledger
+      local_entry: tools/dash prs apply --plan-id <id> --apply
 
 # --------------------------------------------------------------------------- #
 # Harness refinement — JEV capability three: recursive harness refinement after

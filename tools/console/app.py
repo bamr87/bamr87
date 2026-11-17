@@ -50,6 +50,7 @@ from pydantic import BaseModel, Field
 import core
 import decision_index
 import github_link as ghl
+import pr_queue
 import site_docs
 import tui_bridge
 import live
@@ -996,6 +997,66 @@ def decisions(kind: str = Query(default="", pattern=r"^[a-z_]{0,20}$"),
                                     budget_s=budget or None, token=lambda: ghl.token_source()[1])
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/api/prs", dependencies=[Depends(require_token)])
+def prs(repo: str = Query(default="", max_length=140), kind: str = Query(default="", pattern=r"^[a-z_]{0,20}$"),
+        who: str = Query(default="", pattern=r"^[a-z]{0,10}$"), gate: str = Query(default="", pattern=r"^(|gated|ungated)$"),
+        batch: str = Query(default="", max_length=200), check: str = Query(default="", pattern=r"^[a-z_]{0,20}$"),
+        refresh: str = Query(default="auto", pattern=r"^[a-z]{1,10}$"), budget: float = Query(default=0, ge=0, le=60),
+        limit: int = Query(default=500, ge=0, le=1000)) -> dict:
+    """The PR queue (pr_queue.py over fleetcore.prqueue; docs/PR-QUEUE.md): every open pull request of the
+    hub and the registry repos with its checks collapsed per check, the review gate, the merge method and
+    who moves it next, plus the fan-out batches and the bulk actions with their switches. Read-only;
+    never part of the public snapshot (the index can hold a private repo's titles)."""
+    try:
+        return pr_queue.queue(core.REPO_ROOT, refresh=refresh, budget_s=budget or None, limit=limit,
+                              token=lambda: ghl.token_source()[1],
+                              filters={"repo": repo, "kind": kind, "who": who, "gate": gate, "batch": batch, "check": check})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+class PrPlanRequest(BaseModel):
+    action: str = Field(pattern=r"^[a-z-]{2,20}$")
+    prs: list[str] = Field(min_length=1, max_length=50)
+    params: dict = Field(default_factory=dict)
+
+
+@app.post("/api/prs/plan", dependencies=[Depends(require_token)])
+def prs_plan(req: PrPlanRequest) -> dict:
+    """Plan one bulk action over the selected pull requests from LIVE GitHub: each one's exact op (the
+    argv, the comment's bytes, the run ids) or why it is skipped, under a deterministic plan_id. Writes
+    only the plan file (.fleet/prqueue/plans/); the `prs-act` / `prs-agent` operation applies it by
+    that id after the confirm, and refuses it if a pull request moved since."""
+    try:
+        return pr_queue.plan(req.action, req.prs, req.params, root=core.REPO_ROOT)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/api/prs/plan/{plan_id}", dependencies=[Depends(require_token)])
+def prs_plan_get(plan_id: str) -> dict:
+    """A stored plan, as previewed."""
+    try:
+        doc = pr_queue.stored_plan(plan_id, core.REPO_ROOT)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if doc is None:
+        raise HTTPException(status_code=404, detail="no such plan")
+    return doc
+
+
+@app.get("/api/prs/result/{plan_id}", dependencies=[Depends(require_token)])
+def prs_result(plan_id: str) -> dict:
+    """What an applied plan did, one result per pull request (written by `tools/dash prs apply --apply`)."""
+    try:
+        doc = pr_queue.stored_result(plan_id, core.REPO_ROOT)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if doc is None:
+        raise HTTPException(status_code=404, detail="no result for this plan yet")
+    return doc
 
 
 @app.get("/api/keys")
