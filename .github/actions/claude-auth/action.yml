@@ -12,11 +12,9 @@
 #     with:
 #       order: <the repo variable CLAUDE_AUTH_ORDER>
 #       has-oauth: <whether CLAUDE_CODE_OAUTH_TOKEN is non-empty>
-#       api-key: <the ANTHROPIC_API_KEY secret>
 #   - uses: anthropics/claude-code-action@v1
 #     with:
 #       claude_code_oauth_token: <the OAuth secret when method is oauth, else empty>
-#       anthropic_api_key: <the API key secret when method is api_key, else empty>
 #
 # (templates/agent-context/claude.yml is the complete, copyable caller.)
 #
@@ -28,12 +26,21 @@
 #
 # Never fails the job: `method` is `none` when nothing usable is left, and the
 # caller's own "is there a credential?" gate decides what that means.
+#
+# Claude auth: OAuth only (CLAUDE_CODE_OAUTH_TOKEN). ANTHROPIC_API_KEY disabled
+# for now (2026-11-15): the default order is `oauth`, and `api_key` is taken
+# out of any order with a notice (an order left empty is `oauth`), so this
+# action never returns `api_key`. The `api-key` and `check-api-key` inputs
+# stay declared (and unread) so callers in other repos that still pass them
+# do not fail. To restore: drop the OAuth-only block in the step below, set
+# the default back to `oauth,api_key`, and re-add the secrets.ANTHROPIC_API_KEY
+# reference at the call sites.
 # =============================================================================
 name: claude-auth
 description: Choose the Claude credential for this run from the repo's CLAUDE_AUTH_ORDER variable.
 inputs:
   order:
-    description: Comma list of methods, e.g. `oauth,api_key`. Empty means the fleet default, `oauth,api_key`.
+    description: Comma list of methods, e.g. `oauth`. Empty means the fleet default, `oauth`. `api_key` is ignored for now (OAuth only).
     required: false
     default: ""
   has-oauth:
@@ -41,11 +48,11 @@ inputs:
     required: false
     default: "false"
   api-key:
-    description: The API key secret. Needed only to check it is accepted; empty means absent.
+    description: Unused for now (OAuth only) — kept so existing callers do not fail. Was the API key secret, to check it is accepted.
     required: false
     default: ""
   check-api-key:
-    description: "'false' skips the models-endpoint check and chooses the key on presence alone."
+    description: "Unused for now (OAuth only). Was: 'false' skips the models-endpoint check and chooses the key on presence alone."
     required: false
     default: "true"
 outputs:
@@ -70,7 +77,14 @@ runs:
         ORDER="${ORDER:-}"; HAS_OAUTH="${HAS_OAUTH:-false}"; API_KEY="${API_KEY:-}"; CHECK_KEY="${CHECK_KEY:-true}"
         [ -n "$API_KEY" ] && echo "::add-mask::$API_KEY"
         order="$(printf '%s' "${ORDER:-}" | tr -d '[:space:]')"
-        [ -n "$order" ] || order="oauth,api_key"
+        [ -n "$order" ] || order="oauth"
+        # OAuth only for now (2026-11-15): the key is never chosen, whatever the
+        # order says or the caller passes. See the header to restore.
+        if [[ ",$order," == *,api_key,* ]]; then
+          echo "::notice::claude-auth: ANTHROPIC_API_KEY is disabled for now (OAuth only) — ignoring api_key in order '$order'"
+          order="$(printf '%s' ",$order," | sed -e ':a' -e 's/,api_key,/,/' -e 'ta' -e 's/^,*//' -e 's/,*$//')"
+          [ -n "$order" ] || order="oauth"
+        fi
         method=none; notes=()
         IFS=, read -r -a methods <<<"$order"
         for m in "${methods[@]}"; do

@@ -44,9 +44,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          # Check out the PR's head BRANCH, not the merge commit, so the repair
-          # can be committed onto it and pushed back.
-          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+          # Check out the PR's head COMMIT, not the merge commit, so the repair
+          # can be committed onto it and pushed back. By SHA, not branch name:
+          # a PR merged seconds after its last push (jev-numbering) has its
+          # branch auto-deleted before this job starts, and fetching the gone
+          # branch failed checkout after ~35s of retries. The SHA stays
+          # reachable through refs/pull/N/head.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
       - uses: actions/setup-python@v7
         with:
@@ -75,6 +79,12 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # A deleted branch means the PR already merged: pushing would
+          # resurrect it. The push-to-main run reports the prose instead.
+          if ! git ls-remote --exit-code --heads origin "refs/heads/$HEAD_REF" >/dev/null; then
+            echo "::notice::Branch $HEAD_REF is gone (PR merged or closed); not recreating it."
+            exit 0
+          fi
           git commit -a -m "style: unwrap soft-wrapped markdown prose"
           git push origin "HEAD:refs/heads/$HEAD_REF"
           echo "::notice::Unwrapped markdown prose and pushed the fix to this PR."

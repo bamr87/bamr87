@@ -1,9 +1,9 @@
 kit: agent-context
-version: 0.6.0
+version: 0.7.0
 source: bamr87/bamr87 templates/agent-context/
 seeded-by: .github/workflows/fanout.yml (kit standardize or harness; artifacts agent-context, claude, claude-settings, claude-guardrails, claude-agent-auditor) via tools/fanout.sh
-files: CLAUDE.template.md, claude.yml, settings.template.json, quarantine.template.md, agent-auditor.template.md, archive/claude-0.1.0.yml, archive/claude-0.1.0-checkout-v7.yml, archive/claude-0.3.1.yml, archive/claude-0.4.0.yml, archive/claude-0.5.0.yml
-updated: 2026-11-11
+files: CLAUDE.template.md, claude.yml, settings.template.json, quarantine.template.md, agent-auditor.template.md, archive/claude-0.1.0.yml, archive/claude-0.1.0-checkout-v7.yml, archive/claude-0.3.1.yml, archive/claude-0.4.0.yml, archive/claude-0.5.0.yml, archive/claude-0.6.0.yml
+updated: 2026-11-15
 position-amendment: |
   The 0.3.0/0.4.0 position below — "hooks/skills/commands/agents never fan out
   by default; dedicated, explicitly-requested kit artifacts are the sanctioned
@@ -25,6 +25,14 @@ position-amendment: |
   and silently strand it from `--upgrade` — the exact failure the 0.3.1 entry
   below records. Amend the position; leave the stamp alone.
 changelog: |
+  0.7.0 — claude.yml is OAuth only for now (Amr, 2026-11-15): the claude-auth
+  step no longer receives `api-key` and claude-code-action no longer receives
+  `anthropic_api_key`, so the handler runs on CLAUDE_CODE_OAUTH_TOKEN alone.
+  The ANTHROPIC_API_KEY secret was being rejected, and on paths that saw both
+  credentials it hid a working OAuth token. The secret itself is untouched;
+  restoring the key is a revert of this change. The outgoing shape is
+  archived as archive/claude-0.6.0.yml BEFORE this edit, so `fanout.sh
+  --upgrade` reaches every untouched 0.6.0 copy.
   0.6.0 — claude.yml is rebuilt to the harness standard (bamr87/bamr87
   _data/fleet.yml `harnesses.standard`, docs/HARNESS-OPS.md). The 0.5.0 shape
   failed three of its controls in every one of the 36 untouched fleet copies,
