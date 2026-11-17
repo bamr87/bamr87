@@ -45,9 +45,9 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 | --- | --- | --- | --- | --- |
 | [`agent-context/`](templates/agent-context/) | 0.6.0 | 2026-11-11 | .github/workflows/fanout.yml (kit standardize or harness; artifacts agent-context, claude… | `CLAUDE.template.md`, `agent-auditor.template.md`, `claude.yml`, `quarantine.template.md`, `settings.template.json` |
 | [`ai-ready/`](templates/ai-ready/) | 0.0.0 | 2026-10-30 | not yet; fan-out follows ratification of constitution § 16 (amendment ai-ready-foundation) | `README.md` |
-| [`ai-runner/`](templates/ai-runner/) | 0.3.0 | 2026-11-13 | consumed BY REFERENCE (uses: bamr87/bamr87/.github/actions/claude-run@main, or the reusab… | `README.md`, `ai-lane.template.yml`, `tests/contract.sh` |
+| [`ai-runner/`](templates/ai-runner/) | 0.4.0 | 2026-11-14 | consumed BY REFERENCE (uses: bamr87/bamr87/.github/actions/claude-run@v2, or the reusable… | `README.md`, `ai-lane.template.yml`, `tests/contract.sh` |
 | [`community/`](templates/community/) | 0.1.0 | 2026-10-03 | Distribution is by INHERITANCE first: the PR template, the issue forms, CONTRIBUTING.md,… | `.github/CODEOWNERS`, `.github/ISSUE_TEMPLATE/bug_report.yml`, `.github/ISSUE_TEMPLATE/config.yml`, `.github/ISSUE_TEMPLATE/documentation.yml`, `.github/ISSUE_TEMPLATE/feature_request.yml`, `.github/… |
-| [`conformance/`](templates/conformance/) | 0.1.0 | 2026-09-01 | tools/fanout.sh --kit standardize --artifacts conformance (fanout.yml, kit standardize) | `README.md`, `conformance.yml` |
+| [`conformance/`](templates/conformance/) | 0.2.0 | 2026-11-14 | tools/fanout.sh --kit standardize --artifacts conformance (fanout.yml, kit standardize) | `README.md`, `conformance.yml` |
 | [`elk/`](templates/elk/) | 0.2.0 | 2026-11-10 | tools/fanout.sh --kit elk --target <name> [--apply] | `README.md`, `SCHEMA.md`, `adapters/django-logging.py`, `adapters/node-pino.mjs`, `adapters/python-logging.py`, `adapters/rails-lograge.rb`, `compose.elk.yml`, `compose.labels.yml`, `filebeat.fleet.y… |
 | [`feedback/`](templates/feedback/) | 0.2.0 | 2026-09-07 | tools/fanout.sh --kit feedback --target <name> [--apply] | `README.md`, `adapters/FeedbackButton.tsx`, `adapters/django.html`, `adapters/jekyll.html`, `adapters/nextjs.tsx`, `capture.js`, `feedback_types.yml`, `fleet-feedback.js`, `package.json`, `page_feedb… |
 | [`fleet-engines/`](templates/fleet-engines/) | 0.1.0 | 2026-09-08 | consumed BY DEPENDENCY — npm install @bamr87/fleet-engines (publish-kits.yml publishes on… | `.gitignore`, `README.md`, `package.json`, `src/fleet/audit.test.ts`, `src/fleet/audit.ts`, `src/fleet/facts.test.ts`, `src/fleet/facts.ts`, `src/fleet/fixtures/README.md`, `src/fleet/fixtures/cv--ma… |
@@ -63,7 +63,7 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 | [`spec-driven/`](templates/spec-driven/) | 0.2.0 | 2026-10-25 | tools/fanout.sh --kit spec-driven (resolver + spec-gate caller + vendored tools; plugin e… | `.claude-plugin/plugin.json`, `BACKLOG.template.md`, `README.md`, `agents/backlog-triager.md`, `constitution.template.md`, `fleet-kit.sh`, `hooks/gate-check.sh`, `hooks/hooks.json`, `review-questions… |
 | [`standard-ci/`](templates/standard-ci/) | 0.1.0 | 2026-08-09 | .github/workflows/fanout.yml (kit standardize, artifact `ci`) via tools/fanout.sh | `ci.yml` |
 | [`ux-audit/`](templates/ux-audit/) | 0.1.0 | 2026-09-18 | tools/fanout.sh --kit ux-audit (OPT-IN; never in the default artifact set) | `AGENT_PROMPT.md`, `README.md`, `prompts/a11y.md`, `prompts/design-system.md`, `prompts/interaction.md`, `prompts/microcopy.md`, `prompts/synthesizer.md`, `scripts/collect_evidence.mjs`, `scripts/ux_… |
-| [`verify/`](templates/verify/) | 0.2.0 | 2026-11-07 | tools/fanout.sh --kit verify (fanout.yml, kit verify); `dash verify deploy` | `EVIDENCE-README.template.md`, `README.md`, `SKILL.template.md`, `features.template.yml`, `mcp.json`, `runner.mjs`, `scenario.template.yml`, `verifier.template.md`, `verify.template.yml`, `verify.yml` |
+| [`verify/`](templates/verify/) | 0.3.0 | 2026-11-14 | tools/fanout.sh --kit verify (fanout.yml, kit verify); `dash verify deploy` | `EVIDENCE-README.template.md`, `README.md`, `SKILL.template.md`, `features.template.yml`, `mcp.json`, `runner.mjs`, `scenario.template.yml`, `verifier.template.md`, `verify.template.yml`, `verify.yml` |
 
 ## 3. Reference implementations
 
@@ -216,6 +216,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_fleetcore_learn.py`](tools/test_fleetcore_learn.py) | Tests for tools/fleetcore/learn.py — outcome learning in shadow: how an output is sorted into an outcome, the estimate and its decay, the Thompson plan, the replay skill… |
 | [`test_fleetcore_mcp.py`](tools/test_fleetcore_mcp.py) | Fixture tests for tools/fleetcore/mcp_server.py — the fleet console as an MCP server, the agent's write path into the console's job API. |
 | [`test_fleetcore_nodes.py`](tools/test_fleetcore_nodes.py) | Fixture tests for tools/fleetcore/nodes.py — where each hub workload runs (ADR 0003, docs/PLATFORM.md). |
+| [`test_fleetcore_yamlio.py`](tools/test_fleetcore_yamlio.py) | Tests for tools/fleetcore/yamlio.py — the one YAML reader the surfaces share: the same objects `yaml.safe_load` builds, one parse per version of a file, a private copy p… |
 | [`test_frontend_registry.py`](tools/test_frontend_registry.py) | Tests for tools/frontend_registry.py — the § 18 frontend: block lint and the launcher projection. |
 | [`test_governance_lint.py`](tools/test_governance_lint.py) | Tests for tools/governance_lint.py (stdlib + PyYAML). |
 | [`test_governance_trace_lint.py`](tools/test_governance_trace_lint.py) | Fixture tests for governance_trace_lint.py.""" import sys from pathlib import Path |
@@ -467,6 +468,7 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`MACHINE-API.md`](docs/MACHINE-API.md) | The agent-facing JSON the site publishes (`/api/v1/*.json`, `llms.txt`) and how to start from it. |
 | [`MCP-SERVERS.md`](docs/MCP-SERVERS.md) | Status: **proposed** (constitution § 25, amendment `mcp-lifecycle`; epic [#683](https://github.com/bamr87/bamr87/issues/683), backlog [#684](https://github.com/bamr87/ba… |
 | [`OBSERVABILITY.md`](docs/OBSERVABILITY.md) | The local log, metrics and trace planes joined on one `trace.id`: retention, redaction, the console's Observe portal and the code index. |
+| [`ONPREM-COMPUTE.md`](docs/ONPREM-COMPUTE.md) | A plan to enrol Amr's new on-premise machine as a fleet node that serves local LLMs, hosts Claude Code sessions, takes over the local housekeeping a GitHub-hosted runner… |
 | [`PLATFORM.md`](docs/PLATFORM.md) | How the fleet's development platform spreads its workloads across the Mac and forge, which layer owns what, and how the same definitions scale out to any cloud or on-pre… |
 | [`PM.md`](docs/PM.md) | A daily, read-only review that keeps three records in line with what GitHub actually holds: the Fleet project, the roadmap and each repo's release train. |
 | [`PORTFOLIO.md`](docs/PORTFOLIO.md) | The portfolio standard: repository descriptions, the topic taxonomy, the homepage rule, the README skeleton and the profile index. |

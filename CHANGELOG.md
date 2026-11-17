@@ -6,6 +6,14 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+### Added
+
+- Proposed constitution § 30 / amendment `onprem-compute` and the plan [docs/ONPREM-COMPUTE.md](../docs/ONPREM-COMPUTE.md): Amr's new on-premise machine enrolled as a fleet node for local LLMs and Claude Code sessions, local models as an eval-gated tier, honest on-premise cost, node-local housekeeping for the weekend routine, and a self-hosted runner allowed only behind fences. Nothing is deployed.
+
+### Security
+
+- `site-quality.yml` runtime: the `basic-ftp` override moves from 6.2.3 to the patched 6.2.6, so the transitive copy under `@lhci/cli` and `pa11y` (via `get-uri`) resolves to the fixed release; the exact 6.2.3 pin had kept Dependabot from applying the advisory update.
+
 ## [2.1.0] - 2026-11-14
 
 Every change to the versioned interface since 2.0.0 is additive or relaxes a failure, so this is a minor release and the floating `v2` moves to it. `standard-ci.yml` gains three optional inputs whose empty defaults keep the old behaviour; `release-please.yml` gains `strict-pr-creation` (default `false`) and now warns, instead of failing, on the one PR-creation denial a caller cannot fix (#406), and its internal `release-please-action` moves from v4 to v5, whose only breaking change is the Node 24 runtime GitHub-hosted runners provide; `spec-gate.yml` and `pr-review.yml` are new, so `@v2` callers of either stop failing to resolve. Files that ride on the tag without the compatibility promise move too: `claude-run@v2` gains the explicit `@latest` CLI install that Node 20 runners need and the empty-model fix, and `fleet-verify.yml` fails an app that is configured but does not start.

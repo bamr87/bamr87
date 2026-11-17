@@ -88,7 +88,7 @@ The in-repo Universal Project Standard gate (spec: [`specs/CONFORMANCE.md`](../s
 
 | File | Purpose |
 | --- | --- |
-| `conformance.yml` | caller → `fleet-conformance.yml@main` (`__DEFAULT_BRANCH__` substituted); inputs `kinds`, `tier`, `gate`, `hub-ref` |
+| `conformance.yml` | caller → `fleet-conformance.yml@v2` with `hub-ref: v2` (`__DEFAULT_BRANCH__` substituted); inputs `kinds`, `tier`, `gate`, `hub-ref` |
 | `VERSION` | Kit provenance + changelog |
 
 ## `feedback/`
@@ -145,7 +145,7 @@ The AI runner kit — the fleet's one model step and one lane shape, **consumed 
 
 | File | Purpose |
 | --- | --- |
-| `../../.github/actions/claude-run/` | The runtime: `action.yml` + `run.sh`. `uses: bamr87/bamr87/.github/actions/claude-run@main` with `prompt`, `agent`, `tools`, `mcp`, `system`, `out`, `model`, `max-turns`, `max-budget-usd`, `permission-mode`. Claude Code first (OAuth-first), consumer-owned API fallback and metering when present, exit 1 on attempted-and-failed |
+| `../../.github/actions/claude-run/` | The runtime: `action.yml` + `run.sh`. `uses: bamr87/bamr87/.github/actions/claude-run@v2` with `prompt`, `agent`, `tools`, `mcp`, `system`, `out`, `model`, `max-turns`, `max-budget-usd`, `permission-mode`. Claude Code first (OAuth-first), consumer-owned API fallback and metering when present, exit 1 on attempted-and-failed |
 | `../../.github/workflows/ai-lane.yml` | The reusable lane (`workflow_call`): kill switch (`vars.<SWITCH>`, dispatch bypasses), bot guard, named concurrency, probed `GH_PAT` → `GH_TOKEN`, runtimes, pre/post hooks, the model step, the result-file assertion, artifact |
 | `ai-lane.template.yml` | A caller of the lane — copy one per lane, fill `__LANE__`, `__SWITCH__`, `__AGENT__`, `__PROJECT_NAME__`, `__CRON__` (stamped `# kit: ai-runner v__KIT_VERSION__`); a filled copy passes the harness standard |
 | `tests/contract.sh` | The runner's contract tests, 33 cases (stubbed `claude`, no credential, no network); CI: `ai-runner-contract.yml`. A consumer that still vendors the runner proves parity with `AI_RUNNER_SUT=scripts/ai/run.sh bash tests/contract.sh` |
@@ -163,7 +163,12 @@ The prose style kit, seeded by `tools/fanout.sh --kit prose` (branch `style/mark
 
 | File | Purpose |
 | --- | --- |
-| `markdown-oneline.yml` | CI gate enforcing one-paragraph-per-line markdown (`__DEFAULT_BRANCH__` substituted); the fan-out also vendors the Liquid-safe `tools/unwrap-prose.py` and runs a one-time unwrap (SCHEMA.md/CHANGELOG.md skipped) |
+| `markdown-oneline.yml` | CI gate enforcing one-paragraph-per-line markdown (`__DEFAULT_BRANCH__` substituted); the fan-out also vendors the Liquid-safe `tools/unwrap-prose.py` and runs a one-time unwrap (SCHEMA.md/CHANGELOG.md skipped). On a same-repo PR it unwraps and pushes the repair to the PR's branch; it checks out the head by SHA, not branch name, and skips the push when the branch is already gone, so an auto-merged PR whose branch was deleted before the job started stays green (kit 0.5.0) |
+| `VERSION` | Kit version and changelog; `fanout.sh` stamps nothing into the seed, so identity is byte comparison |
+| `archive/markdown-oneline-<X.Y.Z>.yml` | Every shape the kit has seeded (0.1.0–0.4.0); `--upgrade` refreshes a deployed copy only when it is byte-identical to the template or one of these. Archive the outgoing shape BEFORE editing the template |
+| `test_prose_kit.py` | Contract test: checkout by SHA, the gone-branch guard, branch name via `env:` only, every archived shape distinct and listed in `VERSION` (`python3 templates/prose/test_prose_kit.py`) |
+
+Upgrade the fleet with `tools/fanout.sh --kit prose --target <name|all> --upgrade` (dry run without `--apply`): a copy reported `upgradeable machine seed` is refreshed, a `hand-modified` one is left alone and needs the change by hand.
 
 Placeholders use the `__NAME__` convention and are replaced by the tools via `sed`.
 

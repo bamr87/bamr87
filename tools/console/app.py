@@ -43,6 +43,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, WebSocket
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, StreamingResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 
@@ -212,6 +213,15 @@ async def remote_page(request: Request, call_next):
     for k, v in headers.items():
         response.headers[k] = v
     return response
+
+
+# Added last, so it is outermost and compresses the finished response with the
+# headers above already on it. The documents are JSON and the page is one
+# script: /api/work went over the wire as 770 KB and the script as 1.3 MB. An
+# event stream is left alone (Starlette excludes text/event-stream, which
+# test_console.py holds). No minimum size: the middlewares above hand every
+# response on as a stream, so its length is not known here.
+app.add_middleware(GZipMiddleware, compresslevel=5)
 
 
 def require_token(authorization: str | None = Header(default=None)) -> None:

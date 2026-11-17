@@ -2095,7 +2095,12 @@ ai_auth:
   methods:
     oauth: CLAUDE_CODE_OAUTH_TOKEN     # subscription — `claude setup-token`
     api_key: ANTHROPIC_API_KEY         # metered — console.anthropic.com
-  default: oauth,api_key               # the house convention since 2026-07
+  # Claude auth: OAuth only (CLAUDE_CODE_OAUTH_TOKEN). ANTHROPIC_API_KEY disabled
+  # for now (2026-11-15) — the key was being rejected and, listed second, hid a
+  # working OAuth token on some paths. To restore, set this back to
+  # `oauth,api_key` (the house convention from 2026-07) and re-add the
+  # secrets.ANTHROPIC_API_KEY references the same change removed.
+  default: oauth
   groups: {}
     # metered-lanes:                   # example: content sites billed to the API key
     #   order: api_key,oauth
