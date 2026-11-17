@@ -96,6 +96,9 @@ scout-workorders/
 .fleet/mcp/
 # Evidence sandboxes built by tools/issue-evidence.sh.
 .evidence/
+# Tier-1 handoffs written by `dash-gen issues handoff record` (issue-pipeline.yml's
+# issue-handoffs artifact; each is also recorded on its issue).
+.issue-handoffs/
 # The agent verification loop's exchange files (fleet-verify.yml /
 # verify/runner.mjs). Evidence BUNDLES under test/evidence/<slug>/ are
 # committed deliberately (docs/VERIFICATION.md).
