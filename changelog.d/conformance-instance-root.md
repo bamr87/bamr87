@@ -1,3 +1,0 @@
-### Added
-
-- `tools/conformance.py`: `--instance DIR` (default `$FLEET_HOME`, else `--hub`) on `check`, `fleet` and `kinds`. `--hub` stays the framework checkout the spec, contracts, kits and tools are read from; the instance is the control plane whose `_data/projects.yml` lists the repos and whose `projects/` holds them, so one checkout of the framework can grade another owner's fleet. `standards.yml` and the issue-type labels are the instance's when it has them, else the framework's. `fleet --write` with no path writes the instance's `_data/conformance.yml`. With no instance named nothing changes (ADR 0011, phase P0).
