@@ -9,7 +9,7 @@
 # Rendered at /features/ on the dash. Kit: templates/verify/ · doc: docs/VERIFICATION.md
 # =============================================================================
 schema: features-index/v1
-generated_at: '2026-11-15T06:18:44Z'
+generated_at: '2026-11-16T06:23:38Z'
 kit_version: 0.2.0
 totals:
   repos_scanned: 1
@@ -17,9 +17,9 @@ totals:
   repos_with_kit: 1
   repos_prose_only: 0
   repos_no_index: 0
-  features: 113
-  implemented: 65
-  covered: 105
+  features: 114
+  implemented: 66
+  covered: 106
   evidenced: 17
   verified: 8
   ui: 26
@@ -29,7 +29,7 @@ totals:
   screenshots: 125
   dangling: 5
 pct:
-  coverage: 162
+  coverage: 161
   evidence: 26
   verified: 12
   ui_coverage: 100
@@ -84,9 +84,9 @@ repos:
     legacy_evidence_kit: false
     legacy_visual_evidence_skill: false
   counts:
-    features: 113
-    implemented: 65
-    covered: 105
+    features: 114
+    implemented: 66
+    covered: 106
     evidenced: 17
     verified: 8
     ui: 26
@@ -4431,6 +4431,40 @@ repos:
       - https://github.com/bamr87/bamr87/blob/main/tools/test_weekly_dispositions.py
       - https://github.com/bamr87/bamr87/blob/main/tools/test_weekly_harness.py
       - https://github.com/bamr87/bamr87/blob/main/tools/test_weekly_stages.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-115
+    title: Weekly close-out and weekend-prep loops, scheduled and maintained from the Harness Console
+    surface: infra
+    implemented: true
+    link: .github/workflows/weekly-closeout.yml
+    docs: docs/WEEKLY-CLOSEOUT.md
+    tags:
+    - console
+    - loops
+    - schedule
+    - ai-lane
+    date: '2026-11-13'
+    provenance: null
+    tests:
+    - tools/test_weekly_closeout.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'Three console loops (weekly_closeout Fri 13:17, weekly_gather Sat 10:17, weekly_finalize Sun 16:17 Denver) built
+      as ai-lane callers: Friday cleans up open PRs, branches and clones, Saturday drafts next week''s plan, Sunday writes
+      the week-ah'
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/.github/workflows/weekly-closeout.yml
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/WEEKLY-CLOSEOUT.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_weekly_closeout.py
       scenarios: []
       screenshots: []
   truncated: false

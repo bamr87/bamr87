@@ -123,7 +123,8 @@ def test_caps_model_and_least_privilege():
 def test_secrets_are_passed_by_name_only():
     for stem, *_r in LANES.values():
         secrets = lane_call(stem)["secrets"]
-        assert set(secrets) == {"CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "GH_PAT"}, stem
+        # OAuth only for now (2026-11-15): ANTHROPIC_API_KEY is no longer passed to the lane.
+        assert set(secrets) == {"CLAUDE_CODE_OAUTH_TOKEN", "GH_PAT"}, stem
         assert secrets["GH_PAT"] == "${{ secrets.FLEET_TOKEN }}"
 
 
@@ -165,8 +166,12 @@ def test_the_feature_fragment_and_docs_cover_the_family():
         assert "tools/test_weekly_closeout.py" in feat.get("tests", []), feat.get("tests")
         assert feat["prd"] and all(re.fullmatch(r"FR\d+", r) for r in feat["prd"]), feat["prd"]
         prd = (ROOT / "PRD.md").read_text(encoding="utf-8")
+        # The PRD trace row lists every feature that serves a requirement
+        # (`| FR131 | HUB-115, HUB-116 |`), so check membership, not the whole row.
+        trace = {m.group(1): [i.strip() for i in m.group(2).split(",")]
+                 for m in re.finditer(r"^\| ((?:N?FR)\d+) \| ([^|]+) \|$", prd, re.M)}
         for req in feat["prd"]:
-            assert f"| {req} | {feat['id']} |" in prd, (req, feat["id"])
+            assert feat["id"] in trace.get(req, []), (req, feat["id"], trace.get(req))
     doc = (ROOT / "docs" / "WEEKLY-CLOSEOUT.md").read_text(encoding="utf-8")
     for needle in ("User stories", "Failure modes", "WEEKLY_CLOSEOUT_ENABLED", "WEEKLY_GATHER_ENABLED",
                    "WEEKLY_FINALIZE_ENABLED", "Grok", "loop-run", "mcp_writes_enabled", "harness-console-http"):

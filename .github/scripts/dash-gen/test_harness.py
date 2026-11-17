@@ -342,6 +342,311 @@ def test_config_falls_back_when_block_absent(tmp_path=None):
 
 
 # --------------------------------------------------------------------------- #
+# the agentic layer (constitution § 29, #776): source freshness, measurement
+# coverage, unknown agent cost — each wire true / false / unknown, in shadow
+# for harness.agentic.shadow_days after its first_seen
+# --------------------------------------------------------------------------- #
+HUB = "bamr87/bamr87"
+AGENTIC_IDS = {"source-freshness", "coverage-hub", "coverage-complete", "coverage-parity",
+               "unknown-agent-cost"}
+DECLARED = {
+    "fleet-config": {"path": "_data/fleet.yml", "writer": "maintainer (reviewed PR)", "slo": "on-change"},
+    "actions-usage": {"path": "_data/actions_usage.yml", "writer": "fleet-pulse.yml", "slo_days": 3},
+    "conformance": {"path": "_data/conformance.yml", "writer": "tools/dash spec", "slo_days": 14},
+    "lake": {"path": ".dash-lake/fleet.sqlite", "writer": "local:harness-review", "slo_days": 2},
+}
+AG_CFG = {**CFG, "agentic": dict(harness.DEFAULT_AGENTIC), "sources": DECLARED, "hub_repo": HUB}
+
+
+def coverage_block(**kw) -> dict:
+    return {"truncated": False, "runs_missed": 0, "truncated_repos": [],
+            "repos": [{"repo": "bamr87", "nwo": HUB, "truncated": False, "runs_missed": 0, "error": None},
+                      {"repo": "site", "nwo": "bamr87/site", "truncated": False, "runs_missed": 0,
+                       "error": None}],
+            **kw}
+
+
+def ag_usage(**kw) -> dict:
+    """actions_usage.yml (v2) with the blocks the agentic layer reads."""
+    doc = usage()
+    doc.update(by_repo=[{"repo": "bamr87", "runs": 40}, {"repo": "site", "runs": 9}],
+               parity={"actions_minutes": {"gap_pct": -2.0, "sampled": False}},
+               coverage=coverage_block())
+    doc.update(kw)
+    return doc
+
+
+def ai_usage(priced=40, unpriced=5, **kw) -> dict:
+    doc = {
+        "generated": "2026-08-27 09:30 UTC",   # ai_usage.yml stamps `generated`, not generated_at
+        "totals": {"ci_priced_runs": priced, "ci_unpriced_runs": unpriced, "ci_no_spend_runs": 300,
+                   "ci_cost_usd": 120.0, "ci_estimated_usd": 3.0},
+        "by_repo": [{"repo": "bamr87", "priced_runs": 30, "unpriced_runs": 1},
+                    {"repo": "site", "priced_runs": 10, "unpriced_runs": 4}],
+        "parity": {"ai_ci_cost": {"gap_pct": 0.0, "runs_off": 0}},
+        "coverage": coverage_block(),
+    }
+    doc.update(kw)
+    return doc
+
+
+def declared_sources(**over) -> dict:
+    """What load_declared_sources hands the layer: data per source id, None =
+    not readable offline (the lake)."""
+    data = {"actions-usage": ag_usage(), "conformance": conformance(), "lake": None}
+    data.update(over)
+    return data
+
+
+def agentic(usage_doc=None, ai_doc=None, sources=None, cfg=None, previous=None, now=NOW) -> dict:
+    wires = harness.evaluate_agentic_layer(
+        cfg or AG_CFG, ag_usage() if usage_doc is None else usage_doc,
+        ai_usage() if ai_doc is None else ai_doc,
+        declared_sources() if sources is None else sources, now,
+        agents={"agents": [{"id": "a", "reads": {"conformance": "x"}}]}, previous=previous)
+    return wires_by_id(wires)
+
+
+def test_agentic_layer_reports_every_wire_quiet_on_healthy_inputs():
+    wires = agentic()
+    assert set(wires) == AGENTIC_IDS, set(wires)
+    for wid, w in wires.items():
+        for key in ("id", "group", "tripped", "shadow", "first_seen", "shadow_until", "summary", "detail"):
+            assert key in w, (wid, key)
+        assert w["tripped"] is False, (wid, w)
+        assert w["shadow"] is True and w["first_seen"] == NOW.date().isoformat(), w
+    assert {w["group"] for w in wires.values()} == {"source-freshness", "measurement-coverage",
+                                                     "unknown-agent-cost"}
+
+
+# -- source freshness ------------------------------------------------------- #
+def test_source_freshness_passes_on_fresh_sources_and_skips_on_change_ones():
+    w = agentic()["source-freshness"]
+    assert w["tripped"] is False, w
+    rows = {r["source"]: r for r in w["detail"]}
+    assert "fleet-config" not in rows                    # slo: on-change is not judged by age
+    assert rows["actions-usage"]["state"] == "ok"
+    assert rows["lake"]["state"] == "unknown"            # never read from the Mac, never decides
+    assert "lake" in w["summary"]
+
+
+def test_source_freshness_trips_on_a_source_past_its_own_slo():
+    old = ag_usage(generated_at="2026-08-23 09:00 UTC")  # 4 days old, slo 3
+    w = agentic(sources=declared_sources(**{"actions-usage": old}))["source-freshness"]
+    assert w["tripped"] is True
+    row = next(r for r in w["detail"] if r["source"] == "actions-usage")
+    assert row["state"] == "stale" and row["why"] == "older than 3d", row
+    # The same 7-day-old conformance file is fresh against its own 14-day SLO.
+    assert next(r for r in w["detail"] if r["source"] == "conformance")["state"] == "ok"
+
+
+def test_source_freshness_trips_on_a_source_with_no_writer():
+    cfg = {**AG_CFG, "sources": {**DECLARED, "conformance": {**DECLARED["conformance"], "writer": None}}}
+    w = agentic(cfg=cfg)["source-freshness"]
+    assert w["tripped"] is True
+    row = next(r for r in w["detail"] if r["source"] == "conformance")
+    assert row["state"] == "no-writer" and row["why"] == "no writer" and row["readers"] == 1, row
+
+
+def test_source_freshness_trips_on_a_missing_source():
+    w = agentic(sources=declared_sources(conformance={}))["source-freshness"]
+    assert w["tripped"] is True
+    assert next(r for r in w["detail"] if r["source"] == "conformance")["state"] == "missing"
+
+
+def test_source_freshness_is_unknown_when_nothing_can_be_read_offline():
+    cfg = {**AG_CFG, "sources": {"lake": DECLARED["lake"]}}
+    assert agentic(cfg=cfg)["source-freshness"]["tripped"] == "unknown"
+    assert agentic(cfg={**AG_CFG, "sources": {}})["source-freshness"]["tripped"] == "unknown"
+
+
+def test_load_declared_sources_reads_only_committed_data_files():
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        (root / "_data").mkdir()
+        (root / "_data" / "conformance.yml").write_text("generated_at: '2026-08-20T00:00:00Z'\n")
+        declared = {**DECLARED,
+                    "escape": {"path": "_data/../secrets.yml", "writer": "x", "slo_days": 1},
+                    "home": {"path": "~/.claude/projects/", "writer": "x", "slo_days": 1}}
+        got = harness.load_declared_sources(declared, root, preloaded={"actions-usage": {"a": 1}})
+    assert got["conformance"]["generated_at"] == "2026-08-20T00:00:00Z"
+    assert got["actions-usage"] == {"a": 1}                # this run's own input, not re-read
+    assert got["lake"] is None and got["escape"] is None and got["home"] is None
+    assert "fleet-config" not in got                     # no slo_days: nothing to date
+
+
+# -- measurement coverage --------------------------------------------------- #
+def test_coverage_hub_trips_when_the_hub_is_missing_from_the_analytics():
+    # 2026-11-07: actions_usage.yml listed no hub row and had no coverage block.
+    gone = ag_usage(by_repo=[{"repo": "site", "runs": 9}])
+    gone.pop("coverage")
+    w = agentic(usage_doc=gone)["coverage-hub"]
+    assert w["tripped"] is True and "actions_usage" in w["summary"], w
+    assert {r["analytics"]: r["state"] for r in w["detail"]} == {"actions_usage": "absent",
+                                                                 "ai_usage": "present"}
+
+
+def test_coverage_hub_counts_a_scanned_hub_without_a_by_repo_row():
+    w = agentic(usage_doc=ag_usage(by_repo=[{"repo": "site", "runs": 9}]))["coverage-hub"]
+    assert w["tripped"] is False, w
+    errored = ag_usage(by_repo=[], coverage=coverage_block(
+        repos=[{"repo": "bamr87", "nwo": HUB, "error": "404 Not Found"}]))
+    assert agentic(usage_doc=errored)["coverage-hub"]["tripped"] is True
+
+
+def test_coverage_hub_is_unknown_without_an_input_or_a_hub():
+    assert agentic(ai_doc={})["coverage-hub"]["tripped"] == "unknown"
+    assert agentic(cfg={**AG_CFG, "hub_repo": None})["coverage-hub"]["tripped"] == "unknown"
+
+
+def test_coverage_complete_trips_on_a_truncated_or_unread_repo():
+    cut = ai_usage(coverage=coverage_block(truncated=True, runs_missed=120, truncated_repos=["bamr87"]))
+    w = agentic(ai_doc=cut)["coverage-complete"]
+    assert w["tripped"] is True
+    row = next(r for r in w["detail"] if r["analytics"] == "ai_usage")
+    assert row == {"analytics": "ai_usage", "state": "incomplete", "truncated_repos": ["bamr87"],
+                   "runs_missed": 120}, row
+    unread = ag_usage(coverage=coverage_block(repos=[{"repo": "site", "nwo": "bamr87/site",
+                                                     "error": "404 Not Found"}]))
+    assert agentic(usage_doc=unread)["coverage-complete"]["tripped"] is True
+
+
+def test_coverage_complete_is_unknown_without_a_coverage_block():
+    old = ag_usage()
+    old.pop("coverage")
+    w = agentic(usage_doc=old)["coverage-complete"]
+    assert w["tripped"] == "unknown" and "no coverage block" in w["summary"], w
+
+
+def test_coverage_parity_trips_out_of_tolerance():
+    w = agentic(usage_doc=ag_usage(parity={"actions_minutes": {"gap_pct": 8.8, "sampled": True}}))
+    w = w["coverage-parity"]
+    assert w["tripped"] is True and "+8.8%" in w["summary"], w
+    row = next(r for r in w["detail"] if r["measure"] == "actions_minutes")
+    assert row["state"] == "out" and row["sampled"] is True and row["tolerance_pct"] == 5.0
+    # within tolerance either side of zero is quiet
+    assert agentic(usage_doc=ag_usage(parity={"actions_minutes": {"gap_pct": -5.0}}))[
+        "coverage-parity"]["tripped"] is False
+
+
+def test_coverage_parity_is_unknown_never_green_when_a_block_is_absent():
+    w = agentic(ai_doc={k: v for k, v in ai_usage().items() if k != "parity"})["coverage-parity"]
+    assert w["tripped"] == "unknown", w
+    assert "no parity.ai_ci_cost block" in w["summary"]
+    # a block whose meter was unreachable is unknown too, with its own reason
+    meterless = ag_usage(parity={"actions_minutes": {"gap_pct": None, "reason": "billing meter unavailable"}})
+    w = agentic(usage_doc=meterless)["coverage-parity"]
+    assert w["tripped"] == "unknown" and "billing meter unavailable" in w["summary"], w
+    # …but a measure out of tolerance still trips beside an unknown one
+    both = agentic(usage_doc=ag_usage(parity={"actions_minutes": {"gap_pct": 30.0}}),
+                   ai_doc={k: v for k, v in ai_usage().items() if k != "parity"})
+    assert both["coverage-parity"]["tripped"] is True
+
+
+# -- unknown agent cost ----------------------------------------------------- #
+def test_unknown_agent_cost_passes_under_the_ceiling():
+    w = agentic()["unknown-agent-cost"]
+    assert w["tripped"] is False, w                      # 5 of 45 = 11.1%
+    assert w["detail"][0]["unknown_pct"] == 11.1 and w["detail"][0]["agent_runs"] == 45
+    assert [r["repo"] for r in w["detail"][1:]] == ["site", "bamr87"]  # most unpriced first
+
+
+def test_unknown_agent_cost_trips_over_the_ceiling():
+    w = agentic(ai_doc=ai_usage(priced=20, unpriced=20))["unknown-agent-cost"]
+    assert w["tripped"] is True and "50.0% of 40" in w["summary"], w
+
+
+def test_unknown_agent_cost_is_unknown_without_counts():
+    assert agentic(ai_doc={})["unknown-agent-cost"]["tripped"] == "unknown"
+    assert agentic(ai_doc=ai_usage(priced=0, unpriced=0))["unknown-agent-cost"]["tripped"] == "unknown"
+    assert agentic(ai_doc=ai_usage(totals={}))["unknown-agent-cost"]["tripped"] == "unknown"
+
+
+# -- shadow ----------------------------------------------------------------- #
+def test_first_seen_is_carried_forward_and_ends_the_shadow():
+    prev = {"agentic": [{"id": "coverage-parity", "first_seen": "2026-08-01"},
+                        {"id": "coverage-hub", "first_seen": "2026-08-20"},
+                        {"id": "unknown-agent-cost", "first_seen": "2026-12-25"}]}  # a future stamp
+    wires = agentic(previous=prev)
+    assert wires["coverage-parity"]["first_seen"] == "2026-08-01"
+    assert wires["coverage-parity"]["shadow"] is False   # 26 days ago, shadow 14
+    assert wires["coverage-hub"]["shadow"] is True       # 7 days ago
+    assert wires["coverage-hub"]["shadow_until"] == "2026-09-03"
+    assert wires["unknown-agent-cost"]["first_seen"] == NOW.date().isoformat()
+    assert wires["source-freshness"]["first_seen"] == NOW.date().isoformat()  # new: starts today
+
+
+def write_run_inputs(d: Path, fleet_doc: dict, previous: dict | None = None):
+    import argparse
+    import yaml
+    (d / "fleet.yml").write_text(yaml.safe_dump(fleet_doc))
+    (d / "u.yml").write_text(yaml.safe_dump(ag_usage()))
+    (d / "ai.yml").write_text(yaml.safe_dump(ai_usage()))
+    (d / "t.yml").write_text(yaml.safe_dump(triage()))
+    (d / "p.yml").write_text(yaml.safe_dump(pipeline()))
+    (d / "r.yml").write_text(yaml.safe_dump(rotation()))
+    if previous is not None:
+        (d / "prev.yml").write_text(yaml.safe_dump(previous))
+    return argparse.Namespace(
+        fleet=str(d / "fleet.yml"), usage=str(d / "u.yml"), triage=str(d / "t.yml"),
+        pipeline=str(d / "p.yml"), rotation=str(d / "r.yml"), conformance=str(d / "none.yml"),
+        ai_usage=str(d / "ai.yml"), agents=str(d / "none.yml"), previous=str(d / "prev.yml"),
+        root=str(d), out=str(d / "out.yml"), quiet=True, now=NOW.isoformat())
+
+
+def test_a_shadowed_wire_never_adds_to_tripped_count():
+    import tempfile
+    import yaml
+    # One source with no writer trips source-freshness; nothing else trips.
+    fleet_doc = {"hub": {"repo": HUB}, "harness": {
+        "sources": {"actions-usage": {"path": "_data/actions_usage.yml", "writer": None, "slo_days": 3}}}}
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        ns = write_run_inputs(d, fleet_doc)
+        assert harness.run(ns) == 0
+        doc = yaml.safe_load((d / "out.yml").read_text())
+        six = sum(1 for w in doc["trip_wires"] if w["tripped"])
+        fresh = wires_by_id(doc["agentic"])["source-freshness"]
+        assert fresh["tripped"] is True and fresh["shadow"] is True, fresh
+        assert doc["tripped_count"] == six, (doc["tripped_count"], six)
+
+        # The same inputs fifteen days after first_seen: out of shadow, it counts.
+        ns = write_run_inputs(d, fleet_doc, previous={"agentic": [
+            {"id": "source-freshness", "first_seen": "2026-08-12"}]})
+        assert harness.run(ns) == 0
+        doc = yaml.safe_load((d / "out.yml").read_text())
+        fresh = wires_by_id(doc["agentic"])["source-freshness"]
+        assert fresh["shadow"] is False and fresh["first_seen"] == "2026-08-12", fresh
+        assert doc["tripped_count"] == six + 1, (doc["tripped_count"], six)
+
+
+def test_run_writes_the_agentic_layer():
+    import tempfile
+    import yaml
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        ns = write_run_inputs(d, {"hub": {"repo": HUB}, "harness": {"sources": DECLARED}})
+        assert harness.run(ns) == 0
+        doc = yaml.safe_load((d / "out.yml").read_text())
+    assert [w["id"] for w in doc["agentic"]] == ["source-freshness", "coverage-hub", "coverage-complete",
+                                                 "coverage-parity", "unknown-agent-cost"]
+    for w in doc["agentic"]:
+        assert w["tripped"] in (True, False, "unknown") and isinstance(w["shadow"], bool), w
+    assert doc["sources"]["ai_usage"]["present"] is True
+    assert list(doc)[:5] == ["generated_at", "sources", "scorecard", "trip_wires", "agentic"]
+
+
+def test_agentic_thresholds_live_in_fleet_yml():
+    live = harness.load_config(harness.FLEET_DEFAULT)
+    import yaml
+    declared = (yaml.safe_load(harness.FLEET_DEFAULT.read_text())["harness"]).get("agentic") or {}
+    assert set(declared) == set(harness.DEFAULT_AGENTIC), declared   # the contract and the fallbacks agree
+    assert live["agentic"]["shadow_days"] == 14
+    assert live["hub_repo"] == HUB and live["sources"], live["hub_repo"]
+
+
+# --------------------------------------------------------------------------- #
 def main() -> int:
     failures = 0
     for name, fn in sorted(globals().items()):

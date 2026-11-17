@@ -680,6 +680,34 @@ describe('extractFacts — robustness', () => {
     expect(f.sinks).toContain('merge');
   });
 
+  it('reads auth from live secrets.* wiring, not from comments, log lines or declarations', () => {
+    // The OAuth-only kit shape (agent-context claude.yml, ai-lane.yml since 2026-11-15).
+    const oauthOnly = [
+      'name: Claude',
+      '# Claude auth: OAuth only (CLAUDE_CODE_OAUTH_TOKEN). ANTHROPIC_API_KEY disabled for now',
+      '# (2026-11-15); to restore, re-add the secrets.ANTHROPIC_API_KEY reference.',
+      '#   ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}',
+      'on:',
+      '  workflow_call:',
+      '    secrets:',
+      '      ANTHROPIC_API_KEY:',
+      '        required: false',
+      'jobs:',
+      '  claude:',
+      '    runs-on: ubuntu-latest',
+      '    steps:',
+      '      - run: echo "::error::No Claude auth (ANTHROPIC_API_KEY is disabled for now)"',
+      '      - uses: anthropics/claude-code-action@v1',
+      '        with:',
+      "          claude_code_oauth_token: ${{ steps.auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}",
+      '',
+    ].join('\n');
+    expect(facts('claude.yml', oauthOnly).ai.authMode).toBe('oauth-only');
+
+    const withFallback = `${oauthOnly}          anthropic_api_key: \${{ secrets.ANTHROPIC_API_KEY }}\n`;
+    expect(facts('claude.yml', withFallback).ai.authMode).toBe('oauth-first');
+  });
+
   it('falls back to the filename when no name: is present', () => {
     const f = facts('no-name.yml', 'on: push\n');
     expect(f.name).toBe('no-name');
