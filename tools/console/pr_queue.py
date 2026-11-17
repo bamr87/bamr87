@@ -54,7 +54,7 @@ from fleetcore import prqueue as pq  # noqa: E402
 from fleetcore import yamlio  # noqa: E402
 
 DASH_GEN = str(ROOT / "tools" / "dash-gen")
-CACHE_SCHEMA = "pr-queue-detail/v1"
+CACHE_SCHEMA = "pr-queue-detail/v2"  # v2: the task list, the head commit's date, whether the repo has the gate label
 REF_RX = re.compile(r"^([A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100})#(\d{1,7})$")
 LIVE_FIELDS = ("number,state,isDraft,title,url,mergeable,mergeStateStatus,reviewDecision,headRefOid,headRefName,"
                "baseRefName,labels,files,statusCheckRollup,author,updatedAt,createdAt,isCrossRepository")
@@ -65,12 +65,13 @@ AGENT_TOOLS = ("Read", "Grep", "Glob", "Edit", "Write", "Bash(git status:*)", "B
 NOTE_CHARS, REASON_CHARS = 500, 200
 
 DETAIL_Q = """query($ids:[ID!]!){ nodes(ids:$ids){ ... on PullRequest{ id number updatedAt isDraft mergeable mergeStateStatus
-  reviewDecision headRefOid
-  repository{ nameWithOwner isPrivate mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed defaultBranchRef{ name } }
+  reviewDecision headRefOid body
+  repository{ nameWithOwner isPrivate mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed defaultBranchRef{ name }
+              gateLabel: label(name:"needs-amr"){ name } }
   files(first:100){ totalCount nodes{ path changeType } }
   reviewThreads(first:100){ totalCount nodes{ isResolved } }
   comments(last:25){ nodes{ databaseId url updatedAt author{ login } body } }
-  commits(last:1){ nodes{ commit{ oid statusCheckRollup{ state contexts(first:100){ totalCount nodes{ __typename
+  commits(last:1){ nodes{ commit{ oid committedDate statusCheckRollup{ state contexts(first:100){ totalCount nodes{ __typename
    ... on CheckRun{ name status conclusion startedAt completedAt detailsUrl
                     checkSuite{ workflowRun{ databaseId event workflow{ name } } } }
    ... on StatusContext{ context state createdAt targetUrl } } } } } } } } }
@@ -145,7 +146,11 @@ def detail_record(node: dict, now: float) -> dict:
         "mergeable": node.get("mergeable"), "merge_state": node.get("mergeStateStatus"), "review": node.get("reviewDecision"),
         "repo": {"merge_commit": repo.get("mergeCommitAllowed"), "squash": repo.get("squashMergeAllowed"),
                  "rebase": repo.get("rebaseMergeAllowed"), "private": repo.get("isPrivate"),
-                 "default_branch": (repo.get("defaultBranchRef") or {}).get("name")},
+                 "default_branch": (repo.get("defaultBranchRef") or {}).get("name"),
+                 # Only a read that asked says whether the label exists; an absent key stays unknown.
+                 **({"gate_label": bool(repo.get("gateLabel"))} if "gateLabel" in repo else {})},
+        # The description is read for its task list and not kept: a private repo's text stays out of the cache.
+        "tasks": pq.tasks_of(node.get("body")), "head_at": commit.get("committedDate"),
         "files": [{"path": f.get("path"), "change": f.get("changeType")} for f in files.get("nodes") or [] if f and f.get("path")],
         "files_total": files.get("totalCount"), "rollup": rollup.get("state"),
         "contexts": [{k: c[k] for k in keep if k in c} for c in contexts if isinstance(c, dict)],
@@ -212,7 +217,7 @@ def read_details(records: dict[str, dict], cache: dict[str, dict], cfg: dict, *,
 # --------------------------------------------------------------------------- #
 # The queue: the one function every surface calls
 # --------------------------------------------------------------------------- #
-FILTERS = ("repo", "kind", "who", "gate", "batch", "check")
+FILTERS = ("repo", "kind", "who", "gate", "batch", "check", "flag")
 
 
 def filtered(rows: list[dict], f: dict) -> list[dict]:
@@ -230,6 +235,8 @@ def filtered(rows: list[dict], f: dict) -> list[dict]:
         out = [r for r in out if r.get("head") == f["batch"]]
     if f.get("check"):
         out = [r for r in out if r["checks"]["state"] == f["check"]]
+    if f.get("flag"):
+        out = [r for r in out if f["flag"] in r.get("flags", [])]
     return out
 
 
@@ -247,6 +254,8 @@ def queue(root: Path = ROOT, *, refresh: str = "auto", budget_s: float | None = 
         raise ValueError(f"who must be one of {', '.join(pq.WHO)}")
     if f.get("check") and f["check"] not in pq.CHECK_STATES:
         raise ValueError(f"check must be one of {', '.join(pq.CHECK_STATES)}")
+    if f.get("flag") and f["flag"] not in pq.FLAGS:
+        raise ValueError(f"flag must be one of {', '.join(pq.FLAGS)}")
     cfg = pq.config(load_fleet(root))
     clock = now or time.time
     budget = di.Budget(min(di.BUDGET_MAX_S, max(di.BUDGET_MIN_S, float(budget_s or cfg["budget_s"]))))
@@ -873,11 +882,18 @@ def render(doc: dict, limit: int = 60) -> str:
     out = [f"PR queue: {c['total']} open pull request(s) · {doc['status'].upper()} · "
            + " · ".join(f"{pq.WHO_TITLES[w]} {c['who'][w]}" for w in pq.WHO)
            + f" · gated {c['gated']} · false red {c['false_red']} · agent-mergeable {c['agent_mergeable']}"]
+    flags = c.get("flags") or {}
+    if any(flags.values()):
+        t = c.get("tasks") or {}
+        out.append("says one thing, is another: " + " · ".join(f"{pq.FLAG_TITLES[f]} {flags[f]}" for f in pq.FLAGS if flags.get(f))
+                   + (f" · tasks ticked {t.get('done', 0)} of {t.get('total', 0)}" if t.get("total") else "")
+                   + (f" · {c['repos_without_gate_label']} repo(s) have no needs-amr label" if c.get("repos_without_gate_label") else ""))
     for r in doc["rows"][:limit]:
         n = r["next"]
+        marks = f"  !{','.join(r['flags'])}" if r.get("flags") else ""
         out.append(f"  {r['key']:<38} {('DRAFT ' if r['draft'] else '')}{str(r['title'] or '')[:58]:<58} "
                    f"[{r['checks']['state']}{' (false red)' if r['checks'].get('false_red') else ''}] "
-                   f"{'GATED' if r['gate']['gated'] else 'open '} → {n['who']}: {n['action']}")
+                   f"{'GATED' if r['gate']['gated'] else 'open '} → {n['who']}: {n['action']}{marks}")
     if doc["matched"] > limit:
         out.append(f"  … {doc['matched'] - limit} more (--limit, or filter)")
     for b in doc["batches"][:10]:
