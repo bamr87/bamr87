@@ -38,9 +38,11 @@ An item can be of several kinds; it is listed under the first, and `kinds` names
 | `needs_amr` | an open issue or pull request carries a gate label (`decisions.labels.gate`, by default `needs-amr`: the review gate of constitution § 12.4) | the search |
 | `ratification` | an open pull request changes a constitution, an amendment record or an ADR (`decisions.ratification.paths`), which only the maintainer's merge ratifies or accepts (§ 8, § 12.3); the ratification-record branch `chore/jev-ratify` is automation's and is left out | its changed files |
 | `dependabot` | a Dependabot pull request's checks fail, it conflicts with its base, or its title states a major bump (under 0.x, a minor one) | its title and checks |
-| `ready_to_merge` | a pull request is not a draft, is `MERGEABLE` and `CLEAN`, its checks pass (or the repo has none), no review asks for changes, and it carries no hold label (`decisions.labels.hold`) | its merge state |
+| `ready_to_merge` | a pull request is not a draft, is `MERGEABLE` and `CLEAN`, its checks pass (or the repo has none; a cancelled run that a later run of the same check superseded is set aside, see `checks` below), no review asks for changes, and it carries no hold label (`decisions.labels.hold`) | its merge state |
 
 Every item says `why` in words, and carries its `checks`, `mergeable`, `merge_state`, `review`, `labels`, `age_days` and `url`. A draft, a pull request that is behind or conflicting, and one whose checks fail are not decisions yet; they are counted per repo in the inventory. A grouped Dependabot update states no version, so it is listed as a major bump only when its title says so; it still appears when it fails or is ready.
+
+`checks` is GitHub's rollup state for the head commit, with one correction. A workflow that cancels in progress on every `labeled` event leaves a CANCELLED run beside the later run of the same check, and GitHub calls the commit FAILURE even when that later run passed (25 fleet pull requests on 2026-11-15). The index reads the rollup's contexts and sets such a run aside (`tools/check_rollup.py`, the rule the weekly close-out and the PM review read too), so `checks` becomes SUCCESS, or PENDING while the later run goes. A lone cancellation, a failure followed by a pass, and contexts that run past one page keep GitHub's state.
 
 `repos` is the inventory: per repo the decisions by kind, the open pull requests the search found with their draft, Dependabot, failing and conflicting shares, and the repo's own open-issue count. `prs_reported` appears where a repo's own pull-request count disagrees with the search, and a warning names the difference fleet-wide: that is how a search that silently returned less than the truth shows.
 
@@ -49,7 +51,7 @@ Every item says `why` in words, and carries its `checks`, `mergeable`, `merge_st
 | Step | Query | Why this shape |
 | --- | --- | --- |
 | Scan | one `search` for every open pull request under `hub.owners`, one for the gate-labelled issues, one for the repositories with their open-issue and pull-request counts; all three at once | three queries cover what a per-repo sweep needs over a hundred for |
-| Enrich | `nodes(ids: …)` for the pull requests the scan found, `enrich_batch` at a time, `concurrency` at once: `mergeable`, `mergeStateStatus`, `reviewDecision`, the check rollup, the changed paths | these fields are slow on GitHub's side. One page of 100 pull requests carrying them ran past GitHub's own 10 s limit and came back as a 502; ten at a time, eight in flight, took about four seconds for 81 |
+| Enrich | `nodes(ids: …)` for the pull requests the scan found, `enrich_batch` at a time, `concurrency` at once: `mergeable`, `mergeStateStatus`, `reviewDecision`, the check rollup with its contexts, the changed paths | these fields are slow on GitHub's side. One page of 100 pull requests carrying them ran past GitHub's own 10 s limit and came back as a 502; ten at a time, eight in flight, took about four seconds for 81 |
 
 A pull request whose `mergeable` is still `UNKNOWN` is asked once more, because GitHub computes it after the first ask. The budget goes first to pull requests that can be decided (not drafts), then to the ones read longest ago.
 
