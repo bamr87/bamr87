@@ -466,8 +466,9 @@ def _weight(item: dict) -> float:
                 + (item.get("readiness") or 0) * 10_000 + min(item.get("age_days") or 0, 9_999))
     if k == "pr":
         d = item["detail"]
-        return ((900 if d.get("ci") == "fail" else 0) + (50 if d.get("draft") else 0)
-                + min(item.get("idle_days") or 0, 49))
+        # a fix PR (FF-0036) goes ahead of the red PRs it clears (+900), whatever their age
+        return ((2000 if d.get("clears") else 0) + (900 if d.get("ci") == "fail" else 0)
+                + (50 if d.get("draft") else 0) + min(item.get("idle_days") or 0, 49))
     if k == "backlog":
         d = item["detail"]
         debt = 100 if d.get("kind") in ("tech-debt", "test-gap") else 0
@@ -576,9 +577,24 @@ def _items(inp: dict, queue: dict, stage_over: dict[str, str],
                 "detail": {"number": p["number"], "draft": bool(p.get("draft")), "ci": ci, "author": p.get("author"),
                            "dependabot": dependabot, "pipeline": pp is not None,
                            "branch": (pp or {}).get("branch"), "linked_issues": (pp or {}).get("linked_issues") or [],
-                           "mergeable_state": (pp or {}).get("mergeable_state"),
-                           "human_review": bool((pp or {}).get("human_review"))},
+                           "mergeable_state": (pp or {}).get("mergeable_state") or p.get("mergeable_state"),
+                           "human_review": bool((pp or {}).get("human_review")),
+                           # fleet_triage's fix-PR link (FF-0036): the red workflow(s) and PRs this one clears
+                           "clears": [str(c) for c in p.get("clears") or []],
+                           "fix_evidence": p.get("fix_evidence"), "merge_ready": bool(p.get("merge_ready"))},
             })
+
+    # A fix PR outranks every PR card it clears: it takes the strongest priority
+    # among them (a human override on the fix still wins), and _weight puts it
+    # first within that priority. Without this a red PR is auto-P1 and its green
+    # fix P2, so the board ranked the fix BELOW its own symptoms (FF-0036).
+    cards = {it["key"]: it for it in items if it["kind"] == "pr"}
+    for it in cards.values():
+        cleared = [cards.get(f"pr:{it['nwo']}#{c[1:]}") for c in it["detail"]["clears"] if c.startswith("#")]
+        best = min([it["priority_auto"], *(c["priority"] for c in cleared if c)], key=lambda p: PRIO_ORDER.get(p, 9))
+        if best != it["priority_auto"]:
+            eff, src = prio(it["key"], best, "derived")
+            it.update(priority=eff, priority_auto=best, priority_source=src)
 
     # --- roadmap specs ---------------------------------------------------------
     for e in inp["roadmap"]:
@@ -802,8 +818,25 @@ def _loops(items: list[dict], picks: dict[str, list[str]], inp: dict) -> list[di
     return loops
 
 
+def merge_hint(it: dict) -> dict | None:
+    """The merge a merge-ready fix PR card stands for (FF-0036), named first in
+    the board's hints: merging it is the one action that clears its red
+    workflow and the PRs red only because of it. The merge stays a human's."""
+    d = it["detail"] if it["kind"] == "pr" else {}
+    if not (d.get("merge_ready") and d.get("clears")):
+        return None
+    reds = [Path(c).name for c in d["clears"] if not c.startswith("#")]
+    prs = [c for c in d["clears"] if c.startswith("#")]
+    text = f"Merge {it['repo']} {it['ref']}: it clears {', '.join(reds) or 'a red workflow'} on the tracked branch"
+    if prs:
+        text += (f" and {', '.join(prs)} once " + ("their branches are" if len(prs) > 1 else "its branch is")
+                 + " updated")
+    return {"tone": "good", "lever": "lane:review",
+            "text": text + f" (a {d.get('fix_evidence') or 'verified'} fix, green and clean)."}
+
+
 def _hints(items: list[dict], loops: list[dict], inp: dict, sources: dict) -> list[dict]:
-    out: list[dict] = []
+    out: list[dict] = [h for h in (merge_hint(it) for it in items) if h]
     lp = {loop["id"]: loop for loop in loops}
     t1, t2 = lp["t1"], lp["t2"]
     if t1["by_repo"] and t1["sub_cap"]["value"]:

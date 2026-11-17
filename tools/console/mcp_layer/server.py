@@ -1078,7 +1078,8 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
 
     @mcp.tool(annotations=READ)
     def fleet_inbox(repo: str = "", limit: int = 30) -> Any:
-        """The fleet inbox (flagged issues, PRs, failing workflows, highest priority first), or one repo's open items."""
+        """The fleet inbox (flagged issues, PRs, failing workflows, highest priority first), or one repo's open items.
+        A `merge` item (95) is a green, clean fix PR; its `clears` lists the red workflow and the PRs it turns green."""
         return local("t_inbox", {"repo": repo, "limit": limit})
 
     @mcp.tool(annotations=READ)
