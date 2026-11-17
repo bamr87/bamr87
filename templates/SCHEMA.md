@@ -16,7 +16,7 @@ coverage: listed
 | `community/` | dir | Community kit: the ONE PR template carrying the fleet Definition of Done (`fleet-dod` markers), issue forms with fleet labels, `labels.yml` taxonomy, CODEOWNERS, Dependabot, CONTRIBUTING, SECURITY, Code of Conduct; distributed by owner `.github` inheritance (UPS-REPO-14..19, UPS-QA-41, UPS-WORK-03/09) | terminal |
 | `standard-ci/` | dir | Reusable CI gate caller seeded by fanout.yml (kit standardize) | terminal |
 | `release-pipeline/` | dir | release-please pipeline kit seeded by adopt-release | terminal |
-| `prose/` | dir | Prose style kit: markdown-oneline CI check enforcing one-paragraph-per-line, seeded by fanout | terminal |
+| `prose/` | dir | Prose style kit: markdown-oneline CI check enforcing one-paragraph-per-line (self-healing on PRs), seeded by fanout; VERSION + archive of every seeded shape, contract test `test_prose_kit.py` | terminal |
 | `conformance/` | dir | In-repo UPS gate kit: thin caller of the reusable fleet-conformance.yml (artifact `conformance`) | terminal |
 | `pr-review/` | dir | The fleet's one PR comment: stub calling the reusable pr-review.yml (constitution § 19), seeded by fanout | terminal |
 | `ux-audit/` | dir | OPT-IN UX audit kit: R1–R13 gate + axe evidence + critique prompts (UPS-FE-53/60) | terminal |
