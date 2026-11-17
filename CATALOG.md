@@ -216,6 +216,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_fleetcore_learn.py`](tools/test_fleetcore_learn.py) | Tests for tools/fleetcore/learn.py — outcome learning in shadow: how an output is sorted into an outcome, the estimate and its decay, the Thompson plan, the replay skill… |
 | [`test_fleetcore_mcp.py`](tools/test_fleetcore_mcp.py) | Fixture tests for tools/fleetcore/mcp_server.py — the fleet console as an MCP server, the agent's write path into the console's job API. |
 | [`test_fleetcore_nodes.py`](tools/test_fleetcore_nodes.py) | Fixture tests for tools/fleetcore/nodes.py — where each hub workload runs (ADR 0003, docs/PLATFORM.md). |
+| [`test_fleetcore_yamlio.py`](tools/test_fleetcore_yamlio.py) | Tests for tools/fleetcore/yamlio.py — the one YAML reader the surfaces share: the same objects `yaml.safe_load` builds, one parse per version of a file, a private copy p… |
 | [`test_frontend_registry.py`](tools/test_frontend_registry.py) | Tests for tools/frontend_registry.py — the § 18 frontend: block lint and the launcher projection. |
 | [`test_governance_lint.py`](tools/test_governance_lint.py) | Tests for tools/governance_lint.py (stdlib + PyYAML). |
 | [`test_governance_trace_lint.py`](tools/test_governance_trace_lint.py) | Fixture tests for governance_trace_lint.py.""" import sys from pathlib import Path |

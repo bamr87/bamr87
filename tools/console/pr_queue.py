@@ -51,6 +51,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 import decision_index as di  # noqa: E402
 from gh_projects import redact  # noqa: E402
 from fleetcore import prqueue as pq  # noqa: E402
+from fleetcore import yamlio  # noqa: E402
 
 DASH_GEN = str(ROOT / "tools" / "dash-gen")
 CACHE_SCHEMA = "pr-queue-detail/v1"
@@ -88,8 +89,9 @@ class Refused(Exception):
 # Config and files
 # --------------------------------------------------------------------------- #
 def load_fleet(root: Path = ROOT) -> dict:
+    """fleet.yml through the surfaces' one reader (fleetcore/yamlio): parsed once per version of the file."""
     try:
-        doc = yaml.safe_load((root / "_data" / "fleet.yml").read_text(encoding="utf-8"))
+        doc = yamlio.load(root / "_data" / "fleet.yml")
     except (OSError, yaml.YAMLError):
         return {}
     return doc if isinstance(doc, dict) else {}
