@@ -17,7 +17,7 @@ import { useCaps, useOps } from '../api/hooks';
 import type { Job, Op } from '../api/types';
 import { to } from '../lib/links';
 import { JobStatus } from './JobStatus';
-import { LogView, useJobTail } from './JobLog';
+import { LogView, expectJob, useJobTail } from './JobLog';
 import u from '../styles/utils.module.css';
 
 type Params = Record<string, unknown>;
@@ -127,6 +127,7 @@ export function JobRunner({ children }: { children: ReactNode }) {
         const job = await post<Job>('/api/jobs', { op: id, params, confirm: remote });
         notifications.show({ title: 'Started', message: job.title, color: 'cyan' });
         void qc.invalidateQueries({ queryKey: ['jobs'] });
+        expectJob(job.id);
         setJobId(job.id);
         return job;
       } catch (e) {
