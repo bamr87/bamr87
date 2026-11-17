@@ -25,6 +25,8 @@ so a wrong grade becomes a wrong PR or a false alarm):
   * the standard grades stored facts, so a reused scan regrades offline, a row
     from before the facts existed is left ungraded, and a control that cannot
     bind (no stranger can trigger it, a person starts it) is not counted;
+  * the #514 guardrails hold: no `allowed_bots: '*'`, and no checkout of a
+    PR's head on pull_request_target (checking out the base passes);
   * `upgradeable` is the fan-out's own byte comparison, not the stamp — a
     stamped copy edited by hand is never offered to the upgrade lever;
   * the kit's mention handler passes the standard it is graded on, and the
@@ -922,7 +924,9 @@ def test_a_hand_rolled_route_is_off_the_standard():
 def test_a_loop_built_to_the_standard_passes_every_control():
     h = graded(STANDARD_LOOP)
     st = h["standard"]
-    assert st["conformant"] and st["missing"] == [] and st["met"] == st["of"] == 9, st
+    # every control but `trusted-author` (no stranger can start it) and
+    # `safe-pr-target` (not a pull_request_target run)
+    assert st["conformant"] and st["missing"] == [] and st["met"] == st["of"] == 10, st
 
 
 def test_an_alias_is_not_a_pinned_model():
@@ -940,7 +944,7 @@ def test_a_model_decided_at_run_time_is_not_graded():
     h = graded(STANDARD_LOOP.replace("--model claude-opus-5-5",
                                      "--model ${{ needs.plan.outputs.model }}"))
     assert h["model"] is None and h["model_source"] == "expression"
-    assert h["standard"]["conformant"] and h["standard"]["of"] == 8
+    assert h["standard"]["conformant"] and h["standard"]["of"] == 9
 
 
 def test_a_cap_forwarded_from_a_caller_is_not_called_missing():
@@ -951,7 +955,7 @@ def test_a_cap_forwarded_from_a_caller_is_not_called_missing():
     h = graded(forwarded)
     assert h["max_turns"] is None and h["max_budget_usd"] is None
     assert h["runtime"] == ["max_turns", "max_budget_usd"]
-    assert h["standard"]["conformant"] and h["standard"]["of"] == 7
+    assert h["standard"]["conformant"] and h["standard"]["of"] == 8
     # a cap that is simply absent is still missing
     absent = graded(STANDARD_LOOP.replace("            --max-turns 240\n", ""))
     assert absent["runtime"] == [] and absent["standard"]["missing"] == ["turn-cap"]
@@ -983,6 +987,122 @@ def test_a_mention_from_a_stranger_needs_an_author_gate():
     h = graded(MENTION_WF, path=".github/workflows/claude.yml")
     assert h["author_gate"] is False
     assert "trusted-author" in h["standard"]["missing"]
+
+
+def test_a_bot_allowlist_of_every_bot_is_off_the_standard():
+    """claude-code-action checks a human actor's repository permission and
+    never a listed bot's, so `allowed_bots: '*'` lets any GitHub App's comment
+    spend the credential (#514)."""
+    h = graded(STANDARD_LOOP)
+    assert h["wildcard_bots"] is False  # no list is the action's default: no bots
+    step = "          claude_args: >-\n"
+    for value, wild in (("'*'", True), ('"dependabot[bot], *"', True),
+                        ("dependabot[bot]", False)):
+        h = graded(STANDARD_LOOP.replace(step, f"          allowed_bots: {value}\n" + step))
+        assert h["wildcard_bots"] is wild, value
+        assert ("no-wildcard-bots" in h["standard"]["missing"]) is wild, (value, h["standard"])
+    assert graded(STANDARD_LOOP.replace(step, "          allowed_bots: '*'\n" + step))[
+        "standard"]["missing"] == ["no-wildcard-bots"]
+    # a list handed over as an expression is decided at run time: not graded
+    h = graded(STANDARD_LOOP.replace(step, "          allowed_bots: ${{ vars.BOTS }}\n" + step))
+    assert h["wildcard_bots"] is None
+    assert h["standard"]["conformant"] and h["standard"]["of"] == 9
+    # only a claude-code-action step carries the list: a hub route has nothing to ask
+    assert graded(LANE_CALLER)["wildcard_bots"] is None
+    # a file YAML cannot parse still shows the wildcard to the line fallback
+    broken = ("on: [push\njobs:\n  a:\n    steps:\n"
+              "      - uses: anthropics/claude-code-action@v1\n        with:\n"
+              "          allowed_bots: '*'  # every bot\n")
+    info = hr.classify_workflow(".github/workflows/x.yml", broken)
+    assert info["parse_error"] and info["wildcard_bots"] is True
+
+
+PR_TARGET_WF = """\
+name: PR reviewer
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  review:
+    if: vars.PR_REVIEW_ENABLED != 'false' && github.event.pull_request.author_association == 'OWNER'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - id: claude-auth
+        uses: bamr87/bamr87/.github/actions/claude-auth@v2
+        with:
+          order: ${{ vars.CLAUDE_AUTH_ORDER }}
+      - run: gh api repos/${{ github.repository }}/statuses/${{ github.event.pull_request.head.sha }} -f state=pending
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
+          claude_args: >-
+            --model claude-sonnet-5-5
+            --max-turns 30
+            --max-budget-usd 10
+"""
+
+
+def test_a_pull_request_target_run_never_checks_out_the_head():
+    """pull_request_target runs with the base repo's secrets and a write
+    token; checking out the PR's head hands both to a stranger's code (#514).
+    Checking out the base, or naming the head SHA to post a status, is safe."""
+    base = graded(PR_TARGET_WF)
+    assert base["kind"] == "event-agent" and base["pr_target_head_checkout"] is False
+    assert base["standard"]["conformant"], base["standard"]
+    checkout = "      - uses: actions/checkout@v7\n"
+    heads = (
+        checkout + "        with:\n          ref: ${{ github.event.pull_request.head.sha }}\n",
+        checkout + "        with:\n"
+                   "          repository: ${{ github.event.pull_request.head.repo.full_name }}\n"
+                   "          ref: ${{ github.head_ref }}\n",
+        checkout + "        with:\n"
+                   "          ref: refs/pull/${{ github.event.pull_request.number }}/merge\n",
+        checkout + "      - run: gh pr checkout ${{ github.event.pull_request.number }}\n",
+        checkout + "      - run: |\n"
+                   "          git fetch origin pull/${{ github.event.pull_request.number }}/head:pr\n"
+                   "          git switch pr\n",
+    )
+    for head in heads:
+        h = graded(PR_TARGET_WF.replace(checkout, head))
+        assert h["pr_target_head_checkout"] is True, head
+        assert h["standard"]["missing"] == ["safe-pr-target"], (head, h["standard"])
+    # the same checkout on pull_request: a fork's run gets no secrets and a
+    # read-only token, so there is nothing for the control to bind
+    plain = graded(PR_TARGET_WF.replace("pull_request_target:", "pull_request:")
+                   .replace(checkout, heads[0]))
+    assert plain["pr_target_head_checkout"] is None
+    assert plain["standard"]["conformant"], plain["standard"]
+
+
+def test_a_scan_from_before_the_514_facts_leaves_them_ungraded():
+    """A reused scan stored before `wildcard_bots` and `pr_target_head_checkout`
+    were recorded has nothing for either control to read: neither is counted,
+    neither is called missing, until the next live scan records them."""
+    row = graded(PR_TARGET_WF.replace(
+        "      - uses: actions/checkout@v7\n",
+        "      - uses: actions/checkout@v7\n        with:\n"
+        "          ref: ${{ github.event.pull_request.head.sha }}\n"))
+    assert row["standard"]["missing"] == ["safe-pr-target"]
+    stored = {k: v for k, v in row.items()
+              if k not in ("wildcard_bots", "pr_target_head_checkout", "standard")}
+    verdict = hr.grade_harness(stored, CFG)
+    assert verdict["conformant"] and verdict["of"] == row["standard"]["of"] - 2, verdict
+
+
+def test_the_contract_turns_the_514_controls_on():
+    """The detectors live here; `harnesses.standard` in _data/fleet.yml is what
+    turns a control on. Both bind every kind of harness."""
+    cfg = hr.load_config(hr.FLEET_DEFAULT)
+    for cid in ("no-wildcard-bots", "safe-pr-target"):
+        spec = cfg["standard"]["controls"].get(cid)
+        assert spec and spec["applies"] == hr.ALL_KINDS, (cid, spec)
+        assert spec["rule"] == "bamr87/bamr87#514", (cid, spec)
 
 
 def test_the_contract_turns_controls_off_and_ignores_unknown_ones():

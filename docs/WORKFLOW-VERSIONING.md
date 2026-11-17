@@ -47,7 +47,7 @@ jobs:
 
 `fleet-conformance.yml` checks out the spec and checker separately, at `hub-ref` (default `main`). A caller that pins the workflow but not `hub-ref` still gets the checker from `main`, so pass the same ref to both.
 
-Migrating the existing `@main` callers to `@v1` is a separate, later change (one fan-out through `templates/standard-ci/` and `templates/conformance/`); this page only makes the tags available.
+The kits seed callers at the floating major: `templates/standard-ci/` and `templates/sdlc/` (`release-please.yml`) since `v2.0.0`, and `templates/conformance/` (0.2.0) and `templates/verify/` (0.3.0) since `v2.1.0`, each passing `hub-ref: v2` so the tooling it checks out is the same version. A repo still on an `@main` caller moves with `tools/fanout.sh --kit standardize --artifacts conformance --upgrade` (or `--kit verify --upgrade`), which repins only an untouched machine seed.
 
 ## What each bump promises
 
@@ -101,7 +101,11 @@ Releases are cut by hand from `main` until a release automation is adopted for t
 
    For a major release, create the new `vX` instead and leave the previous major where it is.
 
+4. Check the pins: `python3 tools/test_template_pins.py` resolves every `bamr87/bamr87` and `bamr87/.github` pin in `templates/` and in the hub's own workflows and actions against the tags GitHub now serves, and fails on any pin whose ref lacks the file it names.
+
 **Rollback.** If a minor or patch release breaks callers, point `vX` back at the previous `vX.Y.Z` (step 3 with the older version) and fix forward in a new patch. Never delete or move an immutable `vX.Y.Z` tag.
+
+**Pins follow the tag.** A caller pins a tag only once that tag carries the file: a new workflow or action ships in a release (and `vX` moves) before a template, or a hub reusable workflow, pins it at `@vX`. `tools/test_template_pins.py` runs in `python-tests.yml`, so a pull request that pins ahead of the tag fails, and so does the next run after a rollback that takes a pinned file away. From 2026-10-26 until v2.1.0 the `spec-driven` kit pinned `spec-gate.yml@v2` while `v2` predated the file, and law-ai's CI, pinned the same way, failed at startup ([#457](https://github.com/bamr87/bamr87/issues/457)).
 
 ## See also
 
