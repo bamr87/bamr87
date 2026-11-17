@@ -1,3 +1,0 @@
-### Fixed
-
-- `templates/release-pipeline/` 0.2.0: the `release.yml` that `tools/adopt-release.sh` seeds calls `bamr87/.github`'s `release-please.yml` and `publish.yml` at `@v1` instead of `@main`, which UPS-WORK-10 and UPS-QA-40 reject (bamr87/bashos#97 failed on it). `bamr87/.github`'s `v1` tag holds both files byte-identical to `main`, with the same inputs, secrets and outputs, so a seeded repo releases exactly as before. The kit is now versioned: a `VERSION`, a `# kit: release-pipeline vX.Y.Z` stamp in the seed, and `archive/release-0.1.0.yml`, the shape it replaces. `tools/adopt-release.sh <repo> --upgrade` rewrites a repo's `release.yml` only when it is byte-identical to the current template or an archived shape, and reports a hand-edited copy without touching it.

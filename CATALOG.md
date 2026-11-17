@@ -56,7 +56,7 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 | [`pr-review/`](templates/pr-review/) | 0.2.0 | 2026-11-15 | tools/fanout.sh --kit pr-review (fanout.yml, kit pr-review) | `README.md`, `pr-review.yml` |
 | [`projects/`](templates/projects/) | unversioned | — | — | `auto-add.yml`, `framework.yml` |
 | [`prose/`](templates/prose/) | 0.5.0 | 2026-11-15 | tools/fanout.sh --kit prose | `markdown-oneline.yml`, `test_prose_kit.py` |
-| [`release-pipeline/`](templates/release-pipeline/) | unversioned | — | tools/adopt-release.sh | `RELEASING.md`, `ci.yml`, `release.yml` |
+| [`release-pipeline/`](templates/release-pipeline/) | 0.2.0 | 2026-11-15 | tools/adopt-release.sh (adopts a repo; --upgrade refreshes an untouched release.yml) | `RELEASING.md`, `ci.yml`, `release.yml` |
 | [`schema/`](templates/schema/) | spec 0.1 | 2026-08-18 | tools/seed-schema.sh / fanout.yml (kit: schema) | `CLAUDE.snippet.md`, `README.md`, `SCHEMA.md`, `SCHEMA.template.md`, `schema-check.yml` |
 | [`sdlc/`](templates/sdlc/) | 0.2.0 | 2026-10-22 | Copied per repo (not inherited). | `AGENTS.template.md`, `CHANGELOG.template.md`, `CLAUDE.template.md`, `README.md`, `content-queue/backlog.yml`, `docs/README.template.md`, `docs/adr/0000-template.md`, `docs/adr/0001-record-architectu… |
 | [`site-quality/`](templates/site-quality/) | 0.1.0 | 2026-10-04 | tools/fanout.sh --kit site-quality (Jekyll repos only; needs a root _config.yml) | `README.md`, `fixtures/configs/invalid/bad-date-format.yml`, `fixtures/configs/invalid/bad-level.yml`, `fixtures/configs/invalid/bad-on-expired.yml`, `fixtures/configs/invalid/bad-schema.yml`, `fixtu… |
@@ -198,6 +198,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`seed-schema.sh`](tools/seed-schema.sh) | Seeds the schema kit into one repo (dry-run default) — see [docs/SCHEMA-FRAMEWORK.md](../docs/SCHEMA-FRAMEWORK.md) |
 | [`setup-terminal.sh`](tools/setup-terminal.sh) | macOS-only: bootstraps the [bashOS `chui/`](https://github.com/bamr87/bashos/tree/main/chui) terminal (Oh My Zsh, Powerlevel10k, MesloLGS Nerd Font), registers the font… |
 | [`setup.sh`](tools/setup.sh) | **Primary entrypoint** — cross-platform dev environment setup; on macOS its last step is `setup-terminal.sh` (`--skip-terminal` to opt out) |
+| [`test_adopt_release.py`](tools/test_adopt_release.py) | Tests for the release-pipeline kit (templates/release-pipeline/) and the tool that seeds it, tools/adopt-release.sh. |
 | [`test_backlog_fanout.py`](tools/test_backlog_fanout.py) | Fixture tests for tools/backlog_fanout.py + tools/fleet_activity.py. |
 | [`test_check_rollup.py`](tools/test_check_rollup.py) | Offline tests for `check_rollup.py`: both rollup shapes (`gh pr view` and GraphQL), same-second ordering, a run not yet started, unreadable times, only a cancellation se… |
 | [`test_claude_code_executes_lint.py`](tools/test_claude_code_executes_lint.py) | Fixture tests for tools/claude_code_executes_lint.py (constitution § 26).""" from __future__ import annotations |
