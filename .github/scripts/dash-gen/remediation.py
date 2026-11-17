@@ -75,6 +75,20 @@ broken for three weeks is stale AND genuinely broken — so a stale candidate st
 in the queue and merely sorts below every live one of the same severity, where
 the cap can push it off today's run without deleting the coverage.
 
+A fifth guard reads the SIZE of the waste rather than its share:
+
+  min_cost_waste_min        a workflow that wasted fewer job-minutes than this
+                            in the window is not worth a doctor slot on cost;
+                            drop `high-cost-low-value` and `cancel-heavy`, and
+                            the priority fallback with them. Never `slow`
+                            (latency), `cron-heavy` (the scheduled share) or a
+                            correctness signal.
+
+Both flags are shares over a 4-job-minute floor, so one 5-commit burst that a
+working `cancel-in-progress` guard cut short queued recon-engine's CI on 4.0
+wasted job-minutes in 14 days (bamr87/bamr87#823). Like the first three it
+suppresses, on a measurement: a record without `waste_min` is never floored.
+
 Merging matters: the worst offenders are usually BOTH — a workflow that is red
 AND burning 77 minutes a run is one problem, and filing two issues about it (as
 the old split loops did — actions-review filed one, daily-repo-analysis filed
@@ -157,6 +171,14 @@ PR_SIGNALS = {"pr-red"}
 # all three — failing dispatch runs are what building something looks like.
 COST_SIGNALS = {"high-cost-low-value", "slow", "cancel-heavy"}
 
+# The cost signals that MEASURE WASTE: minutes that ended in failure or were
+# cancelled. actions_analytics raises both from a share (of minutes, of runs)
+# over a 4-job-minute floor, so one bad burst on a cheap workflow clears them;
+# `min_cost_waste_min` asks whether the waste is worth a doctor slot at all
+# (bamr87/bamr87#823). `slow` is LATENCY — a green workflow can be slow and
+# waste nothing — so the floor must not reach it.
+WASTE_SIGNALS = {"high-cost-low-value", "cancel-heavy"}
+
 # `cron-heavy` (scheduled share above actions_analytics.CRON_HEAVY_PCT) is TRUE BY
 # CONSTRUCTION for every productive schedule: that guard requires a scheduled
 # share of at least `productive_schedule_pct` (90 by default, well above the
@@ -212,6 +234,7 @@ def load_config(path: Path) -> dict:
         "interactive_dispatch_pct": cfg.get("interactive_dispatch_pct", 60),
         "productive_schedule_pct": cfg.get("productive_schedule_pct", 90),
         "stale_after_days": cfg.get("stale_after_days", 7),
+        "min_cost_waste_min": cfg.get("min_cost_waste_min", 15),
         "billing_block_issue": cfg.get("billing_block_issue", 268),
         # the loop's switch (tools/jev/steps/fleet-pulse/doctor.yml local.switch.config); CI reads
         # vars.FLEET_PULSE_ENABLED on the pulse job instead, so this gates only the local planner
@@ -526,6 +549,24 @@ def is_green_zero_waste(w: dict) -> bool:
     return float(w.get("waste_min") or 0) <= 0.0
 
 
+def is_switched_off(w: dict) -> bool:
+    """Every run in the window was skipped: no verdict, no billed minute.
+
+    A loop behind its `vars.<NAME>_ENABLED` kill switch (a standing rule for
+    every scheduled agent loop) still fires its cron, and each firing is a
+    `skipped` run that costs nothing. Those runs count toward `runs` and
+    `sched_pct`, so `cron-heavy` fires at 100% scheduled — but with no verdict
+    `success_rate_pct` is null and the green guard cannot clear it, which
+    queued `fleet-pm.yml` (7 skipped runs, 0.0 job-min) on cron-heavy alone.
+    Requires the verdict counts to be present, so an older snapshot without
+    them behaves as it did.
+    """
+    if not all(k in w for k in ("success", "failure", "cancelled")):
+        return False
+    verdicts = sum(int(w.get(k) or 0) for k in ("success", "failure", "cancelled"))
+    return verdicts == 0 and float(w.get("total_min") or 0) <= 0.0
+
+
 # --------------------------------------------------------------------------- #
 # guard 4 — staleness (reads the clock, not the verdict)
 # --------------------------------------------------------------------------- #
@@ -611,6 +652,31 @@ def is_stale(cand: dict, cfg: dict, now: dt.datetime | None = None) -> bool:
     return age is not None and age > limit
 
 
+# --------------------------------------------------------------------------- #
+# guard 5 — the waste floor (reads the size of the waste, not its share)
+# --------------------------------------------------------------------------- #
+def is_trivial_waste(w: dict, cfg: dict) -> bool:
+    """Did this workflow waste too few minutes for a cost flag to earn a slot?
+
+    `high-cost-low-value` and `cancel-heavy` are SHARES — of minutes ending in
+    non-success, of runs cancelled — over a 4-job-minute floor, so one bad
+    burst on a cheap workflow raises them. recon-engine `ci.yml` was queued on
+    `cancel-heavy` for 4.0 wasted job-minutes in 14 days, every one from a
+    single 5-commit burst its working `cancel-in-progress` guard cut short
+    (bamr87/bamr87#823), and a doctor slot costs ~46 Opus turns.
+
+    Like `is_superseded` and `is_productive_schedule` this SUPPRESSES, because
+    `waste_min` measures exactly what those flags are about. A record without
+    it is never floored: absence of evidence is not evidence of a small bill.
+    Set `min_cost_waste_min: 0` to switch the guard off.
+    """
+    floor = float(cfg.get("min_cost_waste_min") or 0)
+    waste = w.get("waste_min")
+    if floor <= 0 or waste is None:
+        return False
+    return float(waste) < floor
+
+
 def usage_candidates(usage: dict, cfg: dict, owner: str) -> dict[str, dict]:
     out: dict[str, dict] = {}
     severity = cfg["severity"]
@@ -632,12 +698,14 @@ def usage_candidates(usage: dict, cfg: dict, owner: str) -> dict[str, dict]:
         raw = {f for f in (w.get("flags") or []) if f in severity}
         signals = set(raw)
 
-        # Three false-positive guards, applied to the flags the analytics module
+        # Four false-positive guards, applied to the flags the analytics module
         # computed over the whole window. None weakens a real signal: they
-        # only discard the ones the window's *averaging* manufactured.
+        # only discard the ones the window's *averaging* manufactured, and the
+        # waste floor the ones too small to pay for the slot they would take.
         superseded = is_superseded(w, cfg)
         interactive = is_interactive(w, cfg)
         productive = is_productive_schedule(w, cfg)
+        trivial = is_trivial_waste(w, cfg)
         suppressed = set()
         if superseded:
             suppressed |= raw & CORRECTNESS_SIGNALS
@@ -645,10 +713,14 @@ def usage_candidates(usage: dict, cfg: dict, owner: str) -> dict[str, dict]:
             suppressed |= raw & COST_SIGNALS
         if productive:
             suppressed |= raw & PRODUCTIVE_SUPPRESSES
-        elif cfg["productive_schedule_pct"] <= 100 and is_green_zero_waste(w):
+        elif cfg["productive_schedule_pct"] <= 100 and (
+                is_green_zero_waste(w) or is_switched_off(w)):
             # Under the scheduled share the guard asks for, but as green and as
-            # free of waste: `cron-heavy` goes, the cost signals stay.
+            # free of waste — or switched off, every run skipped at no cost:
+            # `cron-heavy` goes, the cost signals stay.
             suppressed |= raw & GREEN_ZERO_WASTE_SUPPRESSES
+        if trivial:
+            suppressed |= raw & WASTE_SIGNALS
         signals -= suppressed
 
         # The analytics module flags `slow` relative to the fleet; the fleet
@@ -662,7 +734,8 @@ def usage_candidates(usage: dict, cfg: dict, owner: str) -> dict[str, dict]:
         if not signals:
             # Nothing left to fix. When a guard actually FIRED we have
             # positively established the workflow is healthy or hand-driven,
-            # so the priority fallback below is skipped — that fallback is
+            # or that its waste is too small to be worth a slot, so the
+            # priority fallback below is skipped — that fallback is
             # precisely what queued a green, switched-off workflow on the
             # strength of a human's debugging minutes (bamr87/bamr87#92).
             # `pr-red` is the same kind of positive finding: the red minutes

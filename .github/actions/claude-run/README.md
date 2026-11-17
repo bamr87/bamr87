@@ -3,14 +3,14 @@
 The fleet's universal AI step — kit `ai-runner`, **source of truth for every AI lane in the fleet**. Consume it by reference:
 
 ```yaml
-- uses: bamr87/bamr87/.github/actions/claude-run@main
+- uses: bamr87/bamr87/.github/actions/claude-run@v2
   with:
     agent: grow                       # .claude/agents/grow.md in the CONSUMER repo
     prompt: "Produce ONE piece from the backlog, verify it, open ONE PR, write its URL to pr-result.txt."
     tools: "Bash,Read,Write,Edit,Grep,Glob"
 ```
 
-with `CLAUDE_CODE_OAUTH_TOKEN` and/or `ANTHROPIC_API_KEY` in the job `env`. Or take the whole lane — kill switch, concurrency, checkout, runtimes, this step, the result assertion — from the reusable [`ai-lane.yml`](../../workflows/ai-lane.yml).
+with `CLAUDE_CODE_OAUTH_TOKEN` in the job `env` (OAuth only for now, 2026-11-15: `ANTHROPIC_API_KEY` is unset by the step and `api_key` is dropped from the order, so there is no key-billed run and no Claude API fallback). Or take the whole lane — kill switch, concurrency, checkout, runtimes, this step, the result assertion — from the reusable [`ai-lane.yml`](../../workflows/ai-lane.yml).
 
 | File | Purpose |
 | --- | --- |

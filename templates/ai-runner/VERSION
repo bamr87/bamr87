@@ -1,11 +1,11 @@
 kit: ai-runner
-version: 0.3.1
+version: 0.4.1
 source: "bamr87/bamr87 templates/ai-runner/ (runtime: .github/actions/claude-run/ + .github/workflows/ai-lane.yml)"
-seeded-by: "consumed BY REFERENCE (uses: bamr87/bamr87/.github/actions/claude-run@main, or the reusable .github/workflows/ai-lane.yml@main); not fanned out by tools/fanout.sh"
-files: ai-lane.template.yml, tests/contract.sh, archive/ai-lane-0.1.0.yml, archive/ai-lane-0.2.1.yml
-updated: 2026-11-16
+seeded-by: "consumed BY REFERENCE (uses: bamr87/bamr87/.github/actions/claude-run@v2, or the reusable .github/workflows/ai-lane.yml@v2); not fanned out by tools/fanout.sh"
+files: ai-lane.template.yml, tests/contract.sh, archive/ai-lane-0.1.0.yml, archive/ai-lane-0.2.1.yml, archive/ai-lane-0.3.0.yml
+updated: 2026-11-17
 changelog: |
-  0.3.1 — a TRANSIENT failure (529, 503, 502, overloaded) is retried inside the
+  0.4.1 — a TRANSIENT failure (529, 503, 502, overloaded) is retried inside the
   run. run.sh classified it as `transient` and then failed the step on the
   first one, so an overload that outlasted the CLI's own retries (three 529s in
   a row inside one call) cost the lane its whole scheduled run. It now re-runs
@@ -20,10 +20,19 @@ changelog: |
   count to the step summary, and spools a fleet activity `retry` event where
   the consumer carries tools/fleet_activity.py (best-effort). The budget,
   turn-cap, auth and quota paths are unchanged. The caller template is
-  unchanged. Consumed by reference (@main), so every lane gets this on merge.
+  unchanged. Consumed at the hub's @v2 tag, so lanes get this with the next
+  hub release (a patch moves v2).
   Contract: tests/contract.sh cases 17-21 (41 cases in all); the cases for
   the credential order run with AI_TRANSIENT_RETRIES=0, so their
   one-call-per-method assertions hold as before.
+  0.4.0 — consumers pin the hub's floating major tag, not main: the lane
+  template calls ai-lane.yml@v2, and the docs show claude-run@v2. ai-lane.yml
+  itself already called claude-run@v2, so a lane on ai-lane.yml@main ran the
+  main lane around a v2.0.0 runner that lacked the explicit @latest CLI
+  install Node 20 needs; v2.1.0 brings the two back together. A runner fix
+  now reaches lanes with the next hub release (a patch moves v2), not on
+  merge. @main failed UPS-QA-40 and UPS-WORK-10 in every lane repo.
+  archive/ai-lane-0.3.0.yml keeps the old caller shape.
   0.3.0 — a lane copied from the template is born on the harness standard
   (_data/fleet.yml `harnesses.standard`). The caller template now passes a
   turn cap and a matching dollar cap (`max-turns: "120"`, `max-budget-usd:
@@ -85,7 +94,7 @@ changelog: |
   pre/post hooks, and the result-file assertion. Ten contract tests.
 notes: |
   Consumed by reference, so there is nothing for --upgrade to byte-compare:
-  every consumer follows @main on its next run. The caller template IS a file a
+  every consumer follows the v2 tag on its next run. The caller template IS a file a
   repo holds, so it is stamped and archived like agent-context; the runtime is
   not. Ruby is the only runtime the runner needs beyond bash (model resolution,
   result parsing) and ubuntu-latest ships it. Consumers that vendored the

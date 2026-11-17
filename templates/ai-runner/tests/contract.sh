@@ -256,21 +256,26 @@ auth_case() {
   rm -f "$outf" "$errf"
 }
 
-auth_case "default order: OAuth first, the key hidden from the CLI" 0 "SAW oauth+" "" "" \
+# Claude auth is OAuth only for now (2026-11-15): run.sh unsets ANTHROPIC_API_KEY
+# and drops `api_key` from the order, so every case below asserts the key is
+# NEVER shown to the CLI, whatever the order says. To restore, revert these
+# cases with the run.sh OAuth-only block (git history has the key-first ones).
+auth_case "default order: OAuth, the key hidden from the CLI" 0 "SAW oauth+" "" "" \
   CLAUDE_CODE_OAUTH_TOKEN=o ANTHROPIC_API_KEY=k
-auth_case "api_key,oauth: the key first, the OAuth token hidden" 0 "SAW +key" "" "" \
+auth_case "api_key,oauth: OAuth only for now, the key never shown" 0 "SAW oauth+" "ANTHROPIC_API_KEY is disabled" "" \
   AI_AUTH_ORDER=api_key,oauth CLAUDE_CODE_OAUTH_TOKEN=o ANTHROPIC_API_KEY=k
-auth_case "CLAUDE_AUTH_ORDER is read when AI_AUTH_ORDER is unset" 0 "SAW +key" "" "" \
-  CLAUDE_AUTH_ORDER=api_key,oauth CLAUDE_CODE_OAUTH_TOKEN=o ANTHROPIC_API_KEY=k
-auth_case "a REFUSED first method hands over to the next" 0 "SAW oauth+" "retrying with oauth" "" \
+auth_case "CLAUDE_AUTH_ORDER is read when AI_AUTH_ORDER is unset" 0 "SAW +" "ignoring unknown auth method 'bogus'" "" \
+  CLAUDE_AUTH_ORDER=bogus CLAUDE_CODE_OAUTH_TOKEN=o
+auth_case "a key that would be REFUSED is never tried" 0 "SAW oauth+" "" "retrying with" \
   AI_AUTH_ORDER=api_key,oauth REFUSE_KEY=1 CLAUDE_CODE_OAUTH_TOKEN=o ANTHROPIC_API_KEY=k
-auth_case "a refused key's hint names the key, not the OAuth token" 1 "" "ANTHROPIC_API_KEY was rejected" "" \
+auth_case "an api_key-only order still runs on OAuth" 0 "SAW oauth+" "" "" \
   AI_AUTH_ORDER=api_key REFUSE_KEY=1 CLAUDE_CODE_OAUTH_TOKEN=o ANTHROPIC_API_KEY=k
 auth_case "a non-credential failure does NOT re-run the task" 1 "" "overloaded" "retrying with" \
   AI_AUTH_ORDER=api_key,oauth OVERLOAD=1 CLAUDE_CODE_OAUTH_TOKEN=o ANTHROPIC_API_KEY=k
 
 # The single-shot API fallback is billed to the key, so an order without
-# api_key must never reach it. Needs a consumer tree with an api_call script.
+# api_key must never reach it — and, OAuth only for now, neither may an order
+# WITH api_key. Needs a consumer tree with an api_call script.
 kit="$(mktemp -d)"; mkdir -p "$kit/scripts/ai"
 cp "$SUT" "$kit/scripts/ai/run.sh"
 printf 'print "API FALLBACK"\n' > "$kit/scripts/ai/api_call.rb"
@@ -281,8 +286,8 @@ for order in oauth oauth,api_key; do
     bash "$kit/scripts/ai/run.sh" --prompt "hello" >"$outf" 2>/dev/null; rc=$?
   if [ "$order" = oauth ] && [ "$rc" = 1 ] && ! grep -qF "API FALLBACK" "$outf"; then
     echo "PASS: order without api_key never spends the key on the API fallback"; pass=$((pass + 1))
-  elif [ "$order" = oauth,api_key ] && grep -qF "API FALLBACK" "$outf"; then
-    echo "PASS: order with api_key still reaches the API fallback"; pass=$((pass + 1))
+  elif [ "$order" = oauth,api_key ] && [ "$rc" = 1 ] && ! grep -qF "API FALLBACK" "$outf"; then
+    echo "PASS: order with api_key never reaches the API fallback either (OAuth only)"; pass=$((pass + 1))
   else
     echo "FAIL: API fallback under AI_AUTH_ORDER=$order: exit $rc, stdout=$(head -c 120 "$outf")"; fail=$((fail + 1))
   fi
@@ -386,7 +391,7 @@ rm -rf "$argstub"
 #    BILLED is re-run on the same credential, at most AI_TRANSIENT_RETRIES times
 #    (default 2) after the AI_TRANSIENT_BACKOFF waits (default "30 90", "0 0"
 #    here). A failed call that billed anything is never re-run, and a transient
-#    failure never hands over to the next credential. Until kit 0.3.1 a
+#    failure never hands over to the next credential. Until kit 0.4.1 a
 #    transient payload produced exactly one call.
 retrystub="$(mktemp -d)"
 cat > "$retrystub/claude" <<'STUB'

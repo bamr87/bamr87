@@ -6,14 +6,22 @@
 # config (from templates/release-pipeline/), and opens a PR. The shared logic
 # lives elsewhere; this only adds the thin per-repo glue. The CI caller targets
 # the hub's standard-ci.yml (the one shared gate; bamr87/.github's ci.yml is
-# retired); release.yml still calls bamr87/.github's release workflows.
+# retired); release.yml calls bamr87/.github's release workflows at @v1.
+#
+# --upgrade is for a repo that already adopted. It touches only
+# .github/workflows/release.yml, and only when that file is byte-identical to the
+# current template or to a shape in templates/release-pipeline/archive/ (rendered
+# for the repo's default branch): proof it was seeded and never edited. A
+# hand-edited copy is reported and left alone. Same rule as fanout.sh --upgrade.
 #
 # Usage:
-#   tools/adopt-release.sh <repo> [--owner bamr87] [--dry-run] [--no-pr]
+#   tools/adopt-release.sh <repo> [--owner bamr87] [--upgrade] [--dry-run] [--no-pr]
 #
 #   <repo>      repo name (e.g. zpl-viewer) or a projects/<name> submodule path
+#   --upgrade   refresh an untouched machine-seeded release.yml to the current kit
 #   --dry-run   build the branch locally, show the diff, but don't push/PR
 #   --no-pr     push the branch but don't open a PR
+#   ADOPT_WORKDIR=<dir>  where the clone goes (default ~/bamr87-release-work)
 # ============================================================================
 set -euo pipefail
 
@@ -22,6 +30,7 @@ TEMPLATES="${ROOT}/templates/release-pipeline"
 OWNER="bamr87"
 DRY_RUN=false
 OPEN_PR=true
+UPGRADE=false
 BRANCH="chore/adopt-release-pipeline"
 WORKDIR="${ADOPT_WORKDIR:-$HOME/bamr87-release-work}"
 
@@ -29,11 +38,12 @@ err() { printf '\033[31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 note() { printf '\033[36m▸ %s\033[0m\n' "$*"; }
 ok()  { printf '\033[32m✓ %s\033[0m\n' "$*"; }
 
-[[ $# -ge 1 ]] || err "usage: tools/adopt-release.sh <repo> [--owner X] [--dry-run] [--no-pr]"
+[[ $# -ge 1 ]] || err "usage: tools/adopt-release.sh <repo> [--owner X] [--upgrade] [--dry-run] [--no-pr]"
 REPO="${1#projects/}"; REPO="${REPO%/}"; shift
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --owner) OWNER="$2"; shift 2;;
+    --upgrade) UPGRADE=true; shift;;
     --dry-run) DRY_RUN=true; shift;;
     --no-pr) OPEN_PR=false; shift;;
     *) err "unknown arg: $1";;
@@ -43,12 +53,31 @@ done
 command -v gh >/dev/null || err "gh CLI required"
 command -v jq >/dev/null || err "jq required"
 
+KIT_VERSION="$(sed -n 's/^version: *//p' "${TEMPLATES}/VERSION" | head -1)"
+[[ -n "$KIT_VERSION" ]] || err "no version: line in ${TEMPLATES}/VERSION"
+$UPGRADE && BRANCH="ci/release-pipeline-v${KIT_VERSION}"
+
 SLUG="${OWNER}/${REPO}"
 note "Target: ${SLUG}"
 gh repo view "$SLUG" >/dev/null 2>&1 || err "repo not found: $SLUG"
 
 DEFAULT_BRANCH="$(gh api "repos/${SLUG}" --jq .default_branch)"
 note "Default branch: ${DEFAULT_BRANCH}"
+
+# Render a kit file for this repo. $2 is the kit version the stamp names: the
+# current kit's for a template, an archived shape's own for a snapshot.
+subst() { sed -e "s/__DEFAULT_BRANCH__/${DEFAULT_BRANCH}/g" -e "s/__KIT_VERSION__/${2:-$KIT_VERSION}/g" "$1"; }
+
+# Commit what is staged, push the branch and open the PR (unless --no-pr).
+publish_branch() {  # $1 commit message, $2 PR title, $3 PR body
+  local uid login
+  uid="$(gh api user --jq .id)"; login="$(gh api user --jq .login)"
+  git -c user.name="$login" -c user.email="${uid}+${login}@users.noreply.github.com" commit -q -m "$1"
+  git push -u origin "$BRANCH" >/dev/null 2>&1 || err "push of ${BRANCH} failed"
+  ok "pushed ${BRANCH}"
+  $OPEN_PR || { note "--no-pr: skipping PR"; return 0; }
+  gh pr create --repo "$SLUG" --base "$DEFAULT_BRANCH" --head "$BRANCH" --title "$2" --body "$3"
+}
 
 # --- fresh clone -----------------------------------------------------------
 mkdir -p "$WORKDIR"
@@ -57,6 +86,41 @@ rm -rf "$DIR"
 git clone --depth 1 "https://github.com/${SLUG}.git" "$DIR" >/dev/null 2>&1 || err "clone failed"
 cd "$DIR"
 git checkout -q -b "$BRANCH"
+
+# --- --upgrade: refresh an untouched release.yml, nothing else -------------
+if $UPGRADE; then
+  WF=.github/workflows/release.yml
+  [[ -f "$WF" ]] || err "no ${WF} in ${SLUG}: nothing to upgrade (run without --upgrade to adopt)"
+  if cmp -s "$WF" <(subst "${TEMPLATES}/release.yml"); then
+    ok "release.yml: current (kit v${KIT_VERSION})"; exit 0
+  fi
+  FROM=""
+  for cand in "${TEMPLATES}"/archive/release-*.yml; do
+    [[ -f "$cand" ]] || continue
+    v="$(basename "$cand" .yml)"; v="${v#release-}"
+    if cmp -s "$WF" <(subst "$cand" "$v"); then FROM="$v"; break; fi
+  done
+  if [[ -z "$FROM" ]]; then
+    STAMP="$(sed -n 's/^# kit: release-pipeline v//p' "$WF" | head -1)"
+    note "release.yml: hand-modified, left alone (stamp: ${STAMP:-none}); port the change in templates/release-pipeline/VERSION by hand"
+    exit 0
+  fi
+  subst "${TEMPLATES}/release.yml" > "$WF"
+  ok "release.yml: upgraded machine seed v${FROM} -> kit v${KIT_VERSION}"
+  git add "$WF"
+  echo; git --no-pager diff --cached -- "$WF"; echo
+  if $DRY_RUN; then note "--dry-run: not pushing. Inspect ${DIR}"; exit 0; fi
+  publish_branch "ci(release): upgrade release.yml to release-pipeline kit v${KIT_VERSION}
+
+The file was byte-identical to the kit's v${FROM} seed, so nothing
+hand-written changes. What changed is in bamr87/bamr87
+templates/release-pipeline/VERSION." \
+    "ci(release): upgrade release.yml to release-pipeline kit v${KIT_VERSION}" \
+    "Refreshes \`.github/workflows/release.yml\` from the hub's release-pipeline kit v${KIT_VERSION} (\`tools/adopt-release.sh --upgrade\`). The file was byte-identical to the kit's v${FROM} seed, so nothing hand-written is lost. What changed is in the kit's changelog: bamr87/bamr87 \`templates/release-pipeline/VERSION\`.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)"
+  exit 0
+fi
 
 # --- detect ecosystem ------------------------------------------------------
 # Relax pipefail here: a no-match grep in a version-extraction pipeline is normal
@@ -87,14 +151,13 @@ note "Ecosystem: ${RELEASE_TYPE} · registry: ${REGISTRY} · version: ${VERSION}
 
 # --- scaffold caller workflows (never clobber existing CI) -----------------
 mkdir -p .github/workflows
-subst() { sed -e "s/__DEFAULT_BRANCH__/${DEFAULT_BRANCH}/g" "$1"; }
 
 if [[ -f .github/workflows/ci.yml ]]; then
   note "ci.yml already exists — leaving the repo's CI untouched (UPS-QA-20 wants a caller of bamr87/bamr87 standard-ci.yml)"
 else
   subst "${TEMPLATES}/ci.yml" > .github/workflows/ci.yml; ok "added .github/workflows/ci.yml"
 fi
-[[ -f .github/workflows/release.yml ]] && err "release.yml already exists — resolve manually before adopting"
+[[ -f .github/workflows/release.yml ]] && err "release.yml already exists — an adopted repo: rerun with --upgrade (refreshes it only if untouched), else resolve by hand"
 subst "${TEMPLATES}/release.yml" > .github/workflows/release.yml; ok "added .github/workflows/release.yml"
 
 # --- release-please config + manifest --------------------------------------
@@ -147,22 +210,16 @@ echo; note "Changes:"; git -c color.ui=always status --short; echo
 
 if $DRY_RUN; then note "--dry-run: not pushing. Inspect ${DIR}"; exit 0; fi
 
-UID_NUM="$(gh api user --jq .id)"; LOGIN="$(gh api user --jq .login)"
-NOREPLY="${UID_NUM}+${LOGIN}@users.noreply.github.com"
-git -c user.name="$LOGIN" -c user.email="$NOREPLY" commit -q -m "ci: adopt standardized release pipeline
+publish_branch "ci: adopt standardized release pipeline
 
 Scaffolds release-please (${RELEASE_TYPE}), a CI caller of the hub's
 standard-ci.yml and a release caller of bamr87/.github. Conventional Commits now drive versioning, CHANGELOG, and the
-GitHub Release; ${REGISTRY} publishing runs on release."
-git push -u origin "$BRANCH" >/dev/null 2>&1 && ok "pushed ${BRANCH}"
-
-$OPEN_PR || { note "--no-pr: skipping PR"; exit 0; }
-gh pr create --repo "$SLUG" --base "$DEFAULT_BRANCH" --head "$BRANCH" \
-  --title "ci: adopt standardized release pipeline" \
-  --body "Adopts the shared [release pipeline](https://github.com/bamr87/.github#readme): release-please (\`${RELEASE_TYPE}\`) drives version + CHANGELOG + GitHub Release, then publishes to **${REGISTRY}**.
+GitHub Release; ${REGISTRY} publishing runs on release." \
+  "ci: adopt standardized release pipeline" \
+  "Adopts the shared [release pipeline](https://github.com/bamr87/.github#readme): release-please (\`${RELEASE_TYPE}\`) drives version + CHANGELOG + GitHub Release, then publishes to **${REGISTRY}**.
 
 - Version source: \`${VERSION_SOURCE}\` (current: \`${VERSION}\`)
 - Required secret: \`${SECRET}\`
-- \`ci.yml\` calls the hub's shared gate \`bamr87/bamr87/.github/workflows/standard-ci.yml@v1\`; \`release.yml\` calls \`bamr87/.github@main\`. See \`RELEASING.md\`.
+- \`ci.yml\` calls the hub's shared gate \`bamr87/bamr87/.github/workflows/standard-ci.yml@v1\`; \`release.yml\` calls \`bamr87/.github\`'s \`release-please.yml\` and \`publish.yml\` at \`@v1\` (release-pipeline kit v${KIT_VERSION}). See \`RELEASING.md\`.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)"

@@ -4,7 +4,7 @@
 # -----------------------------------------------------------------------------
 # Consume it BY REFERENCE, never by copy:
 #
-#   - uses: bamr87/bamr87/.github/actions/claude-run@main
+#   - uses: bamr87/bamr87/.github/actions/claude-run@v2
 #     with: { agent: grow, prompt: "…", tools: "Bash,Read,Write,Edit,Grep,Glob" }
 #
 # or take the whole lane (kill switch, concurrency, checkout, runtimes, this
@@ -21,8 +21,12 @@
 # no-op for a later step to discover (run.sh, EXIT CODES). With NO auth at all
 # the step is a clean no-op (exit 0), so lanes degrade gracefully when unset.
 #
-# Auth comes from the job env: CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`;
-# drives the primary path) and/or ANTHROPIC_API_KEY (primary + fallback).
+# Auth comes from the job env: CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`).
+# Claude auth: OAuth only (CLAUDE_CODE_OAUTH_TOKEN). ANTHROPIC_API_KEY disabled for
+# now (2026-11-15): the step below unsets it before run.sh, which also ignores
+# `api_key` in AI_AUTH_ORDER (no key-billed Claude Code run, no Claude API
+# fallback). To restore, drop the two OAuth-only guards (here and in run.sh)
+# and re-add the secrets.ANTHROPIC_API_KEY reference to the job env.
 #
 # METERING (optional, consumer-owned): when the consumer carries
 # scripts/ai/usage.rb + usage_report.rb, run.sh records every call's tokens and
@@ -89,8 +93,11 @@ runs:
         MAX_BUDGET_USD: ${{ inputs.max-budget-usd }}
         PERMISSION_MODE: ${{ inputs.permission-mode }}
       run: |
-        if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-          echo "::warning::no Claude auth (CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY) — AI step is a no-op."
+        # OAuth only for now (2026-11-15): a job env that still carries the key
+        # never hands it to Claude. See the header to restore.
+        unset ANTHROPIC_API_KEY
+        if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+          echo "::warning::no Claude auth (CLAUDE_CODE_OAUTH_TOKEN; ANTHROPIC_API_KEY is disabled for now, OAuth only) — AI step is a no-op."
           exit 0
         fi
         # Keep the install log: when the CLI is missing, `command -v claude`
