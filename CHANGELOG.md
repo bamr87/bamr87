@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+### Added
+
+- Proposed constitution § 30 / amendment `onprem-compute` and the plan [docs/ONPREM-COMPUTE.md](../docs/ONPREM-COMPUTE.md): Amr's new on-premise machine enrolled as a fleet node for local LLMs and Claude Code sessions, local models as an eval-gated tier, honest on-premise cost, node-local housekeeping for the weekend routine, and a self-hosted runner allowed only behind fences. Nothing is deployed.
+
 ### Security
 
 - `site-quality.yml` runtime: the `basic-ftp` override moves from 6.2.3 to the patched 6.2.6, so the transitive copy under `@lhci/cli` and `pa11y` (via `get-uri`) resolves to the fixed release; the exact 6.2.3 pin had kept Dependabot from applying the advisory update.

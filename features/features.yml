@@ -2747,3 +2747,41 @@ features:
     - tools/test_weekly_closeout.py
     prd:
     - FR131
+  - id: HUB-116
+    title: 'On-premise compute node: local LLMs and Claude Code sessions on Amr''s own machine (planned)'
+    description: 'Plan only: enrol Amr''s new on-premise machine (Ryzen 9 9950X3D2, 64 GB, Radeon RX 9070
+      XT 16 GB, picked up 2026-11-10) as a second workload node in _data/fleet.yml nodes:, disabled until
+      its deploy step. It serves local LLMs through Ollama on its loopback (Vulkan baseline, ROCm in a container
+      compared; no CUDA), hosts Claude Code sessions (ssh + tmux, bashOS''s oneos-remote, and the hub''s
+      own headless entry points tools/dash loop | conflicts | weekly | refine under systemd user timers),
+      cleans its own worktrees, clones and idle session state with the weekly classifier, and closes the
+      weekly console lanes'' R6:no-local-entry gap with a local adapter; a self-hosted runner is optional
+      and fenced by constitution § 30.5. Cost is stated honestly: $0 metered API spend and no hosted minutes
+      for what moves onto the node, the same Claude subscription for Claude Code sessions, and a measured
+      electricity cost. Phased P0–P6 rollout in docs/ONPREM-COMPUTE.md.'
+    implemented: false
+    status: planned
+    surface: infra
+    link: docs/ONPREM-COMPUTE.md
+    docs: docs/ONPREM-COMPUTE.md
+    tags:
+    - platform
+    - nodes
+    - local-llm
+    - claude-code
+    - weekly
+    - housekeeping
+    - cost
+    date: 2026-11-15
+    tests:
+    - na: plan only; phases P2–P6 add their tests (tools/test_fleetcore_nodes.py for the node entry, the
+        weekly and JEV suites for the timers and the local tier)
+    prd:
+    - FR64
+    - FR56
+    - FR65
+    - FR130
+    - FR131
+    - FR132
+    - FR133
+    - NFR32
