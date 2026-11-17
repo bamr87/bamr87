@@ -1,11 +1,11 @@
 <!-- kit: governance v0.1.0 -->
 # 0033 — On-premise compute: an enrolled node runs local sessions and local models, and a self-hosted runner only behind fences
 
-- **Status:** proposed
+- **Status:** ratified
 - **Number:** 0033
 - **Date:** 2026-11-15
 - **Proposed by:** agent (Claude Opus 5.5, in a Claude Code session at Amr's request on 2026-11-15: "Add a plan to incorporate the new machine build that can run local LLMs and Claude Code sessions for other processing on-premise for zero cost … if it changes standards or principles, draft an amendment for Amr to ratify.")
-- **Ratified by:** (leave blank until merged)
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/858 (merged 2026-11-17 by @bamr87)
 - **Affects:** constitution new § 30 (follows § 29 `agentic-efficacy-contract`; renumber to the next free section if another amendment claims 30 first); § 10.5, § 10.7, § 10.9, § 13.3–§ 13.4, § 13.6, § 17 and § 29 by reference; `_data/fleet.yml` `nodes:` and `ai_models.allowed` (a `local` provider, follow-up); feature `HUB-116`; requirements `FR132`, `FR133`, `NFR32`
 - **Supersedes:** none. It narrows, for an enrolled on-premise node only, the ruling in [ADR 0002](../../adr/0002-agent-step-specs-and-local-runner.md) and #484 that ruled out a self-hosted runner; the ruling stands for the Mac
 - **Related:** [docs/ONPREM-COMPUTE.md](../../ONPREM-COMPUTE.md) (the plan), [ADR 0003](../../adr/0003-fleet-platform-nodes-iac-and-scale-out.md) and [PLATFORM.md](../../PLATFORM.md) (nodes), [0027](../0027-local-first-ai.md) (local first), [WEEKLY.md](../../WEEKLY.md), [WEEKLY-CLOSEOUT.md](../../WEEKLY-CLOSEOUT.md), bamr87/bashos#99, bamr87/bashos#100
