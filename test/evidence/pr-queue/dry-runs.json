@@ -1,0 +1,283 @@
+{
+ "generated": "2026-11-15",
+ "console": "worktree console on 127.0.0.1:4013, DASH_CONSOLE_GITHUB_WRITES=off",
+ "how": "POST /api/prs/plan per action on 2-3 real pull requests, then the prs-act / prs-agent job WITHOUT apply (the dry run), then the same job WITH apply but without confirm=true, which the job API refuses (409). Nothing was written to GitHub.",
+ "actions": [
+  {
+   "action": "agent",
+   "plan_id": "b71453fdb6546148",
+   "op": "prs-agent",
+   "enabled": true,
+   "governed": "\u00a7 10.9 (local first) \u00b7 \u00a7 29 (registered agent local:pr-queue-agent) \u00b7 \u00a7 12.7's gate on a model's change",
+   "items": [
+    {
+     "pr": "bamr87/bamr87#862",
+     "head": "1ce53bc74",
+     "do": true,
+     "op": "one claude-sonnet-5-5 session, at most 40 turns and $2 (API-equivalent, an estimate), on a clone of fix/superseded-cancelled-checks at 1ce53bc74321: make python-tests, tests (rest) pass; its edit is pushed as one commit, then the pull request is labelled needs-amr",
+     "warnings": [
+      "gated (\u00a7 12.3): it changes tools/console/decision_index.py, which the review gate holds (\u00a7 12.3)"
+     ]
+    },
+    {
+     "pr": "bamr87/bamr87#861",
+     "head": "f023d9151",
+     "do": true,
+     "op": "one claude-sonnet-5-5 session, at most 40 turns and $2 (API-equivalent, an estimate), on a clone of fix/release-pipeline-pin-v1 at f023d91512b1: make python-tests, tests (rest) pass; its edit is pushed as one commit, then the pull request is labelled needs-amr",
+     "warnings": [
+      "gated (\u00a7 12.3): it changes specs/CONFORMANCE.md, which the review gate holds (\u00a7 12.3)"
+     ]
+    },
+    {
+     "pr": "bamr87/bamr87#860",
+     "head": "7dc670c9e",
+     "do": true,
+     "op": "one claude-sonnet-5-5 session, at most 40 turns and $2 (API-equivalent, an estimate), on a clone of fix/prose-kit-checkout-by-sha at 7dc670c9e159: make python-tests, tests (rest) pass; its edit is pushed as one commit, then the pull request is labelled needs-amr",
+     "warnings": [
+      "gated (\u00a7 12.3): it changes templates/README.md, which the review gate holds (\u00a7 12.3)"
+     ]
+    }
+   ],
+   "ceiling_usd": 6.0,
+   "cost_label": "API-equivalent (estimate)",
+   "dry_run_job": [
+    "plan b71453fdb6546148 still matches GitHub: 3 to do, 0 skipped. Nothing written (dry run); --apply runs it."
+   ],
+   "apply_without_confirm": [
+    409,
+    "'prs-agent' with these parameters writes to GitHub or destroys local data \u2014 resubmit with confirm=true"
+   ]
+  },
+  {
+   "action": "close",
+   "plan_id": "d9fa69ec0c4fc317",
+   "op": "prs-act",
+   "enabled": false,
+   "off": "off: _data/fleet.yml pr_queue.close.enabled is false (not in \u00a7 11.1's allowlist for pull requests: behind pr_queue.close.enabled until an amendment says so)",
+   "governed": "not in \u00a7 11.1's allowlist for pull requests: behind pr_queue.close.enabled until an amendment says so",
+   "items": [
+    {
+     "pr": "ai-world-view/ai-world-view.github.io#52",
+     "head": "637f43f81",
+     "do": true,
+     "op": "gh pr close 52 --repo ai-world-view/ai-world-view.github.io --comment \"superseded (dry run)\""
+    },
+    {
+     "pr": "bamr87/bamr87#854",
+     "head": "2a4908402",
+     "do": true,
+     "op": "gh pr close 854 --repo bamr87/bamr87 --comment \"superseded (dry run)\""
+    }
+   ],
+   "dry_run_job": [
+    "plan d9fa69ec0c4fc317 still matches GitHub: 2 to do, 0 skipped. Nothing written (dry run); --apply runs it."
+   ],
+   "apply_without_confirm": [
+    409,
+    "'prs-act' with these parameters writes to GitHub or destroys local data \u2014 resubmit with confirm=true"
+   ]
+  },
+  {
+   "action": "comment",
+   "plan_id": "0b4b974c7647d4a4",
+   "op": "prs-act",
+   "enabled": true,
+   "governed": "\u00a7 11.8 \u00b7 \u00a7 19.2 (one comment, found by its marker)",
+   "items": [
+    {
+     "pr": "bamr87/amrchy#5",
+     "head": "9687f46ca",
+     "do": true,
+     "op": "edits comment 6899272055:"
+    },
+    {
+     "pr": "bamr87/amrchy#4",
+     "head": "2734330d6",
+     "do": true,
+     "op": "edits comment 6899038040:"
+    }
+   ],
+   "dry_run_job": [
+    "plan 0b4b974c7647d4a4 still matches GitHub: 2 to do, 0 skipped. Nothing written (dry run); --apply runs it."
+   ],
+   "apply_without_confirm": [
+    409,
+    "'prs-act' with these parameters writes to GitHub or destroys local data \u2014 resubmit with confirm=true"
+   ]
+  },
+  {
+   "action": "merge",
+   "plan_id": "23ff043a27ae23c6",
+   "op": "prs-act",
+   "enabled": false,
+   "off": "off: _data/fleet.yml pr_queue.merge.enabled is false (\u00a7 11.2 says the console never merges, and \u00a7 12.2 lets an agent merge only ungated pull requests: behind pr_queue.merge.enabled until an amendment says a merge the maintainer confirms in the console is his own)",
+   "governed": "\u00a7 11.2 says the console never merges, and \u00a7 12.2 lets an agent merge only ungated pull requests: behind pr_queue.merge.enabled until an amendment says a merge the maintainer confirms in the console is his own",
+   "items": [
+    {
+     "pr": "ai-world-view/ai-world-view.github.io#53",
+     "head": "92a1ee042",
+     "do": true,
+     "op": "gh pr merge 53 --repo ai-world-view/ai-world-view.github.io --merge --match-head-commit 92a1ee0423f4",
+     "warnings": [
+      "gated (\u00a7 12.3): it changes .github/config/content_review.yml, which the review gate holds (\u00a7 12.3) \u2014 this merge is the maintainer's review"
+     ]
+    },
+    {
+     "pr": "ai-world-view/ai-world-view.github.io#51",
+     "head": "8013a1ffe",
+     "do": true,
+     "op": "gh pr merge 51 --repo ai-world-view/ai-world-view.github.io --merge --match-head-commit 8013a1ffe1cc",
+     "warnings": [
+      "gated (\u00a7 12.3): it changes .github/workflows/ai-content-review.yml, which the review gate holds (\u00a7 12.3) \u2014 this merge is the maintainer's review"
+     ]
+    },
+    {
+     "pr": "ai-world-view/ai-world-view.github.io#50",
+     "head": "37cfdc47e",
+     "do": true,
+     "op": "gh pr merge 50 --repo ai-world-view/ai-world-view.github.io --merge --match-head-commit 37cfdc47e519",
+     "warnings": [
+      "gated (\u00a7 12.3): it changes .github/workflows/claude.yml, which the review gate holds (\u00a7 12.3) \u2014 this merge is the maintainer's review"
+     ]
+    }
+   ],
+   "dry_run_job": [
+    "plan 23ff043a27ae23c6 still matches GitHub: 3 to do, 0 skipped. Nothing written (dry run); --apply runs it."
+   ],
+   "apply_without_confirm": [
+    409,
+    "'prs-act' with these parameters writes to GitHub or destroys local data \u2014 resubmit with confirm=true"
+   ]
+  },
+  {
+   "action": "needs-amr",
+   "plan_id": "8014aebac046badc",
+   "op": "prs-act",
+   "enabled": true,
+   "governed": "\u00a7 11.1 (labels) \u00b7 \u00a7 12.4 (the gate mechanism)",
+   "items": [
+    {
+     "pr": "ai-world-view/ai-world-view.github.io#53",
+     "head": "92a1ee042",
+     "do": false,
+     "skip": "the repo has no needs-amr label; creating one is a repo change the queue does not make"
+    },
+    {
+     "pr": "ai-world-view/ai-world-view.github.io#52",
+     "head": "637f43f81",
+     "do": false,
+     "skip": "the repo has no needs-amr label; creating one is a repo change the queue does not make"
+    },
+    {
+     "pr": "ai-world-view/ai-world-view.github.io#51",
+     "head": "8013a1ffe",
+     "do": false,
+     "skip": "the repo has no needs-amr label; creating one is a repo change the queue does not make"
+    }
+   ],
+   "dry_run_job": [
+    "plan 8014aebac046badc still matches GitHub: 0 to do, 3 skipped. Nothing written (dry run); --apply runs it."
+   ],
+   "apply_without_confirm": [
+    409,
+    "'prs-act' with these parameters writes to GitHub or destroys local data \u2014 resubmit with confirm=true"
+   ]
+  },
+  {
+   "action": "ready",
+   "plan_id": "02a1947d21f4c615",
+   "op": "prs-act",
+   "enabled": true,
+   "governed": "\u00a7 11.1 (draft state of a pull request)",
+   "items": [
+    {
+     "pr": "ai-world-view/ai-world-view.github.io#52",
+     "head": "637f43f81",
+     "do": true,
+     "op": "gh pr ready 52 --repo ai-world-view/ai-world-view.github.io"
+    },
+    {
+     "pr": "bamr87/bamr87#854",
+     "head": "2a4908402",
+     "do": true,
+     "op": "gh pr ready 854 --repo bamr87/bamr87"
+    },
+    {
+     "pr": "bamr87/bamr87#846",
+     "head": "c65a42488",
+     "do": true,
+     "op": "gh pr ready 846 --repo bamr87/bamr87"
+    }
+   ],
+   "dry_run_job": [
+    "plan 02a1947d21f4c615 still matches GitHub: 3 to do, 0 skipped. Nothing written (dry run); --apply runs it."
+   ],
+   "apply_without_confirm": [
+    409,
+    "'prs-act' with these parameters writes to GitHub or destroys local data \u2014 resubmit with confirm=true"
+   ]
+  },
+  {
+   "action": "rerun",
+   "plan_id": "6207153d9009014c",
+   "op": "prs-act",
+   "enabled": true,
+   "governed": "the console's GitHub page (re-run) \u00b7 \u00a7 11.8",
+   "items": [
+    {
+     "pr": "bamr87/zer0-mistakes#625",
+     "head": "4460553ae",
+     "do": false,
+     "skip": "no cancelled or failed run on its head commit"
+    },
+    {
+     "pr": "bamr87/zer0-mistakes#617",
+     "head": "5314cde29",
+     "do": false,
+     "skip": "no cancelled or failed run on its head commit"
+    },
+    {
+     "pr": "bamr87/zer0-mistakes#616",
+     "head": "17d44c8d4",
+     "do": false,
+     "skip": "no cancelled or failed run on its head commit"
+    }
+   ],
+   "dry_run_job": [
+    "plan 6207153d9009014c still matches GitHub: 0 to do, 3 skipped. Nothing written (dry run); --apply runs it."
+   ],
+   "apply_without_confirm": [
+    409,
+    "'prs-act' with these parameters writes to GitHub or destroys local data \u2014 resubmit with confirm=true"
+   ]
+  },
+  {
+   "action": "update-branch",
+   "plan_id": "025ac76845ef99cc",
+   "op": "prs-act",
+   "enabled": true,
+   "governed": "\u00a7 12.7 (a base merge with a merge commit, never a rebase or force-push)",
+   "items": [
+    {
+     "pr": "ai-world-view/ai-world-view.github.io#53",
+     "head": "92a1ee042",
+     "do": false,
+     "skip": "merge state CLEAN, not BEHIND"
+    },
+    {
+     "pr": "ai-world-view/ai-world-view.github.io#51",
+     "head": "8013a1ffe",
+     "do": false,
+     "skip": "merge state CLEAN, not BEHIND"
+    }
+   ],
+   "dry_run_job": [
+    "plan 025ac76845ef99cc still matches GitHub: 0 to do, 2 skipped. Nothing written (dry run); --apply runs it."
+   ],
+   "apply_without_confirm": [
+    409,
+    "'prs-act' with these parameters writes to GitHub or destroys local data \u2014 resubmit with confirm=true"
+   ]
+  }
+ ]
+}

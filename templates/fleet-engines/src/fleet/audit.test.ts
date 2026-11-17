@@ -87,23 +87,45 @@ describe('AUDIT_RULES', () => {
 // ── workflow-scoped rules ────────────────────────────────────────────────────
 
 describe('auth-oauth-first', () => {
-  it('fires on api-key-only auth and passes on oauth-first', () => {
+  it('publishes the OAuth-only standard with no API-key fallback', () => {
+    const rule = AUDIT_RULES.find((r) => r.id === 'auth-oauth-first');
+    expect(rule?.title).toBe('OAuth-only Claude auth');
+    expect(rule?.standard).toContain('CLAUDE_CODE_OAUTH_TOKEN only');
+    expect(rule?.standard).not.toContain('only as the fallback');
+  });
+
+  it('fires on api-key-only auth and passes on oauth-only', () => {
     const hit = ofRule(auditWorkflow(makeFacts({ ai: aiIn('api-key-only') })), 'auth-oauth-first');
     expect(hit).toHaveLength(1);
     expect(hit[0].severity).toBe('warn');
     expect(hit[0].message).toContain('ANTHROPIC_API_KEY only');
-    expect(hit[0].message).toContain('OAuth-first');
+    expect(hit[0].message).toContain('OAuth only');
     expect(hit[0].fix).toContain('CLAUDE_CODE_OAUTH_TOKEN');
+    expect(hit[0].fix).not.toContain('anthropic_api_key: ${{');
 
-    const ok = auditWorkflow(makeFacts({ ai: aiIn('oauth-first') }));
+    const ok = auditWorkflow(makeFacts({ ai: aiIn('oauth-only') }));
     expect(ofRule(ok, 'auth-oauth-first')).toHaveLength(0);
+  });
+
+  it('warns on OAuth with an API-key fallback (the pre-2026-11-15 convention)', () => {
+    const hit = ofRule(auditWorkflow(makeFacts({ ai: aiIn('oauth-first') })), 'auth-oauth-first');
+    expect(hit).toHaveLength(1);
+    expect(hit[0].severity).toBe('warn');
+    expect(hit[0].message).toContain('ANTHROPIC_API_KEY as a fallback');
+    expect(hit[0].fix).toContain('remove every secrets.ANTHROPIC_API_KEY reference');
+  });
+
+  it('does not apply without AI, and stays silent when the auth lives elsewhere (none)', () => {
+    const noAi = auditRepo([makeFacts()]);
+    expect(noAi.passedRules).not.toContain('auth-oauth-first');
+    expect(ofRule(auditWorkflow(makeFacts({ ai: aiIn('none') })), 'auth-oauth-first')).toHaveLength(0);
   });
 });
 
 describe('kill-switch', () => {
   it('fails a scheduled AI line with no *_ENABLED variable, citing the cron', () => {
     const hit = ofRule(
-      auditWorkflow(makeFacts({ ai: aiIn('oauth-first'), crons: ['0 9 * * *'] })),
+      auditWorkflow(makeFacts({ ai: aiIn('oauth-only'), crons: ['0 9 * * *'] })),
       'kill-switch',
     );
     expect(hit).toHaveLength(1);
@@ -114,7 +136,7 @@ describe('kill-switch', () => {
 
   it('passes with a kill switch and does not apply to unscheduled AI', () => {
     const armed = makeFacts({
-      ai: aiIn('oauth-first'),
+      ai: aiIn('oauth-only'),
       crons: ['0 9 * * *'],
       killSwitches: ['CONTENT_FACTORY_ENABLED'],
     });
@@ -314,12 +336,12 @@ describe('permissions + top-level-write', () => {
 
 describe('ai-timeout', () => {
   it('warns on an AI job without timeout-minutes, passes with one', () => {
-    const hit = ofRule(auditWorkflow(makeFacts({ ai: aiIn('oauth-first') })), 'ai-timeout');
+    const hit = ofRule(auditWorkflow(makeFacts({ ai: aiIn('oauth-only') })), 'ai-timeout');
     expect(hit).toHaveLength(1);
     expect(hit[0].severity).toBe('warn');
     expect(hit[0].message).toContain('timeout-minutes');
 
-    const bounded = makeFacts({ ai: aiIn('oauth-first'), timeoutMinutes: 30 });
+    const bounded = makeFacts({ ai: aiIn('oauth-only'), timeoutMinutes: 30 });
     expect(ofRule(auditWorkflow(bounded), 'ai-timeout')).toHaveLength(0);
   });
 
@@ -333,7 +355,7 @@ describe('ai-timeout', () => {
         models: [],
         maxTurns: 40,
         maxCostUsd: null,
-        authMode: 'oauth-first',
+        authMode: 'oauth-only',
         agents: [],
       },
     });
@@ -531,7 +553,7 @@ describe('exemplary workflow', () => {
         models: ['claude-sonnet-4'],
         maxTurns: 30,
         maxCostUsd: null,
-        authMode: 'oauth-first',
+        authMode: 'oauth-only',
         agents: ['grow-lifehacker'],
       },
       killSwitches: ['CONTENT_FACTORY_ENABLED'],
@@ -628,7 +650,7 @@ describe('auditRepo — scoring', () => {
       archetype: 'standard-ci-caller',
       triggers: [{ kind: 'schedule', detail: '0 0 * * *' }],
       crons: ['0 0 * * *'],
-      ai: aiIn('oauth-first'),
+      ai: aiIn('oauth-only'),
       timeoutMinutes: 20,
       concurrency: { present: true, group: 'nightly', cancelInProgress: 'never' },
       permissions: { declared: true, topLevelRead: true, topLevelWrite: false, writeScopes: [] },
@@ -656,7 +678,7 @@ describe('auditRepo — scoring', () => {
         archetype: i === 0 ? 'standard-ci-caller' : i === 1 ? 'mention-handler' : i === 2 ? 'prose-kit' : 'other',
         triggers: [{ kind: 'schedule' }],
         crons: ['0 0 * * *'],
-        ai: aiIn('oauth-first'),
+        ai: aiIn('oauth-only'),
         timeoutMinutes: 20,
         concurrency: { present: true, group: 'g', cancelInProgress: 'never' },
         permissions: { declared: true, topLevelRead: true, topLevelWrite: false, writeScopes: [] },

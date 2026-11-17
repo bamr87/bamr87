@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/pipeline-handoff.schema.json",
+  "title": "issue-pipeline-handoff/v1",
+  "description": "What tier 1 of the issue pipeline hands tier 2 for one issue (.github/workflows/issue-pipeline.yml). A deterministic step after tier 1 builds it from the issue as tier 1 left it and records it on the issue between <!-- issue-pipeline-handoff key=\"owner/repo#N\" --> and <!-- /issue-pipeline-handoff -->. Before an issue reaches the tier-2 work order, the queue builder rebuilds the handoff from the issue as it stands, validates it, and checks that the recorded one is bound to this issue; a failure moves the issue to agent:blocked with the reason. Three rules need the issue being checked and are enforced by pipeline_contracts.validate_handoff rather than by this schema: `issue` is that issue, `owner_repo` is the repo it lives in and is owned by the hub's owner, and `evidence.key` (when present) names that issue.",
+  "type": "object",
+  "required": ["schema", "issue", "owner_repo", "acceptance_criteria", "evidence", "size"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "issue-pipeline-handoff/v1"
+    },
+    "issue": {
+      "description": "The issue, as owner/repo#N.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[1-9][0-9]*$"
+    },
+    "owner_repo": {
+      "description": "The repo that owns the code and gets the pull request: the issue's own repo.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "acceptance_criteria": {
+      "description": "The issue's checkbox criteria, verbatim and in order (pipeline_contracts.parse_acceptance_criteria). Tier 3's verdict is judged against the same list.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "evidence": {
+      "description": "The last evidence bundle tools/issue-evidence.sh posted on the issue, read only from a trusted author (owner, member, collaborator or a bot), or null when none was built.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "anyOf": [
+            {
+              "required": ["key"]
+            },
+            {
+              "required": ["url"]
+            }
+          ],
+          "properties": {
+            "key": {
+              "description": "The bundle's marker key, owner/repo#N.",
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[1-9][0-9]*$"
+            },
+            "at": {
+              "description": "When the bundle was built (UTC).",
+              "type": "string"
+            },
+            "url": {
+              "description": "The comment that carries the bundle.",
+              "type": "string",
+              "pattern": "^https?://\\S+$"
+            }
+          }
+        }
+      ]
+    },
+    "size": {
+      "description": "The issue's size label (_data/fleet.yml issue_pipeline.labels.sizes).",
+      "enum": ["size:xs", "size:s", "size:m", "size:l", "size:xl"]
+    },
+    "built_at": {
+      "description": "When the handoff was built (UTC, ISO 8601).",
+      "type": "string"
+    },
+    "built_by": {
+      "description": "What built it.",
+      "type": "string"
+    }
+  }
+}

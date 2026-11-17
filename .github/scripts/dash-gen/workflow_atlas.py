@@ -1270,6 +1270,8 @@ jobs:
 # dispatched run looks right. A manual dispatch always runs.
 # Spend: the agent step is continue-on-error and the cost step owns the
 # verdict (usage-limit: skip), so a spent Claude window is a warning.
+# Claude auth: OAuth only (CLAUDE_CODE_OAUTH_TOKEN). ANTHROPIC_API_KEY disabled for now
+# (2026-11-15); to restore, re-add the secrets.ANTHROPIC_API_KEY reference.
 
 on:
   schedule:
@@ -1294,7 +1296,7 @@ jobs:
       issues: write
       id-token: write         # OIDC for claude-code-action OAuth
     env:
-      HAS_CLAUDE_AUTH: ${{{{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}}}
+      HAS_CLAUDE_AUTH: ${{{{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}}}
     steps:
       - uses: actions/checkout@v7
 
@@ -1305,7 +1307,6 @@ jobs:
         with:
           order: ${{{{ vars.CLAUDE_AUTH_ORDER }}}}
           has-oauth: ${{{{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}}}
-          api-key: ${{{{ secrets.ANTHROPIC_API_KEY }}}}
 
       - name: Run the agent
         id: agent
@@ -1315,7 +1316,6 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{{{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}}}
-          anthropic_api_key: ${{{{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}}}
           claude_args: >-
             --model claude-sonnet-5-5
             --max-turns 40

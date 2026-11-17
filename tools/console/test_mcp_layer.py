@@ -406,6 +406,40 @@ class DecisionQueueTool(unittest.TestCase):
         self.assertIn("decision_queue", srv.INSTRUCTIONS)
 
 
+class PrQueueTools(unittest.TestCase):
+    """pr_queue is ONE GET of /api/prs with its rows trimmed; pr_queue_plan is ONE POST of /api/prs/plan.
+    Neither applies anything: applying is the console's prs-act / prs-agent behind its confirm."""
+
+    DOC = {"schema": "pr-queue/v1", "status": "fresh", "counts": {"total": 1}, "batches": [], "warnings": [],
+           "rows": [{"key": "o/a#1", "title": "t", "next": {"who": "amr", "action": "review and merge it"},
+                     "gate": {"gated": True, "reason": "labelled needs-amr"}, "check_runs": [{"name": "x" * 500}],
+                     "checks": {"state": "green", "false_red": True, "superseded": 3, "green": 4},
+                     "triage": {"next_action": "Amr merges.", "commands": ["gh pr merge 1"]}}]}
+
+    def test_one_get_with_trimmed_rows(self):
+        fc = FakeConsole({"/api/prs": self.DOC})
+        res, text = call(srv.build_server(fc), "pr_queue", {"who": "amr", "limit": 999})
+        self.assertFalse(res.is_error, text)
+        row = payload(res, text)["rows"][0]
+        self.assertNotIn("check_runs", row)
+        self.assertEqual(row["checks"], {"state": "green", "false_red": True, "failing": None, "cancelled": None})
+        self.assertEqual(row["triage"], "Amr merges.")
+        self.assertEqual(fc.calls, [("GET", "/api/prs", {"who": "amr", "refresh": "auto", "limit": srv.PRQ_LIMIT_MAX}, None)])
+
+    def test_plan_is_one_post_and_never_an_apply(self):
+        fc = FakeConsole({("POST", "/api/prs/plan"): lambda body: {"plan_id": "0" * 16, "echo": body}})
+        res, text = call(srv.build_server(fc), "pr_queue_plan", {"action": "ready", "prs": ["o/a#1"], "note": "n"})
+        self.assertFalse(res.is_error, text)
+        self.assertEqual(fc.calls, [("POST", "/api/prs/plan", {}, {"action": "ready", "prs": ["o/a#1"], "params": {"note": "n"}})])
+        self.assertFalse(any(c[1] == "/api/jobs" for c in fc.calls))
+
+    def test_listed_read_only_and_named(self):
+        tools = {t.name: t for t in anyio.run(srv.build_server(FakeConsole(), allow_writes=False, scopes="").list_tools)}
+        for name in ("pr_queue", "pr_queue_plan"):
+            self.assertTrue(tools[name].annotations.read_only_hint)
+        self.assertIn("pr_queue", srv.INSTRUCTIONS)
+
+
 class WriteTools(unittest.TestCase):
     def setUp(self):
         self.fc = FakeConsole({("POST", "/api/jobs"): {"id": "j9"}, ("POST", "/api/jobs/j9/cancel"): {"ok": True},

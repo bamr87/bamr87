@@ -41,6 +41,8 @@ from pathlib import Path
 
 import yaml
 
+from . import yamlio
+
 SCHEMA = "fleet-graph/v1"  # bump on a breaking (non-additive) change
 ROOT_DEFAULT = Path(__file__).resolve().parents[2]
 HUB_DEFAULT = "bamr87/bamr87"
@@ -286,7 +288,7 @@ def _yaml(g: Graph, root: Path, rel: str):
         g.note_input(rel, False)
         return None
     try:
-        doc = yaml.safe_load(p.read_text(encoding="utf-8"))
+        doc = yamlio.load(p)
     except (OSError, yaml.YAMLError) as exc:
         g.note_input(rel, True, why=f"unreadable ({exc.__class__.__name__})")
         return None
@@ -765,7 +767,7 @@ BUILDERS = {"registry": build_registry, "workflows": build_workflows, "switches"
 
 def load_fleet(root: Path) -> dict:
     try:
-        return yaml.safe_load((root / "_data" / "fleet.yml").read_text(encoding="utf-8")) or {}
+        return yamlio.load(root / "_data" / "fleet.yml") or {}
     except (OSError, yaml.YAMLError):
         return {}
 
