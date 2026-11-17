@@ -1,0 +1,358 @@
+{
+  "id": "pr-queue",
+  "title": "The PR queue lists every open pull request, filters it, selects rows and plans a bulk action",
+  "features": [
+    "HUB-NEW:pr-queue"
+  ],
+  "path": "verify/scenarios/pr-queue.yml",
+  "started": "2026-11-15T20:00:19.717Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/prs",
+          "ok": true,
+          "ms": 3552
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "[data-bulk-bar]",
+            "timeout_ms": 60000
+          },
+          "ok": true,
+          "ms": 36
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Who moves next"
+          },
+          "ok": true,
+          "ms": 5
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-who-tabs]"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-batches]"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "tbody tr",
+              "min": 5
+            }
+          },
+          "ok": true,
+          "value": 218,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "pr-queue",
+          "ok": true,
+          "file": "test/evidence/pr-queue/desktop-pr-queue.png",
+          "ms": 43
+        },
+        {
+          "step": "goto",
+          "arg": "/prs?who=agent",
+          "ok": true,
+          "ms": 3175
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "[data-bulk-bar]",
+            "timeout_ms": 60000
+          },
+          "ok": true,
+          "ms": 25
+        },
+        {
+          "step": "click",
+          "arg": "role=button[name=/^Select the \\d+ shown$/]",
+          "ok": true,
+          "ms": 85
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-selected-count]:not(:has-text('0 selected'))"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "click",
+          "arg": "[aria-label='Bulk action']",
+          "ok": true,
+          "ms": 40
+        },
+        {
+          "step": "click",
+          "arg": "role=option[name=/Mark ready for review/]",
+          "ok": true,
+          "ms": 34
+        },
+        {
+          "step": "click",
+          "arg": "role=button[name='Plan']",
+          "ok": true,
+          "ms": 31
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Check it still matches",
+            "timeout_ms": 90000
+          },
+          "ok": true,
+          "ms": 3837
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-plan]"
+          },
+          "ok": true,
+          "ms": 5
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Governed by"
+          },
+          "ok": true,
+          "ms": 4
+        },
+        {
+          "step": "screenshot",
+          "arg": "pr-queue-plan",
+          "ok": true,
+          "file": "test/evidence/pr-queue/desktop-pr-queue-plan.png",
+          "ms": 55
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/pr-queue/desktop-pr-queue.png",
+        "test/evidence/pr-queue/desktop-pr-queue-plan.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4013/prs?who=agent"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/prs",
+          "ok": true,
+          "ms": 3315
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "[data-bulk-bar]",
+            "timeout_ms": 60000
+          },
+          "ok": true,
+          "ms": 29
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Who moves next"
+          },
+          "ok": true,
+          "ms": 5
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-who-tabs]"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-batches]"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "tbody tr",
+              "min": 5
+            }
+          },
+          "ok": true,
+          "value": 218,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "pr-queue",
+          "ok": true,
+          "file": "test/evidence/pr-queue/mobile-pr-queue.png",
+          "ms": 44
+        },
+        {
+          "step": "goto",
+          "arg": "/prs?who=agent",
+          "ok": true,
+          "ms": 3164
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "[data-bulk-bar]",
+            "timeout_ms": 60000
+          },
+          "ok": true,
+          "ms": 23
+        },
+        {
+          "step": "click",
+          "arg": "role=button[name=/^Select the \\d+ shown$/]",
+          "ok": true,
+          "ms": 91
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-selected-count]:not(:has-text('0 selected'))"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "click",
+          "arg": "[aria-label='Bulk action']",
+          "ok": true,
+          "ms": 36
+        },
+        {
+          "step": "click",
+          "arg": "role=option[name=/Mark ready for review/]",
+          "ok": true,
+          "ms": 33
+        },
+        {
+          "step": "click",
+          "arg": "role=button[name='Plan']",
+          "ok": true,
+          "ms": 31
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Check it still matches",
+            "timeout_ms": 90000
+          },
+          "ok": true,
+          "ms": 3837
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-plan]"
+          },
+          "ok": true,
+          "ms": 4
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Governed by"
+          },
+          "ok": true,
+          "ms": 5
+        },
+        {
+          "step": "screenshot",
+          "arg": "pr-queue-plan",
+          "ok": true,
+          "file": "test/evidence/pr-queue/mobile-pr-queue-plan.png",
+          "ms": 34
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/pr-queue/mobile-pr-queue.png",
+        "test/evidence/pr-queue/mobile-pr-queue-plan.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4013/prs?who=agent"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-11-15T20:00:41.459Z",
+  "base": "http://127.0.0.1:4013"
+}

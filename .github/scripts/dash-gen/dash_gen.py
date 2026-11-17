@@ -61,6 +61,8 @@ Subcommands:
            completeness/priority/size/autonomy, and emit one capped work order
            per tier plus the committed _data/issue_pipeline.yml snapshot.
            Drives issue-pipeline.yml. Implemented in issue_pipeline.py.
+           `issues handoff …` / `issues verdict …` are the machine-checked
+           contracts between the tiers (pipeline_contracts.py).
 
   lake     The LOCAL data lake of the local stack: `sync` extracts what GitHub
            holds (runs → jobs → steps, run logs, claude-code-action facts,
