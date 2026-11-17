@@ -2734,6 +2734,21 @@ switches:
       verified: false
       note: the fleet's one PR comment (constitution § 19); summarizes CI failures, no AI and no cron
       flip: 'gh variable set PR_REVIEW_ENABLED -R bamr87/bamr87 --body false  # disable; record the flip here in the same PR'
+    hub/pr-readiness:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/pr-review.yml
+      group: hub-maintenance
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: PR_READINESS_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      note: merge readiness in the one PR comment (ADR 0012); what is left before a pull request merges, and one review when nothing is; no AI and no cron
+      flip: 'gh variable set PR_READINESS_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
     hub/reconcile-registry:
       repo: bamr87/bamr87
       workflow: .github/workflows/reconcile-registry.yml

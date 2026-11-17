@@ -28,6 +28,22 @@ It uses a `workflow_run` trigger because that is the only event that sees every 
 
 Since 0.2.0 the stub declares its own workflow-level `concurrency` group, `pr-review-caller-<head sha>`, with `cancel-in-progress: false`: one review per head commit at a time, and a later completion queues rather than cancels, so no update is dropped. Some repos require a concurrency group on every workflow (githubai's `tests/test_workflows.py`). The key matches the reusable workflow's `pr-review-<head sha>` group, but the name must differ: GitHub cancels a run whose caller and called workflow hold the same group, reporting a deadlock.
 
+## Merge readiness
+
+With the repository variable `PR_READINESS_ENABLED` set to `true`, the same comment also says what is left before the pull request merges ([ADR 0012](../../docs/adr/0012-merge-readiness.md)). It is off by default.
+
+| The pull request | What appears on it |
+| --- | --- |
+| has work left: a failing check, a conflict, a draft, a gated change with no `needs-amr` label, unticked tasks, unresolved review threads, requested changes | The one comment, with the failed runs first and a table of what is left under them: each item, and who moves it. The items that are done sit behind a fold |
+| is waiting on a running check or a required review | The same comment, saying so |
+| has nothing left | The comment is deleted, and one review is posted on that head commit: "Ready to merge", every item, and who merges it (the maintainer for a gated pull request, an agent under § 12.2 otherwise). A later commit that is ready gets its own |
+
+The review is a comment. It never approves, never counts as a required review (§ 19.5), and says in its first line that no code was reviewed: it records the fleet's mechanical checks, which is stage A of the ADR.
+
+`.github/scripts/dash-gen/pr_readiness.py` writes it: it calls `pr_review.py` for everything about a failed run and adds the rest. The items come from the PR queue's model, read for that one pull request with a single query, so the comment, `tools/dash prs ready --pr` and the console agree ([docs/PR-QUEUE.md](../../docs/PR-QUEUE.md#merge-readiness)). Every string that comes from the pull request (a task's words, a file path, a check's name) is escaped before it reaches the comment.
+
+In the hub the workflow also runs on the pull-request events that start no workflow of their own: opened, reopened, marked ready, converted to a draft, pushed to, labelled, unlabelled and edited. It takes them through `pull_request_target`, under the rule the failure summary already follows: it checks out the hub's tooling, never the pull request. The stub in this kit does not have that trigger yet, so a fleet repo that sets the variable gets the readiness section when a workflow finishes and not when a pull request is only marked ready; kit 0.3.0 adds the trigger.
+
 ## Seeding
 
 ```bash
