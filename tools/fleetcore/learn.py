@@ -49,6 +49,8 @@ from pathlib import Path
 
 import yaml
 
+from . import yamlio
+
 SCHEMA = "learning/v1"
 ROOT_DEFAULT = Path(__file__).resolve().parents[2]
 COST_LABEL = "API-equivalent (estimate)"
@@ -74,7 +76,7 @@ class LakeError(RuntimeError):
 # --------------------------------------------------------------------------- #
 def load_fleet(root: Path) -> dict:
     try:
-        return yaml.safe_load((root / "_data" / "fleet.yml").read_text(encoding="utf-8")) or {}
+        return yamlio.load(root / "_data" / "fleet.yml") or {}
     except (OSError, yaml.YAMLError):
         return {}
 
@@ -471,7 +473,7 @@ def replay(name: str, rows: list[dict], cfg: dict) -> dict:
 def registry_arms(root: Path, fleet: dict) -> list[str]:
     """The repos a loop could act on: the registry's own, active ones."""
     try:
-        rows = yaml.safe_load((root / "_data" / "projects.yml").read_text(encoding="utf-8")) or []
+        rows = yamlio.load(root / "_data" / "projects.yml") or []
     except (OSError, yaml.YAMLError):
         return []
     owners = {str(o).lower() for o in ((fleet.get("hub") or {}).get("owners") or [])}

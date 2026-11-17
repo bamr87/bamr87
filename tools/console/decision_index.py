@@ -57,9 +57,11 @@ import yaml
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path.insert(0, str(HERE))
-sys.path.append(str(HERE.parent))  # tools/, for check_rollup; appended, so nothing there shadows a library
 from gh_projects import redact  # noqa: E402
+if str(HERE.parent) not in sys.path:  # tools/: fleetcore, the core every surface shares, and check_rollup
+    sys.path.insert(0, str(HERE.parent))
 import check_rollup  # noqa: E402
+from fleetcore import yamlio  # noqa: E402
 
 API = (os.environ.get("GITHUB_API_URL") or "https://api.github.com").rstrip("/") + "/graphql"
 USER_AGENT = "bamr87-harness-console"
@@ -184,7 +186,7 @@ def _merged(base: dict, over: Any) -> dict:
 
 def _load_yaml(path: Path) -> Any:
     try:
-        return yaml.safe_load(path.read_text(encoding="utf-8"))
+        return yamlio.load(path)
     except (OSError, yaml.YAMLError):
         return None
 

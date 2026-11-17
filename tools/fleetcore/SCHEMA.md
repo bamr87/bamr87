@@ -19,6 +19,7 @@ coverage: listed
 | `README.md` | file | What the core is, which surface reads what, and how the TUI joins the console runtime | required |
 | `__init__.py` | file | Package marker (`from fleetcore import …` with `tools/` on the path) | required |
 | `fleet.py` | file | The data layer: registry ⨝ `project_health.yml` ⨝ `fleet_triage.yml` ⨝ `harness_health.yml`, the inbox and per-repo drill-down, source freshness, filters and sorts — degrading cleanly when any signal is absent | required |
+| `yamlio.py` | file | The one YAML reader the surfaces share: libyaml's parser when PyYAML has it, one parse per version of a file (`load`), a private copy per caller, and `cached()` for a value derived from files; a file changed in the last two seconds is never kept | required |
 | `host.py` | file | Docker inventory over every `DASH_DOCKER_HOST` endpoint, attributed to registry rows by the UPS-OPS-17 label, then by name | required |
 | `nodes.py` | file | Where each hub workload runs: `_data/fleet.yml` `nodes:` resolved against `docker-compose.yml` (edge-bound, dependency-direction, durable-data and link-port rules), the plan against running containers, the per-node compose overlays and OpenTofu inputs (`dash node`, `dash infra`; ADR 0003) | required |
 | `views.py` | file | `dash_view()` / `docker_view()` — the views as plain data, filtered and sorted by `fleet.py`'s own functions; the console serves them at `/api/fleet` | required |
@@ -33,6 +34,7 @@ coverage: listed
 
 ## Placement
 
+- A read of a YAML file a surface asks for more than once → `yamlio.load()`, never a second `yaml.safe_load` (case in `tools/test_fleetcore_yamlio.py`); a value derived from files and asked for on every request → `yamlio.cached()`.
 - A new derived view or KPI → a pure function in `fleet.py` (case in `tools/test_tui_fleet.py`), exposed through `views.py`; then each surface renders it.
 - A new fact about where a frontend runs (a target kind, a launcher field) → `apps.py` (case in `tools/test_fleetcore_apps.py`); the Apps page, `tools/dash apps` and `tools/frontend_registry.py launcher` all read that one projection.
 - A new key → `keys.py` (case in `tools/test_fleetcore.py`); map its action in `tools/tui/app.py` `KEY_ACTIONS` and the page's `KEY_DO`.
