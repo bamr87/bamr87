@@ -49,10 +49,12 @@ The baseline asks whether a repo *has* a harness. The standard asks whether each
 | `auth-ordered` | takes its credential in the repo's `CLAUDE_AUTH_ORDER` | AGENTS.md standing rule; `ai_auth:` | all |
 | `trusted-author` | gates a run a stranger can trigger on its author | [#514](https://github.com/bamr87/bamr87/issues/514) | all |
 | `least-privilege` | declares top-level `permissions:`, never `write-all` | #514 | all |
+| `no-wildcard-bots` | never lets every bot start the run: no `allowed_bots: '*'` on a `claude-code-action` step | #514 | all |
+| `safe-pr-target` | never checks out a PR's head on `pull_request_target` | #514 | all |
 | `timeout` | bounds wall-clock time (`timeout-minutes`) | HARNESS.md layer 3 | all |
 | `off-hour-cron` | no cron fires on the hour | AGENTS.md standing rule; the schedule map below | scheduled |
 
-A control is counted only where it can bind. A workflow no stranger can trigger has no author gate to check. One that only a person or a caller workflow starts has no standing run for a kill switch to stop, and a manual dispatch bypasses the switch by design. A reusable workflow with no trigger of its own runs under its caller's permissions. A model handed over as an expression is decided at run time, so the file cannot say which it is. Mention handlers are not held to `kill-switch` or `turn-cap`, the same exemption `harness.efficacy.kinds.ci-mention` declares. The two hub routes supply what a caller does not pass: `ai-lane` carries the dollar cap, the ordered credential and the timeout, and resolves a pinned model itself. Those defaults are read from the lane's own files at scan time, so the inventory cannot disagree with the lane it grades.
+A control is counted only where it can bind. A workflow no stranger can trigger has no author gate to check. One that only a person or a caller workflow starts has no standing run for a kill switch to stop, and a manual dispatch bypasses the switch by design. A reusable workflow with no trigger of its own runs under its caller's permissions. Only a `claude-code-action` step carries an `allowed_bots` list, so `no-wildcard-bots` binds only where there is one. The action checks a person's repository permission but never a listed bot's, so `'*'` lets any GitHub App's comment spend the credential. `safe-pr-target` binds only on `pull_request_target`, which runs with the base repository's secrets and a write token. An `actions/checkout` whose `ref:` or `repository:` names the head (`github.event.pull_request.head.*`, `github.head_ref`, `merge_commit_sha`, `refs/pull/*/head` or `/merge`) fails it, and so does a run step that does `gh pr checkout` or fetches or checks out `pull/…`. Naming the head SHA to post a status passes, and a plain `pull_request` run is not graded, because GitHub gives a fork's run no secrets. A model or a bot list handed over as an expression is decided at run time, so the file cannot say which it is. Mention handlers are not held to `kill-switch` or `turn-cap`, the same exemption `harness.efficacy.kinds.ci-mention` declares. The two hub routes supply what a caller does not pass: `ai-lane` carries the dollar cap, the ordered credential and the timeout, and resolves a pinned model itself. Those defaults are read from the lane's own files at scan time, so the inventory cannot disagree with the lane it grades.
 
 **Every harness off the standard has a lever.** The rebuild plan on `/harnesses` groups them, and the attention queue carries one `standard-gap` finding per lever instead of one per harness:
 
@@ -221,6 +223,8 @@ The harness standard (2026-11-11) is additive too, so the marker stays `harness-
 - `deployable` is now also false for a repo the registry marks archived, so `--gaps` never offers one to the fan-out.
 
 A reader that wants only the harnesses the old scanner saw can filter on `route: claude-code-action`.
+
+The two #514 controls (2026-11-15) are additive as well: each `harnesses[]` row gains `wildcard_bots` and `pr_target_head_checkout`. Each one is `true` or `false`, or `null` when there is nothing to ask: no `claude-code-action` step, a bot list handed over as an expression, or a workflow not on `pull_request_target`. A row from a scan stored before the keys existed has neither key, and neither control is graded on it until the next live scan.
 
 ## Operate — the short card
 

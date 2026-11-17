@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
+from tools import check_rollup
 from tools.weekly import core
 
 SCHEMA = "weekly-closeout/v1"
@@ -67,7 +68,7 @@ DEFAULTS: dict = {
         r"(^|/)\.pre-commit-config\.ya?ml$",
         r"(^|/)tools/(dash|dash-gen|[^/]+\.sh)$",
         r"(^|/)tools/(weekly|jev|fleetcore)/",
-        r"(^|/)tools/(pm_review|projects_backfill)\.py$",
+        r"(^|/)tools/(pm_review|projects_backfill|check_rollup)\.py$",  # check_rollup: the rule checks_green reads
         r"(^|/)tools/console/[^/]+\.py$",
         r"^[^/]+\.py$",          # a module at a repo's root shadows a library of the same name for everything run from there
         r"(^|/)(templates|specs)/",
@@ -440,14 +441,17 @@ def repo_facts(repo: str, runner: Callable = core.run) -> dict:
 def checks_green(rollup: Any) -> tuple[bool, str]:
     """Every check finished, none failed, and at least one succeeded. A skipped or neutral check
     does not fail the pull request, as on GitHub, but it proves nothing either: a pull request whose
-    every check was skipped is not green. Anything still running is not green."""
-    rows = [c for c in (rollup or []) if isinstance(c, dict)]
+    every check was skipped is not green. Anything still running is not green. A cancelled run that a
+    later run of the same check (workflow and name) on the commit superseded is set aside first
+    (tools/check_rollup.py): a workflow that cancels in progress on each label event leaves one per
+    label, and the later run is the check's verdict. A cancelled run nothing superseded still fails."""
+    rows, aside = check_rollup.current(rollup if isinstance(rollup, (list, tuple)) else [])
     if not rows:
         return False, "no check ran on it"
     passed = 0
     for c in rows:
         name = c.get("name") or c.get("context") or "a check"
-        if c.get("__typename") == "StatusContext" or "state" in c and "conclusion" not in c:
+        if check_rollup.is_status(c):
             if str(c.get("state") or "").upper() != "SUCCESS":
                 return False, f"{name} is {c.get('state') or 'unknown'}"
             passed += 1
@@ -460,7 +464,8 @@ def checks_green(rollup: Any) -> tuple[bool, str]:
         passed += conclusion == "SUCCESS"
     if not passed:
         return False, "no check succeeded on it: every one was skipped"
-    return True, f"{len(rows)} checks green"
+    note = f" ({len(aside)} cancelled run{'s' if len(aside) > 1 else ''} superseded by a later run)" if aside else ""
+    return True, f"{len(rows)} checks green{note}"
 
 
 def gate_patterns(cfg: dict, repo: str) -> list[tuple[re.Pattern, str]]:

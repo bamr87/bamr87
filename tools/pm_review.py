@@ -34,6 +34,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 import projects_backfill as pb  # noqa: E402
+import check_rollup  # noqa: E402
 
 gp, gw = pb.gp, pb.gw
 
@@ -86,11 +87,17 @@ SEVERITY = {
     "unlabelled": "low", "board_unregistered": "info", "board_unreadable": "info", "option_missing": "info",
     "roadmap_proposed_aging": "info", "repo_unreachable": "info",
 }
-PRS_Q = """query($o:String!,$r:String!,$n:Int!){ repository(owner:$o,name:$r){
+_PRS = """query($o:String!,$r:String!,$n:Int!){ repository(owner:$o,name:$r){
  pullRequests(states:OPEN,first:$n,orderBy:{field:UPDATED_AT,direction:DESC}){ nodes{
   number isDraft mergeable mergeStateStatus reviewDecision headRefName
   closingIssuesReferences(first:10){ nodes{ number repository{ nameWithOwner } } }
-  commits(last:1){ nodes{ commit{ statusCheckRollup{ state } } } } } } } }"""
+  commits(last:1){ nodes{ commit{ statusCheckRollup{ %s } } } } } } } }"""
+# The rollup's contexts are read so a cancelled run a later run of the same check superseded is not a red CI
+# (tools/check_rollup.py): GitHub's own rollup state counts it as a failure. They slow the query (4.7 s for
+# zer0-mistakes' 27 open PRs, from 1.9 s), so a repo whose query fails on GitHub's side is asked again for the
+# state alone, which is GitHub's verdict, cancelled runs and all.
+PRS_Q = _PRS % check_rollup.ROLLUP_FIELDS
+PRS_STATE_Q = _PRS % "state"
 CC_RX = re.compile(r"^(?P<type>[a-zA-Z]+)(\([^)]*\))?(?P<bang>!)?:\s")
 RELEASE_TITLE_RX = re.compile(r"^chore(\([^)]*\))?: release\b", re.I)
 ISSUE_URL_RX = re.compile(r"github\.com/([^/]+/[^/]+)/(?:issues|pull)/(\d+)")
@@ -183,17 +190,24 @@ def open_items(gh: pb.Gh, repo: str) -> list[dict]:
 
 
 def pr_details(gh: pb.Gh, repo: str) -> tuple[dict, str | None]:
-    """Draft, mergeable, review and CI state of each open PR, and the issues it closes. One query."""
+    """Draft, mergeable, review and CI state of each open PR, and the issues it closes. One query, and
+    a second for the state alone when GitHub fails the first on its side (not when GraphQL is refused)."""
     owner, name = repo.split("/", 1)
+    args = {"o": owner, "r": name, "n": 100}
     try:
-        out = gh.graphql(PRS_Q, {"o": owner, "r": name, "n": 100})
+        out = gh.graphql(PRS_Q, args)
     except pb.GhError as e:
-        return {}, str(e)[:200]
+        if pb.graphql_unavailable(str(e)):
+            return {}, str(e)[:200]
+        try:
+            out = gh.graphql(PRS_STATE_Q, args)
+        except pb.GhError:
+            return {}, str(e)[:200]
     nodes = ((((out.get("data") or {}).get("repository") or {}).get("pullRequests") or {}).get("nodes")) or []
     res = {}
     for n in nodes:
         last = ((n.get("commits") or {}).get("nodes") or [{}])[0] or {}
-        roll = ((last.get("commit") or {}).get("statusCheckRollup") or {}).get("state")
+        roll = check_rollup.corrected_state((last.get("commit") or {}).get("statusCheckRollup") or {})
         res[str(n["number"])] = {
             "draft": bool(n.get("isDraft")), "mergeable": n.get("mergeable"), "merge_state": n.get("mergeStateStatus"),
             "review": n.get("reviewDecision"),

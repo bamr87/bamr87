@@ -70,10 +70,14 @@ name: 🐍 Python Tests
 # run only after its four shards had booted: 45 of the 60 push runs between
 # 2026-11-05 and 2026-11-10 ended cancelled, 21 of them within 90 seconds, each
 # about 5 billed job-minutes for a result nobody would read (bamr87/bamr87#799).
-# So a push run waits 90 seconds in `changes`, the one cheap job, where the next
-# push cancels it before any shard starts. That costs one more billed minute on
-# a push run that survives. The last push of a burst still runs every suite on
-# main's tip. A PR, the nightly run and a manual dispatch do not wait.
+# So a push run waits 110 seconds in `changes`, the one cheap job, where the
+# next push cancels it before any shard starts. That costs one more billed
+# minute on a push run that survives. The last push of a burst still runs every
+# suite on main's tip. A PR, the nightly run and a manual dispatch do not wait.
+# The wait was 90 seconds until merge bursts on 2026-11-10 outlasted it
+# (bamr87/bamr87#821). `changes` took 92-96 s around that wait, so 110 s keeps
+# it under 120 s, still 2 billed minutes. Never go above about 115 s: from
+# there `changes` can bill 3.
 
 on:
   pull_request:
@@ -127,7 +131,7 @@ jobs:
       # cancel this run here, before the four shards boot.
       - name: Wait for a superseding push
         if: ${{ github.event_name == 'push' }}
-        run: sleep 90
+        run: sleep 110
 
   tests:
     needs: changes

@@ -53,6 +53,9 @@ name: fanout
 # expired PAT has silently degraded this fleet's automation before. The agent
 # pass needs Claude auth in the order this repo's CLAUDE_AUTH_ORDER names
 # (docs/AI-INTEGRATION.md).
+#
+# Claude auth: OAuth only (CLAUDE_CODE_OAUTH_TOKEN). ANTHROPIC_API_KEY disabled for now
+# (2026-11-15); to restore, re-add the secrets.ANTHROPIC_API_KEY reference.
 
 on:
   workflow_dispatch:
@@ -275,12 +278,12 @@ jobs:
       contents: read
       id-token: write   # claude-code-action's OIDC token exchange
     env:
-      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
     steps:
       - name: Require Claude auth
         if: ${{ env.HAS_CLAUDE_AUTH != 'true' }}
         run: |
-          echo "::error::agent_fill needs CLAUDE_CODE_OAUTH_TOKEN (preferred; from 'claude setup-token') or ANTHROPIC_API_KEY. See docs/AI-INTEGRATION.md."
+          echo "::error::agent_fill needs CLAUDE_CODE_OAUTH_TOKEN (from 'claude setup-token'); ANTHROPIC_API_KEY is disabled for now (OAuth only). See docs/AI-INTEGRATION.md."
           exit 1
 
       - name: Checkout the target's kit branch
@@ -312,7 +315,6 @@ jobs:
         with:
           order: ${{ vars.CLAUDE_AUTH_ORDER }}
           has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       # KIT standardize: the hard rules are the JEV step spec tools/jev/steps/fanout/
       # agent-fill-standardize.prompt.txt (the quoted heredoc this step's brief used
@@ -333,7 +335,6 @@ jobs:
           JEV_STEP_SHA256: 91e3af92aaf29bd91ce441b2be1b1bf850118cf344d1f4578e7cab69cd938813
         with:
           claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
-          anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
           # MODEL and TURNS are the literals of _data/fleet.yml agent_fill.model
           # and agent_fill.max_turns (an exact id, constitution § 13.3; the step
           # spec references the same keys). `--max-turns` bounds iterations, not
@@ -382,7 +383,6 @@ jobs:
           JEV_STEP_SHA256: 6aebbe8e1aff86dcebc2ae5d6e8799c65a7c7d022a60f222ee6f90fca832878f
         with:
           claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
-          anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
           # MODEL and TURNS are the literals of _data/fleet.yml agent_fill.model
           # and agent_fill.max_turns (an exact id, constitution § 13.3; the step
           # spec references the same keys). `--max-turns` bounds iterations, not
