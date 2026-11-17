@@ -142,7 +142,7 @@ The AI runner kit — the fleet's one model step and one lane shape, **consumed 
 
 | File | Purpose |
 | --- | --- |
-| `../../.github/actions/claude-run/` | The runtime: `action.yml` + `run.sh`. `uses: bamr87/bamr87/.github/actions/claude-run@main` with `prompt`, `agent`, `tools`, `mcp`, `system`, `out`, `model`, `max-turns`, `max-budget-usd`, `permission-mode`. Claude Code first (OAuth-first), consumer-owned API fallback and metering when present, exit 1 on attempted-and-failed |
+| `../../.github/actions/claude-run/` | The runtime: `action.yml` + `run.sh`. `uses: bamr87/bamr87/.github/actions/claude-run@v2` with `prompt`, `agent`, `tools`, `mcp`, `system`, `out`, `model`, `max-turns`, `max-budget-usd`, `permission-mode`. Claude Code first (OAuth-first), consumer-owned API fallback and metering when present, exit 1 on attempted-and-failed |
 | `../../.github/workflows/ai-lane.yml` | The reusable lane (`workflow_call`): kill switch (`vars.<SWITCH>`, dispatch bypasses), bot guard, named concurrency, probed `GH_PAT` → `GH_TOKEN`, runtimes, pre/post hooks, the model step, the result-file assertion, artifact |
 | `ai-lane.template.yml` | A caller of the lane — copy one per lane, fill `__LANE__`, `__SWITCH__`, `__AGENT__`, `__PROJECT_NAME__`, `__CRON__` (stamped `# kit: ai-runner v__KIT_VERSION__`); a filled copy passes the harness standard |
 | `tests/contract.sh` | The runner's contract tests, 33 cases (stubbed `claude`, no credential, no network); CI: `ai-runner-contract.yml`. A consumer that still vendors the runner proves parity with `AI_RUNNER_SUT=scripts/ai/run.sh bash tests/contract.sh` |
