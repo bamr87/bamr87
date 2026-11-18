@@ -938,6 +938,67 @@ def test_an_older_lake_gains_the_outcome_columns_in_place():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+class _WfEntry:
+    def __init__(self, name, sha):
+        self.name, self.path, self.sha = name, f".github/workflows/{name}", sha
+
+
+class _WfRepo:
+    """PyGithub's repository object as sync_workflows uses it: a listing, then one file at a time."""
+
+    def __init__(self, files=None, listing_error=None, broken=()):
+        self.files, self.listing_error, self.broken, self.fetched = files or {}, listing_error, set(broken), []
+
+    def get_contents(self, path):
+        if path == ".github/workflows":
+            if self.listing_error is not None:
+                raise self.listing_error
+            return [_WfEntry(n, f"sha-{n}") for n in sorted(self.files)]
+        name = Path(path).name
+        self.fetched.append(name)
+        if name in self.broken:
+            raise RuntimeError("blob unavailable")
+        return type("Blob", (), {"decoded_content": self.files[name].encode()})()
+
+
+def _http_error(status):
+    exc = RuntimeError(f"HTTP {status}")
+    exc.status = status
+    return exc
+
+
+def test_sync_workflows_reports_what_it_read():
+    """`tools/dash workflows sync` (ADR 0007) must tell "no workflows" from "could not read": a 404 listing is
+    a repository with no .github/workflows; any other failure is an unread repository, said with its status."""
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        conn = fl.connect(tmp)
+        assert conn.execute("SELECT COUNT(*) FROM workflow_reads").fetchone()[0] == 0  # the table exists
+        rep: dict = {}
+        files = {"a.yml": "name: a\non: push\njobs: {}\n", "b.yaml": "name: b\non: push\njobs: {}\n",
+                 "c.yml": "name: c\non: push\njobs: {}\n", "README.md": "# not a workflow"}
+        repo = _WfRepo(files, broken={"c.yml"})
+        fl.sync_workflows(conn, repo, "bamr87/x", "t0", max_files=10, report=rep)
+        assert rep["listed"] and rep["error"] is None and rep["files"] == 3 and not rep["truncated"], rep
+        assert rep["paths"] == [".github/workflows/a.yml", ".github/workflows/b.yaml"], rep["paths"]
+        assert rep["failed"] == [".github/workflows/c.yml"] and rep["fetched"] == 2, rep
+        repo.fetched.clear()
+        rep2: dict = {}
+        fl.sync_workflows(conn, repo, "bamr87/x", "t1", max_files=1, report=rep2)
+        assert rep2["truncated"] and rep2["paths"] == [".github/workflows/a.yml"] and rep2["fetched"] == 0, rep2
+        assert repo.fetched == [], "an unchanged blob was fetched again"
+        rep3: dict = {}
+        assert fl.sync_workflows(conn, _WfRepo(listing_error=_http_error(404)), "bamr87/y", "t1", 10, rep3) == {}
+        assert rep3["listed"] and rep3["files"] == 0 and rep3["error"] is None, rep3
+        rep4: dict = {}
+        fl.sync_workflows(conn, _WfRepo(listing_error=_http_error(403)), "bamr87/z", "t1", 10, rep4)
+        assert not rep4["listed"] and "HTTP 403" in rep4["error"], rep4
+        fl.sync_workflows(conn, _WfRepo(listing_error=_http_error(500)), "bamr87/z", "t1", 10)  # no report: as before
+        conn.close()
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 # --------------------------------------------------------------------------- #
 # recall: keyword search over the stored sessions, read-only
 # --------------------------------------------------------------------------- #

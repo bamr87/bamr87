@@ -62,22 +62,23 @@ GitHub-archived repos need no status topic; GitHub already shows the banner.
 
 ## 4. README skeleton
 
-Every non-fork README has, in this order (sections that do not apply may be omitted, except License):
+Every non-fork README has, in this order (sections that do not apply may be omitted, except License). The Documentation, Contributing, Changelog, License and live-site entries, plus the mission one-liner in the tagline, are the about-section site map defined in [ABOUT-SECTION.md](ABOUT-SECTION.md) (constitution § 31, UPS-DOC-11):
 
 1. `# <Project name>`. YAML front matter, when the README is also a Jekyll page, stays above it.
-2. `> <tagline>`: the one-line summary from §1.
+2. `> <tagline>`: the one-line summary from §1. For a governed repo this is also the mission one-liner: it matches AGENTS.md and links to constitution § 1 (constitution § 31; [ABOUT-SECTION.md](ABOUT-SECTION.md)).
 3. A badge row: **CI** (only if `.github/workflows/ci.yml` exists), **License** (only if a LICENSE file exists), **Live site** (only if a homepage is set). Existing badges stay.
 4. `## Overview`: what it is and why it exists. Existing intro text moves here.
 5. `## Features`: a short bullet list, written from the code and existing docs. An existing equivalent section ("What it does", "What's in the box") counts.
 6. `## Quick start` (and/or `## Usage`): copy-pasteable commands that match `AGENTS.md` **Stack & commands**.
 7. Existing deep-dive sections (architecture, configuration, guides) stay in their original order — short ones; a long deep dive belongs in `docs/` behind a link (UPS-DOC-08).
-8. `## Documentation`: when the repo has a `docs/` directory, a link to its generated index `docs/README.md` (UPS-DOC-10), plus the few documents a reader should open first.
+8. `## Documentation`: when the repo has a `docs/` directory, a link to its generated index `docs/README.md` (UPS-DOC-10), plus the few documents a reader should open first. This cluster is the start of the about-section site map ([ABOUT-SECTION.md](ABOUT-SECTION.md)): it also links governance (constitution, amendments, PRD, feature catalog) when those files exist, the roadmap or backlog when one exists, and security or support pages when they exist.
 9. `## Project structure`: a brief table or tree of the top-level folders.
 10. `## Development`: build, test and lint commands, plus a link to `AGENTS.md`.
-11. `## Contributing`: links `CONTRIBUTING.md`, or the hub's `CONTRIBUTING.md` when the repo has none, plus the agent guide.
+11. `## Contributing`: links `CONTRIBUTING.md`, or the hub's `CONTRIBUTING.md` when the repo has none, plus the agent guide and the code of conduct when that file exists.
 12. `## Changelog`: links `CHANGELOG.md`, or the commit history when there is none yet, plus the releases page when releases exist.
 13. `## License`: the license and a link to the LICENSE file. If there is no LICENSE file, say so.
-14. The footer, after a `---` rule:
+14. Live site or demo: when a homepage is set, link it here if it is not already in the badge row ([§ 3](#3-homepage)).
+15. The footer, after a `---` rule:
 
 ```markdown
 <!-- bamr87-portfolio-footer -->

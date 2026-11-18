@@ -165,8 +165,10 @@ Existing requirements this serves: FR5 (rendered from data), FR7/FR10/FR15 (acti
 
 ## 10. Open questions
 
-- Store the envelope beside `fleet_event` in one table, or keep two tables joined by `run_id`? (Proposed: two tables; `fleet_event` keeps its own schema.)
-- OTel `docker_stats` receiver vs a small custom sampler for resource samples.
-- Default retention (proposed 14 days raw, 180 days rollups) against the disk budget.
+The first three are answered, as proposals for the maintainer's merge, in [FLEET-ACTIVITY-REPLAY-DECISIONS.md](FLEET-ACTIVITY-REPLAY-DECISIONS.md) (P0, #618).
+
+- Store the envelope beside `fleet_event` in one table, or keep two tables joined by `run_id`? (Proposed: two tables; `fleet_event` keeps its own schema.) Answered by D1: one store, as FR66 requires, with `fleet_event` as one source and HUB-024's tables as views over it.
+- OTel `docker_stats` receiver vs a small custom sampler for resource samples. Answered by D3: the receiver, into Prometheus; the store keeps resource events, not samples.
+- Default retention (proposed 14 days raw, 180 days rollups) against the disk budget. Answered by D7: those defaults, by monthly partition.
 - Whether GitHub Actions runs are ingested live (ETag poll) or only from `dash lake sync`.
 - Proposed principle change (not ratified here): see the PR body for the `activity-capture-read-only` amendment proposal.

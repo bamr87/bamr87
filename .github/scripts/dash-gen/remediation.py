@@ -96,6 +96,14 @@ another) is how a queue turns into noise. Candidates are keyed on
 `owner/repo:workflow-path`, so both signals land on a single entry with a single
 marker.
 
+Dedupe reads the markers of open issues and PRs, and one thing more: a failing
+workflow that fleet_triage linked to an open PR whose OWN run passed every job
+that failed on the tracked branch (`verified` fix evidence, FF-0036) is already
+tracked. The fix exists and merging it is a human's call, so the doctor never
+writes a second one; the work order names the PR under *Already fixed by an
+open pull request* instead. The marker scan cannot see such a fix when a human
+wrote it.
+
 Each candidate is classified by where its fix must happen:
 
   hub        the failing workflow lives in the control-plane repo → the agent
@@ -452,6 +460,7 @@ def failing_candidates(triage: dict, owner: str) -> dict[str, dict]:
                 "private": bool(repo.get("private")),
                 "signals": set(),
                 "failing_runs": [],
+                "fix_prs": [],
                 "usage": None,
             })
             cand["signals"].add("failing")
@@ -460,7 +469,28 @@ def failing_candidates(triage: dict, owner: str) -> dict[str, dict]:
                 "url": wf.get("run_url") or "",
                 "at": wf.get("run_at") or "?",
             })
+            # The open PRs fleet_triage linked to this red (FF-0036), strongest first.
+            cand["fix_prs"].extend(p for p in wf.get("fix_prs") or [] if isinstance(p, dict) and p.get("number"))
     return out
+
+
+def verified_fix(cand: dict) -> dict | None:
+    """The open PR whose OWN run of this workflow passed every job that failed on
+    the tracked branch (fleet_triage's `verified` fix evidence, FF-0036), or None.
+
+    Such a failure is already tracked: the fix exists and merging it is a
+    human's call (constitution § 12). A second fix from the doctor would only
+    compete with it. Only `verified` counts — a `doctor` PR carries the marker
+    the dedupe already reads, and `weak` evidence (a ci: title, a touched
+    workflow file) proves nothing.
+    """
+    fixes = [p for p in cand.get("fix_prs") or [] if p.get("evidence") == "verified"]
+    return fixes[0] if fixes else None
+
+
+def fix_reason(fix: dict) -> str:
+    return (f"already fixed by open PR #{fix['number']} ({fix.get('mergeable_state') or 'unknown'}): "
+            "its own run passed the jobs that failed on the branch — merge it")
 
 
 # --------------------------------------------------------------------------- #
@@ -869,8 +899,26 @@ def render_billing_rollup(blocked: list[dict], cfg: dict, hub: str) -> list[str]
     return L
 
 
+def render_fixed_rollup(fixed: list[dict]) -> list[str]:
+    """The failures an open PR already fixes (FF-0036): named, never queued."""
+    if not fixed:
+        return []
+    L = ["---", "",
+         "## Already fixed by an open pull request (not queued)", "",
+         f"{len(fixed)} failing workflow(s) have an open pull request whose own run of the workflow passed "
+         "every job that failed on the tracked branch (`fleet_triage.py` `verified` fix evidence, FF-0036). "
+         "The fix exists; merging it is a human's call (constitution § 12). **Do NOT open another PR or "
+         "issue for any of these.**", ""]
+    for c in fixed:
+        fix = verified_fix(c) or {}
+        L.append(f"- {c['nwo']} · `{c['path']}` · merge #{fix.get('number')} "
+                 f"({fix.get('mergeable_state') or 'unknown'}) — {fix.get('url') or ''}")
+    L.append("")
+    return L
+
+
 def render(cands: list[dict], cfg: dict, hub: str, usage: dict, triage: dict,
-           stats: dict, blocked: list[dict] | None = None) -> str:
+           stats: dict, blocked: list[dict] | None = None, fixed: list[dict] | None = None) -> str:
     L: list[str] = []
     L.append("# Fleet doctor — remediation work order")
     L.append("")
@@ -887,7 +935,8 @@ def render(cands: list[dict], cfg: dict, hub: str, usage: dict, triage: dict,
     L.append("")
     retired = stats.get("retired", 0)
     L.append(f"Triage: {stats['total']} problem workflow(s) detected · "
-             f"{stats['deduped']} already have an open issue/PR · "
+             f"{stats['deduped']} already have an open issue/PR"
+             + (f" ({len(fixed)} a verified fix PR, listed below)" if fixed else "") + " · "
              + (f"{retired} retired (workflow file deleted) · " if retired else "")
              + (f"{len(blocked)} rolled up under {hub}#{cfg['billing_block_issue']} "
                 "(billing block) · " if blocked else "")
@@ -900,6 +949,7 @@ def render(cands: list[dict], cfg: dict, hub: str, usage: dict, triage: dict,
                  "open issue or fix PR, or none crossed the thresholds. This is the "
                  "healthy steady state — do not invent work.")
         L.append("")
+        L.extend(render_fixed_rollup(fixed or []))
         L.extend(render_billing_rollup(blocked or [], cfg, hub))
         return "\n".join(L)
 
@@ -970,6 +1020,7 @@ def render(cands: list[dict], cfg: dict, hub: str, usage: dict, triage: dict,
                  f'-H "Accept: application/vnd.github.raw"`')
         L.append(f"- **Suggested angle:** {fix_angle(c['signals'])}")
         L.append("")
+    L.extend(render_fixed_rollup(fixed or []))
     L.extend(render_billing_rollup(blocked or [], cfg, hub))
     return "\n".join(L)
 
@@ -1016,13 +1067,18 @@ def run(args: argparse.Namespace) -> int:
     total = len(cands)
 
     seen: set[str] = set()
+    fixed: list[dict] = []
     if not args.no_dedupe:
         seen = open_markers(args.hub)
         # Only ask the target repos that actually have a candidate — one gh call
         # per repo, so the queue's shape bounds the cost.
         targets = sorted({c["nwo"] for c in cands if c["nwo"] != args.hub})
         seen |= cross_repo_open_markers(targets[: args.max_repo_lookups])
-    fresh = [c for c in cands if c["key"] not in seen]
+        # A red whose fix PR already passed the failed jobs is tracked too — read
+        # from the triage snapshot, so it costs no call (FF-0036).
+        fixed = [c for c in cands if c["key"] not in seen and verified_fix(c)]
+    tracked = seen | {c["key"] for c in fixed}
+    fresh = [c for c in cands if c["key"] not in tracked]
     deduped = total - len(fresh)
 
     # Apply the cross-repo sub-cap while filling the overall cap, so a burst of
@@ -1064,17 +1120,23 @@ def run(args: argparse.Namespace) -> int:
 
     stats = {"total": total, "deduped": deduped, "retired": retired}
     Path(args.out).write_text(render(selected, cfg, args.hub, usage, triage, stats,
-                                     blocked))
+                                     blocked, fixed))
 
     emit_output("has_candidates", "true" if selected else "false")
     emit_output("candidate_count", len(selected))
     emit_output("cross_repo_count", cross)
     emit_output("billing_blocked_count", len(blocked))
 
+    # A plain issue number. CodeQL's sensitive-data heuristic reads "billing" in the key as
+    # private data (py/clear-text-logging-sensitive-data); int() ends that false trace.
+    rollup_issue = int(cfg["billing_block_issue"])
     sys.stderr.write(
-        f"fleet-doctor: {total} problem workflow(s), {deduped} already tracked, "
+        f"fleet-doctor: {total} problem workflow(s), {deduped} already tracked "
+        f"({len(fixed)} by a verified fix PR), "
         f"{retired} retired, {len(blocked)} billing-blocked "
-        f"(→ {args.hub}#{cfg['billing_block_issue']}), {len(selected)} queued ({cross} cross-repo) → {args.out}\n")
+        f"(→ {args.hub}#{rollup_issue}), {len(selected)} queued ({cross} cross-repo) → {args.out}\n")
+    for c in fixed:
+        sys.stderr.write(f"  ✓ {c['nwo']}/{c['workflow']}: {fix_reason(verified_fix(c))}\n")
     for c in selected:
         sys.stderr.write(f"  · [{c['_where']}] {c['nwo']}/{c['workflow']} "
                          f"[{', '.join(sorted(c['signals']))}]\n")
@@ -1248,8 +1310,10 @@ def gather_evidence(cand: dict, gh_text=_gh_text, now: str | None = None) -> tup
 
 def build_plan(args: argparse.Namespace, cfg: dict, usage: dict, triage: dict, *, offline: bool,
                gh_text=_gh_text, now: str | None = None) -> tuple[dict, dict[str, str]]:
-    """The plan and its briefs. `offline`: no dedupe, no existence or billing
-    check, no evidence — a $0, network-free plan (the engine's rehearsals)."""
+    """The plan and its briefs. `offline`: no marker dedupe, no existence or
+    billing check, no evidence — a $0, network-free plan (the engine's
+    rehearsals). A verified fix PR still counts as tracked offline: it is read
+    from the triage snapshot, not from GitHub."""
     jev = step_spec()
     spec = jev.load_spec(*DOCTOR_STEP)
     now = now or dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -1267,6 +1331,7 @@ def build_plan(args: argparse.Namespace, cfg: dict, usage: dict, triage: dict, *
     skipped: list[dict] = []
     selected: list[dict] = []
     blocked: list[dict] = []
+    fixed: list[dict] = []
     private = {r.get("nwo") for r in triage.get("by_repo", []) or [] if r.get("private")}
     cross = 0
     retired = 0
@@ -1276,6 +1341,11 @@ def build_plan(args: argparse.Namespace, cfg: dict, usage: dict, triage: dict, *
         row = {"key": c["key"], "name": candidate_slug(c), "nwo": args.hub, "repo": c["nwo"]}
         if c["key"] in seen:
             skipped.append({**row, "reason": "already tracked by an open issue or fix PR (its marker is open)"})
+            continue
+        fix = verified_fix(c)
+        if fix:
+            fixed.append(c)
+            skipped.append({**row, "reason": fix_reason(fix)})
             continue
         if not offline and is_billing_blocked(c, private):
             blocked.append(c)
@@ -1298,13 +1368,14 @@ def build_plan(args: argparse.Namespace, cfg: dict, usage: dict, triage: dict, *
             cross += 1
         c["_where"] = where
         selected.append(c)
-    stats = {"total": total, "deduped": len(seen & {c["key"] for c in cands}), "retired": retired}
+    tracked = seen | {c["key"] for c in fixed}
+    stats = {"total": total, "deduped": len(tracked & {c["key"] for c in cands}), "retired": retired}
     briefs: dict[str, str] = {}
     include: list[dict] = []
     for c in selected:
         name = candidate_slug(c)
         fname = f"doctor-workorder-{name}.md"
-        text = render([c], cfg, args.hub, usage, triage, stats, blocked)
+        text = render([c], cfg, args.hub, usage, triage, stats, blocked, fixed)
         evidence = "offline"
         if not offline:
             lines, evidence = gather_evidence(c, gh_text=gh_text, now=now)

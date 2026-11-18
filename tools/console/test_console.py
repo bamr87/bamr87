@@ -305,6 +305,80 @@ def test_decisions_route_serves_the_queue_and_never_the_token():
     assert argv == [core.DASH, "decisions", "refresh"] and remote is False
 
 
+def test_gh_projects_routes_read_every_owner_page_items_and_write_nothing():
+    """Over HTTP: /api/gh-projects is every owner in one document, each with its projects or an explicit
+    scope_missing; /api/gh-projects/{id}/items is paged and capped; the console's own GitHub identity is
+    used and never echoed; no route under /api/gh-projects takes anything but GET (epic #468 P1)."""
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+    import gh_projects as gp
+
+    fx = json.loads((Path(__file__).resolve().parent / "test_gh_projects_fixtures.json").read_text())
+    seen: list[str] = []
+
+    def github(query, variables, tok, timeout=20):
+        seen.append(tok)
+        assert timeout <= 20
+        if "projectsV2(first" in query:
+            if "organization(" in query:
+                return {"errors": [{"type": "INSUFFICIENT_SCOPES", "message": "needs read:project"}], "data": None}
+            return fx["projects_user.json"]
+        if variables["id"] == "PVT_gone":
+            return {"data": {"node": None}, "errors": [{"type": "NOT_FOUND", "message": "Could not resolve to a node"}]}
+        return fx["items.json"]
+
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    env = {k: v for k, v in os.environ.items() if k not in ("PROJECTS_TOKEN", "GH_TOKEN", "GITHUB_TOKEN")}
+    gp.clear_cache()
+    try:
+        with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(gp, "_http", github), \
+                mock.patch.object(gp, "BUDGET", gp.CallBudget()), \
+                mock.patch.object(console_app.ghl, "token_source", lambda: ("GH_TOKEN", "tok-from-the-console")):
+            r = client.get("/api/gh-projects")
+            doc = r.json()
+            assert r.status_code == 200 and doc["schema"] == "gh-projects/v1", r.text[:300]
+            assert [o["login"] for o in doc["owners"]] == [login for _, login in gp.OWNERS]
+            assert doc["owners"][0]["status"] == "ok" and doc["projects"][0]["number"] == 14
+            assert {o["status"] for o in doc["owners"][1:]} == {"scope_missing"} and doc["scope_missing"] is True
+            assert (doc["status"], doc["token_source"]) == ("partial", "GH_TOKEN")
+            assert set(seen) == {"tok-from-the-console"} and "tok-from-the-console" not in r.text
+            assert client.get("/api/gh-projects").json()["source"] == "cache" and len(seen) == 5, "inside the TTL"
+            assert client.get("/api/gh-projects", params={"owner": "bamr87"}).json()["status"] == "fresh"
+            items = client.get("/api/gh-projects/PVT_fleet/items", params={"limit": 1}).json()
+            assert (items["total"], len(items["items"]), items["next_offset"]) == (2, 1, 1), items
+            assert items["items"][0]["refs"] == ["FR12", "HUB-031"] and "ghp_" not in json.dumps(items)
+            assert client.get("/api/gh-projects/PVT_fleet/items", params={"kind": "pr"}).json()["matched"] == 1
+            gone = client.get("/api/gh-projects/PVT_gone/items")
+            assert gone.status_code == 404 and "Could not resolve" in gone.json()["detail"], gone.text
+            assert client.get("/api/gh-projects/not-a-project/items").status_code == 400
+            assert client.get("/api/gh-projects", params={"owner": "someone-else"}).status_code == 400
+            for path, bad in (("/api/gh-projects", {"budget": 999}), ("/api/gh-projects/PVT_fleet/items", {"limit": 501}),
+                              ("/api/gh-projects/PVT_fleet/items", {"offset": -1}),
+                              ("/api/gh-projects/PVT_fleet/items", {"kind": "epic"})):
+                assert client.get(path, params=bad).status_code == 422, (path, bad)
+            os.environ["PROJECTS_TOKEN"] = "projects-scoped"
+            assert client.get("/api/gh-projects").json()["token_source"] == "PROJECTS_TOKEN"
+            assert seen[-1] == "projects-scoped"
+            del os.environ["PROJECTS_TOKEN"]
+            gp.clear_cache()
+            n = len(seen)
+            with mock.patch.object(console_app.ghl, "token_source", lambda: (None, None)):
+                none = client.get("/api/gh-projects").json()
+                assert none["status"] == "scope_missing" and none["source"] == "none" and len(seen) == n, none
+                assert all(o["status"] == "scope_missing" for o in none["owners"]) and "PROJECTS_TOKEN" in none["hint"]
+            for method in ("post", "put", "patch", "delete"):
+                for path in ("/api/gh-projects", "/api/gh-projects/PVT_fleet/items"):
+                    assert getattr(client, method)(path).status_code in (404, 405), (method, path)
+    finally:
+        gp.clear_cache()
+    for route in console_app.app.routes:
+        if getattr(route, "path", "").startswith("/api/gh-projects"):
+            assert set(route.methods) <= {"GET", "HEAD"}, (route.path, route.methods)
 def test_pr_queue_routes_read_plan_and_never_apply():
     """Over HTTP: /api/prs is the queue (refresh=never reads no GitHub), a bad filter is refused, a plan is
     refused before any GitHub read when its targets are malformed, a stored plan and result are served by
@@ -359,12 +433,18 @@ def test_a_dev_stack_op_names_one_project_from_the_port_registry():
     assert core._exclusive_key("dev-up", {"target": "gitorio"}) == core._exclusive_key("dev-down", {"target": "gitorio"})
     assert core._exclusive_key("dev-up", {"target": "gitorio"}) != core._exclusive_key("dev-up", {"target": "law-ai"})
     assert core.OPS["dev-logs"].get("exclusive") is None, "reading logs must not wait on a start"
-    # every local target the launcher offers can be started by these operations
+    # every compose-hosted local target the launcher offers can be started by
+    # these operations; a devenv-hosted one (served inside the workspace
+    # container) is not a stack, so the page offers its terminal command instead
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from fleetcore import apps as fapps
     doc = fapps.apps_view(core.REPO_ROOT)
     local = [t for r in doc["apps"] for t in r["targets"] if t["kind"] == "local"]
-    assert local and all(t["project"] in known for t in local), "a Local target names a project dev-up refuses"
+    stacks = [t for t in local if t["host"] == "compose"]
+    assert stacks and all(t["project"] in known for t in stacks), "a Local target names a project dev-up refuses"
+    devenv = [t for t in local if t["host"] == "devenv"]
+    assert devenv and all(t["project"] not in known and t["start"].startswith("docker compose exec ") for t in devenv), devenv
+    assert {t["host"] for t in local} == {"compose", "devenv"}, "a Local target from a host no one can start"
 
 
 def test_lake_ops_argv_shapes_and_status_document():

@@ -88,8 +88,9 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 FLEET_DEFAULT = REPO_ROOT / "_data" / "fleet.yml"
 LAKE_DIR_DEFAULT = Path(os.environ.get("DASH_LAKE_DIR") or (REPO_ROOT / ".dash-lake"))
 DB_NAME = "fleet.sqlite"
-# 3: agent_runs.agent_calls + cost_unread; 4: issues.state_reason + merged_at (each added in place by connect)
-SCHEMA_VERSION = 4
+# 3: agent_runs.agent_calls + cost_unread; 4: issues.state_reason + merged_at (each added in place by connect);
+# 5: workflow_reads (a new table, created in place by connect)
+SCHEMA_VERSION = 5
 PHOENIX_DEFAULT = os.environ.get("PHOENIX_COLLECTOR_ENDPOINT") or "http://127.0.0.1:6006"
 PHOENIX_UI_DEFAULT = os.environ.get("PHOENIX_UI_URL") or PHOENIX_DEFAULT
 CLAUDE_DIR_DEFAULT = Path(os.environ.get("CLAUDE_CONFIG_DIR") or (Path.home() / ".claude")) / "projects"
@@ -164,6 +165,15 @@ CREATE TABLE IF NOT EXISTS exports (
 -- duplicate index of every log line the fleet has ever produced.
 CREATE TABLE IF NOT EXISTS shipments (
   key TEXT PRIMARY KEY, sink TEXT, docs INTEGER, bytes INTEGER, endpoint TEXT, shipped_at TEXT);
+-- What `tools/dash workflows sync` (workflow_sync.py, ADR 0007) last did for each fleet repo: one row
+-- per repo, the LAST ATTEMPT. ok=0 keeps the earlier read's `read_at` and `paths`, so the model can say
+-- "not read since <read_at>, because <reason>" instead of a pass. `paths` (JSON) are the workflow files
+-- the listing held, which the `workflows` rows of that repo are read through (a deleted file's row stays
+-- in `workflows`, never in `paths`); `checks` (JSON) is path -> the latest run of each check it looked up.
+CREATE TABLE IF NOT EXISTS workflow_reads (
+  nwo TEXT PRIMARY KEY, ok INTEGER, attempted_at TEXT, read_at TEXT, reason TEXT, files INTEGER,
+  listed INTEGER, truncated INTEGER, archived INTEGER, default_branch TEXT, paths TEXT, checks TEXT,
+  calls INTEGER);
 CREATE INDEX IF NOT EXISTS runs_nwo_created ON runs (nwo, created_at);
 CREATE INDEX IF NOT EXISTS runs_ai_created ON runs (ai, created_at);
 CREATE INDEX IF NOT EXISTS jobs_run ON jobs (run_id);
@@ -173,7 +183,7 @@ CREATE INDEX IF NOT EXISTS session_tools_name ON session_tools (name);
 
 TABLES = ["repos", "workflows", "factory_files", "runs", "jobs", "steps", "logs",
           "agent_runs", "issues", "sessions", "session_turns", "session_tools", "exports",
-          "shipments", "syncs"]
+          "shipments", "syncs", "workflow_reads"]
 
 
 # --------------------------------------------------------------------------- #
@@ -684,26 +694,40 @@ def _content_text(blob) -> str:
         return ""
 
 
-def sync_workflows(conn, repo, nwo: str, now: str, max_files: int) -> dict[str, dict]:
+def sync_workflows(conn, repo, nwo: str, now: str, max_files: int,
+                   report: dict | None = None) -> dict[str, dict]:
     """Upsert every .github/workflows/*.yml; unchanged blobs (same sha) are
     reclassified from the stored text without a second content fetch.
-    Returns {path: info} for the AI ones (the runs sync needs to know)."""
+    Returns {path: info} for the AI ones (the runs sync needs to know).
+
+    `report`, when given, is filled with what the read saw, so a caller can
+    tell "this repo has no workflows" from "this repo could not be read":
+    listed (the listing answered; a 404 is a repo with no workflows
+    directory), error, files (every .yml/.yaml in the listing), paths (the
+    ones stored, at most max_files), truncated, fetched (contents read
+    because the sha changed) and failed (paths whose content could not be read)."""
+    rep = report if report is not None else {}
+    rep.update({"listed": False, "error": None, "files": 0, "paths": [], "truncated": False,
+                "fetched": 0, "failed": []})
     try:
         listing = repo.get_contents(".github/workflows")
-    except Exception:
+    except Exception as exc:  # noqa: BLE001 — a repo that cannot be listed yields no rows; the report says why
+        status = getattr(exc, "status", None)
+        if status == 404:
+            rep["listed"] = True  # the repository answered: it has no .github/workflows
+        else:
+            rep["error"] = f"listing failed ({exc.__class__.__name__}{f' HTTP {status}' if status else ''})"
         return {}
+    rep["listed"] = True
     if not isinstance(listing, list):
         listing = [listing]
     ai: dict[str, dict] = {}
     known = {r["path"]: r["sha"] for r in conn.execute(
         "SELECT path, sha FROM workflows WHERE nwo=?", (nwo,))}
-    seen = 0
-    for entry in listing:
-        if not entry.name.endswith((".yml", ".yaml")):
-            continue
-        seen += 1
-        if seen > max_files:
-            break
+    files = [e for e in listing if e.name.endswith((".yml", ".yaml"))]
+    rep["files"] = len(files)
+    rep["truncated"] = len(files) > max_files
+    for entry in files[:max_files]:
         if known.get(entry.path) == entry.sha:
             row = conn.execute("SELECT text FROM workflows WHERE nwo=? AND path=?",
                                (nwo, entry.path)).fetchone()
@@ -711,8 +735,11 @@ def sync_workflows(conn, repo, nwo: str, now: str, max_files: int) -> dict[str, 
         else:
             try:
                 text = _content_text(repo.get_contents(entry.path))
-            except Exception:
+            except Exception:  # noqa: BLE001 — one unreadable file is reported, the rest still sync
+                rep["failed"].append(entry.path)
                 continue
+            rep["fetched"] += 1
+        rep["paths"].append(entry.path)
         info = harness_registry.classify_workflow(entry.path, text)
         factory = info.get("factory") or {}
         upsert(conn, "workflows", {

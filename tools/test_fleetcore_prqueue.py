@@ -187,6 +187,158 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(r["next"]["who"], "agent")  # the hint never changes the verdict
 
 
+class ConsistencyTests(unittest.TestCase):
+    """What the page says (label, comment, task list) against what the queue reads."""
+
+    BODY = ("## Type Of Change\n\n- [ ] Bug fix\n- [x] New feature\n- [ ] Breaking change\n\n## Verification\n\n"
+            "- [x] Docs updated\n- [ ] **CI is green**: tests, lint and build\n* [ ] `Backlog of record` is updated\n")
+    TRIAGE = "**Next action:** Amr merges it.\n`gh pr ready 7 --repo o/app && gh pr merge 7 --repo o/app --merge`\n" + pq.TRIAGE_MARKER
+
+    def test_tasks_count_as_github_does_and_set_the_templates_options_aside(self):
+        t = pq.tasks_of(self.BODY)
+        self.assertEqual((t["total"], t["done"]), (6, 2))       # what GitHub shows: 2 of 6 tasks
+        self.assertEqual((t["open"], t["options"]), (2, 2))     # two unticked options are a choice, not work
+        self.assertEqual(t["items"], ["CI is green: tests, lint and build", "Backlog of record is updated"])
+        self.assertTrue(t["ci_open"])
+        self.assertIsNone(pq.tasks_of("no checkbox here"))
+        self.assertIsNone(pq.tasks_of(None))
+        self.assertEqual(pq.tasks_of("- [x] done\n- [X] also done")["open"], 0)
+
+    def test_a_gated_pull_request_without_the_label_is_flagged(self):
+        gated = detail(files=[{"path": ".github/workflows/ci.yml", "change": "MODIFIED"}], repo={"merge_commit": True, "gate_label": False})
+        r = pq.row(rec(), gated, CFG, NOW, set())
+        self.assertTrue(r["gate"]["gated"])
+        self.assertEqual(r["label"], {"state": "missing", "repo_has_label": False})
+        self.assertIn("unlabelled", r["flags"])
+        labelled = pq.row(rec(labels=["needs-amr"]), gated, CFG, NOW, set())
+        self.assertEqual(labelled["label"]["state"], "labelled")
+        self.assertNotIn("unlabelled", labelled["flags"])
+        ungated = pq.row(rec(), detail(), CFG, NOW, set())
+        self.assertEqual(ungated["label"], {"state": "not-needed"})   # no label read: repo_has_label stays unknown
+        self.assertNotIn("unlabelled", ungated["flags"])
+
+    def test_comment_is_none_current_or_stale_by_facts_alone(self):
+        none = pq.row(rec(), detail(), CFG, NOW, set())
+        self.assertEqual(none["comment"], {"state": "none"})
+        self.assertIn("no-comment", none["flags"])
+        written = {"body": self.TRIAGE, "updated_at": "2026-11-14T02:00:00Z"}
+        current = pq.row(rec(draft=True), detail(triage=written, head_at="2026-11-13T00:00:00Z"), CFG, NOW, set())
+        self.assertEqual(current["comment"], {"state": "current"})
+        self.assertFalse({"no-comment", "stale-comment"} & set(current["flags"]))
+        moved = pq.row(rec(), detail(triage=written, head_at="2026-11-15T00:00:00Z", mergeable="CONFLICTING"), CFG, NOW, set())
+        self.assertEqual(moved["comment"]["state"], "stale")
+        self.assertEqual(moved["comment"]["why"], ["commits were pushed after it was written", "it says mark it ready; it is ready",
+                                                   "it says merge; the pull request conflicts with its base"])
+        self.assertIn("stale-comment", moved["flags"])
+        fixed = {"body": "**Next action:** An agent fixes the failing checks.\n" + pq.TRIAGE_MARKER, "updated_at": "2026-11-14T02:00:00Z"}
+        self.assertEqual(pq.row(rec(), detail(triage=fixed), CFG, NOW, set())["comment"]["why"],
+                         ["it says fix failing checks; they pass"])
+
+    def test_task_flags_and_the_counts(self):
+        with_tasks = detail(tasks=pq.tasks_of(self.BODY))
+        r = pq.row(rec(), with_tasks, CFG, NOW, set())
+        self.assertEqual(r["tasks"]["open"], 2)
+        self.assertTrue({"open-tasks", "tasks-contradict"} <= set(r["flags"]))   # checks are green, the CI task is not ticked
+        red = pq.row(rec(), detail(tasks=pq.tasks_of(self.BODY), contexts=[run("verify", "FAILURE", "2026-11-14T01:00:00Z")]), CFG, NOW, set())
+        self.assertIn("open-tasks", red["flags"])
+        self.assertNotIn("tasks-contradict", red["flags"])
+        doc = pq.build([rec(id="PR_1"), rec(id="PR_2", number=8)], {"PR_1": with_tasks, "PR_2": detail()}, CFG, NOW)
+        self.assertEqual(doc["counts"]["flags"]["open-tasks"], 1)
+        self.assertEqual(doc["counts"]["flags"]["no-comment"], 2)
+        self.assertEqual(doc["counts"]["tasks"], {"with": 1, "done": 2, "total": 6})
+        self.assertEqual(set(doc["counts"]["flags"]), set(pq.FLAGS))
+
+    def test_an_unread_pull_request_carries_no_flag(self):
+        r = pq.row(rec(), {}, CFG, NOW, set())
+        self.assertEqual(r["flags"], [])
+        self.assertEqual(set(pq.FLAG_TITLES), set(pq.FLAGS))
+
+
+class ReadinessTests(unittest.TestCase):
+    """What is left before a pull request merges (ADR 0012)."""
+
+    GATED = [{"path": ".github/workflows/ci.yml", "change": "MODIFIED"}]
+
+    def ready(self, r=None, d=None):
+        return pq.row(r or rec(), d or detail(trace={"ok": True, "exempt": False}), CFG, NOW, set())["readiness"]
+
+    def states(self, rd):
+        return {i["key"]: i["state"] for i in rd["items"]}
+
+    def test_an_ungated_green_pull_request_is_ready_for_an_agent(self):
+        rd = self.ready()
+        self.assertEqual((rd["verdict"], rd["left"], rd["merge"]), ("ready", 0, "agent"))
+        self.assertEqual(self.states(rd), {"ci": "done", "base": "done", "state": "done", "gate": "done", "trace": "done", "review": "note"})
+
+    def test_the_gate_is_held_and_never_work(self):
+        rd = self.ready(rec(labels=["needs-amr"]), detail(files=self.GATED, trace={"ok": True, "exempt": False}))
+        self.assertEqual((rd["verdict"], rd["merge"]), ("ready", "maintainer"))
+        self.assertEqual((self.states(rd)["gate"], self.states(rd)["label"]), ("held", "done"))
+        missing = self.ready(rec(), detail(files=self.GATED, repo={"merge_commit": True, "gate_label": False}))
+        self.assertEqual((missing["verdict"], missing["left"]), ("not-ready", 1))
+        label = next(i for i in missing["items"] if i["key"] == "label")
+        self.assertEqual((label["state"], label["who"], label["act"]), ("todo", "agent", "needs-amr"))
+        self.assertIn("the repo has no such label yet", label["text"])
+
+    def test_checks_decide_between_work_and_waiting(self):
+        red = self.ready(d=detail(contexts=[run("verify", "FAILURE", "2026-11-14T01:00:00Z")]))
+        ci = next(i for i in red["items"] if i["key"] == "ci")
+        self.assertEqual((red["verdict"], ci["state"], ci["who"], ci["act"]), ("not-ready", "todo", "agent", "agent"))
+        running = self.ready(d=detail(contexts=[run("verify", None, "2026-11-14T01:00:00Z", status="IN_PROGRESS")], trace={"ok": True}))
+        self.assertEqual((running["verdict"], running["left"], self.states(running)["ci"]), ("waiting", 0, "wait"))
+        none = self.ready(d=detail(contexts=[]))
+        self.assertEqual(self.states(none)["ci"], "todo")
+
+    def test_a_conflict_a_draft_and_an_unknown_merge_state(self):
+        self.assertEqual(self.states(self.ready(d=detail(mergeable="CONFLICTING")))["base"], "todo")
+        self.assertEqual(self.states(self.ready(d=detail(mergeable="UNKNOWN", trace={"ok": True})))["base"], "wait")
+        draft = self.ready(rec(draft=True))
+        state = next(i for i in draft["items"] if i["key"] == "state")
+        self.assertEqual((draft["verdict"], state["state"], state["act"]), ("not-ready", "todo", "ready"))
+
+    def test_a_repo_hold_label_and_a_squash_only_repo_stay_with_a_person(self):
+        held = self.ready(rec(labels=["needs-human"]))
+        self.assertEqual((held["verdict"], held["merge"], self.states(held)["hold"]), ("ready", "maintainer", "held"))
+        squash = self.ready(d=detail(repo={"merge_commit": False, "squash": True, "rebase": False, "private": False, "default_branch": "main"},
+                                     trace={"ok": True}))
+        self.assertEqual((squash["merge"], self.states(squash)["method"]), ("maintainer", "held"))
+
+    def test_trace_tasks_threads_and_review(self):
+        untraced = self.ready(d=detail(trace={"ok": False, "exempt": False}))
+        self.assertEqual((untraced["verdict"], self.states(untraced)["trace"]), ("ready", "note"))   # § 28.4 is warn-only
+        bot = self.ready(rec(author="dependabot", bot=True), detail(trace={"ok": False, "exempt": False}))
+        self.assertNotIn("trace", self.states(bot))                      # a bump or a release cites nothing
+        unknown = self.ready(d=detail())                                    # a read that did not ask says nothing
+        self.assertNotIn("trace", self.states(unknown))
+        body = "- [x] Docs updated\n- [ ] **CI is green**\n- [ ] Bug fix\n"
+        tasks = self.ready(d=detail(tasks=pq.tasks_of(body), trace={"ok": True}))
+        item = next(i for i in tasks["items"] if i["key"] == "tasks")
+        self.assertEqual((item["state"], item["who"]), ("todo", "author"))
+        self.assertIn("CI is green", item["text"])
+        ticked = self.ready(d=detail(tasks=pq.tasks_of("- [x] Docs updated\n- [ ] Bug fix\n"), trace={"ok": True}))
+        self.assertEqual(self.states(ticked)["tasks"], "done")              # an unticked template option is not work
+        threads = self.ready(d=detail(unresolved_threads=2, trace={"ok": True}))
+        self.assertEqual(self.states(threads)["threads"], "todo")
+        self.assertEqual(self.states(self.ready(d=detail(review="CHANGES_REQUESTED")))["review"], "todo")
+        self.assertEqual(self.states(self.ready(d=detail(review="REVIEW_REQUIRED", trace={"ok": True})))["review"], "wait")
+        self.assertEqual(self.states(self.ready(d=detail(review="APPROVED")))["review"], "done")
+
+    def test_unread_waits_and_the_counts_add_up(self):
+        unread = pq.row(rec(), {}, CFG, NOW, set())["readiness"]
+        self.assertEqual((unread["verdict"], [i["key"] for i in unread["items"]]), ("waiting", ["read"]))
+        doc = pq.build([rec(id="PR_1"), rec(id="PR_2", number=8, draft=True), rec(id="PR_3", number=9)],
+                       {"PR_1": detail(), "PR_2": detail()}, CFG, NOW)
+        self.assertEqual(doc["counts"]["readiness"], {"ready": 1, "waiting": 1, "not-ready": 1})
+        for i in [i for r in doc["rows"] for i in r["readiness"]["items"]]:
+            self.assertIn(i["state"], pq.ITEM_STATES)
+
+    def test_the_reports_own_status_is_never_one_of_the_checks(self):
+        own = {"__typename": "StatusContext", "context": pq.READINESS_CONTEXT, "state": "PENDING", "createdAt": "2026-11-14T02:00:00Z"}
+        rows = pq.collapse_checks([run("verify", "SUCCESS", "2026-11-14T01:00:00Z"), own])
+        self.assertEqual([c["name"] for c in rows], ["verify"])
+        self.assertEqual(pq.checks_summary(rows, "PENDING")["state"], "green")
+
+
 class ActionTests(unittest.TestCase):
     def test_switches_default_off(self):
         self.assertFalse(pq.action_enabled("merge", pq.config({}))[0])

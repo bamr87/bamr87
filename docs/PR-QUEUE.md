@@ -24,6 +24,9 @@ On 2026-11-15 a Claude Code session triaged all 160 open pull requests in 39 fle
 tools/dash prs                                   # the queue; reads GitHub only for what is past its TTL
 tools/dash prs --who amr --limit 200             # what waits on Amr
 tools/dash prs --kind batch --batch chore/agent-context-kit
+tools/dash prs --flag unlabelled --limit 300      # gated pull requests that carry no needs-amr label
+tools/dash prs --verdict not-ready --who agent    # pull requests with work left that an agent moves
+tools/dash prs ready --pr bamr87/bamr87#873       # one pull request, read live: what is left before it merges
 tools/dash prs refresh                           # read everything again under pr_queue.refresh_budget_s
 tools/dash prs actions                           # the bulk actions, what each writes, what governs it, its switch
 tools/dash prs plan rerun --pr bamr87/zer0-mistakes#625 --pr bamr87/fredgar-ai#140
@@ -44,6 +47,44 @@ The queue starts from the decision index ([DECISION-INDEX.md](DECISION-INDEX.md)
 | `next` | Who moves it next (`amr`, `agent`, `loop`, `author`), what they do, why, and the bulk action that does it. The first rule that holds wins: an unread pull request, a draft, a conflict (JEV), failing checks (an agent), a held run (Amr approves it), cancelled checks (a re-run), a bot pull request opened with `GITHUB_TOKEN` that never ran CI (Amr pushes with `FLEET_TOKEN` or closes and reopens it), behind its base (update the branch), changes requested, checks still running, gated (Amr reviews and merges), blocked by protection, no check that proves it green, and finally an ungated green pull request an agent may merge under § 12.2. |
 | `kinds` | security, dependabot, release, batch (a head branch open in `batch_min_repos` repos or more, never `dependabot/` or `release-please--`), harness (it changes `.claude/`, `CLAUDE.md`, `AGENTS.md`, `.mcp.json`, an agent workflow or a JEV step spec), ratification, draft. |
 | `triage` | The triage comment's next action, question and commands, shown as a hint for the person. Nothing in it is run, and it never changes the row's own verdict. |
+
+## Merge readiness
+
+Every row carries `readiness` ([ADR 0012](adr/0012-merge-readiness.md)): what is left before the pull request merges, as one verdict and an ordered list of items. `tools/dash prs ready --pr owner/repo#number` reads one pull request live with a single query and prints the same thing; the `--verdict` filter and `counts.readiness` work on the queue.
+
+| Verdict | It means |
+| --- | --- |
+| `ready` | Nothing is left. `merge` says who merges it: `agent` (§ 12.2), or `maintainer` when the review gate, a hold label (`needs-human`, `human-review`, `do-not-merge`) or a squash-only repo keeps it with a person |
+| `waiting` | Nothing is left to do, and something is still running or being computed |
+| `not-ready` | At least one item is `todo`; `left` counts them |
+
+| Item | `done` when | Otherwise |
+| --- | --- | --- |
+| `ci` | every check on the head commit passes, superseded runs set aside | `wait` while one runs; `todo` for a failure (an agent), a cancelled run (a re-run), a held run or no run at all (the maintainer) |
+| `base` | it merges into its base without a conflict | `todo` for a conflict (JEV, or the update-branch action); `wait` until GitHub has computed it |
+| `state` | it is marked ready for review | `todo` for a draft |
+| `gate`, `label` | no gate holds it; or it is gated and labelled | the gate is `held`, never `todo`; a gated pull request with no `needs-amr` label is a `todo` for the label action |
+| `hold`, `method` | (absent) | `held` for a hold label or a repo that allows no merge commit |
+| `trace` | the description names what governs it (§ 28.4, by `tools/governance_trace_lint.py`'s rule), or is trace-exempt | `note`, because § 28.4 is warn-only until adoption; left out for Dependabot, release and bot pull requests |
+| `tasks` | every task in the description is ticked, template options aside | `todo`, with the first unticked items |
+| `threads` | (absent) | `todo` for unresolved review threads |
+| `review` | a reviewer approved | `todo` for requested changes, `wait` for a required review, `note` when none is recorded |
+
+The pull request's own comment says the same thing: with `vars.PR_READINESS_ENABLED` set to `true`, `pr-review.yml` puts the items that are not done under the failed runs, and posts one review per head commit when nothing is left ([templates/pr-review/README.md](../templates/pr-review/README.md#merge-readiness)).
+
+## Where the page disagrees with the queue
+
+A pull request says three things about itself that nobody recomputes: its labels, its next-action comment and the task list in its description. The queue reads all three against its own verdict and puts the disagreements in `flags` on each row and in `counts.flags`. A flag is a fact for the person reading the page. It never changes `gate`, `agent_merge` or `next`.
+
+| Flag | It means | What closes it |
+| --- | --- | --- |
+| `unlabelled` | The review gate holds it and it has no `needs-amr` label, so the label does not say what § 12.4 says it does: a missing label is not a reason to merge. `label.repo_has_label: false` means the repo has no such label yet | The `needs-amr` bulk action, after the label exists in the repo |
+| `no-comment` | It carries no comment with the triage marker | The `comment` bulk action |
+| `stale-comment` | A fact contradicts the comment: commits pushed after it was written, "mark it ready" on a pull request that is ready, "merge" on one that conflicts or has a failing check, "resolve a conflict" where there is none, "fix failing checks" where they pass. `comment.why` lists each one. Wording is never judged | The `comment` bulk action, which edits the same comment in place |
+| `open-tasks` | The description has unticked checkboxes that are work items. `tasks` gives `done` and `total` as GitHub shows them, and `open` without the pull-request template's unticked *Type Of Change* options, which are a choice and not work | The author ticks or removes them |
+| `tasks-contradict` | One of the unticked items says CI is green or the tests pass, while every check on the head commit passes | The same |
+
+The description is read for its task list and is not kept: only the counts and the first open items are cached, so a private repo's text stays out of `.fleet/prqueue/`.
 
 ## Bulk actions
 

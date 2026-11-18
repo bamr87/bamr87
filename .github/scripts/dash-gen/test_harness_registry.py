@@ -30,7 +30,11 @@ so a wrong grade becomes a wrong PR or a false alarm):
   * `upgradeable` is the fan-out's own byte comparison, not the stamp — a
     stamped copy edited by hand is never offered to the upgrade lever;
   * the kit's mention handler passes the standard it is graded on, and the
-    hub's own copy is that kit, byte for byte.
+    hub's own copy is that kit, byte for byte;
+  * every hub pin a scan reads is recorded and resolved once per target@ref
+    fleet-wide; a broken one is a `hub-ref-broken` item carrying its fix, an
+    unverified one is not, and a file or repo the scan could not read is
+    counted as unread, never as clean (FF-0037).
 
 Deliberately dependency-light — no network, no gh, no pytest. Needs only PyYAML:
 
@@ -1368,6 +1372,125 @@ def test_a_truncated_repo_says_so():
     item = next(i for i in out["attention"] if i["kind"] == "inventory-truncated")
     assert item["repo"] == "big" and "60 of 72" in item["summary"]
     assert out["totals"]["repos_truncated"] == 1
+
+
+# --------------------------------------------------------------------------- #
+# hub refs (FF-0037): pins of hub reusable workflows/actions in each repo
+# --------------------------------------------------------------------------- #
+class _Content:
+    def __init__(self, path: str, text: str = ""):
+        self.path, self.name = path, path.rsplit("/", 1)[-1]
+        self.decoded_content = text.encode()
+
+
+class _Repo:
+    """A PyGithub repository as `scan_repo` reads it: the root listing, the
+    workflows directory, each file; `unreadable` paths raise like a 404."""
+
+    def __init__(self, files: dict[str, str], unreadable: set[str] = frozenset()):
+        self.archived, self.files, self.unreadable = False, files, unreadable
+
+    def get_contents(self, path: str):
+        if path == "":
+            return [_Content(".github")]
+        if path == ".github/workflows":
+            return [_Content(p) for p in sorted(self.files)]
+        if path in self.files and path not in self.unreadable:
+            return _Content(path, self.files[path])
+        raise RuntimeError(f"404 {path}")
+
+
+class _Gh:
+    def __init__(self, repos: dict[str, _Repo]):
+        self.repos = repos
+
+    def get_repo(self, nwo: str) -> _Repo:
+        if nwo not in self.repos:
+            raise RuntimeError("404")
+        return self.repos[nwo]
+
+
+def _pin(target: str, ref: str) -> str:
+    return f"jobs:\n  call:\n    uses: bamr87/bamr87/.github/workflows/{target}@{ref}\n"
+
+
+def test_the_scan_records_hub_pins_and_counts_what_it_did_not_read():
+    files = {
+        ".github/workflows/a-ci.yml": _pin("spec-gate.yml", "v2"),
+        ".github/workflows/b-local.yml": "jobs:\n  c:\n    uses: ./.github/workflows/x.yml\n",
+        ".github/workflows/c-gone.yml": _pin("standard-ci.yml", "v2"),     # unreadable
+        ".github/workflows/d-past-cap.yml": _pin("standard-ci.yml", "v2"),  # past the cap
+    }
+    cfg = dict(CFG, inventory=dict(CFG["inventory"], max_workflow_files=3))
+    gh = _Gh({"bamr87/law-ai": _Repo(files, unreadable={".github/workflows/c-gone.yml"})})
+    row = hr.scan_repo(gh, {"name": "law-ai", "repo_url": "https://github.com/bamr87/law-ai"},
+                       cfg, {}, "0.6.0")
+    assert row["scanned"] is True
+    assert [(p["path"], p["line"], p["target"], p["ref"]) for p in row["hub_refs"]] == [
+        (".github/workflows/a-ci.yml", 3, ".github/workflows/spec-gate.yml", "v2")], row["hub_refs"]
+    assert row["hub_refs_unread_files"] == 2  # one 404 on the caller side, one past the cap
+    # a repo the token cannot read is unread: no hub_refs, never a clean list
+    dark = hr.scan_repo(gh, {"name": "private", "repo_url": "https://github.com/bamr87/private"},
+                        cfg, {}, "0.6.0")
+    assert dark["scanned"] is False and "hub_refs" not in dark
+
+
+def test_a_broken_hub_pin_is_an_attention_item_carrying_its_fix():
+    import hub_refs
+
+    class Api:
+        calls = 0
+
+        def __call__(self, path, accept=None):
+            Api.calls += 1
+            if "/matching-refs/" in path:
+                return 200, [{"ref": f"refs/tags/{t}"} for t in ("v1", "v1.0.0", "v2", "v2.0.0")]
+            if "/commits/" in path:
+                return (200, "0" * 40) if path.endswith(("/v2", "/v1")) else (422, None)
+            if "spec-gate.yml?ref=v2" in path:
+                return 404, None
+            if "flaky.yml" in path:
+                return 503, None
+            return 200, {"name": "x"}
+
+    pin = lambda path, target, ref: dict(  # noqa: E731
+        path=path, line=3, kind="workflow", target=f".github/workflows/{target}", ref=ref,
+        uses=f"bamr87/bamr87/.github/workflows/{target}@{ref}")
+    law = repo_row(name="law-ai", hub_refs=[pin(".github/workflows/ci.yml", "spec-gate.yml", "v2"),
+                                            pin(".github/workflows/gate.yml", "spec-gate.yml", "v2"),
+                                            pin(".github/workflows/ci.yml", "standard-ci.yml", "v2")],
+                   hub_refs_unread_files=0)
+    other = repo_row(name="other", hub_refs=[pin(".github/workflows/ci.yml", "spec-gate.yml", "v2"),
+                                             pin(".github/workflows/f.yml", "flaky.yml", "v2")])
+    dead = repo_row(name="dead", archived=True,
+                    hub_refs=[pin(".github/workflows/ci.yml", "spec-gate.yml", "v2")])
+    dark = repo_row(name="dark", scanned=False)
+    resolver = hub_refs.Resolver(hub_refs.ApiBackend(Api()))
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        (root / ".github/workflows").mkdir(parents=True)
+        (root / ".github/workflows/spec-gate.yml").write_text("on: workflow_call\n")
+        (root / "CHANGELOG.md").write_text("## [Unreleased]\n\n- `spec-gate.yml`\n\n## [2.0.0]\n")
+        spent = hr.resolve_hub_refs([law, other, dead, dark], resolver,
+                                    hub_refs.TreeFacts(root, tags_fn=resolver.tags))
+    assert spent == 3  # spec-gate@v2, standard-ci@v2, flaky@v2: once each, fleet-wide
+    assert [p["status"] for p in law["hub_refs"]] == ["file-missing-at-ref"] * 2 + ["ok"]
+    assert other["hub_refs"][1]["status"] == "unverified" and "fix" not in other["hub_refs"][1]
+    out = hr.finalize([law, other, dead, dark], CFG, "0.6.0", {}, {}, "live", "now", NOW)
+    items = [i for i in out["attention"] if i["kind"] == "hub-ref-broken"]
+    # one per repo and target@ref (law-ai's two callers share one), none for
+    # the archived repo, none for the unverified pin
+    assert sorted(i["repo"] for i in items) == ["law-ai", "other"], items
+    law_item = next(i for i in items if i["repo"] == "law-ai")
+    assert law_item["severity"] >= 85
+    assert law_item["action"].startswith("cut v2.1.0 and move v2"), law_item
+    assert ".github/workflows/ci.yml:3, .github/workflows/gate.yml:3" in law_item["summary"]
+    assert out["schema"] == "harness-registry/v1"  # additive: the marker holds
+    by_repo = {r["repo"]: r for r in out["repos"]}
+    assert set(by_repo["law-ai"]["hub_refs"][0]) >= {"path", "line", "target", "ref", "status", "fix"}
+    t = out["totals"]
+    assert (t["hub_refs"], t["hub_refs_broken"], t["hub_refs_unverified"]) == (5, 3, 1), t
+    assert t["hub_refs_unread_repos"] == 1  # `dark`: unread, never clean
 
 
 

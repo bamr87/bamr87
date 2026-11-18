@@ -89,8 +89,10 @@ Subcommands:
   workflows The WORKFLOW ATLAS: the hub's own workflows and composite actions as
            one model — `list`, `show <id>`, `lint` (the README standards as
            checks), `health` (run health + failure causes from the lake), `new`
-           (a workflow scaffolded inside the standards). Implemented in
-           workflow_atlas.py; doc docs/WORKFLOW-ATLAS.md.
+           (a workflow scaffolded inside the standards), `sync` (every fleet
+           repo's workflow files and its checks' latest runs into the lake, with
+           the operator's token; never in CI). Implemented in workflow_atlas.py
+           and workflow_sync.py; doc docs/WORKFLOW-ATLAS.md.
 
   all      Run health then readme.
 
@@ -753,7 +755,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p_workflows = sub.add_parser(
         "workflows",
-        help="the workflow atlas: list | show <id> | lint | health (from the lake) | new (scaffold inside the standards)",
+        help="the workflow atlas: list | show <id> | lint | health (from the lake) | new (scaffold inside the standards) | sync (the fleet's files into the lake)",
     )
     workflow_atlas.add_arguments(p_workflows)
 

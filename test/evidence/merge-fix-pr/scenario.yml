@@ -1,0 +1,62 @@
+# The user path behind this bundle (FF-0036, bamr87/bamr87#609). It needs a
+# fixture snapshot, so it lives here and not in verify/scenarios/, which CI runs
+# against the committed one: two public builds of the fixture, the merge base on
+# 127.0.0.1:4630 (before) and the branch on --base (after). Recipe: README.md.
+id: merge-fix-pr
+feature: [HUB-003, HUB-028]
+title: "A green, clean fix PR leads the inbox and the Work board and says what merging it clears"
+description: "bashcrawl as it stood on 2026-11-02: CI red on main, #127, #134 and #137 red on the same Lint job, #133 the green, clean fix. Before, #133 is nowhere in the inbox and sits below its own symptoms on the Work board. After, a merge row for #133 leads the inbox at 95, the rows it clears gain 'fix: #133', and the Work board puts #133 first with a merge-to-clear chip, a first hint naming the merge and a drawer line saying what merging it clears."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_"]
+steps:
+  # ---- before: the merge base 751aa47, same fixture snapshot
+  - goto: http://127.0.0.1:4630/inbox?q=bashcrawl
+  - expect: { status: 200 }
+  - wait: { selector: "main table" }
+  - expect: { count: { selector: "main table tbody tr:has-text('#133')", max: 0 } }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: before-inbox
+  - goto: http://127.0.0.1:4630/work?repo=bashcrawl
+  - expect: { status: 200 }
+  - wait: { selector: "section[aria-label^='Review lane'] [data-key]" }
+  - eval: { name: before_review_order, script: "(() => { const l = document.querySelector(\"section[aria-label^='Review lane']\"); const keys = [...l.querySelectorAll('[data-key]')].map((e) => e.getAttribute('data-key').replace('pr:bamr87/bashcrawl', '')); const at = (k) => keys.indexOf(k); if (!(at('#133') > at('#127') && at('#133') > at('#134') && at('#133') > at('#137'))) throw new Error(`#133 is not below its symptoms: ${keys.join(' ')}`); l.scrollIntoView({ block: 'start', inline: 'start' }); window.scrollBy(0, -72); return keys.join(' '); })()" }
+  - expect: { count: { selector: "text=merge to clear", max: 0 } }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: before-work
+  - goto: http://127.0.0.1:4630/work?repo=bashcrawl&item=pr%3Abamr87%2Fbashcrawl%23133
+  - expect: { visible: "text=otherwise P2" }
+  - expect: { count: { selector: "text=Merging it clears", max: 0 } }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: before-work-drawer
+  # ---- after: this branch
+  - goto: /inbox
+  - expect: { status: 200 }
+  - wait: { selector: "main table" }
+  - expect: { visible: "main table tbody tr:first-child:has-text('Merge #133: clears CI on main and #127, #134, #137 once their branches are updated')" }
+  - eval: { name: kind_badges_whole, script: "(() => { const cut = [...document.querySelectorAll('main table tbody td:nth-child(2) .mantine-Badge-label')].filter((l) => l.scrollWidth > l.clientWidth).map((l) => l.innerText); if (cut.length) throw new Error(`truncated kind badges: ${cut.slice(0, 5).join(', ')}`); return document.querySelector('main table tbody tr:first-child td:nth-child(2)').innerText; })()" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: after-inbox-fleet
+  - goto: /inbox?q=bashcrawl
+  - wait: { selector: "main table" }
+  - expect: { visible: "main table tbody tr:has-text('latest run failure · fix: #133')" }
+  - expect: { count: { selector: "main table tbody tr:has-text('PR checks failing · fix: #133')", min: 3, max: 3 } }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: after-inbox
+  - goto: /work?repo=bashcrawl
+  - expect: { status: 200 }
+  - wait: { selector: "section[aria-label^='Review lane'] [data-key]" }
+  - eval: { name: after_review_order, script: "(() => { const l = document.querySelector(\"section[aria-label^='Review lane']\"); const keys = [...l.querySelectorAll('[data-key]')].map((e) => e.getAttribute('data-key').replace('pr:bamr87/bashcrawl', '')); if (keys[0] !== '#133') throw new Error(`the first Review card is ${keys[0]}`); l.scrollIntoView({ block: 'start', inline: 'start' }); window.scrollBy(0, -72); return keys.join(' '); })()" }
+  - expect: { visible: "section[aria-label^='Review lane'] [data-key='pr:bamr87/bashcrawl#133'] :text('merge to clear')" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: after-work
+  - goto: /work?repo=bashcrawl&view=flow
+  - wait: { selector: "text=Balance" }
+  - expect: { visible: "text=Merge bashcrawl #133: it clears ci.yml on the tracked branch and #127, #134, #137 once their branches are updated (a verified fix, green and clean)." }
+  - eval: { name: first_hint, script: "(() => { const h = [...document.querySelectorAll('main p')].find((e) => e.textContent.startsWith('Merge bashcrawl #133')); const first = [...document.querySelectorAll('main p')].find((e) => /^(Merge |bamr87 has |[a-z0-9.-]+ has )/.test(e.textContent)); if (h !== first) throw new Error(`the first hint is: ${first && first.textContent}`); h.scrollIntoView({ block: 'center' }); return h.textContent; })()" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: after-work-hints
+  - goto: /work?repo=bashcrawl&item=pr%3Abamr87%2Fbashcrawl%23133
+  - expect: { visible: "text=Merging it clears" }
+  - expect: { visible: "text=a fix takes the strongest priority among the PRs it clears" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: after-work-drawer

@@ -980,6 +980,143 @@ def test_a_default_on_switch_reads_not_found_as_unset_only_when_the_hub_is_reada
     assert ["api", "repos/bamr87/bamr87", "--jq", ".full_name"] in box.gh_calls()
 
 
+# --------------------------------------------------------------------------- #
+# the fleet-wide pause and the central switch map (§ 17, bamr87/bamr87#550)
+# --------------------------------------------------------------------------- #
+def pause(level: str, key: str | None = None, reason: str = "maintenance window"):
+    """A fleet_edit that turns one `_data/fleet.yml` `switches:` level off."""
+    def edit(f: dict) -> None:
+        sw = f["switches"]
+        target = sw["global"] if level == "global" else sw[level].setdefault(key, {})
+        target.update(state="off", reason=reason)
+    return edit
+
+
+def _clones(box: Box) -> list[list[str]]:
+    return [c for c in box.gh_calls() if c[:2] == ["repo", "clone"]]
+
+
+def test_the_global_pause_stops_run_apply_and_publish_apply_before_any_spend():
+    box = Box()
+    with world(box, FLEET_TOKEN=FLEET_TOKEN):
+        box.seed_live({"kind": "ok", "proposals": GOOD})
+        assert jev("run", "repo-scout", "--target", TARGET)[0] == 0   # a reviewed preview, made before the pause
+        run_id = box.last()["run_id"]
+        before = (len(box.ledger_rows()), len(box.live_calls()), len(box.claude_calls()), len(_clones(box)))
+    with world(box, FLEET_TOKEN=FLEET_TOKEN, fleet_edit=pause("global")):
+        for argv in (["--target", TARGET], ["--target", TARGET, "--apply"], ["--target", TARGET, "--scheduled"]):
+            code, _, err = jev("run", "repo-scout", *argv)
+            rec = box.last()
+            assert code == 5 and rec["status"] == "paused" and rec["exit_code"] == 5, (argv, rec["notes"], err)
+            assert "paused: switches.global is off: maintenance window" in rec["notes"][0], rec["notes"]
+            assert not (box.latest() / "attempts.jsonl").exists() and not rec["items"], "nothing was planned"
+        code, _, err = jev("publish", run_id, "--apply")
+        assert code == 5 and "--apply refused: paused: switches.global is off: maintenance window" in err, err
+    after = (len(box.ledger_rows()), len(box.live_calls()), len(box.claude_calls()), len(_clones(box)))
+    assert after == before, "no ledger row, no claude process, no clone while paused"
+    assert not _issue_creates(box) and not [c for c in box.gh_calls() if c[:2] in (["label", "create"],
+                                                                                   ["api", "user"])]
+    assert json.loads((box.runs / run_id / "run.json").read_text())["items"][0]["status"] == "previewed"
+    no_writes(box)
+
+
+def test_a_group_the_loop_entry_the_hub_repo_and_the_variable_each_pause_a_manual_run():
+    box = Box()
+    cases = (({"fleet_edit": pause("groups", "hub-loops")}, "switches.groups.hub-loops is off: maintenance window"),
+             ({"fleet_edit": pause("loops", "hub/repo-scout")}, "switches.loops[hub/repo-scout] is off"),
+             ({"fleet_edit": pause("repos", "bamr87/bamr87")}, "switches.repos[bamr87/bamr87] is off"),
+             ({"STUB_GH_VAR_FLEET_AGENTS_PAUSED": "TRUE"}, "vars.FLEET_AGENTS_PAUSED is 'TRUE' on bamr87/bamr87"))
+    for extra, needle in cases:
+        with world(box, **extra):
+            code, _, err = jev("run", "repo-scout", "--target", TARGET)
+        rec = box.last()
+        assert code == 5 and rec["status"] == "paused" and needle in rec["notes"][0], (needle, rec["notes"], err)
+        assert "bypasses vars.REPO_SCOUT_ENABLED" not in err, "the pause is read before the manual bypass"
+    assert not box.claude_calls() and not box.ledger_rows() and not _clones(box)
+    no_writes(box)
+
+
+def test_the_pause_variable_reads_like_ci_and_an_unreadable_answer_refuses():
+    box = Box()
+    spec = L.load_step("repo-scout")
+    for extra, want in (({}, None), ({"STUB_GH_VAR_FLEET_AGENTS_PAUSED": "false"}, None),
+                        ({"STUB_GH_VAR_FLEET_AGENTS_PAUSED": "True"}, 5), ({"STUB_GH_VAR_ERROR": "1"}, 2),
+                        ({"STUB_GH_REPO_UNREADABLE": "1"}, 2)):
+        with world(box, **extra):
+            stop = L.pause_gate(L.load_fleet(), spec)
+        assert (stop[0] if stop else None) == want, (extra, stop)
+        assert want != 2 or "refusing rather than guess" in stop[1], stop
+    gets = [c for c in box.gh_calls() if c[:2] == ["variable", "get"]]
+    assert len(gets) == 5 and all(c == ["variable", "get", "FLEET_AGENTS_PAUSED", "-R", "bamr87/bamr87"] for c in gets)
+    seen = len(box.gh_calls())
+    with world(box, fleet_edit=pause("global")):
+        assert L.pause_gate(L.load_fleet(), spec)[0] == 5
+    assert len(box.gh_calls()) == seen, "a map that is off answers before any GitHub read"
+    no_writes(box)
+
+
+def test_plan_and_a_rehearsal_still_run_while_paused():
+    box = Box()
+    with world(box, fleet_edit=pause("global"), STUB_GH_VAR_FLEET_AGENTS_PAUSED="true"):
+        code, out, _ = jev("plan", "repo-scout", "--target", TARGET, "--offline", "--json")
+        doc = json.loads(out)
+        assert code == 0 and doc["items"], doc
+        assert any("switches.global is off" in n and "exits 5" in n for n in doc["notes"]), doc["notes"]
+        code, _, err = jev("run", "repo-scout", "--rehearse", "--target", TARGET, "--offline")
+        assert code == 0 and box.last()["status"] == "rehearsed", (box.last()["notes"], err)
+    assert not box.gh_calls(), "neither reads the pause variable (offline: no gh call at all)"
+    assert not box.prompted() and not box.ledger_rows()
+
+
+def test_a_step_with_no_map_entry_obeys_the_global_pause():
+    fleet = S.load_fleet()
+    fill = L.load_step("fanout", "agent-fill-schema", fleet=fleet)
+    assert L.switch_entries(fleet, fill) == [], "fanout.yml is dispatch-only: no switches.loops entry"
+    assert [k for k, _ in L.switch_entries(fleet, L.load_step("repo-scout", fleet=fleet))] == ["hub/repo-scout"]
+    grouped = copy.deepcopy(fleet)
+    pause("groups", "hub-loops")(grouped)
+    assert L.map_paused(grouped, fill) is None, "no entry, so no group either"
+    assert L.map_paused(grouped, L.load_step("repo-scout", fleet=fleet)).startswith("switches.groups.hub-loops")
+    bare = copy.deepcopy(fleet)
+    bare["switches"]["global"]["state"] = False   # an unquoted YAML `off` loads as False: off all the same
+    assert L.map_paused(bare, fill) == "switches.global is off"
+    box = Box()
+    with world(box, fleet_edit=pause("global")):
+        code, _, err = jev("run", "fanout", "agent-fill-schema", "--target", TARGET)
+    assert code == 5 and "switches.global is off" in box.last()["notes"][0], (box.last()["notes"], err)
+    assert not box.claude_calls() and not box.ledger_rows() and not _clones(box)
+
+
+def test_an_item_whose_repository_is_paused_is_held_back_before_its_clone():
+    box = Box()
+    with world(box, fleet_edit=pause("repos", NWO, "archived upstream")):
+        box.seed_live()
+        code, _, err = jev("run", "repo-scout", "--target", TARGET)
+        rec = box.last()
+        assert code == 5 and rec["status"] == "paused", (rec["notes"], err)
+        assert rec["plan"]["paused"] == [{"key": NWO, "name": TARGET,
+                                          "reason": f"paused: switches.repos[{NWO}] is off: archived upstream"}]
+        assert [r["decision"] for r in box.attempts()] == ["paused-skip"]
+        # the host check's $0 flag preflight ran (before the plan); no clone and no session did
+        assert not _clones(box) and not box.live_calls(), "held back before its clone and before any attempt"
+        code, _, _ = jev("run", "repo-scout", "--rehearse", "--target", TARGET)
+        assert code == 0 and box.last()["status"] == "rehearsed", "a rehearsal is not held back"
+    assert not box.prompted() and not box.ledger_rows()
+
+
+def test_doctor_live_runs_no_canary_while_paused_and_doctor_alone_still_runs():
+    box = Box()
+    with world(box, fleet_edit=pause("global")):
+        (box.bin / "scenario.json").write_text(json.dumps({"kind": "canary_pass"}))
+        code, out, _ = jev("doctor", "repo-scout", "--live", "--yes", "--json")
+        step = json.loads(out)["steps"][0]
+        assert code == 5 and step["canary"] == "absent", step
+        assert any(p.startswith("canary not run: paused: switches.global is off") for p in step["problems"]), step
+        code, out, _ = jev("doctor", "repo-scout", "--json")
+        assert code == 0 and json.loads(out)["steps"][0]["probe"] == "ok", out
+    assert not box.live_calls() and not box.ledger_rows()
+
+
 def test_the_engine_splits_the_publish_directory_by_phase():
     box = Box()
     spec = L.load_step("repo-scout")
@@ -1726,6 +1863,107 @@ def test_the_monthly_ceiling_skips_an_attempt_that_would_not_fit_and_scheduled_s
         (box.root / "ledger.json").write_text("{not json")
         code, _, err = jev("budget")
         assert code == 2 and "cannot be read" in err, "an unreadable ledger is not an empty month"
+
+
+def _sprint_on_target(usd: float, declared: str | None = None):
+    """A fleet edit: the $25 pilot ceiling, plus one expedite sprint on the scout's
+    fixture repo, declared an hour ago with a four-hour box (tools/jev/sprints.py)."""
+    def edit(f: dict) -> None:
+        pilot_ceiling(f)
+        when = declared or (L.now_utc() - dt.timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        f["budget"]["sprints"] = {"pilot": {"item": f"issue:{NWO}#1", "usd": usd, "hours": 4, "declared": when}}
+    return edit
+
+
+def _sprint_box(box: Box) -> dict[str, str]:
+    """Every ledger a sprint reads, in the box: the AI ledger already is; JEV's, the CI one and the issue
+    pipeline's reservations are empty."""
+    return {"JEV_LEDGER": str(box.root / "jev_resolutions.yml"), "JEV_CI_USAGE": str(box.root / "ai_usage.yml"),
+            "JEV_ISSUE_PIPELINE": str(box.root / "issue_pipeline.yml")}
+
+
+def test_an_expedite_sprint_at_its_cap_skips_the_next_attempt_and_records_the_stop():
+    box = Box()
+    spent = {"timestamp": (L.now_utc() - dt.timedelta(minutes=30)).isoformat(), "origin": "local",
+             "loop": "repo-scout", "repo": NWO, "total_cost_usd": 3.0, "cost_source": "reported"}
+    with world(box, fleet_edit=_sprint_on_target(10), **_sprint_box(box)):
+        box.seed_live({"kind": "ok", "proposals": GOOD})
+        _seed_ledger(box, [spent])
+        code, _, err = jev("run", "repo-scout", "--target", TARGET)
+    rec = box.last()
+    item = rec["items"][0]
+    assert code == 0 and item["status"] == "skipped" and item["decision"] == "budget-skip", (item, err[-400:])
+    assert "sprint pilot ceiling" in item["reason"] and "$3.00 of $10.00" in item["reason"], item["reason"]
+    assert not box.live_calls(), "$3 spent + the scout's $8 cap crosses the sprint's $10 (the month's $25 does not)"
+    assert rec["status"] == "ceiling", rec["status"]
+    [event] = rec["events"]
+    assert event["event"] == "sprint-stop" and event["sprint"] == "pilot" and event["spent_usd"] == 3.0
+    assert event["cap_usd"] == 10.0 and event["label"] == "API-equivalent (estimate)", event
+    assert any(n.startswith("sprint-stop (pilot)") for n in rec["notes"]), rec["notes"]
+    with world(box, fleet_edit=_sprint_on_target(20), **_sprint_box(box)):
+        code, _, _ = jev("run", "repo-scout", "--target", TARGET, "--fresh")
+    assert code == 0 and box.last()["items"][0]["status"] == "previewed" and len(box.live_calls()) == 1, \
+        "inside the sprint's ceiling the attempt runs"
+    assert "events" not in box.last()
+    with world(box, fleet_edit=_sprint_on_target(10), **_sprint_box(box)):
+        code, out, _ = jev("budget", "--json")
+    sprint = json.loads(out)["sprint"]
+    assert sprint["active"]["slug"] == "pilot" and sprint["spent_usd"] >= 3.0 and "$10.00" in sprint["line"], sprint
+
+
+def test_the_sprint_switch_stops_a_scheduled_run_before_tier0_and_a_manual_run_bypasses_it():
+    box = Box()
+    off = {"STUB_GH_VAR_REPO_SCOUT_ENABLED": "true", "STUB_GH_VAR_EXPEDITE_SPRINT_ENABLED": "false"}
+    with world(box, fleet_edit=_sprint_on_target(50), **_sprint_box(box), **off):
+        box.seed_live({"kind": "ok", "proposals": GOOD})
+        code, _, err = jev("run", "repo-scout", "--target", TARGET, "--scheduled")
+        rec = box.last()
+        item = rec["items"][0]
+        assert code == 0 and item["decision"] == "sprint-off" and "switched off" in item["reason"], (item, err[-300:])
+        assert not box.live_calls() and [e["event"] for e in rec["events"]] == ["sprint-off"], rec.get("events")
+        gets = [c[2] for c in box.gh_calls() if c[:2] == ["variable", "get"]]
+        assert gets.count("EXPEDITE_SPRINT_ENABLED") == 1, gets
+        code, _, _ = jev("run", "repo-scout", "--target", TARGET)
+    assert code == 0 and box.last()["items"][0]["status"] == "previewed", "a manual run bypasses the sprint switch"
+    gets = [c[2] for c in box.gh_calls() if c[:2] == ["variable", "get"]]
+    assert gets.count("EXPEDITE_SPRINT_ENABLED") == 1, "and does not read it"
+
+
+def test_a_sprint_declaration_that_bounds_nothing_stops_every_attempt():
+    box = Box()
+
+    def infinite(f: dict) -> None:
+        _sprint_on_target(10)(f)
+        f["budget"]["sprints"]["pilot"]["usd"] = float("inf")
+    with world(box, fleet_edit=infinite, **_sprint_box(box)):
+        box.seed_live({"kind": "ok", "proposals": GOOD})
+        code, _, _ = jev("run", "repo-scout", "--target", TARGET)
+    item = box.last()["items"][0]
+    assert item["decision"] == "budget-unreadable" and "budget.sprints.pilot.usd" in item["reason"], item
+    assert not box.live_calls()
+    with world(box, fleet_edit=infinite, **_sprint_box(box)):
+        code, out, err = jev("budget")
+    assert code == 1 and "cannot be judged" in out and "budget.sprints.pilot.usd" in out, (code, out, err[-300:])
+    assert "jev conflicts (budget.jev)" in out, "the rest of the readout still prints"
+
+
+def test_the_issue_pipelines_sprint_reservations_count_against_the_loop_runner():
+    box = Box()
+    declared = (L.now_utc() - dt.timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    row = {"run": "77.1", "at": (L.now_utc() - dt.timedelta(minutes=20)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+           "sprint": "pilot", "declared": declared, "usd": 5.0, "tiers": {"intake": 5.0},
+           "label": "API-equivalent (estimate)"}
+    (box.root / "issue_pipeline.yml").write_text(yaml.safe_dump({"sprint": {"reservations": [row]}}))
+    with world(box, fleet_edit=_sprint_on_target(12, declared), **_sprint_box(box)):
+        box.seed_live({"kind": "ok", "proposals": GOOD})
+        code, _, err = jev("run", "repo-scout", "--target", TARGET)
+        item = box.last()["items"][0]
+        assert code == 0 and item["decision"] == "budget-skip", (item, err[-400:])
+        assert "$5.00 (5.00 estimated) of $12.00" in item["reason"], item["reason"]
+        assert not box.live_calls(), "the issue pipeline's $5 reservation + the scout's $8 cap crosses the sprint's $12"
+        code, out, _ = jev("budget", "--json")
+    sprint = json.loads(out)["sprint"]
+    assert sprint["by_source"] == {"issue-pipeline": 5.0} and sprint["estimated_usd"] == 5.0, sprint
 
 
 def test_a_budget_hit_is_discarded_and_nothing_is_previewed():

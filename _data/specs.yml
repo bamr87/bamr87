@@ -2221,6 +2221,16 @@ requirements:
     satisfied_by: "`tools/conformance.py` UPS-DOC-10; survey G2"
     seed: "`.github/templates/README.template.md`"
     gap: false
+  - id: UPS-DOC-11
+    area: DOC
+    section: "Shape: every document"
+    level: MUST
+    applies: [all]
+    applies_notes: ["all except fork"]
+    requirement: "The README's about section functions as a site map of the repo's fundamental pages, in the order and with the required-vs-optional rules in [`docs/ABOUT-SECTION.md`](../docs/ABOUT-SECTION.md) (constitution § 31): identity and a mission one-liner that links to constitution § 1 when the repo is governed; docs index; getting started; contributing (CONTRIBUTING, AGENTS.md, code of conduct when present); governance (constitution, amendments, PRD, feature catalog) when the governance kit is present; roadmap, changelog/releases, security/support and live site when those pages exist; license always. Links must resolve. Extends UPS-DOC-10; does not replace it."
+    satisfied_by: "`tools/conformance.py` (follow-up; warn-only until fan-out); survey of the about-section entries"
+    seed: "[`docs/ABOUT-SECTION.md`](../docs/ABOUT-SECTION.md)"
+    gap: false
   - id: UPS-DOC-03
     area: DOC
     section: "Generated, not written"

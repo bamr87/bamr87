@@ -38,6 +38,7 @@ import datetime as dt
 import inspect
 import json
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -509,6 +510,267 @@ def test_tier3_queue():
     check("a green draft still needs finishing", 3 in nums, str(nums))
     check("red CI sorts first", nums and nums[0] == 1, str(nums))
     check("tier 3 respects its cap", len(q) <= 3, str(len(q)))
+
+
+# --------------------------------------------------------------------------- #
+# an expedite sprint's tier gate (tools/jev/sprints.py, #689)
+# --------------------------------------------------------------------------- #
+SPRINT_REPO = "bash-365/bash-365.com"
+SITES = {"issue-pipeline.yml:tier1": 40, "issue-pipeline.yml:tier2": 60, "issue-pipeline.yml:tier3": 60}
+
+
+def sprint_fleet(usd: float, *, declared: str = "2026-11-20T15:00:00Z", hours: float = 72) -> dict:
+    return {"budget": {"call_sites": dict(SITES), "sprints": {"pilot": {
+                "item": f"issue:{SPRINT_REPO}#1", "usd": usd, "hours": hours, "declared": declared}}},
+            "harnesses": {"budget": {"monthly_ai_usd": 200}}}
+
+
+def sprint_gate(usd: float, spent: float, *, env: dict | None = None, scheduled: bool = False,
+                now: str = "2026-11-20T18:00:00+00:00", run_tiers: str = "123", grant: str | None = None,
+                record_run: str = "", carried: list | None = None, **kw):
+    sp = ip.jev_module("sprints")
+    doc = sprint_fleet(usd, **kw)
+    hold = ip.SprintHold(sp, sp.load_sprints(doc), caps=dict(SITES), now=ip.dt.datetime.fromisoformat(now),
+                         switch=sp.once(lambda: sp.read_switch(scheduled=scheduled, env=env or {})),
+                         spend_of=lambda s: sp.Spend(spent_usd=spent), run_tiers=run_tiers, grant=grant,
+                         record_run=record_run)
+    hold.carried = list(carried or [])
+    return hold
+
+
+def sprint_repos():
+    """The sprint's repo with one issue at each tier, and a repo outside it."""
+    def sissue(n, stage):
+        i = issue(n, stage=stage)
+        i["key"] = f"{SPRINT_REPO}#{n}"
+        return i
+    inside = repo(SPRINT_REPO, issues=[sissue(1, "ready"), sissue(2, "intake")], prs=[pr(3)])
+    outside = repo("bamr87/quiet", issues=[issue(20, stage="ready"), issue(21)], prs=[pr(22)])
+    return [inside, outside]
+
+
+def test_sprint_gate():
+    print("\nexpedite sprint tier gate")
+    cfg = ip.deep_merge(CFG, {"hub": HUB})
+
+    def keys(q):
+        return {k: sorted(f"{c['nwo']}#{c['number']}" for c in v) for k, v in q.items()}
+
+    roomy = sprint_gate(usd=180, spent=0)
+    q = ip.build_queues(sprint_repos(), cfg, roomy)
+    check("inside its ceiling every sprint item is queued",
+          f"{SPRINT_REPO}#1" in keys(q)["implement"] and f"{SPRINT_REPO}#2" in keys(q)["intake"]
+          and f"{SPRINT_REPO}#3" in keys(q)["complete"], str(keys(q)))
+    check("each tier with a sprint item reserves its full cap once", roomy.reserved == 160.0, str(roomy.reserved))
+
+    capped = sprint_gate(usd=30, spent=22.5)
+    q = ip.build_queues(sprint_repos(), cfg, capped)
+    flat = sum(keys(q).values(), [])
+    check("a sprint at its cap queues none of its items (budget-skip)",
+          not [k for k in flat if k.startswith(SPRINT_REPO)], str(flat))
+    check("…and the rest of the fleet is untouched",
+          {"bamr87/quiet#20", "bamr87/quiet#21", "bamr87/quiet#22"} <= set(flat), str(flat))
+    check("every held item says budget-skip",
+          capped.held and {h["decision"] for h in capped.held} == {"budget-skip"}, str(capped.held))
+    check("the circuit breaker is recorded once, as a stop event",
+          [e["event"] for e in capped.events] == ["sprint-stop"] and capped.events[0]["cap_usd"] == 30.0,
+          str(capped.events))
+    rep = capped.report()
+    check("the snapshot carries the sprint, its spend and what it held",
+          rep["active"]["slug"] == "pilot" and rep["spent_usd"] == 22.5 and len(rep["held"]) == 3
+          and "API-equivalent" in rep["label"], str(rep))
+
+    tight = sprint_gate(usd=90, spent=0)
+    q = ip.build_queues(sprint_repos(), cfg, tight)
+    check("tiers reserve in order: T1's $40 fits $90, then T2's $60 does not",
+          f"{SPRINT_REPO}#2" in keys(q)["intake"] and f"{SPRINT_REPO}#1" not in keys(q)["implement"]
+          and f"{SPRINT_REPO}#3" not in keys(q)["complete"] and tight.reserved == 40.0,
+          f"{keys(q)} reserved={tight.reserved}")
+
+    off = sprint_gate(usd=180, spent=0, scheduled=True, env={"EXPEDITE_SPRINT_ENABLED": "false"})
+    q = ip.build_queues(sprint_repos(), cfg, off)
+    flat = sum(keys(q).values(), [])
+    check("the sprint switch holds every sprint item on a schedule (sprint-off)",
+          not [k for k in flat if k.startswith(SPRINT_REPO)] and {h["decision"] for h in off.held} == {"sprint-off"},
+          f"{flat} {off.held}")
+    check("…and a held item takes no slot", off.reserved == 0 and "bamr87/quiet#20" in flat, str(flat))
+    manual = sprint_gate(usd=180, spent=0, scheduled=False, env={"EXPEDITE_SPRINT_ENABLED": "false"})
+    q = ip.build_queues(sprint_repos(), cfg, manual)
+    check("a dispatch or a hand run bypasses the switch", f"{SPRINT_REPO}#1" in keys(q)["implement"], str(keys(q)))
+
+    closed = sprint_gate(usd=180, spent=0, now="2026-11-24T00:00:00+00:00")
+    q = ip.build_queues(sprint_repos(), cfg, closed)
+    flat = sum(keys(q).values(), [])
+    check("after the time box the declared item stays held, the repo's other work runs",
+          f"{SPRINT_REPO}#1" not in flat and f"{SPRINT_REPO}#2" in flat and closed.reserved == 0
+          and [h["key"] for h in closed.held] == [f"issue:{SPRINT_REPO}#1"], f"{flat} {closed.held}")
+
+    check("no declared sprint, no gate (nothing under tools/jev is imported)",
+          ip.sprint_hold({"budget": {"sprints": {}}}, cfg, now=ip.now_utc(), scheduled=True) is None)
+    try:
+        ip.sprint_hold(sprint_fleet(float("inf")), cfg, now=ip.now_utc(), scheduled=True)
+        refused = False
+    except RuntimeError as exc:
+        refused = "budget.sprints.pilot.usd" in str(exc)
+    check("a declaration that bounds nothing stops the scan", refused)
+
+
+def one_sprint_issue(stage: str) -> list[dict]:
+    """The sprint's repo with its declared issue, #1, at `stage`."""
+    i = issue(1, stage=stage)
+    i["key"] = f"{SPRINT_REPO}#1"
+    return [repo(SPRINT_REPO, issues=[i], prs=[])]
+
+
+def queued(q: dict) -> list[str]:
+    return sorted(f"{c['nwo']}#{c['number']}" for v in q.values() for c in v)
+
+
+def test_sprint_run():
+    """One workflow run (the scan, then tier 2's re-scan in a new process), and
+    the run after it: the reservations add up across both (review of #895)."""
+    print("\nexpedite sprint: a whole run, then the next")
+    cfg = ip.deep_merge(CFG, {"hub": HUB})
+    sp = ip.jev_module("sprints")
+    item = f"{SPRINT_REPO}#1"
+
+    # The scan sees the issue at intake; tier 1 marks it agent:ready; tier 2's re-scan sees it ready.
+    for usd, runs_in_tier2 in ((60, False), (99, False), (100, True), (160, True)):
+        scan = sprint_gate(usd=usd, spent=0, record_run="77.1")
+        ip.build_queues(one_sprint_issue("intake"), cfg, scan)
+        out = scan.outputs()
+        refresh = sprint_gate(usd=usd, spent=0, grant=out["sprint_t2_usd"])
+        q = ip.build_queues(one_sprint_issue("ready"), cfg, refresh)
+        ran = scan.by_tier.get("intake", 0.0) + scan.by_tier.get("complete", 0.0) + refresh.reserved
+        check(f"${usd} ceiling: the scan at intake then the re-scan at ready reserve ${ran:g} in all, inside it",
+              ran <= usd and scan.reserved <= usd and refresh.reserved <= float(out["sprint_t2_usd"]),
+              f"scan={scan.by_tier} refresh={refresh.reserved}")
+        check(f"${usd} ceiling: tier 2 {'runs' if runs_in_tier2 else 'holds'} the item tier 1 just made ready",
+              (item in queued(q)) == runs_in_tier2
+              and ([h["decision"] for h in refresh.held] == ([] if runs_in_tier2 else ["budget-skip"])),
+              f"{queued(q)} {refresh.held}")
+    check("the scan reserves tier 2's room for a sprint issue tier 1 is about to triage, and says so",
+          out == {"sprint_reserved_usd": "100", "sprint_t1_usd": "40", "sprint_t2_usd": "60", "sprint_t3_usd": "0"},
+          str(out))
+    check("…which is the whole run's reservation", scan.reserved == 100.0, str(scan.reserved))
+    refresh = sprint_gate(usd=180, spent=0, grant="60")
+    q = ip.build_queues(sprint_repos(), cfg, refresh)
+    check("the re-scan settles only tier 2: intake and tier 3 do not run again from it",
+          refresh.by_tier == {"implement": 60.0} and f"{SPRINT_REPO}#2" in queued(q) and f"{SPRINT_REPO}#3" in queued(q),
+          f"{refresh.by_tier} {queued(q)}")
+    for bad in ("", "abc", "-1", "nan", "inf"):
+        r = sprint_gate(usd=180, spent=0, grant=bad)
+        q = ip.build_queues(one_sprint_issue("ready"), cfg, r)
+        check(f"a re-scan handed {bad!r} runs no sprint item", item not in queued(q)
+              and [h["decision"] for h in r.held] == ["budget-skip"], f"{queued(q)} {r.held}")
+
+    dry = sprint_gate(usd=180, spent=0, run_tiers="", record_run="78.1")
+    q = ip.build_queues(sprint_repos(), cfg, dry)
+    check("a dry run starts no tier job, so it reserves and records nothing",
+          dry.reserved == 0 and dry.records() == [] and set(dry.outputs().values()) == {"0"}
+          and not dry.held, f"{dry.by_tier} {dry.records()}")
+    only2 = sprint_gate(usd=180, spent=0, run_tiers="2")
+    ip.build_queues(sprint_repos(), cfg, only2)
+    check("a run of tier 2 alone reserves only tier 2", only2.by_tier == {"implement": 60.0}, str(only2.by_tier))
+
+    # The record: the next run, and every other loop, counts what this run reserved.
+    first = sprint_gate(usd=200, spent=0, record_run="77.1")
+    ip.build_queues(one_sprint_issue("intake"), cfg, first)
+    rows = first.records()
+    check("a run that reserved records one row, an estimate under this declaration",
+          len(rows) == 1 and rows[0]["run"] == "77.1" and rows[0]["usd"] == 100.0 and rows[0]["sprint"] == "pilot"
+          and rows[0]["tiers"] == {"intake": 40.0, "implement": 60.0} and rows[0]["declared"] == "2026-11-20T15:00:00Z"
+          and "API-equivalent" in rows[0]["label"], str(rows))
+    text = ip.GENERATED_HEADER + ip.yaml.safe_dump({"sprint": first.report()}, sort_keys=False)
+    back = sp.pipeline_rows(text=text, where="test")
+    check("the published snapshot reads back as the same rows", back == rows, str(back))
+    second = sprint_gate(usd=200, spent=0, record_run="78.1", carried=back, now="2026-11-21T18:00:00+00:00")
+    q = ip.build_queues(one_sprint_issue("intake"), cfg, second)
+    rep = second.report()
+    check("the next run counts it as estimated spend, then reserves on top of it",
+          rep["spent_usd"] == 100.0 and rep["estimated_usd"] == 100.0 and second.reserved == 100.0
+          and item in queued(q), str(rep))
+    third = sprint_gate(usd=200, spent=0, record_run="79.1", carried=second.records(),
+                        now="2026-11-22T18:00:00+00:00")
+    q = ip.build_queues(one_sprint_issue("intake"), cfg, third)
+    check("two runs' reservations fill a $200 ceiling: the third run holds the item (budget-skip)",
+          item not in queued(q) and [h["decision"] for h in third.held] == ["budget-skip"]
+          and "$200.00 (200.00 estimated) of $200.00" in third.held[0]["reason"] and third.records() == second.records(),
+          f"{third.held} {third.records()}")
+    check("…and the stop is the run's circuit-breaker event", [e["event"] for e in third.events] == ["sprint-stop"],
+          str(third.events))
+
+    stale = dict(rows[0], sprint="retired")
+    redeclared = dict(rows[0], run="70.1", declared="2026-11-01T00:00:00Z")
+    tidy = sprint_gate(usd=200, spent=0, carried=[rows[0], dict(rows[0]), stale, redeclared])
+    s = sp.active(tidy.sprints, tidy.now)
+    check("one row per run of a declaration still in force is counted and carried on",
+          [r["run"] for r in tidy.records()] == ["77.1"] and tidy.spent(s).spent_usd == 100.0,
+          f"{tidy.records()} {tidy.spent(s).as_dict()}")
+    late = sprint_gate(usd=200, spent=0, carried=rows, now="2026-11-24T00:00:00+00:00")
+    check("a closed sprint's rows stay on record while it is declared", late.records() == rows, str(late.records()))
+    bad = sprint_gate(usd=200, spent=0, carried=[dict(rows[0], usd=float("inf"))])
+    q = ip.build_queues(one_sprint_issue("intake"), cfg, bad)
+    check("a row that cannot be read holds the sprint's items rather than count it as $0",
+          item not in queued(q) and "cannot be judged" in bad.held[0]["reason"], f"{bad.held}")
+
+    with tempfile.TemporaryDirectory() as d:
+        out_path = Path(d) / "issue_pipeline.yml"
+        out_path.write_text(text)
+        other = dict(rows[0], run="76.1")
+        calls: list = []
+
+        def fetch(hub, path, ref):
+            calls.append((hub, path, ref))
+            return {None: ip.yaml.safe_dump({"sprint": {"reservations": [rows[0], other]}}),
+                    ip.PUBLISH_BRANCH: None}[ref]
+        got = ip.sprint_records(out_path, hub=HUB, fetch=fetch)
+        check("a scan reads the record from its checkout, the hub's default branch and the publish fallback branch",
+              calls == [(HUB, "_data/issue_pipeline.yml", None), (HUB, "_data/issue_pipeline.yml", ip.PUBLISH_BRANCH)]
+              and sorted(r["run"] for r in got) == ["76.1", "77.1", "77.1"], f"{calls} {got}")
+        check("…and without a client, from its checkout alone",
+              [r["run"] for r in ip.sprint_records(out_path)] == ["77.1"])
+
+        def broken(hub, path, ref):
+            raise OSError("HTTP Error 502")
+        try:
+            ip.sprint_records(out_path, hub=HUB, fetch=broken)
+            raised = False
+        except OSError:
+            raised = True
+        check("a branch that cannot be read raises (the scan stops), never reads as no rows", raised)
+    check("the step outputs are all \"0\" when nothing is declared", set(ip.sprint_outputs().values()) == {"0"}
+          and set(ip.sprint_outputs()) == {"sprint_reserved_usd", "sprint_t1_usd", "sprint_t2_usd", "sprint_t3_usd"})
+    check("--sprint-grant never rewrites the snapshot (it reads no record to carry on)",
+          ip.main(["--sprint-grant", "60"]) == 2)
+    check("--run-tiers takes tier numbers", ip.main(["--no-snapshot", "--run-tiers", "all"]) == 2)
+
+
+def test_sprint_workflow():
+    """issue-pipeline.yml hands the scan's reservation to every tier that spends it."""
+    print("\nexpedite sprint: the workflow's wiring")
+    jobs = ip.yaml.safe_load((ip.REPO_ROOT / ".github/workflows/issue-pipeline.yml").read_text())["jobs"]
+    steps = {s.get("id"): s for s in jobs["scan"]["steps"] if s.get("id")}
+    check("the fallback branch a scan reads is the one it publishes to",
+          steps["publish"]["with"]["branch"] == ip.PUBLISH_BRANCH, steps["publish"]["with"].get("branch"))
+    check("the scan records its run attempt and the tiers it starts (none on a dry run)",
+          "--record-run" in steps["queues"]["run"] and "GITHUB_RUN_ATTEMPT" in steps["queues"]["run"]
+          and "--run-tiers" in steps["queues"]["run"] and "inputs.dry_run != true" in steps["queues"]["env"]["RUN_TIERS"])
+    check("every sprint output the script emits leaves the scan job",
+          set(ip.sprint_outputs()) | {"sprint_record"} <= set(jobs["scan"]["outputs"]), str(jobs["scan"]["outputs"]))
+    gate = steps["sprint"]
+    check("the record gate reads the publish route and runs even after a failed step",
+          "steps.publish.outputs.mode" in gate["env"]["MODE"] and "cancelled()" in gate["if"]
+          and "record=lost" in gate["run"] and "GITHUB_RUN_ATTEMPT" in gate["run"])
+    refresh = next(s for s in jobs["tier2"]["steps"] if s.get("id") == "queue")
+    check("tier 2's re-scan is handed the room the scan recorded for it, in this attempt only",
+          '--sprint-grant "$SPRINT_GRANT"' in refresh["run"] and "--no-snapshot" in refresh["run"]
+          and "needs.scan.outputs.sprint_t2_usd" in refresh["env"]["SPRINT_GRANT"]
+          and "needs.scan.outputs.sprint_record == github.run_attempt" in refresh["env"]["SPRINT_GRANT"])
+    for job, out in (("tier1", "sprint_t1_usd"), ("tier3", "sprint_t3_usd")):
+        check(f"{job} runs a sprint item only in the attempt whose reservation is on record",
+              f"needs.scan.outputs.{out} == '0'" in jobs[job]["if"]
+              and "needs.scan.outputs.sprint_record == github.run_attempt" in jobs[job]["if"], jobs[job]["if"])
 
 
 # --------------------------------------------------------------------------- #
@@ -1211,6 +1473,9 @@ def main() -> int:
     test_queues()
     test_dependencies()
     test_tier3_queue()
+    test_sprint_gate()
+    test_sprint_run()
+    test_sprint_workflow()
     test_markers_and_config()
     test_real_fleet_config()
     test_render()

@@ -1,0 +1,110 @@
+{
+	// ==========================================================================
+	// fleet.code-workspace: the fleet in one window.
+	//
+	// The hub comes first. Its .vscode/launch.json and tasks.json are the front
+	// door to every harness surface (constitution § 20) and appear here under
+	// the "bamr87" folder, its Source Control lists every submodule, and its
+	// .claude/ and .mcp.json are what an agent session in this window loads.
+	//
+	// After it, as their own roots, come the submodules the fleet is built and
+	// run WITH, as opposed to the products it ships: the agent SDLC tooling,
+	// the context and structure layer, the content layer, and the fleet's own
+	// operations repos.
+	// A root gets its own Source Control entry, search scope, terminal and any
+	// .vscode/ entries the repo carries.
+	//
+	// Open the file, not the folder:  code fleet.code-workspace
+	//
+	// Kept thin on purpose. No "launch" or "tasks" block: an entry belongs in
+	// the hub's .vscode/ or in the repo's own, never in a second list here. No
+	// personal preferences (font, auto-save): those are home.code-workspace or
+	// user settings. Every folder is a path inside this checkout that
+	// .gitmodules declares. tools/test_vscode_launch.py holds all of that.
+	// Line comments only, so the hub's JSONC parsers can read it.
+	// ==========================================================================
+	"folders": [
+		// The control plane: registry, gates, loops, console, docs.
+		{ "name": "bamr87", "path": "." },
+
+		// Agent SDLC: how agents are dispatched, grounded and run.
+		{ "path": "projects/githubai" },
+		{ "path": "projects/gitorio" },
+		{ "path": "projects/bashos" },
+		{ "path": "projects/skills" },
+		{ "path": "projects/outbox" },
+		// bamr87/.github: the shared release workflows and community defaults.
+		{ "path": "projects/dot-github" },
+
+		// Context and structure: what an agent reads before it writes.
+		{ "path": "projects/README" },
+		// The Pyramid Schema kit's source; the hub vendors it.
+		{ "path": "projects/SCHEMA" },
+		{ "path": "projects/schema-lang" },
+		{ "path": "projects/scripts" },
+
+		// Content: what a site is authored, themed and published with.
+		{ "path": "projects/zer0-cms" },
+		{ "path": "projects/zer0-mistakes" },
+
+		// Fleet operations: where the fleet runs and how it is watched.
+		{ "path": "projects/fleet-observe" },
+		{ "path": "projects/fleet-infra" },
+		{ "path": "projects/fleet-mobile" }
+	],
+	"settings": {
+		// The hub's .vscode/settings.json still governs the hub folder, but a
+		// multi-root window takes only resource-scoped settings from a folder's
+		// file (the raised git.detectSubmodulesLimit, the interpreter, the
+		// excludes). The window-level ones the hub relies on are restated here:
+		// repository detection, and Compose v2 for the whole window.
+		"git.autoRepositoryDetection": "subFolders",
+		"containers.composeCommand": "docker compose",
+
+		// Every root above is also a directory under the hub's projects/, so a
+		// search hit or Quick Open result in one of them would be listed twice.
+		// These patterns are root-relative: they match only inside the hub, and
+		// each repo is searched once, under its own root. One key per folder
+		// above. The Explorer is untouched; the hub's projects/ shows them all.
+		"search.exclude": {
+			"projects/githubai": true,
+			"projects/gitorio": true,
+			"projects/bashos": true,
+			"projects/skills": true,
+			"projects/outbox": true,
+			"projects/dot-github": true,
+			"projects/README": true,
+			"projects/SCHEMA": true,
+			"projects/schema-lang": true,
+			"projects/scripts": true,
+			"projects/zer0-cms": true,
+			"projects/zer0-mistakes": true,
+			"projects/fleet-observe": true,
+			"projects/fleet-infra": true,
+			"projects/fleet-mobile": true
+		},
+
+		// Build and dependency trees of the stacks these roots bring (Node,
+		// Python, Rust, Terraform, Gradle, Jekyll and Bundler), kept out of file
+		// watching whichever root a path is reached through.
+		"files.watcherExclude": {
+			"**/_site/**": true,
+			"**/.jekyll-cache/**": true,
+			"**/vendor/bundle/**": true,
+			"**/node_modules/**": true,
+			"**/.venv*/**": true,
+			"**/__pycache__/**": true,
+			"**/target/**": true,
+			"**/.terraform/**": true,
+			"**/.gradle/**": true
+		}
+	},
+	"extensions": {
+		// Each folder's own .vscode/extensions.json is still read, and the hub's
+		// is the main list. These cover the stacks of roots that carry none.
+		"recommendations": [
+			"hashicorp.terraform",
+			"rust-lang.rust-analyzer"
+		]
+	}
+}
