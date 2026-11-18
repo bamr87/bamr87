@@ -349,22 +349,22 @@ repos:
 - day: 17
   repo: gitorio
   scheduled: '2026-11-15'
-  status: pending
-  last_processed: null
+  status: done
+  last_processed: '2026-11-15'
   cycle: 1
   issues:
-  - https://github.com/bamr87/gitorio/issues/184
-  - https://github.com/bamr87/gitorio/issues/183
-  - https://github.com/bamr87/gitorio/issues/182
-  - https://github.com/bamr87/gitorio/issues/181
   - https://github.com/bamr87/gitorio/issues/180
+  - https://github.com/bamr87/gitorio/issues/181
+  - https://github.com/bamr87/gitorio/issues/182
+  - https://github.com/bamr87/gitorio/issues/183
+  - https://github.com/bamr87/gitorio/issues/184
   prs:
   - https://github.com/bamr87/gitorio/pull/185
-  open_issues: 5
-  open_prs: 1
-  findings: ''
-  score: null
-  next_focus: ''
+  open_issues: 0
+  open_prs: 0
+  findings: 'App gates green (678 tests, typecheck, build, maps/reference/spec/backlog/docs-index); 5 new findings: smoke-home TODO-001 id, 3 hooks lint warnings, feedback widget unmounted (UPS-FB-01/FE-13), root-layout checker mismatch (lockfile/.env.example), 4 features with prd TBD + stale ROADMAP boxes. Skip link/meta/templates/pins already in #166/#167/#176/#172/#173.'
+  score: 77.0
+  next_focus: 'Land #176/#179, mount the feedback widget, resolve PRD traces for GITORIO-001/004/005/006, fix Factory 1 on main (#47) and the generator auth fallback (#159)'
 - day: 18
   repo: SCHEMA
   scheduled: '2026-11-16'
