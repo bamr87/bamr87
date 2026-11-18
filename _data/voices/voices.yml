@@ -1,6 +1,6 @@
 # _data/voices/voices.yml — CANONICAL fleet voice config (voices/v1; schema: voices.schema.json beside this file)
 # One model for AI voices, styles, personas and content across lifehacker.dev and zer0-CMS (constitution § 23 rule 6).
-# Admins edit THIS file (by PR, or later via the console's Voices editor, which writes back here as a PR — never a DB copy).
+# Admins edit THIS file: by PR, or in the console's Voices editor (/voices), which files the edit back here as a draft PR — never a DB copy.
 # Validate: python3 tools/voices.py check   ·   drift vs a consumer copy: python3 tools/voices.py check --against <file>
 # Resolution: defaults -> sites.<site>.profile -> sites.<site>.personas.<key>; text joins, bans merge by name, lifts remove, scalars override.
 # Assignment: first matching rule wins (activity/repos/cadence); disabled personas are skipped; the key is written to front matter `character:`.

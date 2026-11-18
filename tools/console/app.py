@@ -269,6 +269,12 @@ class EditorialSite(BaseModel):
     fields: dict
 
 
+class VoicesEdit(BaseModel):
+    """An edit of the voice model: the whole `voices/v1` document as the page holds it."""
+    data: dict
+    plan_id: str = Field("", max_length=16)
+
+
 class WorkPlan(BaseModel):
     plan: dict = Field(default_factory=dict)
     confirm: bool = False
@@ -737,6 +743,31 @@ def editorial_site(site: str, req: EditorialSite) -> dict:
         raise HTTPException(status_code=400, detail=str(exc))
     except RuntimeError as exc:
         raise HTTPException(status_code=501, detail=str(exc))
+
+
+@app.get("/api/voices", dependencies=[Depends(require_token)])
+def voices_doc() -> dict:
+    """The fleet voice model (_data/voices/voices.yml): the file, its
+    tools/voices.py check errors, its drift from origin/main, the form's enums."""
+    return core.voices_doc()
+
+
+@app.post("/api/voices/preview", dependencies=[Depends(require_token)])
+def voices_preview(req: VoicesEdit) -> dict:
+    """An edit validated, rendered and diffed against main, with its plan id — nothing is written."""
+    return core.voices_preview(req.data)
+
+
+@app.post("/api/voices/stage", dependencies=[Depends(require_token)])
+def voices_stage(req: VoicesEdit) -> dict:
+    """Stage a previewed edit (outside the working tree) for the `voices-pr` op,
+    which files it — a dry run, then behind confirm one draft PR."""
+    try:
+        return core.voices_stage(req.data, req.plan_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except PermissionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
 
 
 @app.get("/api/contract", dependencies=[Depends(require_token)])

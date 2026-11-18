@@ -6,7 +6,7 @@
 import {
   IconActivity, IconAppWindow, IconApps, IconBox, IconDeviceDesktop, IconBrandGithub, IconBrandDocker, IconBriefcase, IconCalendarTime, IconChartBar, IconCoin,
   IconFileText, IconGauge, IconGitBranch, IconGitPullRequest, IconHeartbeat, IconHome, IconInbox, IconKey, IconLayoutBoardSplit, IconLayoutGrid, IconLayoutKanban, IconListCheck, IconMicroscope, IconListDetails, IconLogs,
-  IconMail, IconPencil, IconPlayerPlay, IconPlugConnected, IconReceipt, IconRepeat, IconRoute, IconRoadSign, IconSearch, IconServer2, IconSettings,
+  IconMail, IconMicrophone, IconPencil, IconPlayerPlay, IconPlugConnected, IconReceipt, IconRepeat, IconRoute, IconRoadSign, IconSearch, IconServer2, IconSettings,
   IconTerminal2, IconTool, IconTools, IconTopologyStar3, IconUser, IconFlask, IconSparkles, IconBolt, type Icon,
 } from '@tabler/icons-react';
 
@@ -96,7 +96,13 @@ export const NAV: NavSection[] = [
       { label: 'Code index', to: '/observe/index', icon: IconSearch, hint: 'semantic search over the worktree' },
     ],
   },
-  { label: 'Content', items: [{ label: 'Content sites', to: '/content', icon: IconFileText, hint: 'the content atlas + editorial plan' }] },
+  {
+    label: 'Content',
+    items: [
+      { label: 'Content sites', to: '/content', icon: IconFileText, hint: 'the content atlas + editorial plan' },
+      { label: 'Voices', to: '/voices', icon: IconMicrophone, hint: 'the fleet voice model (voices/v1): edit, preview, file as a draft PR' },
+    ],
+  },
   {
     label: 'Operate',
     items: [

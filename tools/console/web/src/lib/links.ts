@@ -75,6 +75,7 @@ export const to = {
   observe: (pane: 'logs' | 'metrics' | 'traces' | 'lines' | 'index') => `/observe/${pane}`,
   content: () => '/content',
   site: (name: string) => `/content/${enc(name)}`,
+  voices: () => '/voices',
   jobs: () => '/jobs',
   job: (id: string) => `/jobs/${enc(id)}`,
   ops: () => '/ops',

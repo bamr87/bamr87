@@ -1129,6 +1129,38 @@ export interface AssistDoc {
   local: boolean;
 }
 
+// --- The fleet voice model (tools/voices.py, /api/voices; constitution § 23 rule 7) ---
+export type VoiceStyle = Partial<Record<'formality' | 'length' | 'humor' | 'reading_level', string>>;
+export interface VoiceTopics { cover?: string[]; exclude?: string[] }
+/** A profile layer (defaults, a site's profile) — persona fields ride on top. Unknown keys round-trip untouched. */
+export interface VoiceProfile {
+  summary?: string; audience?: string; voice?: string; tone?: string; style?: VoiceStyle;
+  guidance?: string; avoid?: string; claims?: string; topics?: VoiceTopics;
+  name?: string; role?: string; enabled?: boolean; perspective?: string; beats?: string[]; repos?: string[];
+  [key: string]: unknown;
+}
+export interface VoiceRule { activity?: string[]; repos?: string[]; cadence?: string; persona?: string; default?: string }
+export interface VoiceSite { profile: VoiceProfile; personas?: Record<string, VoiceProfile>; assignment?: VoiceRule[]; [key: string]: unknown }
+export interface VoicesData { schema: string; defaults: VoiceProfile; sites: Record<string, VoiceSite>; [key: string]: unknown }
+export interface VoicesDrift { ref: string; available: boolean; differs: boolean; diff: string; changes: string[] }
+export interface VoicesDoc {
+  schema: string;
+  path: string;
+  schema_path: string;
+  text: string;
+  data: VoicesData | null;
+  errors: string[];
+  ok: boolean;
+  canonical: boolean;
+  drift: VoicesDrift;
+  enums: { style: Record<string, string[]>; cadence: string[] };
+  field_order: string[];
+  quoted: string[];
+}
+export interface VoicesPreview {
+  ok: boolean; errors: string[]; text: string; base: string; changed: boolean; diff: string; changes: string[]; plan_id: string; drift: VoicesDrift;
+}
+export interface VoicesStaged { plan_id: string; staged: boolean; base: string; changes: string[]; diff: string }
 // --- The live expedite-sprint records (tools/sprint_record.py, `sprint-records/v1`) ---
 export interface SprintGate {
   by: string;

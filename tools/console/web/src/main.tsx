@@ -62,6 +62,7 @@ import { Operations, OperationPage } from './pages/Operations';
 // xterm.js is the heaviest dependency and only the Terminal page needs it.
 const TerminalPage = lazy(() => import('./pages/TerminalPage').then((m) => ({ default: m.TerminalPage })));
 import { ConfigPage } from './pages/ConfigPage';
+import { Voices } from './pages/Voices';
 import { AuthPage } from './pages/AuthPage';
 import { GithubPage, GithubRepoPage } from './pages/GithubPage';
 import { GhProjects } from './pages/GhProjects';
@@ -134,6 +135,7 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="observe/index" element={<CodeIndex />} />
                   <Route path="content" element={<ContentSites />} />
                   <Route path="content/:site" element={<ContentSite />} />
+                  <Route path="voices" element={<Voices />} />
                   <Route path="jobs" element={<Jobs />} />
                   <Route path="jobs/:id" element={<JobPage />} />
                   <Route path="ops" element={<Operations />} />
