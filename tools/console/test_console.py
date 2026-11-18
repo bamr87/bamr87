@@ -2728,6 +2728,46 @@ def test_github_callback_needs_no_bearer_but_everything_else_does():
             os.environ["DASH_CONSOLE_TOKEN"] = saved
 
 
+def test_sprints_document_reads_the_records_and_nothing_writes_them():
+    """The /sprints page's document (tools/sprint_record.py): the live records linted,
+    the fixture rendered from DASH_SPRINTS_DIR, an empty directory as the empty state —
+    and, over HTTP, one GET route and no route that writes a record."""
+    import yaml
+    fixture = core.TOOLS / "test_sprint_record_fixture.yml"
+    records = [d for d in yaml.safe_load_all(fixture.read_text(encoding="utf-8")) if d]
+    with tempfile.TemporaryDirectory() as tmp:
+        folder = Path(tmp) / "sprints"
+        folder.mkdir()
+        for r in records:
+            (folder / f"{r['slug']}.yml").write_text(yaml.safe_dump(r, sort_keys=False), encoding="utf-8")
+        queue = Path(tmp) / "work_queue.yml"
+        queue.write_text(yaml.safe_dump({"schema": "work-queue/v1", "order": ["issue:example-org/example-site#12"]}),
+                         encoding="utf-8")
+        with mock.patch.dict(os.environ, {"DASH_SPRINTS_DIR": str(folder)}), mock.patch.object(core, "WORK_QUEUE", queue):
+            doc = core.sprints_doc()
+        assert doc["schema"] == "sprint-records/v1" and doc["count"] == 2 and doc["errors"] == [], doc["errors"]
+        assert doc["active"] == "fixture-inquiry-form" and doc["sprints"][0]["phase_name"] == "test"
+        assert doc["cost_label"] == core.COST_LABEL and tmp not in json.dumps(doc), "no local path in the document"
+        with mock.patch.dict(os.environ, {"DASH_SPRINTS_DIR": str(Path(tmp) / "none")}):
+            assert core.sprints_doc()["sprints"] == []
+    live = core.sprints_doc()
+    assert live["dir"] == "_data/sprints" and live["errors"] == [], live["errors"]
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    import app as console_app
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    r = client.get("/api/sprints")
+    assert r.status_code == 200 and r.json()["schema"] == "sprint-records/v1", r.text[:300]
+    for method in ("post", "put", "patch", "delete"):
+        assert getattr(client, method)("/api/sprints").status_code in (404, 405), method
+    writers = [route.path for route in console_app.app.routes
+               if str(getattr(route, "path", "")).startswith("/api/sprints") and set(getattr(route, "methods", ()) or ()) - {"GET", "HEAD"}]
+    assert writers == [], f"a route writes sprint records: {writers}"
+
+
 def main() -> int:
     failures = 0
     for name, fn in sorted(globals().items()):

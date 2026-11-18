@@ -2,7 +2,7 @@
 # ============================================================================
 # tools/check-drift.sh — hard drift gate for the dash
 #
-# Checks ((a,b,d,e,h,j,m,n,o,p) gate the exit status unless --report; (c,f,g,i,k,q) warn only):
+# Checks ((a,b,d,e,h,j,m,n,o,p,q) gate the exit status unless --report; (c,f,g,i,k,q) warn only):
 #   (a) registry <-> .gitmodules parity (paths, branches, AND urls) + no
 #       stray/unregistered project dirs. The url leg is offline, so it gates on
 #       every PR; the live GitHub side (renames/deletions) is (g) + `dash reconcile`.
@@ -48,6 +48,13 @@
 #       instead. Under --remote / --ci it also lists the broken fleet callers
 #       the daily harness scan recorded (_data/harness_registry.yml `hub_refs`;
 #       no API call), with its unread repos and files.
+#   (r) the live expedite-sprint records (_data/sprints/*.yml, `sprint/v1`,
+#       constitution § 27.7): at most one active sprint (WIP 1), the gates in
+#       order and passed by the maintainer, the phase behind its gate, no
+#       secret-looking value, every USD figure finite and labelled
+#       API-equivalent (estimate), an active sprint declared in
+#       _data/work_queue.yml and under its cap. Offline, so it gates every PR;
+#       a finished time box with no stop recorded warns (tools/sprint_record.py).
 #   (n) the Docker standard: the hub's OWN Dockerfiles/compose files match the
 #       image registry (_data/fleet.yml `images:`) and the transformer's tests
 #       pass. Advisory half: how much drift the checked-out submodules carry.
@@ -986,6 +993,35 @@ if [[ -f "$ROOT/.github/scripts/dash-gen/hub_refs.py" ]]; then
   fi
 else
   warn "skipped (hub_refs.py absent)"
+fi
+
+# --- (r): the live expedite-sprint records (constitution § 27.7) -----------
+# One committed record per sprint (_data/sprints/<slug>.yml, `sprint/v1`); the
+# console's /sprints page renders them and nothing writes them but a pull
+# request, so the pull request is where they are held to the standard: WIP 1,
+# gate order, no secrets, labelled money, the circuit breaker (README there).
+echo "(r) expedite-sprint records (_data/sprints/, sprint/v1)"
+if [[ -f "$ROOT/tools/sprint_record.py" ]]; then
+  if ! "$PY" -c 'import yaml' >/dev/null 2>&1; then
+    warn "skipped (PyYAML unavailable)"
+  else
+    q_out="$("$PY" "$ROOT/tools/sprint_record.py" lint 2>&1)"
+    q_rc=$?
+    q_bad=0
+    while IFS= read -r line; do
+      case "$line" in
+        "  ✗ "*) bad "${line#  ✗ }"; q_bad=1 ;;
+        "  ! "*) warn "${line#  ! }" ;;
+      esac
+    done <<< "$q_out"
+    if [[ $q_rc -eq 0 ]]; then
+      ok "${q_out##*$'\n'}"
+    elif [[ $q_bad -eq 0 ]]; then
+      bad "tools/sprint_record.py lint exited ${q_rc}: $(printf '%s' "$q_out" | tail -1)"
+    fi
+  fi
+else
+  warn "skipped (tools/sprint_record.py absent)"
 fi
 
 # --- (c): internal links ---------------------------------------------------

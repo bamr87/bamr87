@@ -1,0 +1,361 @@
+{
+  "id": "sprints",
+  "title": "Fixture render: an active sprint and one stopped at its cap",
+  "features": [
+    "HUB-085"
+  ],
+  "path": "(scratch) fixture scenario \u2014 steps listed in README.md",
+  "started": "2026-11-16T06:59:56.888Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/sprints",
+          "ok": true,
+          "ms": 621
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "[data-testid='sprint-record']"
+          },
+          "ok": true,
+          "ms": 33
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Fixture: consultation inquiry form"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-testid='sprint-gates'] :has-text('Declaration (A)')"
+          },
+          "ok": true,
+          "ms": 5
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "$9.40"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "1/3 tripped"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "2/3"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-testid='sprint-dora'] :has-text('Not measured yet')"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-testid='sprint-retro'] :has-text('Written when the sprint ends')"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "[data-testid='sprints-page'] form, [data-testid='sprints-page'] input, [data-testid='sprints-page'] textarea",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "sprints-record",
+          "ok": true,
+          "file": "test/evidence/sprints/desktop-sprints-record.png",
+          "ms": 107
+        },
+        {
+          "step": "goto",
+          "arg": "/sprints?sprint=fixture-quote-calculator",
+          "ok": true,
+          "ms": 548
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "[data-testid='sprint-retro'] li"
+          },
+          "ok": true,
+          "ms": 10
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-testid='sprint-record'] :has-text('the circuit breaker (cap)')"
+          },
+          "ok": true,
+          "ms": 5
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "The pricing rules were not settled"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "sprints-stopped",
+          "ok": true,
+          "file": "test/evidence/sprints/desktop-sprints-stopped.png",
+          "ms": 96
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/sprints/desktop-sprints-record.png",
+        "test/evidence/sprints/desktop-sprints-stopped.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4392/sprints/?sprint=fixture-quote-calculator"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/sprints",
+          "ok": true,
+          "ms": 619
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "[data-testid='sprint-record']"
+          },
+          "ok": true,
+          "ms": 17
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Fixture: consultation inquiry form"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-testid='sprint-gates'] :has-text('Declaration (A)')"
+          },
+          "ok": true,
+          "ms": 4
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "$9.40"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "1/3 tripped"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "2/3"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-testid='sprint-dora'] :has-text('Not measured yet')"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-testid='sprint-retro'] :has-text('Written when the sprint ends')"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "[data-testid='sprints-page'] form, [data-testid='sprints-page'] input, [data-testid='sprints-page'] textarea",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "sprints-record",
+          "ok": true,
+          "file": "test/evidence/sprints/mobile-sprints-record.png",
+          "ms": 86
+        },
+        {
+          "step": "goto",
+          "arg": "/sprints?sprint=fixture-quote-calculator",
+          "ok": true,
+          "ms": 563
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "[data-testid='sprint-retro'] li"
+          },
+          "ok": true,
+          "ms": 11
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-testid='sprint-record'] :has-text('the circuit breaker (cap)')"
+          },
+          "ok": true,
+          "ms": 5
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "The pricing rules were not settled"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "sprints-stopped",
+          "ok": true,
+          "file": "test/evidence/sprints/mobile-sprints-stopped.png",
+          "ms": 73
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/sprints/mobile-sprints-record.png",
+        "test/evidence/sprints/mobile-sprints-stopped.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4392/sprints/?sprint=fixture-quote-calculator"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-11-16T06:59:59.812Z",
+  "base": "http://127.0.0.1:4392",
+  "note": "Fixture build: DASH_SPRINTS_DIR + DASH_WORK_QUEUE pointed at tools/test_sprint_record_fixture.yml's two records (see README.md)."
+}

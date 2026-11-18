@@ -1146,6 +1146,27 @@ def _content_file(params: dict) -> list[str]:
 
 
 # --------------------------------------------------------------------------- #
+# SPRINTS — the live expedite-sprint records (tools/sprint_record.py,
+# constitution § 27.7). Read-only: a record changes only by a pull request,
+# so there is no write path here and no route that writes one.
+# --------------------------------------------------------------------------- #
+def _sprint_module():
+    if str(TOOLS) not in sys.path:
+        sys.path.insert(0, str(TOOLS))
+    import sprint_record  # noqa: WPS433
+    return sprint_record
+
+
+def sprints_doc() -> dict:
+    """The /api/sprints document: every `_data/sprints/<slug>.yml` record, linted —
+    gates with who and when, phase, items, spend against the cap, trip wires, the
+    DORA placeholder and the retro. DASH_SPRINTS_DIR points it at another directory
+    (the page's evidence build reads the test fixture through it)."""
+    folder = Path(os.environ.get("DASH_SPRINTS_DIR") or (DATA / "sprints"))
+    return _sprint_module().document(folder, fleet_path=DATA / "fleet.yml", queue_path=WORK_QUEUE)
+
+
+# --------------------------------------------------------------------------- #
 # OPS — the allowlist
 # --------------------------------------------------------------------------- #
 def _flag(params: dict, key: str) -> bool:

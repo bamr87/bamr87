@@ -1129,6 +1129,66 @@ export interface AssistDoc {
   local: boolean;
 }
 
+// --- The live expedite-sprint records (tools/sprint_record.py, `sprint-records/v1`) ---
+export interface SprintGate {
+  by: string;
+  at: string;
+  ref: string;
+}
+export interface SprintItem {
+  ref: string;
+  kind: 'issue' | 'pr';
+  title?: string;
+  state?: string;
+  phase?: number;
+}
+export interface SprintTripWire {
+  id: string;
+  rule: string;
+  state: 'armed' | 'tripped' | 'cleared';
+  at?: string | null;
+}
+export interface Sprint {
+  slug: string;
+  title: string;
+  path: string;
+  /** A record that failed the secret check (or did not parse): only its findings are served. */
+  withheld: boolean;
+  findings: string[];
+  warnings: string[];
+  item?: string;
+  target_repo?: string | null;
+  state?: 'proposed' | 'active' | 'stopped' | 'demoted' | 'done';
+  phase?: number;
+  phase_name?: string | null;
+  updated_at?: string | null;
+  appetite?: { hours: number; usd: number; label: string; ends_at?: string | null };
+  gates?: { declaration: SprintGate | null; spec: SprintGate | null; merge: SprintGate | null };
+  gates_passed?: number;
+  spend?: { usd: number; cap_usd: number; label: string; updated_at?: string | null; source?: string | null };
+  spend_ratio?: number | null;
+  items?: SprintItem[] | null;
+  trip_wires?: SprintTripWire[] | null;
+  dora?: Dict<unknown> | null;
+  retro?: { lessons?: string[]; debt?: string[] } | null;
+  stop?: { at: string; reason: string; by?: string | null; filed?: string[] | null; note?: string | null } | null;
+  notes?: string | null;
+}
+export interface SprintsDoc {
+  schema: string;
+  generated_at: string;
+  dir: string;
+  standard: string;
+  cost_label: string;
+  maintainer: string;
+  phases: string[];
+  gates: string[];
+  active: string | null;
+  count: number;
+  sprints: Sprint[];
+  errors: string[];
+  warnings: string[];
+}
 // --- GitHub Projects (v2), read-only (gh_projects.py; /api/gh-projects*) ----
 export type GhProjectsStatus = 'fresh' | 'partial' | 'scope_missing' | 'unavailable';
 export interface GhProjectField {
