@@ -109,7 +109,14 @@ runs:
         if ! npm install -g @anthropic-ai/claude-code@latest >"$RUNNER_TEMP/npm-install.log" 2>&1; then
           echo "::warning::Claude Code install failed — using the Claude API fallback."
           tail -n 40 "$RUNNER_TEMP/npm-install.log" >&2 || true
+        elif ! command -v claude >/dev/null 2>&1; then
+          # An install that exits 0 but leaves no `claude` on PATH is the
+          # silent case: say so and name the log instead of carrying on.
+          echo "::warning::npm install exited 0 but no \`claude\` is on PATH — see $RUNNER_TEMP/npm-install.log."
         fi
+        # Always log what was actually installed: an install that "succeeded"
+        # with the wrong release (2.1.197 on Node 20, bamr87#499) left no trace.
+        echo "claude-run: Claude Code $(claude --version 2>/dev/null || echo 'not installed') on Node $(node --version 2>/dev/null || echo 'not installed')"
         # Nested calls: a skill the agent runs (e.g. an illustrator) may need the
         # runner too. Export its location so a consumer's thin scripts/ai/run.sh
         # shim can find it without a second copy or a download.
