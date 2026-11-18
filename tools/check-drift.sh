@@ -9,7 +9,8 @@
 #   (b) README.md AUTO:projects span is up to date (advisory when
 #       JEV_SPANS_ADVISORY=1 — the span is regenerated on main after merge)
 #   (c) broken internal links in the built dash        (warn; --links only; needs _site)
-#   (d) every top-level module dir has a README
+#   (d) every top-level module dir has a README, and the docs index lints
+#       clean (tools/docs_index.py --lint)
 #   (e) each submodule is on its declared branch
 #   (f) submodule standardization conformance          (warn; see `dash audit`;
 #       the conformance.yml `security:` block matching its Scorecard cache gates)
@@ -227,6 +228,17 @@ for d in "$ROOT"/*/; do
   [[ -f "${d}README.md" || -f "${d}readme.md" || -f "${d}README.rst" ]] || missing+=("$name")
 done
 if [[ ${#missing[@]} -eq 0 ]]; then ok "all module dirs have a README"; else bad "missing README in: ${missing[*]}"; fi
+# The docs index lint (front matter, titles, dead index entries) was gated
+# nowhere: it failed on main while every check stayed green (bamr87/bamr87#503).
+# `--check` (index freshness) stays main-only (jev-number.yml); `--lint` reads
+# the documents themselves, so a PR can and must keep it clean.
+if [[ -f "$ROOT/tools/docs_index.py" ]]; then
+  if lint_out="$("$PY" "$ROOT/tools/docs_index.py" --lint --root "$ROOT" 2>&1)"; then
+    ok "docs index lint clean (tools/docs_index.py --lint)"
+  else
+    bad "docs index lint: $(printf '%s' "$lint_out" | tail -n 5 | tr '\n' ' ')"
+  fi
+fi
 
 # --- (f): standardization conformance (artifact gaps warn; stale overrides gate)
 # Filesystem-based via audit-standards.sh — most complete locally where the
