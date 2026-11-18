@@ -4136,7 +4136,7 @@ agents:
   budget:
     per_run_usd: 0.25
     monthly_usd: 10.0
-  model: claude-haiku-4-5-20251001
+  model: claude-haiku-5-5
   kpis:
     accepted_per_usd: 1.0
     accepted_per_actions_min: null
@@ -4166,7 +4166,7 @@ agents:
   budget:
     per_run_usd: 1.5
     monthly_usd: 10.0
-  model: claude-sonnet-5
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: 1.0
     accepted_per_actions_min: null
@@ -4199,8 +4199,8 @@ agents:
     per_run_usd: 1.5
     monthly_usd: 10.0
   model:
-  - claude-haiku-4-5-20251001
-  - claude-sonnet-5
+  - claude-haiku-5-5
+  - claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null

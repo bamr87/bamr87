@@ -50,6 +50,8 @@ Guarded here:
     ("$N fleet ceiling", "monthly_ai_usd $N") equals
     harnesses.budget.monthly_ai_usd, so the records cannot drift from the
     control plane again (bamr87#502).
+  * every `model:` in _data/fleet.yml is an exact id from `ai_models.allowed`
+    — no alias, no retired id (constitution § 13.3, bamr87#540).
 
 Deliberately dependency-light — no network, no gh, no pytest. Needs only PyYAML:
 
@@ -560,6 +562,31 @@ def check_wrapper() -> None:
 # --------------------------------------------------------------------------- #
 # the local loop runner's monthly ceiling
 # --------------------------------------------------------------------------- #
+def check_models_allowed(fleet: dict) -> None:
+    """Every `model:` value in fleet.yml is an exact id from ai_models.allowed (bamr87#540)."""
+    allowed = {m for ids in (fleet.get("ai_models", {}).get("allowed") or {}).values() for m in ids}
+    found: list[tuple[str, str]] = []
+
+    def walk(node, path):
+        if isinstance(node, dict):
+            for key, value in node.items():
+                here = f"{path}.{key}" if path else str(key)
+                # Claude models only: `none` (an agent with no model) and an
+                # embedding model (observability.indexing) are not Claude ids.
+                if key == "model" and isinstance(value, str) and re.match(
+                        r"(anthropic/)?(claude|sonnet|haiku|opus)", value, re.I):
+                    found.append((here, value))
+                walk(value, here)
+        elif isinstance(node, list):
+            for i, value in enumerate(node):
+                walk(value, f"{path}[{i}]")
+
+    walk(fleet, "")
+    bad = [(path, model) for path, model in found if model not in allowed]
+    check(f"fleet.yml: every model: is an exact id in ai_models.allowed ({len(found)} found)"
+          + (f" — off the list: {bad}" if bad else ""), bool(allowed) and not bad)
+
+
 def check_loops_budget(fleet: dict) -> None:
     """`budget.loops` is the local runner's monthly TOTAL (the `budget.jev`
     shape); each attempt is still held to its step's `call_sites` cap. Read
@@ -730,6 +757,7 @@ def main() -> int:
     fleet = yaml.safe_load(FLEET.read_text(encoding="utf-8"))
     check_workflows(fleet)
     check_loops_budget(fleet)
+    check_models_allowed(fleet)
     check_loops_budget_gate(fleet)
     check_sprints_budget(fleet)
     check_sprints_budget_gate(fleet)

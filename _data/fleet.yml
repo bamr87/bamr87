@@ -734,7 +734,7 @@ verification:
     request_agent: verify           # PR label that triggers the Claude Code pass in fleet-verify.yml
     skip_evidence: skip-evidence    # PR label that waives UPS-QA-52 with a reason in the PR body
   agent:
-    model: sonnet                   # the pass is browsing + writing a report, not architecture
+    model: claude-sonnet-5-5        # the pass is browsing + writing a report, not architecture; an exact id (§ 13.3)
     max_turns: 40                   # per PR; the caller can override via `max-turns`
     viewports: [1280, 390]          # widths the agent must screenshot at (desktop, mobile)
   coverage:
@@ -946,12 +946,12 @@ jev:
   # envelopes and the model each tier buys.
   tiers:
     tier1:
-      model: claude-haiku-4-5-20251001   # ~$1/$5 per MTok in/out — alternatives in docs/JEV.md
+      model: claude-haiku-5-5   # the cheapest exact id in ai_models.allowed (§ 13.3) — alternatives in docs/JEV.md
       max_files: 3
       max_lines: 40
       max_turns: 8
     tier2:
-      model: claude-sonnet-5
+      model: claude-sonnet-5-5
       max_files: 15
       max_lines: 400
       max_turns: 24
