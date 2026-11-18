@@ -2378,3 +2378,51 @@
   source: manual
   created: 2026-11-15
   issue_url: https://github.com/bamr87/bamr87/issues/863
+
+- id: FF-0056
+  title: Fan the about-section site map out to every non-exempt fleet repo
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P2
+  effort: M
+  category: standards
+  problem: 'A visitor cannot yet rely on every fleet README as a complete map of the repo: many repos
+    already have a constitution, PRD and feature catalog, but fewer have CONTRIBUTING, a code of conduct,
+    SECURITY or a roadmap, and none on main yet carry a mission one-liner that links to constitution §
+    1.'
+  proposal: After this hub amendment is ratified, open one fan-out PR per non-exempt repo that brings
+    its README about section to the docs/ABOUT-SECTION.md structure, adding only links to pages that exist
+    and recording genuine gaps rather than inventing pages. The conformance check named in constitution
+    § 31.5 lands in a later PR and stays warn-only until each repo's fan-out merges.
+  acceptance:
+  - The hub README's control-plane documentation section lists every required about-section entry that
+    the hub itself has.
+  - Every non-exempt public repo has either a merged or an open PR that applies the about-section site
+    map, with missing optional pages marked as missing rather than invented.
+  source: manual
+  created: 2026-11-16
+  issue_url: null
+
+- id: FF-0057
+  title: Fan the three-mission constitution § 1 format out to every governed fleet repo
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P2
+  effort: M
+  category: standards
+  problem: On 2026-11-16 no bamr87-owned default branch yet used one direction statement plus exactly
+    three numbered missions in constitution § 1; most governed repos still have a single mission paragraph
+    from amendment 0001, and only fredgar-ai#153 and law-ai#262 are open with the new format.
+  proposal: After this hub amendment is ratified, open one fan-out PR per governed repo that rewrites
+    constitution § 1 to the standard, adds a numbered amendment in that repo, and aligns the README and
+    AGENTS.md one-liners so they match and link to § 1. Repos that already have an open mission PR keep
+    that PR rather than getting a second one.
+  acceptance:
+  - The hub amendment is ratified and the hub's own § 1, README and AGENTS.md one-liners match.
+  - Every governed, non-exempt repo has either a merged or an open amendment PR in the three-mission format,
+    and its README and AGENTS.md one-liners link to constitution § 1.
+  source: manual
+  created: 2026-11-16
+  issue_url: null

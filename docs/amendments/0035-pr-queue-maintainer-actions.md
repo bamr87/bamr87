@@ -1,8 +1,8 @@
 <!-- kit: governance v0.1.0 -->
-# NEW — A merge or close the maintainer confirms in the console PR queue is his own action
+# 0035 — A merge or close the maintainer confirms in the console PR queue is his own action
 
 - **Status:** proposed
-- **Number:** NEW
+- **Number:** 0035
 - **Date:** 2026-11-16
 - **Proposed by:** Platform Architect (Grok Bot), from [bamr87/bamr87#863](https://github.com/bamr87/bamr87/issues/863) (direction-setting work under § 26.2 and § 28.5)
 - **Ratified by:** (leave blank until merged)

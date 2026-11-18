@@ -2884,3 +2884,207 @@ features:
     prd:
     - FR134
     - FR135
+  - id: HUB-118
+    title: 'Repository about section: a consistent public site map in every repo'
+    description: Every non-fork, non-archived fleet repo carries a public-facing about section, primarily
+      in README.md and on the public docs site, that functions as a site map of the repo's fundamental pages.
+      Required and optional entries, and the exemptions for forks, archived repos and private research,
+      are defined in docs/ABOUT-SECTION.md. The section is consistent (the same entries in the same order),
+      reliable (links resolve) and comprehensive (required entries present; optional entries present when
+      the underlying page exists). This extends, and does not replace, the portfolio README skeleton in
+      docs/PORTFOLIO.md § 4 and UPS-DOC-10.
+    implemented: false
+    status: partial
+    surface: infra
+    link: docs/ABOUT-SECTION.md
+    docs: docs/ABOUT-SECTION.md
+    tags:
+    - governance
+    - docs
+    - readme
+    - portfolio
+    - standards
+    date: 2026-11-16
+    tests:
+    - na: standard and docs in this PR; the conformance check and spoke fan-out are follow-up work (constitution
+        § 31.5)
+    prd:
+    - FR136
+  - id: HUB-119
+    title: 'Fleet workflow model: every repo''s workflows, linted, with check states you can trust'
+    description: 'ADR 0007 phase S1 (#721), read-only. tools/dash workflows sync reads every registry repository''s
+      workflow files (and the hub''s) into the local lake with the operator''s token, fetching a file only
+      when its blob sha changed, plus the latest run of each repository''s Verify caller and pull-request/push
+      gates (jobs, steps, a failed run''s log); it refuses before reading anything in CI or on a pull request,
+      never uses GITHUB_TOKEN, never fetches an external upstream, is capped by repositories, files, checks,
+      log bytes and a wall-clock budget, and prints how many repositories it read and each one it could
+      not, with the reason. tools/fleetcore/workflows.py builds fleet-workflows/v1 from the lake (opened
+      read-only) through the atlas''s own parse_workflow, lint_workflow and classify_failure: each repository
+      with its read time or why it was not read (never a pass), each workflow with its findings, and each
+      check as verified, passed-empty, never-ran, quota, real-failure or cancelled; fleet health counts
+      verified only. tools/dash workflows --fleet (list, show, lint) and the fleet_workflows MCP tool with
+      fleet=true render that one model.'
+    implemented: true
+    status: shipped
+    surface: cli
+    link: tools/fleetcore/workflows.py
+    docs: docs/WORKFLOW-ATLAS.md
+    tags:
+    - workflows
+    - ci
+    - lake
+    - mcp
+    - studio
+    date: 2026-11-15
+    tests:
+    - tools/test_fleetcore_workflows.py
+    - .github/scripts/dash-gen/test_fleet_lake.py
+    - tools/test_fleetcore_mcp.py
+    - tools/console/test_mcp_layer.py
+    prd:
+    - FR5
+    - FR21
+  - id: HUB-120
+    title: 'Lake recall: past local sessions by keyword'
+    description: 'tools/dash lake recall --query WORDS, the console''s GET /api/lake/recall and the MCP
+      read tool lake_recall find the stored local Claude Code sessions whose first prompt or one assistant
+      turn holds every word of the query: one result per session, best match first (FTS5 bm25, or a substring
+      match when the sqlite build has no FTS5), at most 50, each with its key, session id, repo, start and
+      end and an excerpt of at most 300 characters that the context pack''s Scrubber redacts before it is
+      clipped. Only that redacted text is indexed and matched, so a query cannot probe what the redaction
+      hides. The lake is attached read-only and the index is built in memory for each call, so recall never
+      writes the lake; an empty query exits 2 (a 422 on the route); no network. Proof is .github/scripts/dash-gen/test_fleet_lake.py.'
+    implemented: true
+    status: shipped
+    surface: cli
+    link: .github/scripts/dash-gen/fleet_lake.py
+    docs: docs/HARNESS-OPS.md
+    tags:
+    - lake
+    - memory
+    - mcp
+    - local
+    date: 2026-11-15
+    tests:
+    - .github/scripts/dash-gen/test_fleet_lake.py
+    - tools/console/test_console.py
+    - tools/console/test_mcp_layer.py
+    prd:
+    - FR26
+  - id: HUB-121
+    title: 'Merge readiness: what is left before a pull request merges, on the pull request and in the queue'
+    description: 'Every pull request has one verdict (ready, waiting, not-ready) and an ordered list of
+      what is left before it merges: the checks on its head commit, its base, its draft state, the review
+      gate and its label, the governance trace, the description''s task list, review threads and the review
+      decision, each with who moves it. The PR queue computes it for every row (tools/dash prs --verdict,
+      /api/prs, the MCP pr_queue tool) and for one pull request read live (tools/dash prs ready --pr). With
+      vars.PR_READINESS_ENABLED set to true, pr-review.yml writes the same thing on the pull request on
+      every finished workflow and on the events that start none (marked ready, labelled, edited): under
+      the failed runs in the one sticky comment while anything is left, and as one comment-only review per
+      head commit when nothing is. No model; ADR 0012 stage A.'
+    implemented: true
+    status: partial
+    surface: cli
+    link: tools/fleetcore/prqueue.py
+    docs: docs/adr/0012-merge-readiness.md
+    tags:
+    - pull-requests
+    - review
+    - ci
+    date: 2026-11-17
+    tests:
+    - tools/test_fleetcore_prqueue.py
+    - tools/console/test_pr_queue.py
+    - .github/scripts/dash-gen/test_pr_readiness.py
+    prd:
+    - FR137
+  - id: HUB-122
+    title: 'Fleet-wide mission statements: one direction and three missions in constitution § 1'
+    description: Every governed fleet repo states its purpose in constitution § 1 as one direction statement
+      plus exactly three numbered missions, adopted only through a numbered amendment; README and AGENTS.md
+      one-liners match that direction and link to § 1. The first mission provides data, tools, resources
+      and transparency for all stakeholders in the repo's domain, including professionals in the field and
+      the general public, unless a ratified amendment records a reason it does not apply. Ambition is written
+      as direction, not as a claim of current capability. The hub adopts the format in this pull request;
+      other repos receive it by fan-out PR, as already started in fredgar-ai#153 and law-ai#262.
+    implemented: false
+    status: partial
+    surface: infra
+    link: docs/constitution.md
+    docs: docs/amendments/proposed/mission-and-about-section.md
+    tags:
+    - governance
+    - mission
+    - constitution
+    - standards
+    date: 2026-11-16
+    tests:
+    - na: standard and docs in this PR; the conformance check and spoke fan-out are follow-up work (constitution
+        § 31.5)
+    prd:
+    - FR138
+  - id: HUB-123
+    title: 'Telemetry query tools: prom_query, logs_search and traces_query, read-only and capped'
+    description: 'tools/console/telemetry_query.py answers an agent''s own question over the fleet''s three
+      telemetry planes, without Grafana, Kibana or Phoenix: prom_query runs PromQL against Prometheus with
+      every metric selector held to claude_code_* (a __name__ matcher, a bare {...} selector, an unknown
+      function and info() are refused before any request), logs_search filters Elasticsearch logs-fleet.*
+      by repo, run, trace, session, event, level, time and text, and traces_query reads one trace, one session
+      or the slowest traces of the Phoenix project claude-code-otel with span kind, model, tokens, latency
+      and status. Limits: a 30-day window, 200 series (then truncated), 100 hits, 50 rows and a 10 s timeout;
+      the index and the project are fixed; an identity label cannot be named anywhere in a query (so it
+      cannot be matched, grouped on or copied by label_replace or label_join), identity labels and fields
+      are dropped from every answer, and every returned string passes a secret and email redactor that reads
+      a bounded prefix of it; cost is labelled API-equivalent (estimate). Served as GET /api/telemetry/prom,
+      /logs and /traces and as three read-only MCP tools; tested offline with one case per limit over recorded
+      response shapes behind a socket guard.'
+    implemented: true
+    status: shipped
+    prd:
+    - FR26
+    surface: infra
+    link: tools/console/telemetry_query.py
+    docs: docs/OBSERVABILITY.md
+    tags:
+    - console
+    - mcp
+    - observability
+    - claude-code
+    - otel
+    - telemetry
+    date: 2026-11-15
+    tests:
+    - tools/console/test_telemetry_query.py
+    - tools/console/test_mcp_layer.py
+  - id: HUB-124
+    title: 'The Voices editor: the fleet voice model edited in the console and filed back as a draft PR'
+    description: 'Content → Voices (/voices, GET /api/voices) loads _data/voices/voices.yml, the one voices/v1
+      copy lifehacker.dev and zer0-CMS read (constitution § 23 rule 7), with its tools/voices.py check errors
+      and a banner when it differs from origin/main. Defaults, each site''s profile, its personas (voice,
+      tone, the schema''s style enums, topics cover/exclude, beats, repos, enabled) and its assignment rules
+      are forms. Preview (POST /api/voices/preview) renders the edit in the file''s canonical layout and
+      diffs it against main with a plan id, writing nothing; the dry run stages those bytes outside the
+      working tree; the voices-pr operation then files them through the OPS remote-write path (§ 11.8):
+      confirm-gated, the token probed with gh api user, the plan re-checked against a fresh main, refused
+      with --scheduled, a dirty engine or an open voices PR, one chore/voices-* branch and one draft PR
+      that changes only voices.yml. There is no database copy. The published page shows the model read-only.'
+    implemented: true
+    status: shipped
+    surface: ui
+    link: tools/console/web/src/pages/Voices.tsx
+    docs: tools/console/README.md
+    tags:
+    - console
+    - content
+    - voices
+    - write-back
+    date: 2026-11-15
+    tests:
+    - tools/test_voices.py
+    - tools/console/test_console.py
+    scenarios:
+    - verify/scenarios/voices.yml
+    evidence:
+    - test/evidence/voices
+    prd:
+    - TBD

@@ -167,18 +167,25 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-115](features/features.yml) | Weekly close-out and weekend-prep loops, scheduled and maintained from the Harness Console | partial | [`.github/workflows/weekly-closeout.yml`](.github/workflows/weekly-closeout.yml) · [`docs/WEEKLY-CLOSEOUT.md`](docs/WEEKLY-CLOSEOUT.md) | FR131 |
 | [HUB-116](features/features.yml) | On-premise compute node: local LLMs and Claude Code sessions on Amr's own machine (planned) | planned | [`docs/ONPREM-COMPUTE.md`](docs/ONPREM-COMPUTE.md) | FR64, FR56, FR65, FR130, FR131, FR132, FR133, NFR32 |
 | [HUB-117](features/features.yml) | PR queue: every open pull request, who moves it next, and bulk actions an agent carries out once Amr confirms | partial | [`tools/console/web/src/pages/PrQueue.tsx`](tools/console/web/src/pages/PrQueue.tsx) · [`docs/PR-QUEUE.md`](docs/PR-QUEUE.md) | FR134, FR135 |
+| [HUB-118](features/features.yml) | Repository about section: a consistent public site map in every repo | partial | [`docs/ABOUT-SECTION.md`](docs/ABOUT-SECTION.md) | FR136 |
+| [HUB-119](features/features.yml) | Fleet workflow model: every repo's workflows, linted, with check states you can trust | shipped | [`tools/fleetcore/workflows.py`](tools/fleetcore/workflows.py) · [`docs/WORKFLOW-ATLAS.md`](docs/WORKFLOW-ATLAS.md) | FR5, FR21 |
+| [HUB-120](features/features.yml) | Lake recall: past local sessions by keyword | shipped | [`.github/scripts/dash-gen/fleet_lake.py`](.github/scripts/dash-gen/fleet_lake.py) · [`docs/HARNESS-OPS.md`](docs/HARNESS-OPS.md) | FR26 |
+| [HUB-121](features/features.yml) | Merge readiness: what is left before a pull request merges, on the pull request and in the queue | partial | [`tools/fleetcore/prqueue.py`](tools/fleetcore/prqueue.py) · [`docs/adr/0012-merge-readiness.md`](docs/adr/0012-merge-readiness.md) | FR137 |
+| [HUB-122](features/features.yml) | Fleet-wide mission statements: one direction and three missions in constitution § 1 | partial | [`docs/constitution.md`](docs/constitution.md) · `docs/amendments/proposed/mission-and-about-section.md` | FR138 |
+| [HUB-123](features/features.yml) | Telemetry query tools: prom_query, logs_search and traces_query, read-only and capped | shipped | [`tools/console/telemetry_query.py`](tools/console/telemetry_query.py) · [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md) | FR26 |
+| [HUB-124](features/features.yml) | The Voices editor: the fleet voice model edited in the console and filed back as a draft PR | shipped | [`tools/console/web/src/pages/Voices.tsx`](tools/console/web/src/pages/Voices.tsx) · [`tools/console/README.md`](tools/console/README.md) | TBD |
 
 **Requirement → feature trace**
 
 | Requirement | Features |
 | --- | --- |
 | FR2 | HUB-001, HUB-008 |
-| FR5 | HUB-001, HUB-002, HUB-003, HUB-004, HUB-005, HUB-006, HUB-007, HUB-013, HUB-022, HUB-015, HUB-016, HUB-017, HUB-028, HUB-030, HUB-034, HUB-072, HUB-082, HUB-105 |
+| FR5 | HUB-001, HUB-002, HUB-003, HUB-004, HUB-005, HUB-006, HUB-007, HUB-013, HUB-022, HUB-015, HUB-016, HUB-017, HUB-028, HUB-030, HUB-034, HUB-072, HUB-082, HUB-105, HUB-119 |
 | FR4 | HUB-007, HUB-023 |
 | FR1 | HUB-008, HUB-018 |
 | FR6 | HUB-009, HUB-010, HUB-019, HUB-023, HUB-027, HUB-028, HUB-033 |
 | NFR3 | HUB-011, HUB-012 |
-| TBD | HUB-014, HUB-021, HUB-020 |
+| TBD | HUB-014, HUB-021, HUB-020, HUB-124 |
 | FR7 | HUB-024, HUB-072, HUB-082, HUB-088 |
 | FR8 | HUB-024 |
 | FR9 | HUB-024 |
@@ -197,13 +204,13 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR19 | HUB-025, HUB-072, HUB-082 |
 | FR20 | HUB-025, HUB-072, HUB-082 |
 | NFR7 | HUB-025, HUB-072, HUB-082 |
-| FR21 | HUB-026, HUB-034 |
+| FR21 | HUB-026, HUB-034, HUB-119 |
 | FR22 | HUB-027 |
 | FR23 | HUB-027 |
 | FR24 | HUB-029 |
 | FR25 | HUB-029 |
 | NFR8 | HUB-029, HUB-066 |
-| FR26 | HUB-031, HUB-072, HUB-073, HUB-082, HUB-088, HUB-090, HUB-106 |
+| FR26 | HUB-031, HUB-072, HUB-073, HUB-082, HUB-088, HUB-090, HUB-106, HUB-120, HUB-123 |
 | NFR9 | HUB-031, HUB-072, HUB-073, HUB-082, HUB-088, HUB-090 |
 | FR27 | HUB-032 |
 | NFR10 | HUB-032 |
@@ -338,6 +345,9 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | NFR32 | HUB-116 |
 | FR134 | HUB-117 |
 | FR135 | HUB-117 |
+| FR136 | HUB-118 |
+| FR137 | HUB-121 |
+| FR138 | HUB-122 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -467,6 +477,9 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR133: The hub must be able to run a loop step, a JEV tier, a typed decision or an embedding job on a local model served from an enrolled on-premise node only when that model is pinned by exact tag and digest under a local provider in _data/fleet.yml ai_models.allowed and the step's eval set passes on it; the model is served on the node's loopback only, receives no secret, and runs with the step's own tool allowlist; each run is recorded in the AI ledger with cost source local ($0 metered API spend, with its energy estimate), never summed with API-equivalent or metered figures (constitution § 30; docs/ONPREM-COMPUTE.md).
 - FR134: The Harness Console must list every open pull request of the hub and the registry repos in one queue, each with its checks collapsed per check to the latest run on the head commit, its review-gate verdict and reason, the merge method its repo allows, and who moves it next, filterable by repo, kind, gate and who, with fan-out batches grouped by head branch.
 - FR135: The PR queue must let the maintainer select pull requests and apply one bulk action through a plan made from live GitHub and shown per pull request first; the plan is applied only after the maintainer confirms, only while it still matches GitHub, through the console's job API, with each result recorded; a merge or close runs only while its pr_queue switch is on.
+- FR136: Every non-fork, non-archived fleet repo must carry a public-facing about section, primarily in README.md and on the public docs site, that functions as a site map of the repo's fundamental pages, with the required and optional entries and the exemptions for forks, archived repos and private research defined in docs/ABOUT-SECTION.md; the section must be consistent (the same entries in the same order), reliable (links resolve to files that exist) and comprehensive (every required entry is present, and every optional entry is present when the underlying page exists) (constitution § 31; docs/ABOUT-SECTION.md; UPS-DOC-11).
+- FR137: The product must say, on every open pull request and in the PR queue, what is left before it merges and who moves each item, recomputed when the pull request is marked ready, changed or its CI finishes, and must record on the pull request when nothing is left.
+- FR138: Every governed fleet repo must state its purpose in constitution § 1 as one direction statement followed by exactly three numbered missions, adopted only through a numbered amendment ratified when the maintainer merges the PR; the first mission must provide data, tools, resources and transparency for all stakeholders in that repo's domain, including professionals in the field and the general public, unless a ratified amendment records a documented reason it does not apply; the README tagline and AGENTS.md opening one-liner must match that direction and link to constitution § 1; ambition is written as direction, not as a claim of current capability (constitution § 1, § 31; docs/amendments/proposed/mission-and-about-section.md).
 
 **Non-functional**
 

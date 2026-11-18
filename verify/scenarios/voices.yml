@@ -1,6 +1,6 @@
 # The Voices page on the published site: the fleet voice model read-only; editing and filing stay on a console.
 id: voices
-feature: HUB-NEW:voices-editor
+feature: HUB-124
 title: "The Voices page shows the fleet voice model and keeps editing on a console"
 description: "/voices renders _data/voices/voices.yml with its tools/voices.py check badge: the Defaults and lifehacker.dev layers, the eight personas, the site profile and the assignment rules, read-only, under the Runs on a console banner; nothing scrolls sideways. On a running console the same page edits a persona, previews the exact diff with its plan id (writing nothing) and offers the dry run and the draft PR behind the confirm — recorded by hand in the evidence README."
 viewports: [desktop, mobile]

@@ -1,12 +1,12 @@
 <!-- kit: governance v0.1.0 -->
-# NEW — Fleet mission statements and the repository about section
+# 0034 — Fleet mission statements and the repository about section
 
 - **Status:** proposed
-- **Number:** NEW
+- **Number:** 0034
 - **Date:** 2026-11-16
 - **Proposed by:** Grok Bot, at Amr's request on 2026-11-16 (voice): write the fleet-wide mission-statement standard into the hub, add organization structure and per-repo about context, and design each repo's about section as a consistent public site map
 - **Ratified by:** (leave blank until merged)
-- **Affects:** constitution § 1 (rewritten to the fleet mission format); constitution new § 31 (follows § 29 `agentic-efficacy-contract`; [bamr87/bamr87#858](https://github.com/bamr87/bamr87/pull/858) already proposes § 30, so this section is numbered § 31 to avoid a collision, and may be renumbered if merge order changes); § 14 by reference; PRD § 1; features `HUB-NEW:mission-statements` and `HUB-NEW:about-section-sitemap`; requirements `FR-NEW:mission-statements` and `FR-NEW:about-section-sitemap`; roadmap `FF-NEW:fleet-mission-statements` and `FF-NEW:about-section-sitemap`; UPS-DOC-11; [docs/ABOUT-SECTION.md](../ABOUT-SECTION.md); [docs/FLEET.md](../FLEET.md); [docs/PORTFOLIO.md](../PORTFOLIO.md)
+- **Affects:** constitution § 1 (rewritten to the fleet mission format); constitution new § 31 (follows § 29 `agentic-efficacy-contract`; [bamr87/bamr87#858](https://github.com/bamr87/bamr87/pull/858) already proposes § 30, so this section is numbered § 31 to avoid a collision, and may be renumbered if merge order changes); § 14 by reference; PRD § 1; features `HUB-122` and `HUB-118`; requirements `FR138` and `FR136`; roadmap `FF-0057` and `FF-0056`; UPS-DOC-11; [docs/ABOUT-SECTION.md](../ABOUT-SECTION.md); [docs/FLEET.md](../FLEET.md); [docs/PORTFOLIO.md](../PORTFOLIO.md)
 - **Supersedes:** none
 - **Related:** [fredgar-ai#153](https://github.com/bamr87/fredgar-ai/pull/153) (amendment 0002, first three-mission statement); [law-ai#262](https://github.com/bamr87/law-ai/pull/262) (amendment 0003, same format, plus matching README and AGENTS.md one-liners); the read-only scan of 2026-11-16; portfolio skeleton [docs/PORTFOLIO.md](../PORTFOLIO.md) § 4 and UPS-DOC-10
 
@@ -40,7 +40,7 @@ Add to the constitution, after § 29:
 
 > ## 31. Fleet mission statements and the repository about section
 >
-> _(amendment `mission-and-about-section`, numbered at merge — see the [amendment log](amendments/README.md); follows § 29 `agentic-efficacy-contract`; [bamr87/bamr87#858](https://github.com/bamr87/bamr87/pull/858) proposes § 30, so this section is numbered § 31 to avoid a collision and may be renumbered if merge order changes; extends § 1 and § 14; features `HUB-NEW:mission-statements` and `HUB-NEW:about-section-sitemap`)_
+> _(amendment `mission-and-about-section`, numbered at merge — see the [amendment log](amendments/README.md); follows § 29 `agentic-efficacy-contract`; [bamr87/bamr87#858](https://github.com/bamr87/bamr87/pull/858) proposes § 30, so this section is numbered § 31 to avoid a collision and may be renumbered if merge order changes; extends § 1 and § 14; features `HUB-122` and `HUB-118`)_
 >
 > 1. **Mission statements.** Every governed fleet repo states its purpose in constitution § 1 as one direction statement followed by exactly three numbered missions. The text is adopted only through a numbered amendment, ratified when the maintainer merges the PR (§ 8). Ambition is written as direction, not as a claim of current capability. The first mission provides data, tools, resources and transparency for all stakeholders in that repo's domain, including professionals in the field and the general public, unless a ratified amendment records a documented reason it does not apply (for example a private research repo).
 > 2. **Matching one-liners.** The repo's README tagline and AGENTS.md opening one-liner match that direction and link to constitution § 1.
