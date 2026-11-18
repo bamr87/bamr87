@@ -89,6 +89,11 @@ working `cancel-in-progress` guard cut short queued recon-engine's CI on 4.0
 wasted job-minutes in 14 days (bamr87/bamr87#823). Like the first three it
 suppresses, on a measurement: a record without `waste_min` is never floored.
 
+The priority fallback (an unflagged workflow above `min_priority`) has to clear
+the same floor, on its waste less its superseded (cancelled) minutes, and with
+`fallback_max_waste_pct` that waste must also reach that share of its job-minutes
+(bamr87/bamr87#920, #831, #886): volume alone is not a defect.
+
 Merging matters: the worst offenders are usually BOTH — a workflow that is red
 AND burning 77 minutes a run is one problem, and filing two issues about it (as
 the old split loops did — actions-review filed one, daily-repo-analysis filed
@@ -243,6 +248,7 @@ def load_config(path: Path) -> dict:
         "productive_schedule_pct": cfg.get("productive_schedule_pct", 90),
         "stale_after_days": cfg.get("stale_after_days", 7),
         "min_cost_waste_min": cfg.get("min_cost_waste_min", 15),
+        "fallback_max_waste_pct": cfg.get("fallback_max_waste_pct", 5),
         "billing_block_issue": cfg.get("billing_block_issue", 268),
         # the loop's switch (tools/jev/steps/fleet-pulse/doctor.yml local.switch.config); CI reads
         # vars.FLEET_PULSE_ENABLED on the pulse job instead, so this gates only the local planner
@@ -685,6 +691,27 @@ def is_stale(cand: dict, cfg: dict, now: dt.datetime | None = None) -> bool:
 # --------------------------------------------------------------------------- #
 # guard 5 — the waste floor (reads the size of the waste, not its share)
 # --------------------------------------------------------------------------- #
+def fallback_waste_is_trivial(w: dict, cfg: dict) -> bool:
+    """May an UNFLAGGED workflow skip the priority fallback on the size of its waste?
+
+    The waste that counts is `waste_min` less `cancel_min`: a run cancelled by
+    a newer run in the same concurrency group was superseded, not broken. It is
+    trivial when it is below `min_cost_waste_min` or, when
+    `fallback_max_waste_pct` is set, below that share of the workflow's
+    job-minutes. Like `is_trivial_waste` it needs a measurement: a record
+    without `waste_min` is never skipped, and `min_cost_waste_min: 0` turns the
+    guard off.
+    """
+    floor = float(cfg.get("min_cost_waste_min") or 0)
+    waste = w.get("waste_min")
+    if floor <= 0 or waste is None:
+        return False
+    real = max(0.0, float(waste) - float(w.get("cancel_min") or 0))
+    pct = float(cfg.get("fallback_max_waste_pct") or 0)
+    bar = max(floor, pct / 100.0 * float(w.get("total_min") or 0)) if pct > 0 else floor
+    return real < bar
+
+
 def is_trivial_waste(w: dict, cfg: dict) -> bool:
     """Did this workflow waste too few minutes for a cost flag to earn a slot?
 
@@ -773,6 +800,15 @@ def usage_candidates(usage: dict, cfg: dict, owner: str) -> dict[str, dict]:
             if suppressed or interactive or productive or PR_SIGNALS & set(w.get("flags") or []):
                 continue
             if (w.get("priority") or 0) < cfg["min_priority"]:
+                continue
+            # The fallback ranks on VOLUME, and volume is not a defect: a cheap
+            # gate run on every push and PR clears min_priority while what it
+            # wastes is tiny (markdown-oneline, 12.4 job-min, bamr87/bamr87#920)
+            # or is its own `cancel-in-progress` dropping superseded runs
+            # (drift-check, bamr87/bamr87#831; githubai and bashcrawl CI,
+            # bamr87/bamr87#886). So the fallback has to clear the waste floor
+            # too, on the waste left once superseded minutes are taken out.
+            if fallback_waste_is_trivial(w, cfg):
                 continue
 
         key = marker_key(nwo, path, w.get("workflow", ""))

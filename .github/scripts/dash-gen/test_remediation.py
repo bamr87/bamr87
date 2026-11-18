@@ -618,6 +618,39 @@ def main() -> int:
     check("high-cost-low-value on 6.6 wasted job-min is not queued, not even by the fallback",
           build(triage(), usage(autopilot), cfg=floored) == [])
 
+    # --- the priority fallback clears the floor too (#920, #831, #886) ----- #
+    # Unflagged workflows reach the queue on volume alone. The hub's
+    # markdown-oneline (2026-11-18 snapshot): 398 runs, 458.8 job-min, 12.4
+    # wasted, no flag, priority well over min_priority.
+    print("priority fallback floor:")
+    fb_cfg = dict(CFG, min_cost_waste_min=15, fallback_max_waste_pct=5)
+    oneline = dict(wf("bamr87/bamr87", "markdown-oneline",
+                      ".github/workflows/markdown-oneline.yml", runs=398, flags=[],
+                      avg=1.15, p95=1.0, waste=12.4, total=458.8, priority=40.0,
+                      last_conclusion="success", dispatch_pct=0.0),
+                   cancel_min=3.0, success_rate_pct=97.9, effectiveness_pct=97.3)
+    check("an unflagged workflow that wasted 12.4 job-min is not queued by the fallback",
+          build(triage(), usage(oneline), cfg=fb_cfg) == [])
+    # drift-check: 1744.5 job-min, 239.9 wasted, most of it its own
+    # cancel-in-progress superseding runs; what is left is under 5 %.
+    drift = dict(oneline, workflow="Drift Check", path=".github/workflows/drift-check.yml",
+                 runs=535, total_min=1744.5, waste_min=239.9, priority=60.0)
+    drift["cancel_min"] = 200.0
+    check("superseded minutes do not buy the fallback a slot",
+          build(triage(), usage(drift), cfg=fb_cfg) == [])
+    check("…and with the share off, 39.9 real wasted job-min still queues it",
+          len(build(triage(), usage(drift), cfg=dict(fb_cfg, fallback_max_waste_pct=0))) == 1)
+    # Real waste that is a real share of the minutes keeps its slot.
+    wasteful = dict(oneline, workflow="Heavy", path=".github/workflows/heavy.yml",
+                    total_min=300.0, waste_min=120.0, priority=60.0)
+    wasteful["cancel_min"] = 10.0
+    check("an unflagged workflow wasting 110 of 300 job-min is still queued",
+          len(build(triage(), usage(wasteful), cfg=fb_cfg)) == 1)
+    check("…and min_cost_waste_min: 0 turns the fallback floor off",
+          len(build(triage(), usage(oneline), cfg=dict(fb_cfg, min_cost_waste_min=0))) == 1)
+    check("load_config defaults fallback_max_waste_pct to 5 when absent",
+          remediation.load_config(Path("/nonexistent/fleet.yml")).get("fallback_max_waste_pct") == 5)
+
     # Only the two flags that measure waste. `slow` is latency (a green workflow
     # can be slow and waste nothing), `cron-heavy` is the scheduled share, and
     # correctness is never the floor's business.
