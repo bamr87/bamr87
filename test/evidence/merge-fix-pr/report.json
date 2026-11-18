@@ -1,0 +1,917 @@
+{
+  "id": "merge-fix-pr",
+  "title": "A green, clean fix PR leads the inbox and the Work board and says what merging it clears",
+  "features": [
+    "HUB-003",
+    "HUB-028"
+  ],
+  "path": "test/evidence/merge-fix-pr/scenario.yml",
+  "started": "2026-11-16T09:22:21.216Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "http://127.0.0.1:4630/inbox?q=bashcrawl",
+          "ok": true,
+          "ms": 642
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "main table"
+          },
+          "ok": true,
+          "ms": 16
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "main table tbody tr:has-text('#133')",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "before-inbox",
+          "ok": true,
+          "file": "test/evidence/merge-fix-pr/desktop-before-inbox.png",
+          "ms": 46
+        },
+        {
+          "step": "goto",
+          "arg": "http://127.0.0.1:4630/work?repo=bashcrawl",
+          "ok": true,
+          "ms": 552
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "section[aria-label^='Review lane'] [data-key]"
+          },
+          "ok": true,
+          "ms": 11
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "before_review_order",
+            "script": "(() => { const l = document.querySelector(\"section[aria-label^='Review lane']\"); const keys = [...l.querySelectorAll('[data-key]')].map((e) => e.getAttribute('data-key').replace('pr:bamr87/bashcrawl', '')); const at = (k) => keys.indexOf(k); if (!(at('#133') > at('#127') && at('#133') > at('#134') && at('#133') > at('#137'))) throw new Error(`#133 is not below its symptoms: ${keys.join(' ')}`); l.scrollIntoView({ block: 'start', inline: 'start' }); window.scrollBy(0, -72); return keys.join(' '); })()"
+          },
+          "ok": true,
+          "value": "#127 #136 #134 #137 #135 #133",
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "text=merge to clear",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 4
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "before-work",
+          "ok": true,
+          "file": "test/evidence/merge-fix-pr/desktop-before-work.png",
+          "ms": 28
+        },
+        {
+          "step": "goto",
+          "arg": "http://127.0.0.1:4630/work?repo=bashcrawl&item=pr%3Abamr87%2Fbashcrawl%23133",
+          "ok": true,
+          "ms": 538
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "text=otherwise P2"
+          },
+          "ok": true,
+          "ms": 11
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "text=Merging it clears",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "before-work-drawer",
+          "ok": true,
+          "file": "test/evidence/merge-fix-pr/desktop-before-work-drawer.png",
+          "ms": 28
+        },
+        {
+          "step": "goto",
+          "arg": "/inbox",
+          "ok": true,
+          "ms": 595
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "main table"
+          },
+          "ok": true,
+          "ms": 10
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "main table tbody tr:first-child:has-text('Merge #133: clears CI on main and #127, #134, #137 once their branches are updated')"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "kind_badges_whole",
+            "script": "(() => { const cut = [...document.querySelectorAll('main table tbody td:nth-child(2) .mantine-Badge-label')].filter((l) => l.scrollWidth > l.clientWidth).map((l) => l.innerText); if (cut.length) throw new Error(`truncated kind badges: ${cut.slice(0, 5).join(', ')}`); return document.querySelector('main table tbody tr:first-child td:nth-child(2)').innerText; })()"
+          },
+          "ok": true,
+          "value": "merge",
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "after-inbox-fleet",
+          "ok": true,
+          "file": "test/evidence/merge-fix-pr/desktop-after-inbox-fleet.png",
+          "ms": 47
+        },
+        {
+          "step": "goto",
+          "arg": "/inbox?q=bashcrawl",
+          "ok": true,
+          "ms": 544
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "main table"
+          },
+          "ok": true,
+          "ms": 9
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "main table tbody tr:has-text('latest run failure · fix: #133')"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "main table tbody tr:has-text('PR checks failing · fix: #133')",
+              "min": 3,
+              "max": 3
+            }
+          },
+          "ok": true,
+          "value": 3,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "after-inbox",
+          "ok": true,
+          "file": "test/evidence/merge-fix-pr/desktop-after-inbox.png",
+          "ms": 47
+        },
+        {
+          "step": "goto",
+          "arg": "/work?repo=bashcrawl",
+          "ok": true,
+          "ms": 537
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "section[aria-label^='Review lane'] [data-key]"
+          },
+          "ok": true,
+          "ms": 9
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "after_review_order",
+            "script": "(() => { const l = document.querySelector(\"section[aria-label^='Review lane']\"); const keys = [...l.querySelectorAll('[data-key]')].map((e) => e.getAttribute('data-key').replace('pr:bamr87/bashcrawl', '')); if (keys[0] !== '#133') throw new Error(`the first Review card is ${keys[0]}`); l.scrollIntoView({ block: 'start', inline: 'start' }); window.scrollBy(0, -72); return keys.join(' '); })()"
+          },
+          "ok": true,
+          "value": "#133 #127 #136 #134 #137 #135",
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "section[aria-label^='Review lane'] [data-key='pr:bamr87/bashcrawl#133'] :text('merge to clear')"
+          },
+          "ok": true,
+          "ms": 6
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "after-work",
+          "ok": true,
+          "file": "test/evidence/merge-fix-pr/desktop-after-work.png",
+          "ms": 41
+        },
+        {
+          "step": "goto",
+          "arg": "/work?repo=bashcrawl&view=flow",
+          "ok": true,
+          "ms": 540
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Balance"
+          },
+          "ok": true,
+          "ms": 11
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "text=Merge bashcrawl #133: it clears ci.yml on the tracked branch and #127, #134, #137 once their branches are updated (a verified fix, green and clean)."
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "first_hint",
+            "script": "(() => { const h = [...document.querySelectorAll('main p')].find((e) => e.textContent.startsWith('Merge bashcrawl #133')); const first = [...document.querySelectorAll('main p')].find((e) => /^(Merge |bamr87 has |[a-z0-9.-]+ has )/.test(e.textContent)); if (h !== first) throw new Error(`the first hint is: ${first && first.textContent}`); h.scrollIntoView({ block: 'center' }); return h.textContent; })()"
+          },
+          "ok": true,
+          "value": "Merge bashcrawl #133: it clears ci.yml on the tracked branch and #127, #134, #137 once their branches are updated (a verified fix, green and clean).",
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "after-work-hints",
+          "ok": true,
+          "file": "test/evidence/merge-fix-pr/desktop-after-work-hints.png",
+          "ms": 41
+        },
+        {
+          "step": "goto",
+          "arg": "/work?repo=bashcrawl&item=pr%3Abamr87%2Fbashcrawl%23133",
+          "ok": true,
+          "ms": 541
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "text=Merging it clears"
+          },
+          "ok": true,
+          "ms": 12
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "text=a fix takes the strongest priority among the PRs it clears"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "after-work-drawer",
+          "ok": true,
+          "file": "test/evidence/merge-fix-pr/desktop-after-work-drawer.png",
+          "ms": 43
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/merge-fix-pr/desktop-before-inbox.png",
+        "test/evidence/merge-fix-pr/desktop-before-work.png",
+        "test/evidence/merge-fix-pr/desktop-before-work-drawer.png",
+        "test/evidence/merge-fix-pr/desktop-after-inbox-fleet.png",
+        "test/evidence/merge-fix-pr/desktop-after-inbox.png",
+        "test/evidence/merge-fix-pr/desktop-after-work.png",
+        "test/evidence/merge-fix-pr/desktop-after-work-hints.png",
+        "test/evidence/merge-fix-pr/desktop-after-work-drawer.png"
+      ],
+      "evals": {
+        "before_review_order": "#127 #136 #134 #137 #135 #133",
+        "kind_badges_whole": "merge",
+        "after_review_order": "#133 #127 #136 #134 #137 #135",
+        "first_hint": "Merge bashcrawl #133: it clears ci.yml on the tracked branch and #127, #134, #137 once their branches are updated (a verified fix, green and clean)."
+      },
+      "final_url": "http://127.0.0.1:4631/work/?repo=bashcrawl&item=pr%3Abamr87%2Fbashcrawl%23133"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "http://127.0.0.1:4630/inbox?q=bashcrawl",
+          "ok": true,
+          "ms": 618
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "main table"
+          },
+          "ok": true,
+          "ms": 11
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "main table tbody tr:has-text('#133')",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "before-inbox",
+          "ok": true,
+          "file": "test/evidence/merge-fix-pr/mobile-before-inbox.png",
+          "ms": 18
+        },
+        {
+          "step": "goto",
+          "arg": "http://127.0.0.1:4630/work?repo=bashcrawl",
+          "ok": true,
+          "ms": 547
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "section[aria-label^='Review lane'] [data-key]"
+          },
+          "ok": true,
+          "ms": 10
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "before_review_order",
+            "script": "(() => { const l = document.querySelector(\"section[aria-label^='Review lane']\"); const keys = [...l.querySelectorAll('[data-key]')].map((e) => e.getAttribute('data-key').replace('pr:bamr87/bashcrawl', '')); const at = (k) => keys.indexOf(k); if (!(at('#133') > at('#127') && at('#133') > at('#134') && at('#133') > at('#137'))) throw new Error(`#133 is not below its symptoms: ${keys.join(' ')}`); l.scrollIntoView({ block: 'start', inline: 'start' }); window.scrollBy(0, -72); return keys.join(' '); })()"
+          },
+          "ok": true,
+          "value": "#127 #136 #134 #137 #135 #133",
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "text=merge to clear",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "before-work",
+          "ok": true,
+          "file": "test/evidence/merge-fix-pr/mobile-before-work.png",
+          "ms": 22
+        },
+        {
+          "step": "goto",
+          "arg": "http://127.0.0.1:4630/work?repo=bashcrawl&item=pr%3Abamr87%2Fbashcrawl%23133",
+          "ok": true,
+          "ms": 536
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "text=otherwise P2"
+          },
+          "ok": true,
+          "ms": 10
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "text=Merging it clears",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "before-work-drawer",
+          "ok": true,
+          "file": "test/evidence/merge-fix-pr/mobile-before-work-drawer.png",
+          "ms": 15
+        },
+        {
+          "step": "goto",
+          "arg": "/inbox",
+          "ok": true,
+          "ms": 589
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "main table"
+          },
+          "ok": true,
+          "ms": 10
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "main table tbody tr:first-child:has-text('Merge #133: clears CI on main and #127, #134, #137 once their branches are updated')"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "kind_badges_whole",
+            "script": "(() => { const cut = [...document.querySelectorAll('main table tbody td:nth-child(2) .mantine-Badge-label')].filter((l) => l.scrollWidth > l.clientWidth).map((l) => l.innerText); if (cut.length) throw new Error(`truncated kind badges: ${cut.slice(0, 5).join(', ')}`); return document.querySelector('main table tbody tr:first-child td:nth-child(2)').innerText; })()"
+          },
+          "ok": true,
+          "value": "merge",
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "after-inbox-fleet",
+          "ok": true,
+          "file": "test/evidence/merge-fix-pr/mobile-after-inbox-fleet.png",
+          "ms": 27
+        },
+        {
+          "step": "goto",
+          "arg": "/inbox?q=bashcrawl",
+          "ok": true,
+          "ms": 541
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "main table"
+          },
+          "ok": true,
+          "ms": 9
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "main table tbody tr:has-text('latest run failure · fix: #133')"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "main table tbody tr:has-text('PR checks failing · fix: #133')",
+              "min": 3,
+              "max": 3
+            }
+          },
+          "ok": true,
+          "value": 3,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "after-inbox",
+          "ok": true,
+          "file": "test/evidence/merge-fix-pr/mobile-after-inbox.png",
+          "ms": 28
+        },
+        {
+          "step": "goto",
+          "arg": "/work?repo=bashcrawl",
+          "ok": true,
+          "ms": 536
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "section[aria-label^='Review lane'] [data-key]"
+          },
+          "ok": true,
+          "ms": 11
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "after_review_order",
+            "script": "(() => { const l = document.querySelector(\"section[aria-label^='Review lane']\"); const keys = [...l.querySelectorAll('[data-key]')].map((e) => e.getAttribute('data-key').replace('pr:bamr87/bashcrawl', '')); if (keys[0] !== '#133') throw new Error(`the first Review card is ${keys[0]}`); l.scrollIntoView({ block: 'start', inline: 'start' }); window.scrollBy(0, -72); return keys.join(' '); })()"
+          },
+          "ok": true,
+          "value": "#133 #127 #136 #134 #137 #135",
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "section[aria-label^='Review lane'] [data-key='pr:bamr87/bashcrawl#133'] :text('merge to clear')"
+          },
+          "ok": true,
+          "ms": 6
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "after-work",
+          "ok": true,
+          "file": "test/evidence/merge-fix-pr/mobile-after-work.png",
+          "ms": 27
+        },
+        {
+          "step": "goto",
+          "arg": "/work?repo=bashcrawl&view=flow",
+          "ok": true,
+          "ms": 539
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Balance"
+          },
+          "ok": true,
+          "ms": 10
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "text=Merge bashcrawl #133: it clears ci.yml on the tracked branch and #127, #134, #137 once their branches are updated (a verified fix, green and clean)."
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "first_hint",
+            "script": "(() => { const h = [...document.querySelectorAll('main p')].find((e) => e.textContent.startsWith('Merge bashcrawl #133')); const first = [...document.querySelectorAll('main p')].find((e) => /^(Merge |bamr87 has |[a-z0-9.-]+ has )/.test(e.textContent)); if (h !== first) throw new Error(`the first hint is: ${first && first.textContent}`); h.scrollIntoView({ block: 'center' }); return h.textContent; })()"
+          },
+          "ok": true,
+          "value": "Merge bashcrawl #133: it clears ci.yml on the tracked branch and #127, #134, #137 once their branches are updated (a verified fix, green and clean).",
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "after-work-hints",
+          "ok": true,
+          "file": "test/evidence/merge-fix-pr/mobile-after-work-hints.png",
+          "ms": 12
+        },
+        {
+          "step": "goto",
+          "arg": "/work?repo=bashcrawl&item=pr%3Abamr87%2Fbashcrawl%23133",
+          "ok": true,
+          "ms": 534
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "text=Merging it clears"
+          },
+          "ok": true,
+          "ms": 10
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "text=a fix takes the strongest priority among the PRs it clears"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "after-work-drawer",
+          "ok": true,
+          "file": "test/evidence/merge-fix-pr/mobile-after-work-drawer.png",
+          "ms": 22
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/merge-fix-pr/mobile-before-inbox.png",
+        "test/evidence/merge-fix-pr/mobile-before-work.png",
+        "test/evidence/merge-fix-pr/mobile-before-work-drawer.png",
+        "test/evidence/merge-fix-pr/mobile-after-inbox-fleet.png",
+        "test/evidence/merge-fix-pr/mobile-after-inbox.png",
+        "test/evidence/merge-fix-pr/mobile-after-work.png",
+        "test/evidence/merge-fix-pr/mobile-after-work-hints.png",
+        "test/evidence/merge-fix-pr/mobile-after-work-drawer.png"
+      ],
+      "evals": {
+        "before_review_order": "#127 #136 #134 #137 #135 #133",
+        "kind_badges_whole": "merge",
+        "after_review_order": "#133 #127 #136 #134 #137 #135",
+        "first_hint": "Merge bashcrawl #133: it clears ci.yml on the tracked branch and #127, #134, #137 once their branches are updated (a verified fix, green and clean)."
+      },
+      "final_url": "http://127.0.0.1:4631/work/?repo=bashcrawl&item=pr%3Abamr87%2Fbashcrawl%23133"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-11-16T09:22:30.981Z",
+  "base": "http://127.0.0.1:4631"
+}

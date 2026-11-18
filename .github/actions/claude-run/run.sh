@@ -19,13 +19,16 @@
 #                     [--permission-mode acceptEdits|default|plan]
 #   echo "..." | scripts/ai/run.sh            # stdin prompt
 #
-# Auth (either works for the primary Claude Code path):
+# Auth — OAuth only for now (2026-11-15): ANTHROPIC_API_KEY is unset below and
+# `api_key` is dropped from the order, so neither the Claude Code path nor the
+# Claude API fallback ever uses the key. To restore, delete the OAuth-only
+# block below and set the default order back to `oauth,api_key`. Otherwise:
 #   CLAUDE_CODE_OAUTH_TOKEN — a Claude Code token from `claude setup-token`
 #                             (subscription auth; method `oauth`).
 #   ANTHROPIC_API_KEY       — a pay-per-use API key (method `api_key`); ALSO the
 #                             only credential the Claude API fallback can use.
 #   AI_AUTH_ORDER           — the order to try them in, e.g. `api_key,oauth`
-#                             (default `oauth,api_key`; CLAUDE_AUTH_ORDER is read
+#                             (default `oauth`; CLAUDE_AUTH_ORDER is read
 #                             when AI_AUTH_ORDER is unset). Each method runs with
 #                             ONLY its own credential in the CLI's environment,
 #                             and a method whose call is REFUSED (rejected
@@ -89,11 +92,21 @@ if [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && [ -z "${ANTHROPIC_API_KEY:-}" ]; the
 fi
 [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] || unset CLAUDE_CODE_OAUTH_TOKEN
 
+# Claude auth: OAuth only (CLAUDE_CODE_OAUTH_TOKEN). ANTHROPIC_API_KEY disabled
+# for now (2026-11-15); to restore, delete this block and re-add the
+# secrets.ANTHROPIC_API_KEY reference to the caller's env.
+if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+  echo "[ai] ANTHROPIC_API_KEY is disabled for now (OAuth only) — ignoring it" >&2
+fi
+unset ANTHROPIC_API_KEY
+
 # The methods to try, in order, keeping only those whose credential is present.
 # Empty = nothing in the environment: the CLI's own stored login is used (a
 # human running a skill locally), exactly as before this knob existed.
 AUTH_ORDER="$(printf '%s' "${AI_AUTH_ORDER:-${CLAUDE_AUTH_ORDER:-}}" | tr -d '[:space:]')"
-[ -n "$AUTH_ORDER" ] || AUTH_ORDER="oauth,api_key"
+# OAuth only for now: `api_key` leaves the order (part of the block above).
+AUTH_ORDER="$(printf '%s' ",$AUTH_ORDER," | sed -e ':a' -e 's/,api_key,/,/' -e 'ta' -e 's/^,*//' -e 's/,*$//')"
+[ -n "$AUTH_ORDER" ] || AUTH_ORDER="oauth"
 auth_methods=()
 IFS=, read -r -a _order <<<"$AUTH_ORDER"
 for _m in "${_order[@]}"; do

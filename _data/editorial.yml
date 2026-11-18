@@ -134,8 +134,9 @@ sites:
         target_share: 0.25
         status: active
         match:
-          sections: [erp]
-          tags: [erp, accounting, quickbooks, erp-implementation, segregation-of-duties]
+          sections: [erp, erp-systems, finance-technology]
+          tags: [erp, accounting, quickbooks, erp-implementation, segregation-of-duties, erp-systems, fintech, r2r, close-automation, reconciliation, accounting-systems, financial-automation, financial-reporting]
+          paths: [pages/_case-studies/] # untagged; every case study is an ERP or finance-system project
       - id: data-bi
         title: Data and BI
         target_share: 0.2

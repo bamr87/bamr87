@@ -24,6 +24,25 @@ prioritized "inbox" of the items most worth acting on. The result is written
 to a COMMITTED data file — _data/fleet_triage.yml — rendered by the dash's
 /triage/ portal page, so the fleet backlog is reviewable (and diffable) daily.
 
+A failing workflow is also LINKED to the open PRs that fix it (FF-0036,
+bamr87/bamr87#609). For each repo with a failing tracked-branch workflow, up to
+--fix-pr-cap open, non-draft PRs with passing head checks are graded:
+
+  verified  a run of the failing workflow on the PR's head SHA, newer than the
+            branch's latest failure, in which every job that failed on the
+            branch ran and passed (a job skipped by an `if:` does not count);
+  doctor    the PR body carries the fleet doctor's marker for that workflow;
+  weak      the PR touches the workflow file, its title starts fix(ci): or
+            ci:, or its branch fix/ci (a scoped ci(claude): is no fix claim).
+
+A verified or doctor fix that is green and `clean` (mergeable_state, read from
+the single-PR GET, retried once) becomes ONE inbox item of kind `merge` at
+priority 95 — "Merge #133: clears CI on main and #127, #134, #137 once their
+branches are updated". The items it covers keep their rank and gain "fix: #133";
+weak evidence only annotates. Every call is a GET, made only for repos with a
+failing workflow, capped per repo and counted in `fix_links`; merging stays a
+human's call (constitution § 12).
+
 External mirrors (e.g. microsoft/skills) are shown per-repo but excluded from
 fleet totals, attention scores, and the inbox — their backlog isn't ours.
 
@@ -34,10 +53,13 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import itertools
+import re
 import sys
 from pathlib import Path
 
 import actions_analytics  # owner_repo, resolve_token, as_utc
+import remediation  # MARKER_RE, marker_key: the fleet doctor's marker (`doctor` fix evidence)
 
 try:
     import yaml
@@ -78,6 +100,22 @@ ITEMS_CAP = 30          # issue/PR items stored per repo (counts stay exact)
 INBOX_CAP = 150         # unified queue length
 FAILING_RUNS_SCAN = 80  # newest runs scanned per repo for latest-per-workflow
 
+# The inbox's priority per kind. fleetcore.fleet.PRIORITY mirrors it for the
+# per-repo drill-down, and tools/test_fleetcore.py holds the two equal.
+PRIORITY = {"merge": 95, "workflow": 90, "pr_failing": 70, "bug": 60, "pr_idle": 55, "issue": 40}
+
+# FF-0036 — a failing workflow's candidate fix PRs.
+FIX_TIERS = ("verified", "doctor", "weak")  # strongest first
+FIX_PR_CAP = 5        # default --fix-pr-cap: PRs graded, and extra CI reads, per repo
+FIX_PAGE = 100        # one page per list read (runs on a head SHA, a run's jobs, a PR's files)
+MERGE_READY = "clean"  # the only mergeable_state that makes a merge item
+# `weak` evidence: a title or branch that CLAIMS to fix CI — `fix(ci):` / `ci:`,
+# `fix/ci-…`. A scoped `ci(claude):` on a `ci/…` branch is a CI change, not a
+# fix claim: the fleet-wide harness PRs open in most repos carry exactly that,
+# and matched every red in the first live run.
+WEAK_TITLE_RX = re.compile(r"^\s*(?:fix\(ci\)|ci)!?:", re.IGNORECASE)
+WEAK_BRANCH_RX = re.compile(r"^fix[/_-]ci(?:[/_-]|$)", re.IGNORECASE)
+
 
 def now_utc() -> dt.datetime:
     return dt.datetime.now(dt.timezone.utc)
@@ -116,22 +154,28 @@ def ensure_hub(registry: list[dict]) -> list[dict]:
 # --------------------------------------------------------------------------- #
 # per-repo collection
 # --------------------------------------------------------------------------- #
-def pr_ci_state(repo, sha: str) -> str:
-    """Reduce a head commit's check runs to pass|fail|pending|none."""
+def pr_checks(repo, sha: str) -> tuple[str, list[str]]:
+    """A head commit's check runs → (pass|fail|pending|none, the failing runs' names).
+
+    The names cost nothing extra — the runs are read here anyway — and they are
+    what links a red PR to the branch failure it inherited (FF-0036): a PR that
+    fails only jobs that also failed on the tracked branch turns green once a
+    fix merges and its branch is updated. ("", []) when the runs can't be read.
+    """
     from github.GithubException import GithubException
 
     try:
         runs = list(repo.get_commit(sha).get_check_runs())
     except GithubException:
-        return ""
+        return "", []
     if not runs:
-        return "none"
-    concl = [(r.conclusion or "") for r in runs]
-    if any(c in ("failure", "timed_out", "startup_failure") for c in concl):
-        return "fail"
+        return "none", []
+    failing = sorted({r.name for r in runs if (r.conclusion or "") in FAILING_CONCLUSIONS})
+    if failing:
+        return "fail", failing
     if any(r.status != "completed" for r in runs):
-        return "pending"
-    return "pass"
+        return "pending", []
+    return "pass", []
 
 
 def tracked_branch(project: dict, repo) -> str:
@@ -148,7 +192,8 @@ def tracked_branch(project: dict, repo) -> str:
     return str(getattr(repo, "default_branch", "") or "") or "main"
 
 
-def latest_runs_on_branch(runs, branch: str, scan_cap: int = FAILING_RUNS_SCAN) -> dict[str, dict]:
+def latest_runs_on_branch(runs, branch: str, scan_cap: int = FAILING_RUNS_SCAN,
+                          objects: dict | None = None) -> dict[str, dict]:
     """Latest completed conclusion per workflow path, tracked branch only.
 
     `runs` is newest-first, so the first completed run seen for a path is that
@@ -156,6 +201,9 @@ def latest_runs_on_branch(runs, branch: str, scan_cap: int = FAILING_RUNS_SCAN) 
     head_branch or event is kept — because the failure mode of this filter is
     silently dropping every run and reporting the fleet permanently green
     (see the converse assertion in test_fleet_triage.py).
+
+    `objects`, when given, receives the run object behind each verdict, keyed
+    the same way — the fix-PR link reads a failing run's jobs and its time.
     """
     latest: dict[str, dict] = {}
     seen = 0
@@ -182,10 +230,216 @@ def latest_runs_on_branch(runs, branch: str, scan_cap: int = FAILING_RUNS_SCAN) 
             "run_at": created.strftime("%Y-%m-%d %H:%M UTC") if created else "?",
             "run_age_days": (now_utc() - created).days if created else None,
         }
+        if objects is not None:
+            objects[key] = run
     return latest
 
 
-def collect_repo(gh, project: dict, th: dict, pr_ci_cap: int) -> dict | None:
+# --------------------------------------------------------------------------- #
+# fix-PR linking (FF-0036, bamr87/bamr87#609)
+# --------------------------------------------------------------------------- #
+def _page(paginated) -> list:
+    """The first page of a PyGithub list — one request (the client pages at 100)."""
+    return list(itertools.islice(paginated, FIX_PAGE))
+
+
+def _run_path(run) -> str:
+    return str(getattr(run, "path", "") or "").split("@", 1)[0]
+
+
+def newest_run_after(runs, path: str, after: dt.datetime | None):
+    """The newest COMPLETED run of `path` created after `after` (the branch's
+    latest failure), else None. An unknown failure time verifies nothing: a
+    run that may predate the failure says nothing about fixing it."""
+    if after is None:
+        return None
+    best, best_at = None, None
+    for run in runs:
+        if _run_path(run) != path or run.status != "completed":
+            continue
+        at = actions_analytics.as_utc(run.created_at)
+        if at is None or at <= after:
+            continue
+        if best_at is None or at > best_at:
+            best, best_at = run, at
+    return best
+
+
+def jobs_passed(jobs, failed: set[str]) -> bool:
+    """Every job that failed on the branch RAN in this run and passed.
+
+    Skipped is not passed: a job gated to `push` or `schedule` is skipped on a
+    pull_request run, and counting that as a pass would call any green docs
+    PR a fix. A job missing from the run fails the check the same way.
+    """
+    seen: dict[str, list[str]] = {}
+    for job in jobs:
+        seen.setdefault(job.name, []).append(job.conclusion or "")
+    return bool(failed) and all(seen.get(name) and all(c == "success" for c in seen[name])
+                                for name in failed)
+
+
+def symptom_prs(failed: set[str], checks: dict[int, tuple[str, list[str]]]) -> list[str]:
+    """`#N` of every open PR whose failing checks are ALL jobs that failed on the
+    branch — red only because its base is, so it turns green once the fix merges
+    and its branch is updated. A PR failing anything else of its own is left out:
+    'clears' must not promise what the fix cannot deliver."""
+    if not failed:
+        return []
+    return [f"#{n}" for n, (state, names) in sorted(checks.items())
+            if state == "fail" and names and set(names) <= failed]
+
+
+def weak_signal(pr) -> bool:
+    """A `fix(ci):`/`ci:` title or a `fix/ci…` branch — says it fixes CI, proves nothing."""
+    head = getattr(pr, "head", None)
+    ref = str(getattr(head, "ref", "") or "")
+    return bool(WEAK_TITLE_RX.search(pr.title or "") or WEAK_BRANCH_RX.search(ref))
+
+
+def read_mergeable_state(repo, number: int) -> tuple[str, int]:
+    """mergeable_state from the single-PR GET (the list endpoint omits it).
+
+    GitHub computes it lazily, so null or `unknown` on the first read is
+    normal: read once more, then report `unknown` — never loop. Returns the
+    state and the requests spent.
+    """
+    from github.GithubException import GithubException
+
+    state, spent = None, 0
+    for _ in range(2):
+        spent += 1
+        try:
+            state = repo.get_pull(number).mergeable_state
+        except GithubException:
+            state = None
+        if state and state != "unknown":
+            break
+    return (state or "unknown"), spent
+
+
+def link_fix_prs(repo, nwo: str, failing: list[dict], run_objs: dict, prs: list,
+                 checks: dict[int, tuple[str, list[str]]], branch: str, cap: int) -> dict:
+    """Grade open PRs as candidate fixes for this repo's failing workflows.
+
+    Mutates `failing`: each entry whose run could be read gains `branch`,
+    `failed_jobs` and `fix_prs` (strongest evidence, then oldest). `checks`
+    (PR number → pr_checks()) gains the extra reads. Returns the PR-level
+    record of every verified/doctor fix (`fixes`) and what the link spent.
+    GET requests only.
+    """
+    from github.GithubException import GithubException
+
+    spent = 0
+    targets: list[tuple[dict, dt.datetime | None, set[str]]] = []
+    for wf in failing:
+        path = wf.get("path") or ""
+        run = run_objs.get(path or wf.get("workflow"))
+        # Dynamic "workflows" (dependabot updates, Codespaces prebuilds) have no
+        # file a PR could change and no run on a PR head to verify against.
+        if run is None or not path.startswith(".github/workflows/"):
+            continue
+        spent += 1
+        try:
+            jobs = _page(run.jobs())
+        except GithubException:
+            jobs = []
+        failed = sorted({j.name for j in jobs if (j.conclusion or "") in FAILING_CONCLUSIONS})
+        wf.update(branch=branch, failed_jobs=failed, fix_prs=[])
+        targets.append((wf, actions_analytics.as_utc(run.created_at), set(failed)))
+    if not targets:
+        return {"requests": spent, "graded": 0, "fixes": {}}
+
+    # Candidates: open, non-draft, passing head checks — read past --pr-ci-cap
+    # when needed, under `cap` extra reads and `cap` graded PRs.
+    candidates, extra = [], 0
+    for pr in prs:
+        if pr.draft or len(candidates) >= cap:
+            continue
+        if pr.number not in checks:
+            if extra >= cap:
+                continue
+            extra += 1
+            spent += 1
+            checks[pr.number] = pr_checks(repo, pr.head.sha)
+        if checks[pr.number][0] == "pass":
+            candidates.append(pr)
+
+    grades: dict[int, list[tuple[dict, str]]] = {}
+    job_cache: dict = {}
+    for pr in candidates:
+        keys = set(remediation.MARKER_RE.findall(pr.body or ""))
+        runs = files = None
+        for wf, failure_at, failed in targets:
+            tier = None
+            if failed and failure_at is not None:
+                if runs is None:
+                    spent += 1
+                    try:
+                        runs = _page(repo.get_workflow_runs(head_sha=pr.head.sha))
+                    except GithubException:
+                        runs = []
+                run = newest_run_after(runs, wf["path"], failure_at)
+                if run is not None:
+                    if run.id not in job_cache:
+                        spent += 1
+                        try:
+                            job_cache[run.id] = _page(run.jobs())
+                        except GithubException:
+                            job_cache[run.id] = []
+                    if jobs_passed(job_cache[run.id], failed):
+                        tier = "verified"
+            if tier is None and remediation.marker_key(nwo, wf["path"], wf.get("workflow", "")) in keys:
+                tier = "doctor"
+            if tier is None and weak_signal(pr):
+                tier = "weak"
+            if tier is None:
+                if files is None:
+                    spent += 1
+                    try:
+                        files = {f.filename for f in _page(pr.get_files())}
+                    except GithubException:
+                        files = set()
+                if wf["path"] in files:
+                    tier = "weak"
+            if tier:
+                grades.setdefault(pr.number, []).append((wf, tier))
+
+    fixes: dict[int, dict] = {}
+    symptoms = {id(wf): symptom_prs(failed, checks) for wf, _at, failed in targets}
+    for pr in candidates:
+        rows = grades.get(pr.number) or []
+        strong = [(wf, t) for wf, t in rows if t != "weak"]
+        state = None
+        if strong:
+            state, used = read_mergeable_state(repo, pr.number)
+            spent += used
+        for wf, tier in rows:
+            wf["fix_prs"].append({
+                "number": pr.number,
+                "title": (pr.title or "")[:110],
+                "url": pr.html_url,
+                "age_days": age_days(pr.created_at),
+                "evidence": tier,
+                "mergeable_state": state if tier != "weak" else None,
+                "ready": tier != "weak" and state == MERGE_READY,
+                "clears": list(symptoms[id(wf)]) if tier != "weak" else [],
+            })
+        if strong:
+            cleared = sorted({c for wf, _t in strong for c in symptoms[id(wf)]}, key=lambda c: int(c[1:]))
+            fixes[pr.number] = {
+                "clears": [wf["path"] for wf, _t in strong] + cleared,
+                "fix_evidence": min((t for _wf, t in strong), key=FIX_TIERS.index),
+                "mergeable_state": state,
+                "merge_ready": state == MERGE_READY,
+            }
+    for wf, _at, _failed in targets:
+        wf["fix_prs"].sort(key=lambda f: (FIX_TIERS.index(f["evidence"]), -(f["age_days"] or 0), f["number"]))
+    return {"requests": spent, "graded": len(candidates), "fixes": fixes}
+
+
+def collect_repo(gh, project: dict, th: dict, pr_ci_cap: int,
+                 fix_pr_cap: int = FIX_PR_CAP) -> dict | None:
     """Inventory one repo's open state. None when the repo can't be read."""
     from github.GithubException import GithubException
 
@@ -257,8 +511,11 @@ def collect_repo(gh, project: dict, th: dict, pr_ci_cap: int) -> dict | None:
 
     # --- open PRs ------------------------------------------------------------
     rec["_pr_flags"] = []
+    prs: list = []
+    # PR number → pr_checks(): the state AND the failing check names, which the
+    # fix-PR link below matches against a branch failure's jobs.
+    checks: dict[int, tuple[str, list[str]]] = {}
     try:
-        prs = []
         for pr in repo.get_pulls(state="open", sort="updated", direction="desc"):
             rec["prs"]["open"] += 1
             if len(prs) < 200:
@@ -274,7 +531,8 @@ def collect_repo(gh, project: dict, th: dict, pr_ci_cap: int) -> dict | None:
             rec["prs"]["stale"] += 1 if stale else 0
             ci = ""
             if not external and not pr.draft and ci_checked < pr_ci_cap:
-                ci = pr_ci_state(repo, pr.head.sha)
+                checks[pr.number] = pr_checks(repo, pr.head.sha)
+                ci = checks[pr.number][0]
                 ci_checked += 1
             if ci == "fail":
                 rec["prs"]["ci_failing"] += 1
@@ -309,6 +567,8 @@ def collect_repo(gh, project: dict, th: dict, pr_ci_cap: int) -> dict | None:
         )
     except GithubException:
         pass
+    run_objs: dict = {}
+    branch = ""
     if not external:
         try:
             branch = tracked_branch(project, repo)
@@ -317,7 +577,7 @@ def collect_repo(gh, project: dict, th: dict, pr_ci_cap: int) -> dict | None:
             # FAILING_RUNS_SCAN budget, which is what let a busy repo's
             # main-only workflows fall off the scan entirely.
             latest = latest_runs_on_branch(
-                repo.get_workflow_runs(branch=branch), branch
+                repo.get_workflow_runs(branch=branch), branch, objects=run_objs
             )
             stale_after = th.get("stale_failure_days", DEFAULT_THRESHOLDS["stale_failure_days"])
             rec["workflows"]["failing"] = [
@@ -328,6 +588,23 @@ def collect_repo(gh, project: dict, th: dict, pr_ci_cap: int) -> dict | None:
             ]
         except GithubException:
             pass
+
+    # --- fix-PR link (FF-0036): only a repo with a failing workflow pays for it,
+    # and an archived one has no merge to make.
+    rec["_fix_stats"] = {"requests": 0, "graded": 0, "linked": False}
+    if rec["workflows"]["failing"] and fix_pr_cap > 0 and not rec["archived"]:
+        try:
+            link = link_fix_prs(repo, nwo, rec["workflows"]["failing"], run_objs, prs, checks,
+                                branch, fix_pr_cap)
+        except Exception as exc:  # the link is advisory: it must never cost the repo its record
+            sys.stderr.write(f"    ! {nwo}: fix-PR link skipped: {type(exc).__name__}: {exc}\n")
+            for wf in rec["workflows"]["failing"]:  # no half-written link survives
+                for key in ("branch", "failed_jobs", "fix_prs"):
+                    wf.pop(key, None)
+        else:
+            rec["_fix_stats"] = {"requests": link["requests"], "graded": link["graded"], "linked": True}
+            for item in rec["prs"]["items"]:
+                item.update(link["fixes"].get(item["number"]) or {})
 
     score_attention(rec)
     return rec
@@ -367,12 +644,84 @@ def score_attention(rec: dict) -> None:
 # --------------------------------------------------------------------------- #
 # report assembly
 # --------------------------------------------------------------------------- #
+def _num(ref: str) -> int:
+    return int(ref[1:]) if ref[1:].isdigit() else 0
+
+
+def merge_plan(r: dict) -> tuple[list[dict], dict[str, str]]:
+    """One repo's merge items, and the note each item they cover gains (FF-0036).
+
+    Pure over the persisted `workflows.failing[].fix_prs` shape, so
+    fleetcore.fleet.repo_items rebuilds the same items from the committed
+    snapshot (tools/test_fleetcore.py holds the two equal). Each failing
+    workflow picks ONE subject — its strongest, then oldest, verified or
+    doctor fix that is green and clean — so the inbox never shows two merge
+    items for the same red; a PR that is the subject for two reds is one item.
+    Notes are keyed by item ref: `fix: #N` (with the state when it is not
+    clean) on the workflow and the PRs it clears, `possible fix: #N` from weak
+    evidence on the workflow alone.
+    """
+    groups: dict[int, dict] = {}
+    notes: dict[str, str] = {}
+    for wf in (r.get("workflows") or {}).get("failing") or []:
+        ref = str(wf.get("path") or wf.get("workflow") or "?")
+        fixes = [f for f in wf.get("fix_prs") or [] if isinstance(f, dict) and f.get("number")]
+        strong = [f for f in fixes if f.get("evidence") in ("verified", "doctor")]
+        ready = [f for f in strong if f.get("ready")]
+        if ready:
+            top = ready[0]
+            g = groups.setdefault(top["number"], {"fix": top, "wfs": [], "prs": set(), "tiers": set(),
+                                                  "also": set()})
+            g["wfs"].append(wf)
+            g["prs"].update(top.get("clears") or [])
+            g["tiers"].add(top.get("evidence"))
+            g["also"].update(f["number"] for f in ready[1:])
+            note = f"fix: #{top['number']}"
+        elif strong:
+            top = strong[0]
+            note = f"fix: #{top['number']} ({top.get('mergeable_state') or 'unknown'})"
+        elif fixes:
+            notes[ref] = "possible fix: " + ", ".join(f"#{f['number']}" for f in fixes)
+            continue
+        else:
+            continue
+        notes[ref] = note
+        for c in top.get("clears") or []:
+            notes.setdefault(c, note)
+    merges: list[dict] = []
+    for number, g in groups.items():
+        fix = g["fix"]
+        wf_refs = [str(w.get("path") or w.get("workflow") or "?") for w in g["wfs"]]
+        names = " + ".join(str(w.get("workflow") or w.get("path") or "?") for w in g["wfs"])
+        prs = sorted(g["prs"], key=_num)
+        why = f"Merge #{number}: clears {names} on {g['wfs'][0].get('branch') or 'the tracked branch'}"
+        if prs:
+            why += (f" and {', '.join(prs)} once "
+                    + ("their branches are updated" if len(prs) > 1 else "its branch is updated"))
+        also = sorted(g["also"] - {number})
+        if also:
+            why += " · also ready: " + ", ".join(f"#{n}" for n in also)
+        merges.append({
+            "kind": "merge", "repo": r.get("name"), "nwo": r.get("nwo"), "ref": f"#{number}",
+            "title": fix.get("title") or "", "why": why, "age_days": fix.get("age_days"),
+            "url": fix.get("url") or "", "priority": PRIORITY["merge"],
+            "clears": wf_refs + prs,
+            "evidence": min(g["tiers"], key=FIX_TIERS.index),
+        })
+    return merges, notes
+
+
+def _noted(why: str, note: str | None) -> str:
+    return f"{why} · {note}" if note else why
+
+
 def build_inbox(repos: list[dict]) -> list[dict]:
     """One prioritized queue across the fleet (bamr87-owned repos only).
 
     Consumes the _issue_flags/_pr_flags candidate lists gathered over the FULL
     iteration (not the ITEMS_CAP display lists), so capped repos still surface
-    their oldest flagged items.
+    their oldest flagged items. A merge-ready fix PR (merge_plan) leads its
+    repo's items at 95, and replaces that PR's own idle row.
     """
     inbox: list[dict] = []
     for r in repos:
@@ -381,28 +730,35 @@ def build_inbox(repos: list[dict]) -> list[dict]:
         # sit at the top of the queue forever with no lever behind it.
         if r["external"] or r.get("archived"):
             continue
+        merges, notes = merge_plan(r)
+        inbox.extend(merges)
+        subjects = {m["ref"] for m in merges}
         for f in r["workflows"]["failing"]:
+            ref = f["path"] or f["workflow"]
             inbox.append({
                 "kind": "workflow", "repo": r["name"], "nwo": r["nwo"],
-                "ref": f["path"] or f["workflow"], "title": f["workflow"],
-                "why": f"latest run {f['conclusion']}", "age_days": None,
-                "url": f["run_url"], "priority": 90,
+                "ref": ref, "title": f["workflow"],
+                "why": _noted(f"latest run {f['conclusion']}", notes.get(ref)), "age_days": None,
+                "url": f["run_url"], "priority": PRIORITY["workflow"],
             })
         for p in r.get("_pr_flags", []):
+            ref = f"#{p['number']}"
+            if ref in subjects:
+                continue
             if p["ci"] == "fail":
-                pri, why = 70, "PR checks failing"
+                pri, why = PRIORITY["pr_failing"], "PR checks failing"
             else:
-                pri, why = 55, f"PR idle {p['idle_days']}d"
+                pri, why = PRIORITY["pr_idle"], f"PR idle {p['idle_days']}d"
             inbox.append({
                 "kind": "pr", "repo": r["name"], "nwo": r["nwo"],
-                "ref": f"#{p['number']}", "title": p["title"], "why": why,
+                "ref": ref, "title": p["title"], "why": _noted(why, notes.get(ref)),
                 "age_days": p["age_days"], "url": p["url"], "priority": pri,
             })
         for i in r.get("_issue_flags", []):
             if i["bug"]:
-                pri, why = 60, "bug label"
+                pri, why = PRIORITY["bug"], "bug label"
             else:
-                pri, why = 40, f"issue idle {i['idle_days']}d"
+                pri, why = PRIORITY["issue"], f"issue idle {i['idle_days']}d"
             inbox.append({
                 "kind": "issue", "repo": r["name"], "nwo": r["nwo"],
                 "ref": f"#{i['number']}", "title": i["title"], "why": why,
@@ -417,7 +773,21 @@ def blind_snapshot(rep: dict) -> bool:
     return rep.get("repos_scanned", 0) == 0 and bool(rep.get("repos_unreachable"))
 
 
-def build_report(registry: list[dict], gh, th: dict, pr_ci_cap: int) -> dict:
+def fix_link_summary(repos: list[dict], inbox: list[dict], cap: int) -> dict:
+    """What the fix-PR link spent and found this run — the `fix_links` block."""
+    stats = [r.get("_fix_stats") or {} for r in repos]
+    return {
+        "cap_per_repo": cap,
+        "repos": sum(1 for s in stats if s.get("linked")),
+        "requests": sum(int(s.get("requests") or 0) for s in stats),
+        "prs_graded": sum(int(s.get("graded") or 0) for s in stats),
+        "fix_prs": sum(len(f.get("fix_prs") or []) for r in repos for f in r["workflows"]["failing"]),
+        "merge_items": sum(1 for i in inbox if i["kind"] == "merge"),
+    }
+
+
+def build_report(registry: list[dict], gh, th: dict, pr_ci_cap: int,
+                 fix_pr_cap: int = FIX_PR_CAP) -> dict:
     repos: list[dict] = []
     unreachable: list[str] = []
     for project in registry:
@@ -426,7 +796,7 @@ def build_report(registry: list[dict], gh, th: dict, pr_ci_cap: int) -> dict:
             continue
         sys.stderr.write(f"  · {nwo}\n")
         try:
-            rec = collect_repo(gh, project, th, pr_ci_cap)
+            rec = collect_repo(gh, project, th, pr_ci_cap, fix_pr_cap)
         except Exception as exc:  # one unreadable repo must never sink the snapshot
             sys.stderr.write(f"    ! {nwo} skipped: {type(exc).__name__}: {exc}\n")
             rec = None
@@ -454,14 +824,17 @@ def build_report(registry: list[dict], gh, th: dict, pr_ci_cap: int) -> dict:
     }
     repos.sort(key=lambda r: (-r["attention"]["score"], r["name"].lower()))
     inbox = build_inbox(repos)
+    fix_links = fix_link_summary(repos, inbox, fix_pr_cap)
     for r in repos:  # candidate scratch lists never reach the YAML
         r.pop("_issue_flags", None)
         r.pop("_pr_flags", None)
+        r.pop("_fix_stats", None)
     return {
         "generated_at": now_utc().strftime("%Y-%m-%d %H:%M UTC"),
         "repos_scanned": len(repos),
         "repos_unreachable": unreachable,
         "totals": totals,
+        "fix_links": fix_links,
         "inbox": inbox,
         "by_repo": repos,
         "note": (
@@ -471,7 +844,10 @@ def build_report(registry: list[dict], gh, th: dict, pr_ci_cap: int) -> dict:
             "are excluded, so a gate that failed an unmerged topic branch is not "
             "reported as breakage. External mirrors are excluded from totals, "
             "scores, and the inbox. PR CI state is checked for the most recently "
-            "updated non-draft PRs per repo."
+            "updated non-draft PRs per repo. A failing workflow lists the open PRs "
+            "that fix it (`fix_prs`: verified, doctor or weak evidence), and a "
+            "verified or doctor fix that is green and clean is a `merge` inbox item; "
+            "`fix_links` counts the GET requests that link cost."
         ),
     }
 
@@ -498,7 +874,7 @@ def run(args: argparse.Namespace) -> int:
     th = load_thresholds()
     gh = Github(auth=Auth.Token(token), per_page=100)
     sys.stderr.write(f"Triaging open state for {len(registry)} repos…\n")
-    rep = build_report(registry, gh, th, args.pr_ci_cap)
+    rep = build_report(registry, gh, th, args.pr_ci_cap, args.fix_pr_cap)
 
     # A snapshot that could read NOTHING is a credential failure, not a quiet
     # fleet. Writing it anyway replaced a 43-repo snapshot with zeros on
@@ -516,12 +892,15 @@ def run(args: argparse.Namespace) -> int:
         fh.write(GENERATED_HEADER)
         yaml.safe_dump(rep, fh, sort_keys=False, allow_unicode=True)
 
-    t = rep["totals"]
+    t, fl = rep["totals"], rep["fix_links"]
     sys.stderr.write(
         f"Wrote {out} — {t['open_issues']} open issues · {t['open_prs']} open PRs "
         f"({t['prs_ci_failing']} failing checks) · {t['failing_workflows']} failing "
         f"workflow(s) · 🔴 {t['repos_red']} 🟠 {t['repos_amber']} · "
         f"{len(rep['inbox'])} inbox item(s)\n"
+        f"Fix-PR link: {fl['repos']} repo(s) with a failing workflow · {fl['prs_graded']} PR(s) graded "
+        f"(cap {fl['cap_per_repo']}/repo) · {fl['fix_prs']} fix link(s) · {fl['merge_items']} merge item(s) · "
+        f"{fl['requests']} extra GET request(s)\n"
     )
     if args.print:
         for item in rep["inbox"][:20]:
@@ -535,6 +914,10 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
                         help="output YAML (default _data/fleet_triage.yml, committed)")
     parser.add_argument("--pr-ci-cap", type=int, default=8, metavar="N",
                         help="max non-draft PRs per repo to check CI state for (default 8)")
+    parser.add_argument("--fix-pr-cap", type=int, default=FIX_PR_CAP, metavar="N",
+                        help="per repo with a failing workflow: max open PRs graded as candidate fixes, "
+                             f"and max extra CI reads past --pr-ci-cap (default {FIX_PR_CAP}; 0 turns the "
+                             "fix-PR link off)")
     parser.add_argument("--print", action="store_true",
                         help="also print the top of the inbox to stdout")
     parser.set_defaults(func=run)

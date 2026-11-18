@@ -252,6 +252,36 @@ class Classification(Base):
                                   "files": 1, "files_read": 1, "governs": []}}
         self.assertEqual(d.classify(read, self.cfg)[0], ["ready_to_merge"], "its files were read and none is a record")
 
+    def test_a_cancelled_run_a_later_run_of_the_same_check_superseded_is_not_a_failure(self):
+        """GitHub's rollup state is FAILURE when a run a label burst cancelled sits beside the later run of the
+        same check that passed (zer0-mistakes#625 on 2026-11-15); the index reads the contexts and sets the
+        cancelled run aside (tools/check_rollup.py). Nothing else turns a red green."""
+        def run(conclusion, started, name="Visual evidence gate"):
+            return {"__typename": "CheckRun", "name": name, "status": "COMPLETED", "conclusion": conclusion,
+                    "startedAt": started, "completedAt": started,
+                    "checkSuite": {"workflowRun": {"workflow": {"name": "Evidence gate"}}}}
+        cancelled, passed = run("CANCELLED", "2026-11-14T05:31:38Z"), run("SUCCESS", "2026-11-14T05:31:43Z")
+
+        def row(*nodes, more=False, state="FAILURE"):
+            enrich = copy.deepcopy(FX["enrich"])
+            enrich["PR_05"]["commits"]["nodes"][0]["commit"]["statusCheckRollup"] = {
+                "state": state, "contexts": {"pageInfo": {"hasNextPage": more}, "nodes": list(nodes)}}
+            self.index.unlink(missing_ok=True)
+            doc = self.ask(http=FakeGitHub(enrich=enrich), refresh="force")
+            kinds = {i["key"]: i["kinds"] for i in doc["items"]}.get("pr:bamr87/zer0-mistakes#615", [])
+            return kinds, d.load_index(self.index)[0]["prs"]["PR_05"]["enrich"]["checks"]
+
+        self.assertEqual(row(cancelled, passed), (["ready_to_merge"], "SUCCESS"))
+        self.assertEqual(row(passed, cancelled), (["ready_to_merge"], "SUCCESS"), "the rollup's order does not matter")
+        red = (["dependabot"], "FAILURE")
+        self.assertEqual(row(cancelled), red, "a lone cancelled run")
+        self.assertEqual(row(passed, run("FAILURE", "2026-11-14T05:40:00Z")), red, "a pass, then a failure")
+        self.assertEqual(row(cancelled, passed, run("FAILURE", "2026-11-14T05:31:43Z", name="build")), red, "another check failed")
+        self.assertEqual(row(cancelled, passed, more=True), red, "the contexts were not all read")
+        self.assertEqual(row(cancelled, passed, state="ERROR")[1], "SUCCESS")
+        running = {**passed, "status": "IN_PROGRESS", "conclusion": None, "completedAt": None}
+        self.assertEqual(row(cancelled, running), ([], "PENDING"), "neither failing nor ready while the later run goes")
+
     def test_every_query_is_a_read(self):
         for q in (d.SCAN_Q, d.REPOS_Q, d.ENRICH_Q):
             self.assertTrue(q.lstrip().startswith("query("), q[:40])

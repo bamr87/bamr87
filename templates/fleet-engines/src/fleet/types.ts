@@ -147,7 +147,11 @@ export interface ActionUse {
   pin: PinStyle;
 }
 
-/** The Claude-auth wiring convention an AI workflow follows. */
+/**
+ * The Claude-auth wiring an AI workflow follows, from the `${{ secrets.* }}` it reads.
+ * `oauth-only` is the fleet convention; `oauth-first` (OAuth with an ANTHROPIC_API_KEY
+ * fallback) was the convention until 2026-11-15 and is now a finding.
+ */
 export type AuthMode = 'oauth-first' | 'oauth-only' | 'api-key-only' | 'none';
 
 /** Loop-safety / governance guard mechanisms actually used in the fleet. */

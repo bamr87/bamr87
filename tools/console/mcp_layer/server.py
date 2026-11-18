@@ -57,7 +57,8 @@ INSTRUCTIONS = (
     "bamr87 Harness Console: the fleet's control plane. Start with console_overview, then drill in: "
     "fleet_status, harness_health, live_snapshot, claude_telemetry, jobs_list/job_log, spend_vs_budget, lake_runs, workflow_lines, "
     "code_search, deep_dive. What waits on the maintainer across every repo is ONE call: decision_queue (never a "
-    "sweep of each repo). To reprioritize open work: work_board, work_item, then work_preview(plan) — it writes "
+    "sweep of each repo); every open pull request with who moves it next is ONE call: pr_queue, and pr_queue_plan "
+    "previews a bulk action the user then confirms on the console. To reprioritize open work: work_board, work_item, then work_preview(plan) — it writes "
     "nothing and returns a plan_id — then, only after the user approves that diff, work_apply(plan, plan_id, "
     "confirm=true). job_dispatch starts one allowlisted report op after the user approves it. Write tools exist only "
     "when the operator enabled them (console_overview says which); each needs confirm=true and you must ask the user "
@@ -93,6 +94,12 @@ BOARD_FILTERS = ("lane", "repo", "kind", "stage", "priority")
 # timeout that says nothing.
 DECISION_BUDGET_MAX_S = 15.0
 DECISION_LIMIT_MAX = 200
+# The PR queue's rows trimmed for a client: what identifies a pull request and what decides its next move
+# (each row's per-check list and timestamps stay on the console's page).
+PRQ_LIMIT_MAX = 200
+PRQ_ROW_FIELDS = ("key", "title", "url", "author", "draft", "private", "labels", "kinds", "batch", "head", "head_sha",
+                  "mergeable", "merge_state", "review", "gate", "merge_method", "agent_merge", "next", "idle_days",
+                  "flags", "label", "comment", "tasks")
 
 
 def decision_local(**query: Any) -> dict:
@@ -1003,6 +1010,47 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
                 return {**doc, "via": f"read in the MCP process ({why})"}
         return call(run)
 
+    # ------------------------------------------------------------ the PR queue
+    @mcp.tool(annotations=READ)
+    def pr_queue(who: Literal["", "amr", "agent", "loop", "author"] = "", kind: str = "", repo: str = "",
+                 gate: Literal["", "gated", "ungated"] = "", batch: str = "", limit: int = 50,
+                 refresh: Literal["auto", "never", "force"] = "auto",
+                 flag: Literal["", "unlabelled", "stale-comment", "no-comment", "open-tasks", "tasks-contradict"] = "") -> Any:
+        """Every open pull request of the hub and the registry repos in ONE call (docs/PR-QUEUE.md): its checks
+        collapsed per check (a cancelled run followed by a success is green — `false_red` marks the ones GitHub
+        still shows red), the review gate (§ 12.3, with its reason), the merge method the repo allows, who moves
+        it next (amr · agent · loop · author) and the bulk action that does it, the fan-out batches by head
+        branch, and the 2026-11-15 triage comment's next action as a hint. Each row's `flags` say where the
+        page disagrees with that reading: `unlabelled` (gated, but no needs-amr label, so the label does not
+        tell an agent to leave it), `stale-comment` / `no-comment` (the next-action comment), `open-tasks` and
+        `tasks-contradict` (the description's task list; `tasks` has done/total); `counts.flags` totals them.
+        Filter by who, kind (security, dependabot, release, batch, harness, ratification, draft), repo, gate,
+        batch (a head branch) or flag. Read
+        `status` and `warnings` before relying on it. Read-only: to act, plan with pr_queue_plan and let the
+        user confirm the plan on the console (the prs-act / prs-agent operations)."""
+        def run():
+            q = {"who": who, "kind": kind, "repo": repo, "gate": gate, "batch": batch, "refresh": refresh,
+                 "flag": flag, "limit": max(0, min(int(limit), PRQ_LIMIT_MAX))}
+            doc = c.get("/api/prs", **q)
+            doc["rows"] = [{k: r.get(k) for k in PRQ_ROW_FIELDS if r.get(k) not in (None, [], {})}
+                           | {"checks": {k: (r.get("checks") or {}).get(k) for k in ("state", "false_red", "failing", "cancelled")},
+                              "triage": ((r.get("triage") or {}).get("next_action"))} for r in doc.get("rows") or []]
+            return doc
+        return call(run)
+
+    @mcp.tool(annotations=READ)
+    def pr_queue_plan(action: Literal["ready", "update-branch", "rerun", "comment", "needs-amr", "agent", "close", "merge"],
+                      prs: list[str], note: str = "", reason: str = "", task: str = "") -> Any:
+        """Plan one bulk action over pull requests (owner/repo#number, at most 50) from LIVE GitHub: each one's
+        exact op — the argv, the comment's bytes, the run ids — or why it is skipped, with a deterministic
+        plan_id. It writes nothing to GitHub (only the plan file on the console's machine). Show the user the
+        plan; only the user applies it, on the console (the `prs-act` operation, or `prs-agent` for `agent`,
+        with plan_id and apply=true behind its confirm). merge and close are refused at apply while their
+        pr_queue switch is off. `note` (comment), `reason` (close, required) and `task` (agent: fix-ci or
+        address-review) are the action's parameters."""
+        params = {k: v for k, v in (("note", note), ("reason", reason), ("task", task)) if v}
+        return call(lambda: c.post("/api/prs/plan", {"action": action, "prs": list(prs)[:50], "params": params}))
+
     # ------------------------------------------------------------- resources
     # ------------------------------------- the `fleet` server's tools (merged)
     # tools/fleetcore/mcp_server.py's read tools work from the committed signals, with no console running;
@@ -1030,7 +1078,8 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
 
     @mcp.tool(annotations=READ)
     def fleet_inbox(repo: str = "", limit: int = 30) -> Any:
-        """The fleet inbox (flagged issues, PRs, failing workflows, highest priority first), or one repo's open items."""
+        """The fleet inbox (flagged issues, PRs, failing workflows, highest priority first), or one repo's open items.
+        A `merge` item (95) is a green, clean fix PR; its `clears` lists the red workflow and the PRs it turns green."""
         return local("t_inbox", {"repo": repo, "limit": limit})
 
     @mcp.tool(annotations=READ)
