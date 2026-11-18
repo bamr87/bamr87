@@ -2255,6 +2255,8 @@ ai_auth:
 # `workspaces:` keys are Console WORKSPACE names. A workspace claims repos by
 # registry name, by owner/repo (which may be outside the registry), or by
 # GitHub owner; every fleet repo nobody claims gets the Default Workspace's key.
+# Claim a registry repo by its name, never its owner/repo: the registry follows a
+# transfer and a pasted slug does not (test_fleet_config.py holds this).
 # A repo whose ai_auth order leaves api_key out is never sent one.
 # --------------------------------------------------------------------------- #
 api_keys:
@@ -2267,7 +2269,7 @@ api_keys:
     bamr87: { repos: [bamr87] }                      # the hub
     year-of-ai: { owners: [year-of-ai], repos: [year-of-ai/year-of-ai.github.io] }
     zer0-mistakes: { repos: [zer0-mistakes] }
-    bash-365.com: { repos: [amr-bash/bash-365.com] }  # a content site outside the registry
+    bash-365.com: { repos: [bash-365.com] }          # bash-365/bash-365.com, by registry name (#337)
     bashcrawl: { repos: [bashcrawl] }
   verify:                              # the cheap test — one call per key, a fraction of a cent
     model: claude-opus-5-5
