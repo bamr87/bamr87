@@ -691,6 +691,22 @@
       "presentation": { "group": "4-generate", "order": 9 }
     },
     {
+      "name": "🗺️ Workflow atlas: sync the fleet's workflow files into the lake (operator token)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash workflows sync",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 9 }
+    },
+    {
+      "name": "🗺️ Workflow atlas: the fleet model (fleet-workflows/v1, from the lake)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash workflows --fleet list",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 9 }
+    },
+    {
       "name": "🗂️ Features: aggregate the fleet feature index (--write)",
       "type": "node-terminal",
       "request": "launch",

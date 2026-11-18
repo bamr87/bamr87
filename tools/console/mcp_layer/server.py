@@ -1256,12 +1256,19 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
         return local("t_work", {"lane": lane, "repo": repo, "kind": kind, "next_only": next_only, "limit": limit})
 
     @mcp.tool(annotations=READ)
-    def fleet_workflows(workflow: str = "", health: bool = False, days: int = 30) -> Any:
+    def fleet_workflows(workflow: str = "", health: bool = False, days: int = 30, fleet: bool = False,
+                        repo: str = "") -> Any:
         """The hub's GitHub Actions as one model (the workflow atlas): every workflow and composite action with
         its triggers, crons, inputs, jobs, Claude call sites and kill switch, and every finding against the
         standards. Pass `workflow` (a file stem such as fleet-pulse, or an action id) for one in full; `health`
-        adds run health and failure causes from the local lake over `days`. Read it before changing a workflow."""
-        return local("t_workflows", {"workflow": workflow, "health": health, "days": max(1, min(days, 365))})
+        adds run health and failure causes from the local lake over `days`. Read it before changing a workflow.
+        `fleet=true` reads the FLEET model instead (fleet-workflows/v1, docs/WORKFLOW-ATLAS.md, from `tools/dash
+        workflows sync`): every registry repository with when it was read or why not, its findings and its
+        checks' states (verified · passed-empty · never-ran · quota · real-failure · cancelled); add `repo`
+        (owner/name or registry name) for its workflows, and `workflow` for one in full. A repository that was
+        not read shows `read: false`, never a pass."""
+        return local("t_workflows", {"workflow": workflow, "health": health, "days": max(1, min(days, 365)),
+                                     "fleet": fleet, "repo": repo})
 
     @mcp.tool(annotations=READ)
     def workflow_lint(text: str, id: str = "draft") -> Any:

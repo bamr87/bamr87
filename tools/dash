@@ -46,7 +46,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash vendor${c_off}            vendored Pyramid Schema kit vs upstream bamr87/SCHEMA; --apply re-vendors the strict-parity files
   ${c_bold}dash remediate${c_off}         merge failing + expensive workflow signals into one ranked fix queue (feeds fleet-pulse)
   ${c_bold}dash spec [check|fleet|kinds]${c_off} Universal Project Standard checker (specs/): \`check [path] [--kinds a,b] [--gate]\` one repo; \`fleet --write\` every submodule → _data/conformance.yml (feeds the repo-evolution brief)
-  ${c_bold}dash workflows [list|show|lint|health|new]${c_off} the WORKFLOW ATLAS — the hub's workflows + composite actions as one model; \`lint [--strict]\` holds them to the README standards; \`health [--days N]\` classifies why runs failed (from the lake); \`new --kind loop|agent-loop|gate|reusable|dispatch --id ID [--write]\` scaffolds one inside the standards (docs/WORKFLOW-ATLAS.md)
+  ${c_bold}dash workflows [list|show|lint|health|new|sync]${c_off} the WORKFLOW ATLAS — the hub's workflows + composite actions as one model; \`lint [--strict]\` holds them to the README standards; \`health [--days N]\` classifies why runs failed (from the lake); \`new --kind loop|agent-loop|gate|reusable|dispatch --id ID [--write]\` scaffolds one inside the standards; \`sync\` reads every fleet repo's workflow files and its checks' latest runs into the lake with the operator's token (refused in CI and on pull requests; never GITHUB_TOKEN); \`--fleet [list|show|lint]\` renders that fleet model (fleet-workflows/v1): each repo's read time or why it was not read, its findings, and its checks as verified · passed-empty · never-ran · quota · real-failure · cancelled (docs/WORKFLOW-ATLAS.md)
   ${c_bold}dash harness${c_off}           six-layer harness scorecard + trip wires → _data/harness_health.yml (docs/HARNESS.md)
   ${c_bold}dash harnesses [gaps|deploy]${c_off} fleet AI-harness + schedule inventory → _data/harness_registry.yml (/harnesses/ portal); \`gaps\` prints fan-out-deployable gap repos; \`deploy [--gaps|--target N] [--artifacts csv] [--upgrade] [--apply]\` opens kit PRs via fanout.sh (dry-run default; docs/HARNESS-OPS.md)
   ${c_bold}dash agents [--check] [--verbose]${c_off} the agent inventory under the efficacy contract (constitution § 29) → _data/agents.yml: every CI agent step, JEV loop step, conflict tier and LaunchAgent with its owner, trigger, switch, cap, model, KPIs, sources and contract gaps; \`--check\` is drift check (p) (offline; docs/AGENT-EFFICACY.md)
@@ -987,7 +987,18 @@ cmd_doctor() { "${TOOLS}/setup.sh" --dry-run "$@"; }
 cmd_test()   { "${TOOLS}/run-all-tests.sh" "$@"; }
 cmd_gen()    { "${TOOLS}/dash-gen" "$@"; }
 # The workflow atlas (docs/WORKFLOW-ATLAS.md): bare `dash workflows` lists them.
-cmd_workflows() { "${TOOLS}/dash-gen" workflows "${@:-list}"; }
+# `--fleet` anywhere renders the fleet model (fleet-workflows/v1) from the
+# fleetcore service layer, which `workflows sync` fills (ADR 0007).
+cmd_workflows() {
+  local a
+  for a in "$@"; do
+    if [[ "$a" == --fleet ]]; then
+      PYTHONPATH="${TOOLS}${PYTHONPATH:+:${PYTHONPATH}}" "$PY" -m fleetcore.workflows "$@"
+      return
+    fi
+  done
+  "${TOOLS}/dash-gen" workflows "${@:-list}"
+}
 
 main() {
   local cmd="${1:-help}"; shift || true

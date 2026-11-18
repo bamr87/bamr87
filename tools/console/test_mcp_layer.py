@@ -699,6 +699,20 @@ class MergedFleet(unittest.TestCase):
         self.assertTrue({f["rule"] for f in lint["findings"]} >= {"permissions", "timeout", "cron-on-hour", "cron-declared"})
         self.assertEqual(lint["parsed"]["name"], "x")
 
+    def test_the_fleet_workflow_model_is_fleet_workflows_with_fleet_true(self):
+        s = srv.build_server(FakeConsole(), allow_writes=False)
+        with tempfile.TemporaryDirectory() as lake, mock.patch.dict(os.environ, {"DASH_LAKE_DIR": lake}):
+            doc = payload(*call(s, "fleet_workflows", {"fleet": True}))
+            self.assertEqual(doc["schema"], "fleet-workflows/v1")
+            self.assertEqual(doc["summary"]["repos"], len(doc["repos"]))
+            self.assertEqual(doc["summary"]["read"], 0)  # nothing synced into this lake: not read, never a pass
+            self.assertTrue(all(r["read"] is False and r["reason"] for r in doc["repos"]))
+            one = payload(*call(s, "fleet_workflows", {"fleet": True, "repo": "bamr87/bamr87"}))
+            self.assertEqual(one["repo"]["nwo"], "bamr87/bamr87")
+            res, text = call(s, "fleet_workflows", {"fleet": True, "repo": "no-such-repo-anywhere"})
+            self.assertTrue(res.is_error if hasattr(res, "is_error") else res.isError)
+            self.assertIn("no-such-repo-anywhere", text)
+
     def test_legacy_names_present_writes_gated(self):
         names = tool_names(srv.build_server(FakeConsole(), allow_writes=False, fleet_compat=False))
         self.assertTrue(self.LEGACY_READ <= names, self.LEGACY_READ - names)
