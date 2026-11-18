@@ -365,10 +365,12 @@ export interface AppTarget {
   service?: string;
   port?: number;
   band?: string;
-  /** The command that starts a local target's stack. */
+  /** The command that starts a local target's stack (a devenv-hosted site: the `docker compose exec` that serves it). */
   start?: string | null;
-  /** The project a local target belongs to: what `dev-up` and `dev-down` take. */
+  /** The project a local target belongs to: what `dev-up` and `dev-down` take, for a compose-hosted one. */
   project?: string;
+  /** Where a local target runs: its own compose stack (the console can start it), or inside the hub's devenv container (it cannot). */
+  host?: 'compose' | 'devenv';
 }
 
 /** A registry frontend as the launcher lists it (fleetcore.apps, fleet-launcher/v1). */

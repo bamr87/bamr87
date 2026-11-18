@@ -1,6 +1,6 @@
 # Local stacks from the portal — evidence
 
-> **Feature:** `HUB-078` (phase P1, #702, of [ADR 0005](../../../docs/adr/0005-console-as-fleet-portal.md)) · **Result:** **PASS** (interactive pass) · **Verified:** 2026-11-06 against a console from this branch on `127.0.0.1:4012`
+> **Feature:** `HUB-078` (phase P1, #702, of [ADR 0005](../../../docs/adr/0005-console-as-fleet-portal.md)) · **Result:** **PASS** (interactive pass) · **Verified:** 2026-11-06 against a console from this branch on `127.0.0.1:4012`; the devenv-hosted targets on 2026-11-15 against `127.0.0.1:4013` (below)
 
 An app's Local target can now be started, stopped and read from the App Shell, on the Apps page and in a Desktop window, as console jobs. There is no scenario: the public build has no console and shows only the terminal command, which `verify/scenarios/apps.yml` already covers.
 
@@ -27,6 +27,20 @@ Measured in that pass, not pictured:
 1. **A stop within 90 seconds of a start still showed "Starting…"**, because any recent start counted. Fixed: the newest start or stop decides.
 2. **Clicking Start before the operations list had loaded** gave "Unknown operation". Fixed: the button appears once the list is known.
 3. **Closing the job drawer quickly left the page stale**: documents refresh only while the drawer's log is open, so a stopped stack still showed its frame. Fixed: the App Shell asks the address again whenever its stack's job ends.
+
+## Devenv-hosted sites (2026-11-15)
+
+The second half of P1: bamr87.github.io, lifehacker.dev, cv-pro and rewind-arcade now have a Local target at the workspace port the hub's devenv container publishes (`127.0.0.1:4040`, `:4041`, `:5000`, `:5001`), where `_data/ports.yml` used to allocate ports devenv never published (4012, 4013, 5175). They are not stacks, so the App Shell offers no **Start the stack**: it shows the `docker compose exec … devenv …` command that serves the site, which is the registry's `start:` and the site's `.vscode/launch.json` entry.
+
+Captured with a Playwright 1.65 script (Chromium) against a console from this branch's worktree on `127.0.0.1:4013` (its own virtualenv and job directory, `CONSOLE_AUTO_HEALTH=0`; the shared core on `:4001` was not touched). Nothing was started and no button was clicked: the devenv container on this Mac publishes the ports with nothing serving behind them, so each target reads **stopped**.
+
+| Image | What it shows |
+| --- | --- |
+| `console-devenv-stopped-desktop.png` | `/apps/bamr87.github.io?target=local`: Live and Local, "Nothing is listening on 127.0.0.1:4040.", why the console does not start it, the command with a copy button, no **Start the stack** |
+| `console-devenv-stopped-mobile.png` | the same at 390 wide: the command wraps and nothing scrolls sideways |
+| `console-devenv-local-only-desktop.png` | `/apps/cv-pro`, which has no live address: before this change it opened as the generated repo app; now it opens in the App Shell on its one target, `127.0.0.1:5000` |
+
+Measured in that pass, not pictured: on each page the script counted zero **Start the stack** buttons, one copy button for the command, no page errors and no sideways scroll at either width; `/apps/gitorio?target=local`, a compose stack, still offered **Start the stack** and `tools/dash dev up gitorio` and none of the devenv text. `tools/dash apps check --target local` listed all four devenv targets with its frame column; each read "Remote end closed connection without response", the published port with no server behind it.
 
 ## Not covered
 

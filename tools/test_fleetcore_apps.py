@@ -17,7 +17,11 @@ from fleetcore import apps  # noqa: E402
 
 HUB = Path(__file__).resolve().parent.parent
 
-PORTS = {"projects": {
+PORTS = {"bands": {
+    "jekyll": {"range": [4010, 4039]}, "frontend": {"range": [5020, 5199]},
+    # the block the hub's devenv container publishes (`host: devenv` only)
+    "workspace": {"range": [4040, 4069]}, "workspace_node": {"range": [5000, 5019]},
+}, "projects": {
     "bamr87": {"host": "hub", "services": {"console": {"port": 4001, "band": "hub"}}},
     "shop": {"host": "compose", "services": {
         "db": {"port": 5440, "band": "database"},
@@ -26,7 +30,10 @@ PORTS = {"projects": {
         "docs": {"port": 8005, "band": "docs"},
     }, "debug": {"api": {"port": 5720, "band": "debug"}}},
     "zer0-cms": {"host": "compose", "services": {"content": {"port": 8117, "band": "api"}}},
+    # a devenv allocation outside the workspace block: a port devenv never publishes
     "notes": {"host": "devenv", "services": {"jekyll": {"port": 4012, "band": "jekyll"}}},
+    "blog": {"host": "devenv", "start": "docker compose exec -w /workspace/projects/blog devenv jekyll serve --port 4040",
+             "services": {"jekyll": {"port": 4040, "band": "workspace", "livereload": 35760}}},
 }}
 
 
@@ -51,7 +58,7 @@ class TargetTests(unittest.TestCase):
         self.assertEqual([x["port"] for x in t], [5120, 8005, 8120])
         self.assertEqual(t[0]["url"], "http://127.0.0.1:5120/")
         self.assertEqual(t[0]["start"], "tools/dash dev up shop")
-        self.assertEqual(t[0]["project"], "shop")
+        self.assertEqual((t[0]["project"], t[0]["host"]), ("shop", "compose"))
         self.assertNotIn(5440, [x["port"] for x in t], "a database is not something a browser opens")
         self.assertNotIn(5720, [x["port"] for x in t], "a debug attach point is not a page")
 
@@ -61,14 +68,50 @@ class TargetTests(unittest.TestCase):
         e = {"name": "Zer0-CMS", "submodule_path": "projects/zer0-cms", "frontend": entry()["frontend"]}
         self.assertEqual(apps.local_targets(PORTS, e)[0]["start"], "tools/dash dev up zer0-cms")
 
-    def test_a_devenv_hosted_project_has_no_fixed_local_address(self):
-        """Its port is picked at launch (.vscode/launch.json), so offering the
-        ports.yml number would frame a port nothing publishes."""
+    def test_a_devenv_hosted_project_offers_its_workspace_port(self):
+        """devenv publishes the workspace bands for the servers started inside
+        it, so a devenv allocation there is an address a browser can open (#702).
+        Its start is the registry's command: `tools/dash dev up` does not apply."""
+        e = entry("blog", type="site", tier="tokens")
+        t = apps.local_targets(PORTS, e)
+        self.assertEqual([(x["id"], x["port"], x["url"]) for x in t], [("local", 4040, "http://127.0.0.1:4040/")])
+        self.assertEqual((t[0]["host"], t[0]["project"], t[0]["band"]), ("devenv", "blog", "workspace"))
+        self.assertEqual(t[0]["start"], PORTS["projects"]["blog"]["start"])
+        app = apps.launcher([e], PORTS)["apps"][0]
+        self.assertEqual((app["local_host"], [x["id"] for x in app["targets"]]), ("devenv", ["live", "local"]))
+        self.assertEqual(app["embed"], "frame")
+
+    def test_a_devenv_port_devenv_does_not_publish_is_not_offered(self):
+        """Offering a devenv allocation outside the workspace block (the 4012 the
+        registry once gave bamr87.github.io) would frame a port nothing publishes."""
         e = entry("notes", type="site", tier="tokens")
         self.assertEqual(apps.local_targets(PORTS, e), [])
         app = apps.launcher([e], PORTS)["apps"][0]
-        self.assertEqual(app["local_host"], "devenv")
-        self.assertEqual([t["id"] for t in app["targets"]], ["live"])
+        self.assertEqual((app["local_host"], [x["id"] for x in app["targets"]]), ("devenv", ["live"]))
+
+        def offered(band, port, bands=PORTS["bands"]):
+            ports = {"bands": bands, "projects": {"blog": {"host": "devenv", "services": {"web": {"port": port, "band": band}}}}}
+            return [x["port"] for x in apps.local_targets(ports, entry("blog"))]
+        self.assertEqual(offered("workspace_node", 5001), [5001])
+        self.assertEqual(offered("workspace", 4099), [], "outside every published range")
+        self.assertEqual(offered("frontend", 5120), [], "a compose band, which devenv does not publish")
+        self.assertEqual(offered("workspace", 4040, bands={}), [], "a band the registry does not declare")
+        self.assertEqual(offered("workspace", 4040, bands={"workspace": {"range": "4040-4069"}}), [])
+        # no `start:` in the registry: the address, and no command to show
+        no_start = {"bands": PORTS["bands"], "projects": {"blog": {"host": "devenv", "services": {"web": {"port": 4040, "band": "workspace"}}}}}
+        self.assertIsNone(apps.local_targets(no_start, entry("blog"))[0]["start"])
+
+    def test_every_hub_devenv_site_opens_on_the_port_devenv_publishes(self):
+        """#702: the four devenv-hosted frontends open locally at the workspace
+        port their .vscode/launch.json entry serves on (tools/test_vscode_launch.py
+        holds that port to docker-compose.yml's devenv block)."""
+        doc = apps.apps_view(HUB)
+        local = {a["id"]: next((t for t in a["targets"] if t["kind"] == "local"), None) for a in doc["apps"]}
+        for app_id, port in {"bamr87.github.io": 4040, "lifehacker.dev": 4041, "cv-pro": 5000, "rewind-arcade": 5001}.items():
+            t = local.get(app_id)
+            self.assertIsNotNone(t, f"{app_id} has no local target")
+            self.assertEqual((t["url"], t["host"]), (f"http://127.0.0.1:{port}/", "devenv"), app_id)
+            self.assertTrue(str(t["start"]).startswith("docker compose exec "), f"{app_id}: {t['start']}")
 
     def test_malformed_allocations_are_skipped_not_fatal(self):
         ports = {"projects": {"shop": {"host": "compose", "services": {
