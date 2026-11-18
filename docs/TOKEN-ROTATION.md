@@ -180,6 +180,8 @@ The loop files **one** issue, updated in place each week rather than forked into
 
 There is a sixth shape the issue can take, and it is deliberately worded to be unmistakable: **the job broke before it could probe for secret access**. Nothing was audited and nothing was written, and — importantly — that is *not* evidence that `FLEET_TOKEN` is missing a scope. The probe's output is empty rather than `false`, and the report says so, because the first scheduled run conflated the two and filed an issue blaming a missing scope for what was actually a workflow that could not load one of its own composite actions. Read the run log and start at the first red step.
 
+**The issue closes itself.** A full apply run is every scheduled run, and any manual run with `apply` checked and no `repo` or `only` filter. The first full apply run that finds nothing for a human to do (`attention: []` for every token) closes the issue with a comment linking that run, and the next run that needs attention files a fresh one. The `report` job decides in one step: `open` on attention or a failed or missing probe, `close` only on an explicit `attention=false` from a full apply run, and otherwise it leaves the issue as it is. Three kinds of run land in that last case, and none of them may post an all-clear: a rotate step that died before judging has no verdict at all, a dry run writes nothing and so cannot meet a write failure, and a `repo` or `only` dispatch audits only part of the fleet or of the contract. Until 2026-11 the job ran only when there was attention, so the issue could never close ([#148](https://github.com/bamr87/bamr87/issues/148)); `.github/scripts/dash-gen/test_token_rotation.py` holds the lifecycle.
+
 ---
 
 ## Running it by hand
