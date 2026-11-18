@@ -1,9 +1,9 @@
-# ADR 0005 D1: context menus on the bashOS desktop, and an app's live site and local stack opened side by side in one action.
+# ADR 0005 D1: context menus on the bashOS desktop, and an app's live site and local stack opened side by side in one action, and kept that way by a reload and by a shared layout link.
 id: desktop-context-menu
 feature: HUB-079
-title: "An icon and a title bar have a context menu, and one action puts Live beside Local"
-description: "Right-click an app's icon, or press Shift+F10 on it, for open, open beside, Live beside Local, a new tab and a link. Live beside Local opens two windows, each filling a half, one on each target. A window's title bar offers the same, by right-click or its button, and Escape closes a menu without leaving the desktop. Desktop width only: a phone has one app at a time."
-viewports: [desktop]
+title: "An icon and a title bar have a context menu, and one action puts Live beside Local, which a reload and a layout link keep"
+description: "Right-click an app's icon, or press Shift+F10 on it, for open, open beside, Live beside Local, a new tab and a link. Live beside Local opens two windows, each filling a half, one on each target. A window's title bar offers the same, by right-click or its button, and Escape closes a menu without leaving the desktop. A reload of the tab, and the taskbar's layout link opened on its own, bring both windows back on their own targets; a link naming a target, a device or a path the registry does not declare opens the app's default instead. Desktop widths only: a phone has one app at a time."
+viewports: [desktop, { name: laptop, width: 1024, height: 768 }]
 ignore_console: ["Failed to load resource", "net::ERR_"]
 steps:
   - goto: /desktop
@@ -23,6 +23,76 @@ steps:
   - click: "[data-window-id][data-snapped='right'] button[aria-label^='Window menu for']"
   - wait: { selector: "role=menuitem[name='Copy link']" }
   - expect: { count: { selector: "role=menuitem", min: 6 } }
+  # The menu fades in: let it finish, so the image shows it.
+  - wait: { ms: 400 }
   - screenshot: live-beside-local-menu
   - press: Escape
   - expect: { no_horizontal_scroll: true }
+  # The taskbar's link button: what it copies is kept in the tab for the steps below.
+  - eval:
+      name: copy_layout_link
+      script: |
+        (async () => {
+          const copied = new Promise((resolve) => { navigator.clipboard.writeText = async (text) => resolve(text); });
+          document.querySelector("button[aria-label='Copy a link that reopens this desktop']").click();
+          const url = await copied;
+          const layout = JSON.parse(atob(new URL(url).searchParams.get('windows').replace(/-/g, '+').replace(/_/g, '/')));
+          if (!Array.isArray(layout.a)) throw new Error(`the link carries no views: ${JSON.stringify(layout)}`);
+          sessionStorage.setItem('verify_layout_link', url);
+          return layout.a;
+        })()
+  # A reload of the tab: the tab's own layout reopens both windows on their own targets.
+  - goto: /desktop
+  - wait: { selector: "[data-window-id][data-snapped='right']" }
+  - eval: { name: reload_targets, script: "(() => { const head = (edge) => document.querySelector(`[data-window-id][data-snapped='${edge}'] header`).innerText; const left = head('left'); const right = head('right'); if (!left.includes('Live') || !right.includes('Local')) throw new Error(`${left} / ${right}`); return `${left} / ${right}`.replace(/\\n/g, ' '); })()" }
+  # The copied link with the tab's layout forgotten: the link alone carries the targets.
+  - eval:
+      name: open_layout_link
+      script: |
+        (() => {
+          const url = sessionStorage.getItem('verify_layout_link');
+          sessionStorage.removeItem('bashos_desktop_layout');
+          setTimeout(() => location.assign(url), 0);
+          return new URL(url).search.length;
+        })()
+  - wait: { url: "windows=" }
+  - wait: { selector: "[data-window-id][data-snapped='right']" }
+  - eval: { name: link_targets, script: "(() => { const head = (edge) => document.querySelector(`[data-window-id][data-snapped='${edge}'] header`).innerText; const left = head('left'); const right = head('right'); if (!left.includes('Live') || !right.includes('Local')) throw new Error(`${left} / ${right}`); return `${left} / ${right}`.replace(/\\n/g, ' '); })()" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: reopened-from-link
+  # A crafted link: the declared target, device and path come back; an undeclared target, a device
+  # outside the matrix and a path that leaves the app's address fall back to the app's defaults.
+  - eval:
+      name: crafted_link
+      script: |
+        (() => {
+          const win = (k, x) => ({ s: 'app', r: 'it-journey', x, y: 0, cx: 50, cy: 100, k });
+          const layout = {
+            v: 1, e: 'os', f: 1, w: [win('left', 0), win('right', 50)],
+            a: [{ t: 'local', d: 'mobile', p: '/docs/' }, { t: 'https://example.com', d: 'watch', p: 'https://example.com/elsewhere' }],
+          };
+          setTimeout(() => location.assign(`/desktop?via=crafted&windows=${encodeURIComponent(btoa(JSON.stringify(layout)))}`), 0);
+          return layout.a;
+        })()
+  - wait: { url: "via=crafted" }
+  - wait: { selector: "[data-window-id][data-snapped='right']" }
+  - eval:
+      name: crafted_falls_back
+      script: |
+        (() => {
+          const pane = (edge) => {
+            const win = document.querySelector(`[data-window-id][data-snapped='${edge}']`);
+            return {
+              head: win.querySelector('header').innerText.replace(/\n/g, ' '),
+              device: win.querySelector('[data-device]').dataset.device,
+              path: win.querySelector("input[aria-label='Path inside the app']").value,
+            };
+          };
+          const left = pane('left');
+          const right = pane('right');
+          if (!left.head.includes('Local') || left.device !== 'mobile' || left.path !== '/docs/') throw new Error(`left kept nothing: ${JSON.stringify(left)}`);
+          if (!right.head.includes('Live') || right.device !== 'fit' || right.path !== '') throw new Error(`right kept what the registry does not declare: ${JSON.stringify(right)}`);
+          return { left, right };
+        })()
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: crafted-link-falls-back

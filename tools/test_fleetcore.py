@@ -143,6 +143,91 @@ def test_client_endpoints():
         assert "unreachable" in str(exc)
 
 
+CI = ".github/workflows/ci.yml"
+# One by_repo record of fleet_triage.yml, shaped as the generator writes it
+# (FF-0036): CI red with #133 its verified, clean fix that clears #127/#134/#137;
+# Deploy red with a doctor fix that is dirty; Docs red with only weak evidence.
+BASHCRAWL = {
+    "name": "bashcrawl", "nwo": "bamr87/bashcrawl", "repo_url": "https://github.com/bamr87/bashcrawl",
+    "external": False, "archived": False, "private": False,
+    "issues": {"open": 2, "items": [
+        {"number": 90, "title": "[bug] the lamp never lights", "labels": ["bug"], "age_days": 9, "idle_days": 2,
+         "url": "https://github.com/bamr87/bashcrawl/issues/90"},
+        {"number": 91, "title": "more levels", "labels": [], "age_days": 120, "idle_days": 100,
+         "url": "https://github.com/bamr87/bashcrawl/issues/91"}]},
+    "prs": {"open": 6, "items": [
+        {"number": n, "title": t, "author": "bamr87", "draft": False, "dependabot": False, "ci": ci,
+         "age_days": age, "idle_days": idle, "url": f"https://github.com/bamr87/bashcrawl/pull/{n}", **extra}
+        for n, t, ci, age, idle, extra in (
+            (137, "chore(main): release 1.4.0", "fail", 0, 0, {}),
+            (134, "feat: add level 7", "fail", 1, 0, {}),
+            (133, "fix(ci): exclude release-please CHANGELOG.md from markdownlint", "pass", 3, 20,
+             {"clears": [CI, "#127", "#134", "#137"], "fix_evidence": "verified", "mergeable_state": "clean",
+              "merge_ready": True}),
+            (141, "fix: deploy key", "pass", 2, 1, {"clears": [".github/workflows/deploy.yml"],
+                                                    "fix_evidence": "doctor", "mergeable_state": "dirty",
+                                                    "merge_ready": False}),
+            (142, "ci: docs build", "pass", 5, 16, {}),
+            (127, "docs: fix a typo in level 3", "fail", 13, 1, {}))]},
+    "workflows": {"active": 3, "failing": [
+        {"workflow": "CI", "path": CI, "conclusion": "failure", "run_url": "https://x/runs/1", "branch": "main",
+         "failed_jobs": ["Lint"], "fix_prs": [
+             {"number": 133, "title": "fix(ci): exclude release-please CHANGELOG.md from markdownlint",
+              "url": "https://github.com/bamr87/bashcrawl/pull/133", "age_days": 3, "evidence": "verified",
+              "mergeable_state": "clean", "ready": True, "clears": ["#127", "#134", "#137"]}]},
+        {"workflow": "Deploy", "path": ".github/workflows/deploy.yml", "conclusion": "failure",
+         "run_url": "https://x/runs/2", "branch": "main", "failed_jobs": ["deploy"], "fix_prs": [
+             {"number": 141, "title": "fix: deploy key", "url": "https://github.com/bamr87/bashcrawl/pull/141",
+              "age_days": 2, "evidence": "doctor", "mergeable_state": "dirty", "ready": False, "clears": []}]},
+        {"workflow": "Docs", "path": ".github/workflows/docs.yml", "conclusion": "timed_out",
+         "run_url": "https://x/runs/3", "branch": "main", "failed_jobs": ["build"], "fix_prs": [
+             {"number": 142, "title": "ci: docs build", "url": "https://github.com/bamr87/bashcrawl/pull/142",
+              "age_days": 5, "evidence": "weak", "mergeable_state": None, "ready": False, "clears": []}]}]},
+}
+
+
+def test_inbox_priorities_and_merge_items_match_the_generator():
+    """fleetcore.repo_items mirrors fleet_triage.build_inbox, as its docstring
+    promises: the same priority per kind (merge 95 included, FF-0036), and from
+    one by_repo record the same merge item and the same `fix:` notes — so the
+    fleet inbox and a repo's drill-down never disagree about what to merge."""
+    root = Path(__file__).resolve().parent.parent
+    sys.path.insert(0, str(root / ".github" / "scripts" / "dash-gen"))
+    import fleet_triage  # noqa: WPS433 — the generator this mirrors
+    from fleetcore import fleet as fl
+
+    assert fl.PRIORITY == fleet_triage.PRIORITY and fl.FIX_TIERS == fleet_triage.FIX_TIERS
+    assert fl.merge_plan(BASHCRAWL) == fleet_triage.merge_plan(BASHCRAWL)
+    flags = [{k: p[k] for k in ("number", "title", "ci", "idle_days", "age_days", "url")}
+             for p in BASHCRAWL["prs"]["items"] if p["ci"] == "fail" or p["idle_days"] > 14]
+    issues = [{"number": i["number"], "title": i["title"], "bug": "bug" in i["labels"],
+               "idle_days": i["idle_days"], "age_days": i["age_days"], "url": i["url"]}
+              for i in BASHCRAWL["issues"]["items"]]
+    gen = fleet_triage.build_inbox([{**BASHCRAWL, "_pr_flags": flags, "_issue_flags": issues}])
+    core = {(i.kind, i.ref): i for i in fl.repo_items({"by_repo": [BASHCRAWL]}, "bashcrawl",
+                                                      BASHCRAWL["repo_url"])}
+    # #133 is idle 20d, so it is flagged — and its row is the merge item, not a second one
+    assert len(gen) == 10 and sum(1 for g in gen if g["ref"] == "#133") == 1, [(g["kind"], g["ref"]) for g in gen]
+    for g in gen:
+        c = core.get((g["kind"], g["ref"]))
+        assert c is not None, f"the drill-down lacks {g['kind']} {g['ref']}"
+        assert (c.priority, c.why, c.url) == (g["priority"], g["why"], g["url"]), (g, c)
+        assert c.clears == g.get("clears", []) and c.evidence == g.get("evidence", ""), (g, c)
+    merge = core[("merge", "#133")]
+    assert merge.priority == 95 and merge.clears == [CI, "#127", "#134", "#137"] and merge.evidence == "verified"
+    assert merge.brief == "clears 1 red workflow + 3 PRs" and merge.label.startswith("#133 fix(ci)")
+    assert ("pr", "#133") not in core, "a merge-ready fix PR's row is its merge item"
+    assert [k for k in core if k[0] == "merge"] == [("merge", "#133")], "a dirty doctor fix makes no merge item"
+    assert core[("workflow", ".github/workflows/deploy.yml")].why == "latest run failure · fix: #141 (dirty)"
+    assert core[("workflow", ".github/workflows/docs.yml")].why == "latest run timed_out · possible fix: #142"
+    assert core[("pr", "#127")].why == "PR checks failing · fix: #133" and core[("pr", "#127")].priority == 70
+    ranked = fl.repo_items({"by_repo": [BASHCRAWL]}, "bashcrawl")
+    assert ranked[0].kind == "merge" and [i.priority for i in ranked] == sorted((i.priority for i in ranked),
+                                                                              reverse=True)
+    inbox = fl.inbox_items({"inbox": gen})
+    assert inbox[0].kind == "merge" and inbox[0].clears == merge.clears and inbox[0].evidence == "verified"
+
+
 def test_mcp_server_speaks_the_protocol():
     """The agent surface: handshake, tool list with schemas and annotations,
     a read tool over the real registry, and a console refusal reported as a

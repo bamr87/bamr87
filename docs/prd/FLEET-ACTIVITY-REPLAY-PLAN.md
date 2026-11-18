@@ -79,6 +79,7 @@ Each phase is one sub-issue and one PR; phases land in order unless marked paral
 - **Milestone M0:** contracts frozen.
 - **Scope:** the event envelope JSON Schema (`schemas/fleet-activity-1.json`); the OTel GenAI ↔ OpenInference attribute map; the `_data/fleet.yml` `observability.activity:` block (retention, caps, enable flag, default off); the build-vs-adopt record (§ 10.8) including the docker_stats-receiver vs custom-sampler call; the license review (§ 8).
 - **Acceptance:** the schema validates fixture events; `test_fleet_config.py` knows the new block; the decision record is on the epic; `governance_lint` and `features_index` pass.
+- **Decision record:** [FLEET-ACTIVITY-REPLAY-DECISIONS.md](FLEET-ACTIVITY-REPLAY-DECISIONS.md) (#618): one envelope with HUB-024 as one source (#620's A), the `docker_stats` receiver for samples and one label-gated engine-events collector behind a GET-only socket proxy, the attribute map's convention versions, the license review and the boundary with #626.
 
 ### P1 — Trace plane: OTel GenAI to Phoenix and Grafana (parallel with P2)
 

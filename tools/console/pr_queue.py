@@ -49,12 +49,13 @@ ROOT = HERE.parents[1]
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(ROOT / "tools"))
 import decision_index as di  # noqa: E402
+import governance_trace_lint as trace_lint  # noqa: E402
 from gh_projects import redact  # noqa: E402
 from fleetcore import prqueue as pq  # noqa: E402
 from fleetcore import yamlio  # noqa: E402
 
 DASH_GEN = str(ROOT / "tools" / "dash-gen")
-CACHE_SCHEMA = "pr-queue-detail/v1"
+CACHE_SCHEMA = "pr-queue-detail/v3"  # v2: the task list, the head commit's date, the repo's gate label; v3: the governance trace
 REF_RX = re.compile(r"^([A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100})#(\d{1,7})$")
 LIVE_FIELDS = ("number,state,isDraft,title,url,mergeable,mergeStateStatus,reviewDecision,headRefOid,headRefName,"
                "baseRefName,labels,files,statusCheckRollup,author,updatedAt,createdAt,isCrossRepository")
@@ -64,17 +65,23 @@ AGENT_TOOLS = ("Read", "Grep", "Glob", "Edit", "Write", "Bash(git status:*)", "B
                "Bash(ls:*)", "Bash(head:*)", "Bash(tail:*)", "Bash(wc:*)")
 NOTE_CHARS, REASON_CHARS = 500, 200
 
-DETAIL_Q = """query($ids:[ID!]!){ nodes(ids:$ids){ ... on PullRequest{ id number updatedAt isDraft mergeable mergeStateStatus
-  reviewDecision headRefOid
-  repository{ nameWithOwner isPrivate mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed defaultBranchRef{ name } }
+DETAIL_FIELDS = """ id number updatedAt isDraft mergeable mergeStateStatus
+  reviewDecision headRefOid body
+  repository{ nameWithOwner isPrivate mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed defaultBranchRef{ name }
+              gateLabel: label(name:"needs-amr"){ name } }
   files(first:100){ totalCount nodes{ path changeType } }
   reviewThreads(first:100){ totalCount nodes{ isResolved } }
   comments(last:25){ nodes{ databaseId url updatedAt author{ login } body } }
-  commits(last:1){ nodes{ commit{ oid statusCheckRollup{ state contexts(first:100){ totalCount nodes{ __typename
+  commits(last:1){ nodes{ commit{ oid committedDate statusCheckRollup{ state contexts(first:100){ totalCount nodes{ __typename
    ... on CheckRun{ name status conclusion startedAt completedAt detailsUrl
                     checkSuite{ workflowRun{ databaseId event workflow{ name } } } }
-   ... on StatusContext{ context state createdAt targetUrl } } } } } } } } }
- rateLimit{ cost remaining resetAt } }"""
+   ... on StatusContext{ context state createdAt targetUrl } } } } } } } """
+DETAIL_Q = "query($ids:[ID!]!){ nodes(ids:$ids){ ... on PullRequest{" + DETAIL_FIELDS + "} }\n rateLimit{ cost remaining resetAt } }"
+#: One pull request by number, with the record fields the decision index would have given: what the
+#: pull request's own workflow reads (`ready`), where there is no index and no other repo to look at.
+PR_Q = ("query($owner:String!,$name:String!,$number:Int!){ repository(owner:$owner,name:$name){ pullRequest(number:$number){"
+        " title url state createdAt isCrossRepository baseRefName headRefName author{ login __typename }"
+        " labels(first:50){ nodes{ name } }" + DETAIL_FIELDS + "} } }")
 
 
 class Refused(Exception):
@@ -145,7 +152,13 @@ def detail_record(node: dict, now: float) -> dict:
         "mergeable": node.get("mergeable"), "merge_state": node.get("mergeStateStatus"), "review": node.get("reviewDecision"),
         "repo": {"merge_commit": repo.get("mergeCommitAllowed"), "squash": repo.get("squashMergeAllowed"),
                  "rebase": repo.get("rebaseMergeAllowed"), "private": repo.get("isPrivate"),
-                 "default_branch": (repo.get("defaultBranchRef") or {}).get("name")},
+                 "default_branch": (repo.get("defaultBranchRef") or {}).get("name"),
+                 # Only a read that asked says whether the label exists; an absent key stays unknown.
+                 **({"gate_label": bool(repo.get("gateLabel"))} if "gateLabel" in repo else {})},
+        # The description is read for its task list and not kept: a private repo's text stays out of the cache.
+        "tasks": pq.tasks_of(node.get("body")), "head_at": commit.get("committedDate"),
+        # § 28.4, by the lint's own rule; only a read that asked for the description can say.
+        **({"trace": {k: bool(trace_lint.check_body(str(node.get("body") or ""))[k]) for k in ("ok", "exempt")}} if "body" in node else {}),
         "files": [{"path": f.get("path"), "change": f.get("changeType")} for f in files.get("nodes") or [] if f and f.get("path")],
         "files_total": files.get("totalCount"), "rollup": rollup.get("state"),
         "contexts": [{k: c[k] for k in keep if k in c} for c in contexts if isinstance(c, dict)],
@@ -212,7 +225,7 @@ def read_details(records: dict[str, dict], cache: dict[str, dict], cfg: dict, *,
 # --------------------------------------------------------------------------- #
 # The queue: the one function every surface calls
 # --------------------------------------------------------------------------- #
-FILTERS = ("repo", "kind", "who", "gate", "batch", "check")
+FILTERS = ("repo", "kind", "who", "gate", "batch", "check", "flag", "verdict")
 
 
 def filtered(rows: list[dict], f: dict) -> list[dict]:
@@ -230,6 +243,10 @@ def filtered(rows: list[dict], f: dict) -> list[dict]:
         out = [r for r in out if r.get("head") == f["batch"]]
     if f.get("check"):
         out = [r for r in out if r["checks"]["state"] == f["check"]]
+    if f.get("flag"):
+        out = [r for r in out if f["flag"] in r.get("flags", [])]
+    if f.get("verdict"):
+        out = [r for r in out if (r.get("readiness") or {}).get("verdict") == f["verdict"]]
     return out
 
 
@@ -247,6 +264,10 @@ def queue(root: Path = ROOT, *, refresh: str = "auto", budget_s: float | None = 
         raise ValueError(f"who must be one of {', '.join(pq.WHO)}")
     if f.get("check") and f["check"] not in pq.CHECK_STATES:
         raise ValueError(f"check must be one of {', '.join(pq.CHECK_STATES)}")
+    if f.get("flag") and f["flag"] not in pq.FLAGS:
+        raise ValueError(f"flag must be one of {', '.join(pq.FLAGS)}")
+    if f.get("verdict") and f["verdict"] not in pq.VERDICTS:
+        raise ValueError(f"verdict must be one of {', '.join(pq.VERDICTS)}")
     cfg = pq.config(load_fleet(root))
     clock = now or time.time
     budget = di.Budget(min(di.BUDGET_MAX_S, max(di.BUDGET_MIN_S, float(budget_s or cfg["budget_s"]))))
@@ -321,6 +342,46 @@ def _json(r: subprocess.CompletedProcess) -> Any:
 def live_pr(repo: str, number: int, runner: Callable = run) -> dict | None:
     doc = _json(runner(["gh", "pr", "view", str(number), "--repo", repo, "--json", LIVE_FIELDS], timeout=60))
     return doc if isinstance(doc, dict) else None
+
+
+def live_row(repo: str, number: int, *, root: Path = ROOT, runner: Callable = run, now: Callable[[], float] | None = None) -> dict:
+    """One pull request read live and run through the model: the row the queue would show for it, with
+    its merge readiness. One GraphQL query about that pull request alone, so its own workflow can ask
+    (a pull-request check never reads the fleet). Raises LookupError when it cannot be read."""
+    if not REF_RX.match(f"{repo}#{int(number)}"):
+        raise ValueError(f"{repo}#{number} is not owner/repo#number")
+    owner, name = repo.split("/", 1)
+    r = runner(["gh", "api", "graphql", "-f", f"query={PR_Q}", "-f", f"owner={owner}", "-f", f"name={name}",
+                "-F", f"number={int(number)}"], timeout=90)
+    doc = _json(r)
+    node = (((doc or {}).get("data") or {}).get("repository") or {}).get("pullRequest") if isinstance(doc, dict) else None
+    if not isinstance(node, dict):
+        raise LookupError(f"{repo}#{number} could not be read: {redact(str(r.stderr or '').strip())[:200] or 'no such pull request'}")
+    clock = now or time.time
+    author = node.get("author") or {}
+    rec = {"id": node.get("id") or f"live:{repo}#{number}", "repo": repo, "number": int(number), "title": node.get("title"),
+           "url": node.get("url"), "author": author.get("login"), "bot": author.get("__typename") == "Bot",
+           "private": bool((node.get("repository") or {}).get("isPrivate")),
+           "labels": [lb.get("name") for lb in (node.get("labels") or {}).get("nodes") or [] if lb and lb.get("name")],
+           "created_at": node.get("createdAt"), "updated_at": node.get("updatedAt"), "draft": bool(node.get("isDraft")),
+           "base": node.get("baseRefName"), "head": node.get("headRefName")}
+    detail = detail_record(node, clock())
+    out = pq.row(rec, detail, pq.config(load_fleet(root)), datetime.fromtimestamp(clock(), timezone.utc), set(),
+                 _ratification(rec, detail, di.load_config(root)))
+    out["state"] = node.get("state")
+    return out
+
+
+def render_ready(r: dict) -> str:
+    rd = r["readiness"]
+    who = {"maintainer": "the maintainer merges it", "agent": "an agent may merge it (§ 12.2)"}.get(rd.get("merge") or "", "")
+    head = f"{r['key']} @ {str(r.get('head_sha') or '')[:9]}: {pq.VERDICT_TITLES[rd['verdict']]}"
+    head += f" ({rd['left']} left)" if rd["left"] else ""
+    out = [head + (f" · {who}" if who else "")]
+    for i in rd["items"]:
+        tail = f"  → {pq.WHO_TITLES.get(i['who'], i['who'])}" + (f" ({i['act']})" if i.get("act") else "") if i.get("who") and i["state"] == "todo" else ""
+        out.append(f"  [{i['state']:<4}] {i['text']}{tail}")
+    return "\n".join(out)
 
 
 def repo_facts(repo: str, runner: Callable = run) -> dict:
@@ -873,11 +934,18 @@ def render(doc: dict, limit: int = 60) -> str:
     out = [f"PR queue: {c['total']} open pull request(s) · {doc['status'].upper()} · "
            + " · ".join(f"{pq.WHO_TITLES[w]} {c['who'][w]}" for w in pq.WHO)
            + f" · gated {c['gated']} · false red {c['false_red']} · agent-mergeable {c['agent_mergeable']}"]
+    flags = c.get("flags") or {}
+    if any(flags.values()):
+        t = c.get("tasks") or {}
+        out.append("says one thing, is another: " + " · ".join(f"{pq.FLAG_TITLES[f]} {flags[f]}" for f in pq.FLAGS if flags.get(f))
+                   + (f" · tasks ticked {t.get('done', 0)} of {t.get('total', 0)}" if t.get("total") else "")
+                   + (f" · {c['repos_without_gate_label']} repo(s) have no needs-amr label" if c.get("repos_without_gate_label") else ""))
     for r in doc["rows"][:limit]:
         n = r["next"]
+        marks = f"  !{','.join(r['flags'])}" if r.get("flags") else ""
         out.append(f"  {r['key']:<38} {('DRAFT ' if r['draft'] else '')}{str(r['title'] or '')[:58]:<58} "
                    f"[{r['checks']['state']}{' (false red)' if r['checks'].get('false_red') else ''}] "
-                   f"{'GATED' if r['gate']['gated'] else 'open '} → {n['who']}: {n['action']}")
+                   f"{'GATED' if r['gate']['gated'] else 'open '} → {n['who']}: {n['action']}{marks}")
     if doc["matched"] > limit:
         out.append(f"  … {doc['matched'] - limit} more (--limit, or filter)")
     for b in doc["batches"][:10]:
@@ -929,8 +997,18 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("--expect-op", choices=("prs-act", "prs-agent"), default=None,
                    help="refuse a plan whose action belongs to the other console operation")
     sub.add_parser("actions", help="the bulk actions, their governance and their switches")
+    rd = sub.add_parser("ready", help="one pull request's merge readiness, read live: what is left before it merges")
+    rd.add_argument("--pr", required=True, help="owner/repo#number")
+    rd.add_argument("--json", action="store_true")
     args = ap.parse_args(list(argv or []) or ["queue"])
     try:
+        if args.cmd == "ready":
+            m = REF_RX.match(args.pr.strip())
+            if not m:
+                raise ValueError(f"{args.pr!r} is not owner/repo#number")
+            row_ = live_row(m.group(1), int(m.group(2)))
+            print(json.dumps(row_, indent=1) if args.json else render_ready(row_))
+            return 0
         if args.cmd in ("queue", None):
             filters = {k: getattr(args, k) for k in FILTERS}
             doc = queue(ROOT, refresh=args.refresh, budget_s=args.budget, filters=filters, limit=args.limit)
@@ -967,7 +1045,7 @@ def main(argv: list[str] | None = None) -> int:
     except Refused as exc:
         print(f"refused: {exc}", file=sys.stderr)
         return exc.code
-    except ValueError as exc:
+    except (ValueError, LookupError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     return 0

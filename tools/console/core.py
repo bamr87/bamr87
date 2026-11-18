@@ -19,7 +19,8 @@ Four things live here:
              workflow dispatch) require an explicit confirm flag and are
              serialized behind one lock — the console mirrors the fleet's
              rules: dry-run by default, one remote write at a time, never a
-             merge.
+             merge. Every job reads back with a derived state, its ages and
+             why it may be slow (JOB STATUS, docs/job-status.md).
   CONFIG     a comment-preserving editor for _data/fleet.yml (ruamel
              round-trip), limited to the declared knobs of CONFIG_SECTIONS and
              spliced back one top-level block at a time so the diff covers only
@@ -712,6 +713,24 @@ def lake_review(days: int = 30, repo: str | None = None, limit: int = 10) -> dic
                 "local": {}, "ci": {}, "totals": {}, "findings": []}
 
 
+def lake_recall(query: str, days: int = 30, repo: str | None = None, limit: int = 10) -> dict:
+    """The /api/lake/recall document (`lake recall --json`): the stored local
+    sessions whose first prompt or one assistant turn holds every word of the
+    query, best match first, each with a redacted excerpt. The lake is opened
+    read-only. A query with no words raises ValueError (the route's 422); any
+    other failure is a document that says why, never a 500."""
+    try:
+        mod = _lake_module()
+    except Exception as exc:  # the module is optional at import time
+        return {"present": False, "error": f"{exc.__class__.__name__}: {exc}", "results": []}
+    try:
+        return mod.recall(LAKE_DIR, query, days=days, repo=repo, limit=limit)
+    except ValueError:
+        raise
+    except Exception as exc:
+        return {"present": False, "error": f"{exc.__class__.__name__}: {exc}", "results": []}
+
+
 # --------------------------------------------------------------------------- #
 # PROJECT — one registry project, every signal the console holds about it
 # --------------------------------------------------------------------------- #
@@ -892,6 +911,40 @@ def content_brief(site: str) -> dict:
     if not doc.get("sites"):
         raise ValueError(f"'{site}' is not in the atlas yet — run 'Content: sync' first")
     return {"site": site, "markdown": _content_module().render_brief(doc["sites"][0])}
+
+
+# --------------------------------------------------------------------------- #
+# NODES — where hub workloads run (tools/fleetcore/nodes.py, docs/PLATFORM.md):
+# the document `tools/dash node status --json` prints and the MCP's fleet_nodes
+# returns. A node that is not enabled is never probed; an enabled one is probed
+# with a short time limit, and the page's polls share one answer for a few
+# seconds, so an unreachable node costs one probe per window, never one per tab.
+# --------------------------------------------------------------------------- #
+NODES_TTL = 15.0
+NODES_PROBE_TIMEOUT = 5
+_NODES: dict = {}
+_NODES_LOCK = threading.Lock()
+
+
+def _fleet_nodes():
+    if str(TOOLS) not in sys.path:
+        sys.path.insert(0, str(TOOLS))
+    from fleetcore import nodes
+    return nodes
+
+
+def nodes_doc(*, probe: bool = True) -> dict:
+    """The Nodes page's document. `probe=False` is the public snapshot's: the
+    committed placement model, nothing read from any machine."""
+    nodes = _fleet_nodes()
+    if not probe:
+        return nodes.status_doc(probe=False)
+    with _NODES_LOCK:
+        if _NODES and time.monotonic() - _NODES["at"] < NODES_TTL:
+            return _NODES["doc"]
+        doc = nodes.status_doc(timeout=NODES_PROBE_TIMEOUT)
+        _NODES.update(at=time.monotonic(), doc=doc)
+        return doc
 
 
 # --------------------------------------------------------------------------- #
@@ -1090,6 +1143,27 @@ def _content_file(params: dict) -> list[str]:
     if _flag(params, "apply"):
         argv.append("--apply")
     return argv
+
+
+# --------------------------------------------------------------------------- #
+# SPRINTS — the live expedite-sprint records (tools/sprint_record.py,
+# constitution § 27.7). Read-only: a record changes only by a pull request,
+# so there is no write path here and no route that writes one.
+# --------------------------------------------------------------------------- #
+def _sprint_module():
+    if str(TOOLS) not in sys.path:
+        sys.path.insert(0, str(TOOLS))
+    import sprint_record  # noqa: WPS433
+    return sprint_record
+
+
+def sprints_doc() -> dict:
+    """The /api/sprints document: every `_data/sprints/<slug>.yml` record, linted —
+    gates with who and when, phase, items, spend against the cap, trip wires, the
+    DORA placeholder and the retro. DASH_SPRINTS_DIR points it at another directory
+    (the page's evidence build reads the test fixture through it)."""
+    folder = Path(os.environ.get("DASH_SPRINTS_DIR") or (DATA / "sprints"))
+    return _sprint_module().document(folder, fleet_path=DATA / "fleet.yml", queue_path=WORK_QUEUE)
 
 
 # --------------------------------------------------------------------------- #
@@ -1894,6 +1968,8 @@ OPS: dict[str, dict] = {
                      argv=_loop_run, needs_token=True, needs="claude", exclusive=_loop_exclusive,
                      remote=lambda p: _flag(p, "apply") or (not _flag(p, "rehearse") and not p.get("run_id")),
                      confirm="spend",
+                     # a model attempt's stream is quiet while one tool call (a test suite, a build) runs
+                     stall_s=600,
                      desc="tools/dash loop run <loop> [step] --target <name> --json — the step's own spec, planner "
                           "and prompt bytes (what CI runs), one capped attempt per item inside the § 13.8 sandbox, "
                           "then the dry-run preview under .fleet/runs/<run_id>/. `rehearse` stops before the model "
@@ -2191,6 +2267,7 @@ OPS: dict[str, dict] = {
     "conflicts-resolve": dict(title="Merge conflicts: resolve one pull request, or sweep them all", group="plan",
                               argv=_conflicts_resolve, needs_token=True, exclusive="conflicts",
                               remote=lambda p: not _flag(p, "dry_run"),
+                              stall_s=600,   # a model tier is quiet while the repo's own checks run
                               desc="tools/dash conflicts resolve --pr <owner/repo#number>, or `sweep` with no pr: JEV's "
                                    "tiers up to the first that settles each conflict — the script, then a capped model "
                                    "in this local session (tier caps in _data/fleet.yml budget.jev; API-equivalent, an "
@@ -2469,6 +2546,63 @@ def loop_job_fields(log_path: Path) -> dict:
     return loopjob.parse_log(text)
 
 
+# --------------------------------------------------------------------------- #
+# JOB STATUS — what the bot holding a job's receipt can audit (HUB-064, FR60)
+# --------------------------------------------------------------------------- #
+# `status` says only what a job's process did. An agent that sent a job held a
+# receipt and that raw status, so it could not tell a job still making progress
+# from one that had gone quiet, or say why one was slow (the case that asked
+# for this: a Claude Code session lookup that crawled while nobody could see
+# why). These fields are derived each time a job is read, from what this
+# runtime already holds — the job, its log's growth, the other live jobs, the
+# live collector's file — so nothing new is stored and a job from an older
+# index reads the same way. Design: docs/job-status.md.
+JOB_STATES = ("queued", "running", "stalled", "done", "failed")
+STALL_S = 120            # a running job whose log has not grown for this long is stalled; OPS[op]["stall_s"] overrides
+LONG_STEP_MIN_RUNS = 3   # succeeded runs of an op before their p90 says what "typical" is
+LONG_STEP_RUNS = 20      # ... read from its most recent succeeded runs
+LONG_STEP_FLOOR_S = 30   # never call a run long before this, however quick its op usually is
+
+
+def stall_threshold(op_id: str) -> int:
+    """Seconds without log growth before a running job of this op reads as stalled."""
+    value = (OPS.get(op_id) or {}).get("stall_s")
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
+        return int(value)
+    return STALL_S
+
+
+def _utc(value: dt.datetime) -> dt.datetime:
+    return value if value.tzinfo else value.replace(tzinfo=dt.timezone.utc)
+
+
+def _since(now: dt.datetime, then: dt.datetime) -> float:
+    return round(max(0.0, (_utc(now) - _utc(then)).total_seconds()), 1)
+
+
+def _mtime(path: Path) -> dt.datetime | None:
+    try:
+        return dt.datetime.fromtimestamp(path.stat().st_mtime, dt.timezone.utc)
+    except OSError:
+        return None
+
+
+def _p90(values: list[float]) -> float:
+    ordered = sorted(values)
+    return ordered[max(0, math.ceil(0.9 * len(ordered)) - 1)]
+
+
+def collector_lag(now: dt.datetime | None = None) -> dict | None:
+    """The live collector's lag when its sessions.json is older than live.py
+    calls stale, else None. A missing file is no collector on this host, not a
+    lagging one, so it is None too."""
+    import live  # noqa: PLC0415 — live imports core; by the time a job is read, core is loaded
+    age = live.collector_age(now.timestamp() if now else None)
+    if age is None or age <= live.STALE_S:
+        return None
+    return {"age_s": round(age, 1), "stale_s": live.STALE_S}
+
+
 class JobManager:
     """Every job this runtime started, with history that survives a restart.
 
@@ -2622,9 +2756,89 @@ class JobManager:
                 lock.release()
             self._save()
 
-    def list(self) -> list[dict]:
+    # -- status (HUB-064) ----------------------------------------------------
+    def _typical_s(self, op_id: str) -> tuple[float, int] | None:
+        """(p90 seconds, runs read) over the op's most recent succeeded runs, or
+        None below LONG_STEP_MIN_RUNS. Caller holds _lock."""
+        took: list[float] = []
+        for jid in reversed(self.order):
+            j = self.jobs.get(jid)
+            if j is not None and j.op == op_id and j.status == "succeeded" and j.started and j.finished:
+                took.append(_since(j.finished, j.started))
+                if len(took) == LONG_STEP_RUNS:
+                    break
+        return (_p90(took), len(took)) if len(took) >= LONG_STEP_MIN_RUNS else None
+
+    def _waiting_on(self, job: Job) -> tuple[Job, str] | None:
+        """The live job a queued one waits behind, and what it holds. Caller holds _lock."""
+        for other in self.jobs.values():
+            if other is job or other.status not in ("queued", "running"):
+                continue
+            if job.exclusive and getattr(other, "exclusive", None) == job.exclusive:
+                return other, f"holds {job.exclusive}"
+            if job.remote and other.remote and other.status == "running":
+                return other, "holds the one GitHub-write slot (one remote write at a time)"
+        return None
+
+    def _progress(self, job: Job, now: dt.datetime, lag: dict | None) -> dict:
+        """state, age_s, idle_s, stall_s and diagnostics for one job. Caller holds _lock."""
+        stall_s = stall_threshold(job.op)
+        age_s = _since(now, job.created)
+        idle_s: float | None = None
+        diagnostics: list[dict] = []
+        if job.status in FINISHED_STATES:
+            # the exact outcome stays in `status`; `state` says only whether it worked
+            state = "done" if job.status == "succeeded" else "failed"
+        elif job.status == "running" and job.started is not None:
+            # a heartbeat is a log line, so log growth is the one sign of progress
+            grew = _mtime(job.log_path)
+            idle_s = _since(now, max(_utc(job.started), grew) if grew else job.started)
+            state = "stalled" if idle_s > stall_s else "running"
+            if state == "stalled":
+                diagnostics.append({"code": "no_heartbeat",
+                                    "detail": f"no log output for {idle_s:.0f} s (stalled past {stall_s} s)"})
+            typical = self._typical_s(job.op)
+            ran = _since(now, job.started)
+            if typical and ran > max(typical[0], LONG_STEP_FLOOR_S):
+                diagnostics.append({"code": "long_step",
+                                    "detail": f"running {ran:.0f} s, past the {typical[0]:.0f} s p90 of its "
+                                              f"last {typical[1]} successful runs"})
+        else:
+            state = "queued"
+            idle_s = age_s
+            waiting = self._waiting_on(job)
+            if waiting:
+                other, what = waiting
+                diagnostics.append({"code": "queue_wait",
+                                    "detail": f"queued behind '{other.op}' (job {other.id}), which {what}"})
+        if lag and state in ("queued", "running", "stalled"):
+            diagnostics.append({"code": "collector_lag",
+                                "detail": f"the live collector last wrote .dash-live/sessions.json "
+                                          f"{lag['age_s']:.0f} s ago (stale past {lag['stale_s']} s), so a "
+                                          "Claude Code session lookup reads old data"})
+        return {"state": state, "age_s": age_s, "idle_s": idle_s, "stall_s": stall_s, "diagnostics": diagnostics}
+
+    def status(self, job_id: str, now: dt.datetime | None = None) -> dict:
+        """What one job is doing now (GET /api/jobs/{id}/status, the MCP's
+        job_status): who it is and its raw status, then the derived state, ages
+        and diagnostics. KeyError for an unknown id."""
+        now = now or dt.datetime.now(dt.timezone.utc)
+        lag = collector_lag(now)
         with self._lock:
-            return [self.jobs[i].to_dict() for i in reversed(self.order) if i in self.jobs]
+            job = self.jobs.get(job_id)
+            if job is None:
+                raise KeyError(job_id)
+            d = job.to_dict()
+            keep = ("id", "op", "title", "group", "status", "exit_code", "created", "started", "finished",
+                    "remote_write", "exclusive")
+            return {**{k: d[k] for k in keep}, **self._progress(job, now, lag)}
+
+    def list(self, now: dt.datetime | None = None) -> list[dict]:
+        now = now or dt.datetime.now(dt.timezone.utc)
+        lag = collector_lag(now)
+        with self._lock:
+            return [{**self.jobs[i].to_dict(), **self._progress(self.jobs[i], now, lag)}
+                    for i in reversed(self.order) if i in self.jobs]
 
     def get(self, job_id: str) -> Job | None:
         return self.jobs.get(job_id)
@@ -2640,7 +2854,11 @@ class JobManager:
                 chunk = fh.read(limit)
                 new_offset = offset + len(chunk)
                 text = chunk.decode("utf-8", "replace")
-        out = {"job": job.to_dict(), "text": text, "offset": new_offset,
+        now = dt.datetime.now(dt.timezone.utc)
+        lag = collector_lag(now)
+        with self._lock:
+            progress = self._progress(job, now, lag)
+        out = {"job": {**job.to_dict(), **progress}, "text": text, "offset": new_offset,
                "done": job.status in FINISHED_STATES}
         if job.op == "loop-run":
             # parsed ONCE, here (tools/fleetcore/loopjob.py): the page and the

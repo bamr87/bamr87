@@ -1,0 +1,188 @@
+{
+  "id": "console-job-status",
+  "title": "The Jobs page carries a job's state, ages and why it may be slow",
+  "features": [
+    "HUB-064"
+  ],
+  "path": "verify/scenarios/console-job-status.yml",
+  "started": "2026-11-16T06:40:24.368Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/jobs",
+          "ok": true,
+          "ms": 626
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "main table"
+          },
+          "ok": true,
+          "ms": 12
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "main :text-is('Stalled')"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "running, log quiet past its threshold"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "main th:has-text('age')"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "main th:has-text('idle')"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "jobs",
+          "ok": true,
+          "file": "test/evidence/console-job-status/desktop-jobs.png",
+          "ms": 34
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/console-job-status/desktop-jobs.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4121/jobs/"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/jobs",
+          "ok": true,
+          "ms": 614
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "main table"
+          },
+          "ok": true,
+          "ms": 10
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "main :text-is('Stalled')"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "running, log quiet past its threshold"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "main th:has-text('age')"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "main th:has-text('idle')"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "jobs",
+          "ok": true,
+          "file": "test/evidence/console-job-status/mobile-jobs.png",
+          "ms": 18
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/console-job-status/mobile-jobs.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4121/jobs/"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-11-16T06:40:25.792Z",
+  "base": "http://127.0.0.1:4121"
+}

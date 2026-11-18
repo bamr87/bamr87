@@ -8,7 +8,15 @@
 
 ## 1. Mission
 
-TODO: one paragraph — who this repo serves and what it is for (from PRD § 1).
+This repo's direction is to become the ultimate open home for all things <domain>.
+
+1. Provide data, tools, resources and transparency for all stakeholders, <professionals in the field>, and the general public.
+2. TODO: the second numbered mission — comprehensive and aspirational, written as direction, not as a claim of current capability.
+3. TODO: the third numbered mission — comprehensive and aspirational, written as direction, not as a claim of current capability.
+
+The README and AGENTS.md one-liners match this direction and link here.
+
+_Source: this section; [PRD.md](../PRD.md) § 1._
 
 ## 2. Invariants (non-negotiable)
 

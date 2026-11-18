@@ -1,0 +1,196 @@
+{
+  "id": "sprints",
+  "title": "The Sprints page renders the live expedite-sprint record, or says plainly that none is declared, and writes nothing",
+  "features": [
+    "HUB-085"
+  ],
+  "path": "verify/scenarios/sprints.yml",
+  "started": "2026-11-16T06:59:54.786Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/sprints",
+          "ok": true,
+          "ms": 735
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "[data-testid='sprints-empty'], [data-testid='sprint-record']"
+          },
+          "ok": true,
+          "ms": 18
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "h1:has-text('Sprints')"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "changes only by a pull request"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "API-equivalent (estimate)"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "[data-testid='sprints-page'] form, [data-testid='sprints-page'] input, [data-testid='sprints-page'] textarea",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "sprints",
+          "ok": true,
+          "file": "test/evidence/sprints/desktop-sprints.png",
+          "ms": 41
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/sprints/desktop-sprints.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4391/sprints/"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/sprints",
+          "ok": true,
+          "ms": 616
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "[data-testid='sprints-empty'], [data-testid='sprint-record']"
+          },
+          "ok": true,
+          "ms": 10
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "h1:has-text('Sprints')"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "changes only by a pull request"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "API-equivalent (estimate)"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "[data-testid='sprints-page'] form, [data-testid='sprints-page'] input, [data-testid='sprints-page'] textarea",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "sprints",
+          "ok": true,
+          "file": "test/evidence/sprints/mobile-sprints.png",
+          "ms": 15
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/sprints/mobile-sprints.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4391/sprints/"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-11-16T06:59:56.429Z",
+  "base": "http://127.0.0.1:4391"
+}

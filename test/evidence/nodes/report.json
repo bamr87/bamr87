@@ -1,0 +1,316 @@
+{
+  "id": "nodes",
+  "title": "The Nodes page shows where hub workloads run, and the published page says it probed nothing",
+  "features": [
+    "HUB-068"
+  ],
+  "path": "verify/scenarios/nodes.yml",
+  "started": "2026-11-16T06:47:41.973Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/nodes",
+          "ok": true,
+          "ms": 691
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "main table"
+          },
+          "ok": true,
+          "ms": 25
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "The committed model, nothing probed"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "forge"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "placed here once it is enabled"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "declared in fleet.yml"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Placement drift: not read"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "nodes",
+          "ok": true,
+          "file": "test/evidence/nodes/desktop-nodes.png",
+          "ms": 64
+        },
+        {
+          "step": "screenshot",
+          "arg": "nodes-full",
+          "ok": true,
+          "file": "test/evidence/nodes/desktop-nodes-full.png",
+          "ms": 81
+        },
+        {
+          "step": "goto",
+          "arg": "/overview",
+          "ok": true,
+          "ms": 587
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "main a[href$='/nodes']"
+          },
+          "ok": true,
+          "ms": 10
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "placement drift: read on a console"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 0
+        },
+        {
+          "step": "hover",
+          "arg": "main a[href$='/nodes']",
+          "ok": true,
+          "ms": 33
+        },
+        {
+          "step": "screenshot",
+          "arg": "overview-nodes",
+          "ok": true,
+          "file": "test/evidence/nodes/desktop-overview-nodes.png",
+          "ms": 31
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/nodes/desktop-nodes.png",
+        "test/evidence/nodes/desktop-nodes-full.png",
+        "test/evidence/nodes/desktop-overview-nodes.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4605/overview/"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/nodes",
+          "ok": true,
+          "ms": 617
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "main table"
+          },
+          "ok": true,
+          "ms": 10
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "The committed model, nothing probed"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "forge"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "placed here once it is enabled"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "declared in fleet.yml"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Placement drift: not read"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "nodes",
+          "ok": true,
+          "file": "test/evidence/nodes/mobile-nodes.png",
+          "ms": 12
+        },
+        {
+          "step": "screenshot",
+          "arg": "nodes-full",
+          "ok": true,
+          "file": "test/evidence/nodes/mobile-nodes-full.png",
+          "ms": 63
+        },
+        {
+          "step": "goto",
+          "arg": "/overview",
+          "ok": true,
+          "ms": 584
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "main a[href$='/nodes']"
+          },
+          "ok": true,
+          "ms": 11
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "placement drift: read on a console"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "hover",
+          "arg": "main a[href$='/nodes']",
+          "ok": true,
+          "ms": 63
+        },
+        {
+          "step": "screenshot",
+          "arg": "overview-nodes",
+          "ok": true,
+          "file": "test/evidence/nodes/mobile-overview-nodes.png",
+          "ms": 44
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/nodes/mobile-nodes.png",
+        "test/evidence/nodes/mobile-nodes-full.png",
+        "test/evidence/nodes/mobile-overview-nodes.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4605/overview/"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-11-16T06:47:45.100Z",
+  "base": "http://127.0.0.1:4605"
+}

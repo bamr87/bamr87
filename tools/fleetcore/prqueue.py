@@ -58,6 +58,25 @@ KIND_TITLES = {"security": "Security", "dependabot": "Dependabot", "release": "R
 WHO = ("amr", "agent", "loop", "author")
 WHO_TITLES = {"amr": "Amr", "agent": "An agent", "loop": "A loop", "author": "The author"}
 CHECK_STATES = ("failing", "action_required", "cancelled", "pending", "green", "skipped", "none")
+#: Where what a pull request SAYS (its label, its next-action comment, its task list) disagrees with what
+#: the queue reads. A flag is a fact about the page a person opens, never a new gate.
+FLAGS = ("unlabelled", "stale-comment", "no-comment", "open-tasks", "tasks-contradict")
+FLAG_TITLES = {"unlabelled": "gated, no needs-amr label", "stale-comment": "next-action comment out of date",
+               "no-comment": "no next-action comment", "open-tasks": "unticked tasks in the description",
+               "tasks-contradict": "an unticked CI task while every check passes"}
+GATE_LABEL = "needs-amr"
+#: Merge readiness (ADR 0012): what is left before a pull request merges, as one verdict.
+#: `ready` nothing is left · `waiting` something is still running or being computed · `not-ready` work is left.
+VERDICTS = ("ready", "waiting", "not-ready")
+VERDICT_TITLES = {"ready": "Ready to merge", "waiting": "Waiting", "not-ready": "Not ready to merge"}
+#: An item is `done`, `todo` (someone has work), `wait` (a machine is still working), `held` (the review
+#: gate: the maintainer's decision, never work for an agent) or `note` (a gap that blocks nothing yet).
+ITEM_STATES = ("done", "todo", "wait", "held", "note")
+#: A commit status of this name is the report's own and never one of the checks it reports on.
+READINESS_CONTEXT = "Merge readiness"
+#: Labels a repo uses to say "a person decides this one" that the review gate does not read (it reads
+#: needs-amr, agent:hold and blocked). Readiness treats them as a hold, so it never tells an agent to merge.
+HOLD_LABELS = ("needs-human", "human-review", "do-not-merge")
 
 DEFAULTS: dict[str, Any] = {
     "ttl_s": 600,              # a detail record older than this, or read for an older updated_at, is read again
@@ -178,7 +197,7 @@ def collapse_checks(contexts: Iterable[dict] | None) -> list[dict]:
     (bamr87/bamr87#862), so the queue is never looser than the gate. `superseded` counts the runs set
     aside; a kept earlier run carries `earlier: true`."""
     groups: dict[tuple, list[dict]] = {}
-    for order, c in enumerate(x for x in contexts or [] if isinstance(x, dict)):
+    for order, c in enumerate(x for x in contexts or [] if isinstance(x, dict) and x.get("context") != READINESS_CONTEXT):
         is_status = c.get("__typename") == "StatusContext" or ("context" in c and "conclusion" not in c and "name" not in c)
         if is_status:
             name, key_kind = str(c.get("context") or "a status"), "status"
@@ -262,6 +281,190 @@ def parse_triage(body: str | None) -> dict | None:
            else "loop" if re.match(r"^(a loop|jev|the loop)", nxt, re.I) else None)
     return {k: v for k, v in {"next_action": nxt[:400], "question": (question or "")[:500] or None, "commands": commands,
                               "who_hint": who}.items() if v}
+
+
+# --------------------------------------------------------------------------- #
+# Consistency: the label, the comment and the task list against the queue's own reading
+# --------------------------------------------------------------------------- #
+TASK_RX = re.compile(r"^[ \t]*[-*+][ \t]+\[([ xX])\][ \t]+(\S.*?)[ \t]*$", re.M)
+#: The pull-request template's "Type Of Change" block is a choice, not work: GitHub counts each unticked
+#: option as an open task, so a finished pull request reads "4 of 9 tasks" for good.
+OPTION_TASKS = frozenset({"bug fix", "new feature", "breaking change", "documentation update",
+                          "maintenance or refactor", "test improvement"})
+CI_TASK_RX = re.compile(r"\bci is green\b|\btests? pass(es)?\b|\bchecks? (pass|are green)\b", re.I)
+_TASK_TEXT = re.compile(r"[*_`]")
+_MERGE_WORD = re.compile(r"\bmerges?\b", re.I)
+_CONFLICT_WORD = re.compile(r"\bconflicts?\b|\brebase\b|\bupdate (the )?branch\b", re.I)
+_FAILING_WORD = re.compile(r"\bfailing\b|\bfix (the |its )?(ci|checks?)\b|\bred checks?\b", re.I)
+
+
+def tasks_of(body: str | None) -> dict | None:
+    """The description's task list: `total` and `done` as GitHub counts them, `open` without the
+    template's unticked options, the first open items, and whether one of them says CI is not green
+    yet. None when the description has no checkbox."""
+    found = TASK_RX.findall(str(body or ""))
+    if not found:
+        return None
+    opened = [_TASK_TEXT.sub("", text).strip() for mark, text in found if mark == " "]
+    options = [t for t in opened if t.lower().rstrip(".") in OPTION_TASKS]
+    work = [t for t in opened if t.lower().rstrip(".") not in OPTION_TASKS]
+    return {"total": len(found), "done": len(found) - len(opened), "open": len(work), "options": len(options),
+            "items": [t[:100] for t in work[:5]], "ci_open": any(CI_TASK_RX.search(t) for t in work)}
+
+
+def label_of(gate: dict, labels: Iterable[str], detail: dict) -> dict:
+    """§ 12.4: a gated pull request carries the needs-amr label. `missing` is a gated one that does not;
+    `repo_has_label` False means the label cannot be added until the repo has it."""
+    labelled = GATE_LABEL in set(labels or [])
+    state = "labelled" if labelled else "missing" if gate.get("gated") and detail.get("read") else "not-needed"
+    out: dict[str, Any] = {"state": state}
+    has = (detail.get("repo") or {}).get("gate_label")
+    if has is not None:
+        out["repo_has_label"] = bool(has)
+    return out
+
+
+def comment_of(triage: dict | None, detail: dict, *, draft: bool, mergeable: str | None, checks_state: str) -> dict:
+    """The next-action comment against the pull request today: `none`, `current`, or `stale` with each
+    fact that contradicts it. Only facts decide; the wording of a hand-written comment is never judged."""
+    if not triage:
+        return {"state": "none"}
+    said = str(triage.get("next_action") or "")
+    commands = " ".join(triage.get("commands") or [])
+    why = []
+    if detail.get("head_at") and triage.get("updated_at") and str(detail["head_at"]) > str(triage["updated_at"]):
+        why.append("commits were pushed after it was written")
+    if "gh pr ready" in commands and not draft:
+        why.append("it says mark it ready; it is ready")
+    says_merge = "gh pr merge" in commands or bool(_MERGE_WORD.search(said))
+    if says_merge and mergeable == "CONFLICTING":
+        why.append("it says merge; the pull request conflicts with its base")
+    if says_merge and checks_state == "failing":
+        why.append("it says merge; a check is failing")
+    if _CONFLICT_WORD.search(said) and mergeable == "MERGEABLE":
+        why.append("it says resolve a conflict; there is none")
+    if _FAILING_WORD.search(said) and checks_state in ("green", "skipped"):
+        why.append("it says fix failing checks; they pass")
+    return {"state": "stale", "why": why} if why else {"state": "current"}
+
+
+def flags_of(label: dict, comment: dict, tasks: dict | None, checks_state: str, read: bool) -> list[str]:
+    if not read:  # nothing was read, so nothing can be said to disagree
+        return []
+    out = []
+    if label["state"] == "missing":
+        out.append("unlabelled")
+    if comment["state"] == "stale":
+        out.append("stale-comment")
+    if comment["state"] == "none":
+        out.append("no-comment")
+    if tasks and tasks["open"]:
+        out.append("open-tasks")
+    if tasks and tasks.get("ci_open") and checks_state == "green":
+        out.append("tasks-contradict")
+    return out
+
+
+# --------------------------------------------------------------------------- #
+# Merge readiness: everything that is left before this pull request merges (ADR 0012)
+# --------------------------------------------------------------------------- #
+def _names(names: Iterable[str], limit: int = 3) -> str:
+    names = [str(n) for n in names or []]
+    return ", ".join(names[:limit]) + (f" and {len(names) - limit} more" if len(names) > limit else "")
+
+
+def readiness_of(r: dict, detail: dict) -> dict:
+    """What is left before this pull request merges, as an ordered list of items and one verdict.
+
+    Every item is a fact the queue already read: the checks on the head commit, the base branch, the
+    draft state, the review gate and its label, the governance trace, the description's task list, the
+    review threads and the review decision. `who` names who moves a `todo` item and `act` the bulk
+    action that does it. The review gate is `held`, never `todo`: it is the maintainer's decision and
+    not work, so a gated pull request with nothing else left is `ready`, for the maintainer.
+    """
+    items: list[dict] = []
+
+    def add(key: str, state: str, text: str, who: str | None = None, act: str | None = None) -> None:
+        items.append({k: v for k, v in (("key", key), ("state", state), ("text", text), ("who", who), ("act", act)) if v})
+
+    if not r.get("read"):
+        add("read", "wait", "its checks and files have not been read yet")
+        return {"verdict": "waiting", "left": 0, "merge": None, "items": items}
+    c = r["checks"]
+    state = c["state"]
+    if state in ("green", "skipped"):
+        add("ci", "done", f"{c.get('green', 0)} check(s) pass on the head commit"
+            + (" (GitHub still shows it red for a cancelled run a later run superseded)" if c.get("false_red") else ""))
+    elif state == "pending":
+        add("ci", "wait", f"still running: {_names(c.get('pending'))}")
+    elif state == "failing":
+        add("ci", "todo", f"failing: {_names(c.get('failing'))}", "agent", "agent")
+    elif state == "cancelled":
+        add("ci", "todo", f"cancelled and not re-run: {_names(c.get('cancelled'))}", "loop", "rerun")
+    elif state == "action_required":
+        add("ci", "todo", f"a run waits for approval: {_names(c.get('action_required'))}", "amr")
+    else:
+        add("ci", "todo", "no check ran on the head commit", "amr")
+    mergeable = r.get("mergeable")
+    if mergeable == "CONFLICTING":
+        add("base", "todo", "conflicts with its base branch", "loop", "update-branch")
+    elif mergeable == "MERGEABLE":
+        add("base", "done", "merges into its base without a conflict" + (", and is behind it" if r.get("merge_state") == "BEHIND" else ""))
+    else:
+        add("base", "wait", "GitHub has not yet said whether it merges")
+    if r.get("draft"):
+        add("state", "todo", "still a draft: mark it ready when the work is complete", "author", "ready")
+    else:
+        add("state", "done", "marked ready for review")
+    gate = r["gate"]
+    label = r.get("label") or {}
+    if gate.get("gated"):
+        add("gate", "held", f"held for the maintainer: {gate.get('reason')}", "amr")
+        if label.get("state") == "missing":
+            add("label", "todo", "gated, but it carries no needs-amr label (§ 12.4)"
+                + ("; the repo has no such label yet" if label.get("repo_has_label") is False else ""), "agent", "needs-amr")
+        elif label.get("state") == "labelled":
+            add("label", "done", "labelled needs-amr")
+    else:
+        add("gate", "done", "no review gate holds it (§ 12.3)")
+    by_maintainer = bool(gate.get("gated"))
+    held_by = sorted(set(r.get("labels") or []) & set(HOLD_LABELS))
+    if held_by:
+        add("hold", "held", f"carries the {', '.join(held_by)} label: a person decides", "amr")
+        by_maintainer = True
+    if not gate.get("gated") and r.get("merge_method") in ("squash", "rebase"):
+        add("method", "held", f"the repo allows only a {r['merge_method']} merge, and § 12.2 gives an agent a merge commit", "amr")
+        by_maintainer = True
+    trace = detail.get("trace") if isinstance(detail.get("trace"), dict) else None
+    mechanical = bool(r.get("bot")) or bool({"dependabot", "release"} & set(r.get("kinds") or []))
+    if trace is not None and not mechanical:
+        if trace.get("ok"):
+            add("trace", "done", "trace-exempt" if trace.get("exempt") else "the description names what governs it (§ 28.4)")
+        else:  # § 28.4's lint is warn-only until adoption, so readiness notes it and does not block on it
+            add("trace", "note", "the description has no `Governed by:` line naming an amendment or a requirement (§ 28.4, warn-only)")
+    tasks = r.get("tasks")
+    if tasks:
+        if tasks.get("open"):
+            add("tasks", "todo", f"{tasks['open']} unticked task(s) in the description: " + "; ".join(tasks.get("items") or [])[:240], "author")
+        else:
+            add("tasks", "done", f"every task in the description is ticked ({tasks.get('done')} of {tasks.get('total')}"
+                + (f", {tasks['options']} unticked template option(s) aside)" if tasks.get("options") else ")"))
+    threads = int(r.get("review_threads") or 0)
+    if threads:
+        add("threads", "todo", f"{threads} unresolved review thread(s)", "author")
+    review = r.get("review")
+    if review == "CHANGES_REQUESTED":
+        add("review", "todo", "a reviewer requested changes", "author")
+    elif review == "REVIEW_REQUIRED":
+        add("review", "wait", "a required review is pending", "amr")
+    elif review == "APPROVED":
+        add("review", "done", "approved")
+    else:
+        add("review", "note", "no review is recorded on it")
+    todo = [i for i in items if i["state"] == "todo"]
+    waiting = [i for i in items if i["state"] == "wait"]
+    verdict = "not-ready" if todo else "waiting" if waiting else "ready"
+    return {"verdict": verdict, "left": len(todo), "merge": "maintainer" if by_maintainer else "agent", "items": items}
 
 
 # --------------------------------------------------------------------------- #
@@ -461,6 +664,12 @@ def row(rec: dict, detail: dict | None, cfg: dict, now: datetime, batch_heads: s
         "triage": triage, "read": bool(detail.get("read")), "read_at": detail.get("read_at"),
         "review_threads": detail.get("unresolved_threads"),
     }
+    tasks = detail.get("tasks") if isinstance(detail.get("tasks"), dict) else None
+    label = label_of(gate, out["labels"], detail)
+    comment = comment_of(triage, detail, draft=out["draft"], mergeable=out["mergeable"], checks_state=checks["state"])
+    out.update(tasks=tasks, label=label, comment=comment,
+               flags=flags_of(label, comment, tasks, checks["state"], out["read"]))
+    out["readiness"] = readiness_of(out, detail)
     return {k: v for k, v in out.items() if v is not None}
 
 
@@ -504,6 +713,12 @@ def build(records: Iterable[dict], details: dict[str, dict], cfg: dict, now: dat
         "agent_mergeable": sum(bool(r["agent_merge"]["ok"]) for r in rows),
         "unread": sum(not r["read"] for r in rows),
         "triaged": sum(bool(r.get("triage")) for r in rows),
+        "flags": {f: sum(f in r.get("flags", []) for r in rows) for f in FLAGS},
+        "tasks": {"with": sum(bool(r.get("tasks")) for r in rows),
+                  "done": sum((r.get("tasks") or {}).get("done", 0) for r in rows),
+                  "total": sum((r.get("tasks") or {}).get("total", 0) for r in rows)},
+        "repos_without_gate_label": len({r["repo"] for r in rows if (r.get("label") or {}).get("repo_has_label") is False}),
+        "readiness": {v: sum(r["readiness"]["verdict"] == v for r in rows) for v in VERDICTS},
     }
     return {"schema": SCHEMA, "generated_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "rows": rows, "batches": batches,
             "counts": counts, "actions": actions_view(cfg)}

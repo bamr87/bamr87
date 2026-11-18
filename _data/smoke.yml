@@ -1,6 +1,6 @@
 ---
 schema: fleet-smoke/v1
-recorded_at: '2026-09-22T02:43:49Z'
+recorded_at: '2026-11-17T22:00:23Z'
 note: Observed by tools/fleet_smoke.py against the LOCAL fleet stack. `services` is the full recording;
   `expectations` is the stable subset that `fleet-smoke check` asserts. Latency, byte counts, patch versions
   and container ids are recorded but never asserted.
@@ -620,26 +620,26 @@ services:
   ok: true
   verdict: ok
 - project: zer0-cms
-  service: cms
+  service: content
   band: api
   port: 8117
-  container: zer0-cms-cms-1
+  container: zer0-cms-content-1
   state: running
-  image: b3c1e60a2585
+  image: zer0-cms-content
   health: healthy
   probes:
   - kind: http
     url: http://127.0.0.1:8117/
     ok: true
-    status: 301
-    status_class: 3xx
+    status: 200
+    status_class: 2xx
     content_type: text/html
-    bytes: 0
-    ms: 16
-    location: http://127.0.0.1:8117/admin
+    bytes: 211
+    ms: 242
+    title: Welcome to your new Wagtail site!
   - kind: exec
     ok: true
-    user: rails
+    user: app
   ok: true
   verdict: ok
 - project: zer0-cms
@@ -653,7 +653,7 @@ services:
     ok: false
     error: URLError
     detail: <urlopen error [Errno 61] Connection refused>
-    ms: 1
+    ms: 3
   ok: false
   profiles:
   - imagegen
@@ -838,6 +838,50 @@ unallocated_containers:
   state: exited
   image: c61587a602dc
   container: lawmode-lawmode-1
+- project: zer0-cms
+  service: beat
+  state: running
+  image: zer0-cms-beat
+  container: zer0-cms-beat-1
+- project: zer0-cms
+  service: belt-publisher
+  state: running
+  image: zer0-cms-belt-publisher
+  container: zer0-cms-belt-publisher-1
+- project: zer0-cms
+  service: db
+  state: running
+  image: pgvector/pgvector:pg16
+  container: zer0-cms-db-1
+  health: healthy
+- project: zer0-cms
+  service: events
+  state: running
+  image: zer0-cms-events
+  container: zer0-cms-events-1
+- project: zer0-cms
+  service: redis
+  state: running
+  image: redis:7-alpine
+  container: zer0-cms-redis-1
+  health: healthy
+- project: zer0-cms
+  service: relay
+  state: running
+  image: zer0-cms-relay
+  container: zer0-cms-relay-1
+- project: zer0-cms
+  service: research-worker
+  state: running
+  image: zer0-cms-research-worker
+  container: zer0-cms-research-worker-1
+  health: healthy
+- project: zer0-cms
+  service: worker
+  state: running
+  image: zer0-cms-worker
+  container: zer0-cms-worker-1
+  health: healthy
 expectations:
   ai-seed/api:
     state: running
@@ -1028,13 +1072,13 @@ expectations:
     health: healthy
     tcp: true
     exec_user: root
-  zer0-cms/cms:
+  zer0-cms/content:
     state: running
     ok: true
     verdict: ok
     health: healthy
-    http: 3xx
-    exec_user: rails
+    http: 2xx
+    exec_user: app
   zer0-cms/imagegen:
     state: absent
     ok: false

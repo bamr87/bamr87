@@ -655,6 +655,9 @@ class JevConfig:
     #: (constitution § 10.9), so CI does the free deterministic work and leaves
     #: the rest for `tools/dash conflicts sweep`.
     ci_tiers: list[str] = field(default_factory=lambda: ["tier0"])
+    #: `budget.sprints` (tools/jev/sprints.py): an expedite sprint's PRs climb
+    #: past tier 0 only inside its ceiling, and its switch stops them outright.
+    sprints: list = field(default_factory=list)
 
     def tier(self, name: str) -> TierPolicy:
         return self.tiers.get(name, TierPolicy(name))
@@ -698,7 +701,9 @@ def load_config(fleet: dict | None = None) -> JevConfig:
     Money that is set but bounds nothing is refused, never defaulted:
     `monthly_usd` and every tier cap must be a finite number above 0,
     `scheduled_stop_pct` an integer in 1..100, and a tier that names a model
-    must have a cap."""
+    must have a cap. `budget.sprints` is read here too, so a declaration that
+    bounds nothing refuses the engine at load (tools/jev/sprints.py)."""
+    from . import sprints as sprint_rules   # lazily: sprints imports this module
     data = fleet if fleet is not None else load_fleet()
     jev = (data.get("jev") or {})
     budget = ((data.get("budget") or {}).get("jev") or {})
@@ -741,6 +746,7 @@ def load_config(fleet: dict | None = None) -> JevConfig:
         append_paths=[str(p) for p in (jev.get("append_paths") or [])],
         auto_tiers=[str(t) for t in (jev.get("auto_tiers") or ["tier0", "tier1", "tier2"])],
         ci_tiers=[str(t) for t in (jev.get("ci_tiers") or ["tier0"])],
+        sprints=sprint_rules.load_sprints(data),
     )
 
 

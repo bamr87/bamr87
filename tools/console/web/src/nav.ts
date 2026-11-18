@@ -5,9 +5,9 @@
 // the terminal dash.
 import {
   IconActivity, IconAppWindow, IconApps, IconBox, IconDeviceDesktop, IconBrandGithub, IconBrandDocker, IconBriefcase, IconCalendarTime, IconChartBar, IconCoin,
-  IconFileText, IconGauge, IconGitBranch, IconGitPullRequest, IconHeartbeat, IconHome, IconInbox, IconKey, IconLayoutGrid, IconLayoutKanban, IconListCheck, IconMicroscope, IconListDetails, IconLogs,
-  IconMail, IconMicrophone, IconPencil, IconPlayerPlay, IconPlugConnected, IconReceipt, IconRepeat, IconRoute, IconRoadSign, IconSearch, IconSettings,
-  IconTerminal2, IconTool, IconTools, IconTopologyStar3, IconUser, IconFlask, IconSparkles, type Icon,
+  IconFileText, IconGauge, IconGitBranch, IconGitPullRequest, IconHeartbeat, IconHome, IconInbox, IconKey, IconLayoutBoardSplit, IconLayoutGrid, IconLayoutKanban, IconListCheck, IconMicroscope, IconListDetails, IconLogs,
+  IconMail, IconMicrophone, IconPencil, IconPlayerPlay, IconPlugConnected, IconReceipt, IconRepeat, IconRoute, IconRoadSign, IconSearch, IconServer2, IconSettings,
+  IconTerminal2, IconTool, IconTools, IconTopologyStar3, IconUser, IconFlask, IconSparkles, IconBolt, type Icon,
 } from '@tabler/icons-react';
 
 import { BASENAME } from './api/backend';
@@ -59,7 +59,9 @@ export const NAV: NavSection[] = [
       { label: 'Features', to: '/features', icon: IconListCheck, hint: 'what each repo does and what proves it' },
       { label: 'Engagements', to: '/engagements', icon: IconReceipt, hint: 'projects as clients: estimates and actuals' },
       { label: 'GitHub', to: '/github', icon: IconBrandGithub, hint: 'connect through the OAuth App; manage issues, runs and workflows' },
+      { label: 'GitHub Projects', to: '/gh-projects', icon: IconLayoutBoardSplit, hint: 'Projects (v2) across every owner: a table, or a board by Status — read-only' },
       { label: 'Containers', to: '/containers', icon: IconBrandDocker, hint: 'containers on every Docker host' },
+      { label: 'Nodes', to: '/nodes', icon: IconServer2, hint: 'where hub workloads run: each node’s role, on/off state, reachability, capacity and placed services' },
     ],
   },
   {
@@ -71,6 +73,7 @@ export const NAV: NavSection[] = [
       { label: 'Loops', to: '/loops', icon: IconRepeat, hint: 'the control-plane loops' },
       { label: 'Workflows', to: '/workflows', icon: IconGitBranch, hint: 'every hub workflow and action: standards, failures, retirement, design' },
       { label: 'Work board', to: '/work', icon: IconLayoutKanban, hint: 'every open item in the order the loops take it — drag to reprioritise' },
+      { label: 'Sprints', to: '/sprints', icon: IconBolt, hint: 'the live expedite-sprint record: gates, phase, spend vs cap, trip wires, retro' },
       { label: 'Deep dive', to: '/deep-dive', icon: IconMicroscope, hint: 'one repo a day, every repo once per cycle' },
       { label: 'Refine', to: '/refine', icon: IconFlask, hint: 'the harness itself: surface check, Propose–Probe–Compose plans, evidence, the experience library, the review queue' },
     ],

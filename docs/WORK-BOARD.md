@@ -55,13 +55,19 @@ Files are written to the **working tree, never committed**. The apply result sho
 
 The board's next-run cut line is not an imitation of the pipeline. `work_board.py` builds the same per-repo records and calls `issue_pipeline.build_queues` itself, and `test_work_board.py` holds the two equal. While the committed snapshot predates the full `backlog:` list, issues outside the capped queues are read from `fleet_triage.yml` with label-only priorities. They only fill slots the scored issues leave, and the board says the cut line is approximate.
 
+## Fix pull requests
+
+`fleet_triage.py` links each failing workflow to the open PRs that fix it ([DAILY-ANALYSIS.md](DAILY-ANALYSIS.md#a-failing-workflow-and-the-pr-that-fixes-it), FF-0036). A PR with `verified` evidence (its own run of the workflow passed every job that failed on the tracked branch) or `doctor` evidence (it carries the fleet doctor's marker) gets `clears` on its item in the snapshot: the red workflow, then every open PR whose only failing checks are those jobs. Those PRs turn green once the fix merges and their branches are updated.
+
+On the board that PR's card goes first. A red PR is auto-P1 and a green one P2, so the fix used to rank below its own symptoms. Now the fix card takes the strongest priority among the PR cards it clears and sorts ahead of them within it. A human priority on the fix itself still wins, and a pin is still the human's order. The card shows a **merge to clear** chip, or **fix** while GitHub does not report it `clean`, and its detail carries `clears`, `fix_evidence`, `mergeable_state` and `merge_ready`. The drawer lists what merging it clears, each PR one click away. When the fix is green and clean, the first Balance hint names the merge: *"Merge bashcrawl #133: it clears ci.yml on the tracked branch and #127, #134, #137 once their branches are updated"*. The board never merges, and the merge stays a human's call (constitution § 12).
+
 ## Throughput
 
 The **Throughput** tab answers "is the work balanced?" before you drag anything:
 
 - **Loops**: each loop's schedule, its cap per run, how many items are eligible, what the next run takes, and the drain time (runs and days at today's caps, counting the per-repo and cross-repo sub-caps). Each card links to the caps in `_data/fleet.yml`.
 - **By repository**: every repository's items per lane, and how many of the issue pipeline's next-run slots it gets.
-- **Balance**: what the board sees, each with its lever. For example, one repository holds more intake issues than its per-repo cap can clear in a week, ready issues outside the hub compete for the cross-repo slots, the blocked lane has grown with no loop draining it, PRs sit idle, or pins point at items that have closed.
+- **Balance**: what the board sees, each with its lever. For example, a green, clean fix PR would clear a red workflow and the PRs it holds red (named first), one repository holds more intake issues than its per-repo cap can clear in a week, ready issues outside the hub compete for the cross-repo slots, the blocked lane has grown with no loop draining it, PRs sit idle, or pins point at items that have closed.
 
 Pinning moves an item up a loop's queue; raising a cap moves the whole lane. The first is a board change, the second a [Config](../tools/console/README.md) edit.
 
@@ -70,7 +76,7 @@ Pinning moves an item up a loop's queue; raising a cap moves the whole lane. The
 Click a card (or press Enter) to open its drawer:
 
 - **Issue**: its stage, priority source (and the score behind it), readiness, autonomy verdict, and the gaps the pipeline found, each marked agent-closable or human-closable. With a console or a GitHub token, the issue's body is read live.
-- **Pull request**: CI, draft and mergeable state, linked issues, and **the spec packages it changes, read at its head commit** with the spec-driven kit's own rules: status, task progress, unresolved `OQ-N`, requirements no task covers, the packages it only mentions, and the `BACKLOG.md` items it adds or moves. A removed backlog line is flagged, because the gate refuses one.
+- **Pull request**: CI, draft and mergeable state, linked issues, what merging it clears when it is a fix PR, and **the spec packages it changes, read at its head commit** with the spec-driven kit's own rules: status, task progress, unresolved `OQ-N`, requirements no task covers, the packages it only mentions, and the `BACKLOG.md` items it adds or moves. A removed backlog line is flagged, because the gate refuses one.
 - **Roadmap spec**: the whole entry (problem, proposal, acceptance, scope, risks), plus a status select. Declining one needs a reason, written as `reason:`.
 - **Spec package**: requirement counts, open questions with the `/clarify` lever, every task and its state, and `spec.md` itself.
 - **Backlog item**: kind, severity, section, where it surfaced, and the spec that claimed it, one click away.

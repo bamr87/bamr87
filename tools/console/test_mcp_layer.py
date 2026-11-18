@@ -174,6 +174,50 @@ class ReadTools(unittest.TestCase):
         self.assertTrue(p["log"].endswith("END"))
         self.assertEqual(len(p["log"]), 10)
 
+    # HUB-064 (FR60, #556): an agent holding a job's receipt reads its state, ages and diagnostics.
+    STATUS = {"id": "j1", "op": "health", "status": "running", "state": "stalled", "age_s": 700.0,
+              "idle_s": 400.0, "stall_s": 120,
+              "diagnostics": [{"code": "no_heartbeat", "detail": "no log output for 400 s (stalled past 120 s)"}]}
+
+    def test_job_status_reads_the_status_route(self):
+        fc = FakeConsole({"/api/jobs/j1/status": self.STATUS})
+        res, text = call(srv.build_server(fc), "job_status", {"job_id": "j1"})
+        self.assertFalse(res.is_error if hasattr(res, "is_error") else res.isError)
+        self.assertEqual(payload(res, text), self.STATUS)
+        self.assertEqual(fc.calls[-1][:2], ("GET", "/api/jobs/j1/status"))
+
+    def test_job_status_unknown_job_and_an_older_console_are_tool_errors(self):
+        gone = ConsoleError("console GET /api/jobs/zz/status -> 404: no such job", 404)
+        res, text = call(srv.build_server(FakeConsole({"/api/jobs/zz/status": gone})), "job_status", {"job_id": "zz"})
+        self.assertTrue(res.is_error if hasattr(res, "is_error") else res.isError)
+        self.assertIn("no such job", text)
+        res, text = call(srv.build_server(FakeConsole()), "job_status", {"job_id": "j1"})   # route absent
+        self.assertTrue(res.is_error if hasattr(res, "is_error") else res.isError)
+        self.assertIn("#556", text)
+        self.assertIn("job_log", text)
+
+    def test_jobs_list_filters_by_derived_state_beside_raw_status(self):
+        rows = [{"id": "a", "status": "running", "state": "stalled"},
+                {"id": "b", "status": "running", "state": "running"},
+                {"id": "c", "status": "cancelled", "state": "failed"},
+                {"id": "d", "status": "succeeded", "state": "done"}]
+        fc = FakeConsole({"/api/jobs": rows})
+        s = srv.build_server(fc)
+        self.assertEqual([j["id"] for j in payload(*call(s, "jobs_list", {"state": "stalled"}))["items"]], ["a"])
+        self.assertEqual([j["id"] for j in payload(*call(s, "jobs_list", {"state": "failed"}))["items"]], ["c"])
+        self.assertEqual([j["id"] for j in payload(*call(s, "jobs_list", {"status": "running"}))["items"]], ["a", "b"])
+        both = payload(*call(s, "jobs_list", {"status": "running", "state": "running"}))
+        self.assertEqual([j["id"] for j in both["items"]], ["b"])
+        self.assertEqual(payload(*call(s, "jobs_list"))["count"], 4)
+        res, _ = call(s, "jobs_list", {"state": "sleeping"})
+        self.assertTrue(res.is_error if hasattr(res, "is_error") else res.isError)
+
+    def test_job_status_is_a_read_tool(self):
+        tools = {t.name: t for t in anyio.run(srv.build_server(FakeConsole(), allow_writes=False, scopes="").list_tools)}
+        self.assertIn("job_status", tools)
+        self.assertTrue(tools["job_status"].annotations.read_only_hint)
+        self.assertIn("job_status", srv.INSTRUCTIONS)
+
     def test_live_snapshot_404_explains_dependency(self):
         res, text = call(srv.build_server(FakeConsole()), "live_snapshot")
         self.assertTrue(res.is_error if hasattr(res, "is_error") else res.isError)
@@ -188,6 +232,27 @@ class ReadTools(unittest.TestCase):
         fc = FakeConsole({"/api/index/harmonize": {"hits": []}})
         call(srv.build_server(fc), "code_search", {"q": "retry", "mode": "harmonize"})
         self.assertEqual(fc.calls[-1][1:3], ("/api/index/harmonize", {"q": "retry"}))
+
+    def test_lake_recall_is_read_only_and_bounds_what_it_asks_for(self):
+        """bamr87/bamr87#546: recall over the lake's sessions, next to agent_activity — a read tool whose
+        query, window and limit are clamped to what the console route accepts (a longer query was a 422), so an
+        agent cannot ask for more."""
+        doc = {"schema": "lake-recall/v1", "present": True, "terms": ["fts5", "index"],
+               "results": [{"key": "session:s1", "session_id": "s1", "repo": "bamr87", "match": "turn",
+                            "turn": 3, "excerpt": "…the fts5 index is built in memory…"}]}
+        fc = FakeConsole({"/api/lake/recall": doc})
+        server = srv.build_server(fc, allow_writes=False, scopes="")
+        tools = {t.name: t for t in anyio.run(server.list_tools)}
+        self.assertTrue(tools["lake_recall"].annotations.read_only_hint)
+        self.assertFalse(tools["lake_recall"].annotations.destructive_hint)
+        self.assertIn("lake_recall", srv.INSTRUCTIONS)
+        p = payload(*call(server, "lake_recall", {"query": "fts5 index"}))
+        self.assertEqual(p["results"][0]["key"], "session:s1")
+        self.assertEqual(fc.calls[-1][1:3], ("/api/lake/recall", {"q": "fts5 index", "days": 30, "limit": 10}))
+        call(server, "lake_recall", {"query": "x", "days": 99999, "repo": "bamr87", "limit": 500})
+        self.assertEqual(fc.calls[-1][2], {"q": "x", "days": 3650, "repo": "bamr87", "limit": 50})
+        call(server, "lake_recall", {"query": "word " * 100})
+        self.assertEqual(fc.calls[-1][2]["q"], ("word " * 100)[:300])
 
     # ------------------------------------------------------------ work board
     # /api/work is the whole board: 394 items, ~390k characters, which clip()
@@ -270,6 +335,37 @@ class ReadTools(unittest.TestCase):
         fc = FakeConsole({"/api/fleet/docker": ConsoleError("console GET /api/fleet/docker -> 401: bad token", 401)})
         res, text = call(srv.build_server(fc), "fleet_docker")
         self.assertTrue(res.is_error if hasattr(res, "is_error") else res.isError)
+        self.assertIn("401", text)
+        self.assertNotIn("s3cret-token", text)
+
+    # ---------------------------------------------------------------- nodes
+    def test_fleet_nodes_is_the_consoles_document_unchanged(self):
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # tools/, for fleetcore
+        from fleetcore import nodes
+        doc = nodes.status_doc(probe=False)
+        fc = FakeConsole({"/api/nodes": doc})
+        p = payload(*call(srv.build_server(fc), "fleet_nodes"))
+        self.assertEqual(p, json.loads(json.dumps(doc)))
+        self.assertEqual(fc.calls, [("GET", "/api/nodes", {}, None)])
+
+    def test_fleet_nodes_without_a_console_is_the_same_function_in_process(self):
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        from fleetcore import mcp_server as legacy
+        from fleetcore import nodes
+        want = nodes.status_doc(probe=False)
+        for err in (ConsoleError("console unreachable at http://fake: refused"),
+                    ConsoleError("console GET /api/nodes -> 404: Not Found", 404)):
+            with mock.patch.object(legacy, "t_nodes", lambda _a: nodes.status_doc(probe=False)):  # no probe here
+                res, text = call(srv.build_server(FakeConsole({"/api/nodes": err})), "fleet_nodes")
+            self.assertFalse(res.is_error, text)
+            got = payload(res, text)
+            self.assertEqual(set(got), set(want))
+            self.assertEqual([n["name"] for n in got["nodes"]], [n["name"] for n in want["nodes"]])
+
+    def test_fleet_nodes_refusal_is_a_tool_error_not_a_fallback(self):
+        fc = FakeConsole({"/api/nodes": ConsoleError("console GET /api/nodes -> 401: bad token", 401)})
+        res, text = call(srv.build_server(fc), "fleet_nodes")
+        self.assertTrue(res.is_error)
         self.assertIn("401", text)
         self.assertNotIn("s3cret-token", text)
 
@@ -406,6 +502,125 @@ class DecisionQueueTool(unittest.TestCase):
         self.assertIn("decision_queue", srv.INSTRUCTIONS)
 
 
+def gh_item(i: int) -> dict:
+    return {"item_id": f"PVTI_{i}", "archived": False, "kind": "pr", "content_id": f"PR_{i}", "repo": "bamr87/bamr87",
+            "number": i, "title": f"item {i} " + "a long title " * 20, "state": "OPEN",
+            "url": f"https://github.com/bamr87/bamr87/pull/{i}", "fields": {"Status": "Todo", "Priority": "P2"},
+            "refs": ["FR12"], "closes": [f"bamr87/bamr87#{i + 1}"],
+            "commits": [{"sha": "a" * 40, "headline": "fix: something " * 4, "refs": []} for _ in range(20)]}
+
+
+class GhProjectsTools(unittest.TestCase):
+    """gh_projects / gh_project_items: one GET each, summarised and bounded, read-only, the project id checked
+    before it reaches a URL; with no console the same module answers in this process."""
+
+    PROJECTS = {"schema": "gh-projects/v1", "status": "partial", "scope_missing": True, "hint": "needs read:project",
+                "owners": [{"login": "bamr87", "kind": "user", "status": "ok", "projects": 1},
+                           {"login": "year-of-ai", "kind": "organization", "status": "scope_missing",
+                            "error": "scope missing: read:project"}],
+                "projects": [{"owner": "bamr87", "id": "PVT_fleet", "number": 14, "title": "Fleet", "url": "u",
+                              "closed": False, "fields": [
+                                  {"id": "F_s", "name": "Status", "type": "SINGLE_SELECT", "options": ["Todo", "Done"]},
+                                  {"id": "F_t", "name": "Title", "type": "TITLE", "options": []}]}]}
+
+    def items(self, n: int = 500) -> dict:
+        return {"schema": "gh-project-items/v1", "status": "fresh", "project_id": "PVT_fleet", "total": n,
+                "matched": n, "next_offset": None, "counts": {"by_status": {"Todo": n}, "by_kind": {"pr": n}},
+                "items": [gh_item(i) for i in range(n)]}
+
+    def test_projects_is_one_get_summarised_with_the_scope_said(self):
+        fc = FakeConsole({"/api/gh-projects": self.PROJECTS})
+        res, text = call(srv.build_server(fc), "gh_projects")
+        self.assertFalse(res.is_error, text)
+        d = payload(res, text)
+        self.assertEqual(fc.calls, [("GET", "/api/gh-projects", {"closed": "false"}, None)])
+        self.assertEqual((d["status"], d["scope_missing"], d["summary"]), ("partial", True, True))
+        self.assertEqual(d["owners"][1]["status"], "scope_missing")
+        self.assertEqual(d["projects"][0], {"owner": "bamr87", "number": 14, "title": "Fleet", "url": "u", "closed": False,
+                                            "id": "PVT_fleet", "fields": ["Status", "Title"], "status_options": ["Todo", "Done"]})
+        fc.calls.clear()
+        res, text = call(srv.build_server(fc), "gh_projects", {"owner": "bamr87", "include_closed": True,
+                                                               "summary": False, "refresh": True})
+        self.assertEqual(fc.calls, [("GET", "/api/gh-projects", {"owner": "bamr87", "closed": "true", "refresh": "true"}, None)])
+        self.assertEqual(payload(res, text)["projects"][0]["fields"][0]["id"], "F_s")
+
+    def test_items_are_paged_summarised_and_bounded(self):
+        fc = FakeConsole({"/api/gh-projects/PVT_fleet/items": lambda _b: dict(self.items(30))})
+        res, text = call(srv.build_server(fc), "gh_project_items", {"project_id": "PVT_fleet"})
+        self.assertFalse(res.is_error, text)
+        self.assertEqual(fc.calls, [("GET", "/api/gh-projects/PVT_fleet/items", {"limit": 30, "offset": 0}, None)])
+        d = payload(res, text)
+        row = d["items"][0]
+        self.assertEqual(row["commits"], 20, "a PR's commits become a count")
+        self.assertNotIn("content_id", row)
+        self.assertLessEqual(len(row["title"]), srv.BOARD_TITLE_CHARS)
+        self.assertLess(len(text), srv.max_chars(), "the default page fits the client's context whole")
+        self.assertNotIn("truncated", d)
+        fc.calls.clear()
+        call(srv.build_server(fc), "gh_project_items", {"project_id": "PVT_fleet", "limit": 9999, "offset": 9999,
+                                                         "status": "Todo", "kind": "pr", "q": "x"})
+        call(srv.build_server(fc), "gh_project_items", {"project_id": "PVT_fleet", "limit": 9999, "summary": False})
+        self.assertEqual([c[2] for c in fc.calls], [
+            {"limit": srv.GH_ITEMS_LIMIT_MAX, "offset": srv.GH_ITEMS_OFFSET_MAX, "status": "Todo", "kind": "pr", "q": "x"},
+            {"limit": srv.GH_ITEMS_FULL_MAX, "offset": 0}])
+
+    def test_an_oversized_answer_is_clipped_not_dropped(self):
+        fc = FakeConsole({"/api/gh-projects/PVT_fleet/items": lambda _b: self.items(500)})
+        with mock.patch.dict(os.environ, {"HARNESS_MCP_MAX_CHARS": "20000"}):
+            res, text = call(srv.build_server(fc), "gh_project_items", {"project_id": "PVT_fleet", "summary": False})
+        d = payload(res, text)
+        self.assertTrue(d["truncated"])
+        self.assertLessEqual(len(d["json_prefix"]), 20000)
+
+    def test_a_bad_project_id_never_reaches_a_url(self):
+        fc = FakeConsole({})
+        for bad in ("../../api/jobs", "PVT_x/../../jobs", "I_kwDOabc", ""):
+            res, text = call(srv.build_server(fc), "gh_project_items", {"project_id": bad})
+            self.assertTrue(res.is_error, bad)
+        self.assertEqual(fc.calls, [])
+
+    def test_a_route_404_is_the_answer_and_no_console_falls_back(self):
+        fc = FakeConsole({"/api/gh-projects/PVT_gone/items":
+                          ConsoleError("console GET /api/gh-projects/PVT_gone/items -> 404: no project PVT_gone is readable", 404)})
+        with mock.patch.object(srv, "gh_items_local", side_effect=AssertionError("must not fall back")):
+            res, text = call(srv.build_server(fc), "gh_project_items", {"project_id": "PVT_gone"})
+        self.assertTrue(res.is_error)
+        self.assertIn("no project PVT_gone", text)
+        seen = []
+        for err, why in ((ConsoleError("console unreachable at http://fake: refused"), "no console answered"),
+                         (ConsoleError("console GET /api/gh-projects -> 404: no such API route", 404), "no /api/gh-projects yet")):
+            fc = FakeConsole({"/api/gh-projects": err, "/api/gh-projects/PVT_fleet/items": err})
+            with mock.patch.object(srv, "gh_projects_local", side_effect=lambda **kw: seen.append(kw) or dict(self.PROJECTS)), \
+                    mock.patch.object(srv, "gh_items_local", side_effect=lambda pid, **kw: seen.append((pid, kw)) or self.items(3)):
+                res, text = call(srv.build_server(fc), "gh_projects")
+                self.assertIn(why, payload(res, text)["via"])
+                res, text = call(srv.build_server(fc), "gh_project_items", {"project_id": "PVT_fleet", "kind": "pr"})
+                self.assertIn(why, payload(res, text)["via"])
+                self.assertEqual(payload(res, text)["items"][0]["commits"], 20)
+        self.assertEqual(seen[0], {"owner": "", "include_closed": False, "refresh": False})
+        self.assertEqual(seen[1], ("PVT_fleet", {"limit": 30, "offset": 0, "status": "", "kind": "pr", "q": "", "refresh": False}))
+
+    def test_the_in_process_read_is_the_real_module(self):
+        env = {k: v for k, v in os.environ.items() if k not in ("PROJECTS_TOKEN", "GH_TOKEN", "GITHUB_TOKEN")}
+        with mock.patch.dict(os.environ, env, clear=True):
+            d = srv.gh_projects_local(token=(None, None))         # no token: nothing is sent
+            self.assertEqual((d["schema"], d["status"], d["projects"]), ("gh-projects/v1", "scope_missing", []))
+            with self.assertRaises(ConsoleError):
+                srv.gh_projects_local(owner="someone-else", token=(None, None))
+            with self.assertRaises(ConsoleError):
+                srv.gh_items_local("not-a-project", token=(None, None))
+
+    def test_both_are_listed_read_only_and_no_write_twin_exists(self):
+        for writes in (False, True):
+            tools = {t.name: t for t in anyio.run(srv.build_server(FakeConsole(), allow_writes=writes, scopes="").list_tools)}
+            for name in ("gh_projects", "gh_project_items"):
+                self.assertTrue(tools[name].annotations.read_only_hint, name)
+                self.assertFalse(tools[name].annotations.destructive_hint, name)
+                self.assertIn(name, srv.INSTRUCTIONS)
+            self.assertFalse({n for n in tools if n.startswith(("gh_project", "project_item"))} - {"gh_projects", "gh_project_items"},
+                             "a GitHub Projects write tool is P3's (#472), behind its own gate")
+
+
 class PrQueueTools(unittest.TestCase):
     """pr_queue is ONE GET of /api/prs with its rows trimmed; pr_queue_plan is ONE POST of /api/prs/plan.
     Neither applies anything: applying is the console's prs-act / prs-agent behind its confirm."""
@@ -510,9 +725,47 @@ class ClaudeTelemetryTool(unittest.TestCase):
         self.assertEqual(fc.calls[-1][:3], ("GET", "/api/claude-telemetry", {"window": "1h", "limit": 20, "session": "abcd"}))
 
 
+class TelemetryQueryTools(unittest.TestCase):
+    """prom_query, logs_search, traces_query (bamr87/bamr87#447): read-only, one console route each."""
+    ROUTES = {"/api/telemetry/prom": {"series": []}, "/api/telemetry/logs": {"hits": []},
+              "/api/telemetry/traces": {"spans": []}}
+
+    def test_registered_as_read_tools(self):
+        tools = {t.name: t for t in anyio.run(srv.build_server(FakeConsole(), allow_writes=False, scopes="").list_tools)}
+        for name in ("prom_query", "logs_search", "traces_query"):
+            self.assertIn(name, tools)
+            a = tools[name].annotations
+            self.assertTrue(a.read_only_hint and not a.destructive_hint and a.idempotent_hint, name)
+            self.assertIn("API-equivalent (estimate)" if name != "traces_query" else "claude-code-otel",
+                          tools[name].description)
+
+    def test_each_calls_its_route_with_only_what_was_set(self):
+        fc = FakeConsole(self.ROUTES)
+        server = srv.build_server(fc)
+        call(server, "prom_query", {"query": "claude_code_session_count_total", "start": "6h"})
+        self.assertEqual(fc.calls[-1][:3], ("GET", "/api/telemetry/prom",
+                                            {"query": "claude_code_session_count_total", "start": "6h"}))
+        call(server, "logs_search", {"level": "error", "limit": 500})
+        self.assertEqual(fc.calls[-1][:3], ("GET", "/api/telemetry/logs", {"level": "error", "since": "24h", "limit": 100}))
+        call(server, "traces_query", {"slowest": True, "limit": 99})
+        self.assertEqual(fc.calls[-1][:3], ("GET", "/api/telemetry/traces", {"slowest": "true", "since": "24h", "limit": 50}))
+
+    def test_a_console_without_the_routes_names_the_issue(self):
+        res, text = call(srv.build_server(FakeConsole()), "prom_query", {"query": "claude_code_session_count_total"})
+        self.assertTrue(res.is_error if hasattr(res, "is_error") else res.isError)
+        self.assertIn("bamr87/bamr87#447", text)
+
+    def test_a_refusal_is_a_tool_error_with_the_reason(self):
+        fc = FakeConsole({"/api/telemetry/prom": ConsoleError("console GET /api/telemetry/prom -> 422: metric 'up' "
+                                                               "is outside the allowlist", 422)})
+        res, text = call(srv.build_server(fc), "prom_query", {"query": "up"})
+        self.assertIn("allowlist", text)
+        self.assertNotIn("s3cret-token", text)
+
+
 class MergedFleet(unittest.TestCase):
     """tools/fleetcore/mcp_server.py folded in: same names, the legacy writes only on --fleet-compat or writes on."""
-    LEGACY_READ = {"fleet_overview", "fleet_apps", "fleet_inbox", "fleet_docker", "fleet_work",
+    LEGACY_READ = {"fleet_overview", "fleet_apps", "fleet_inbox", "fleet_docker", "fleet_nodes", "fleet_work",
                    "fleet_workflows", "workflow_lint", "fleet_graph", "fleet_learning",
                    "console_ops", "console_jobs", "console_job_log"}
 
@@ -541,6 +794,20 @@ class MergedFleet(unittest.TestCase):
         lint = payload(*call(s, "workflow_lint", {"text": draft}))
         self.assertTrue({f["rule"] for f in lint["findings"]} >= {"permissions", "timeout", "cron-on-hour", "cron-declared"})
         self.assertEqual(lint["parsed"]["name"], "x")
+
+    def test_the_fleet_workflow_model_is_fleet_workflows_with_fleet_true(self):
+        s = srv.build_server(FakeConsole(), allow_writes=False)
+        with tempfile.TemporaryDirectory() as lake, mock.patch.dict(os.environ, {"DASH_LAKE_DIR": lake}):
+            doc = payload(*call(s, "fleet_workflows", {"fleet": True}))
+            self.assertEqual(doc["schema"], "fleet-workflows/v1")
+            self.assertEqual(doc["summary"]["repos"], len(doc["repos"]))
+            self.assertEqual(doc["summary"]["read"], 0)  # nothing synced into this lake: not read, never a pass
+            self.assertTrue(all(r["read"] is False and r["reason"] for r in doc["repos"]))
+            one = payload(*call(s, "fleet_workflows", {"fleet": True, "repo": "bamr87/bamr87"}))
+            self.assertEqual(one["repo"]["nwo"], "bamr87/bamr87")
+            res, text = call(s, "fleet_workflows", {"fleet": True, "repo": "no-such-repo-anywhere"})
+            self.assertTrue(res.is_error if hasattr(res, "is_error") else res.isError)
+            self.assertIn("no-such-repo-anywhere", text)
 
     def test_legacy_names_present_writes_gated(self):
         names = tool_names(srv.build_server(FakeConsole(), allow_writes=False, fleet_compat=False))
@@ -584,6 +851,26 @@ class MergedFleet(unittest.TestCase):
             self.assertIn("kpis", ov)
             apps = payload(*call(s, "fleet_apps", {"query": "zzzz-no-such-project"}))
             self.assertEqual(apps["count"], 0)
+
+    def test_fleet_inbox_carries_a_merge_items_clears(self):
+        """FF-0036: through the layer too, a merge item (a green, clean fix PR) reaches the agent
+        with what merging it clears and on what evidence."""
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # tools/, for fleetcore
+        from fleetcore import mcp_server as legacy
+        clears = [".github/workflows/ci.yml", "#127"]
+        merge = {"kind": "merge", "repo": "bashcrawl", "ref": "#133", "title": "fix(ci): exclude CHANGELOG.md",
+                 "why": "Merge #133: clears CI on main and #127 once its branch is updated", "age_days": 3,
+                 "url": "https://github.com/bamr87/bashcrawl/pull/133", "priority": 95, "clears": clears,
+                 "evidence": "verified"}
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "_data").mkdir()
+            (Path(d) / "_data" / "projects.yml").write_text("[]\n")
+            (Path(d) / "_data" / "fleet_triage.yml").write_text(
+                json.dumps({"generated_at": "2026-11-02 18:00 UTC", "by_repo": [], "inbox": [merge]}))
+            with mock.patch.object(legacy, "ROOT", Path(d)):
+                inbox = payload(*call(srv.build_server(FakeConsole(), allow_writes=False), "fleet_inbox"))
+        top = inbox["items"][0]
+        self.assertEqual((top["kind"], top["priority"], top["clears"], top["evidence"]), ("merge", 95, clears, "verified"))
 
 
 class Tokens(unittest.TestCase):

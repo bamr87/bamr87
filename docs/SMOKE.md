@@ -11,7 +11,8 @@
 tools/dash dev up --all                 # bring the fleet up
 tools/dash dev smoke record             # exercise everything, write _data/smoke.yml
 tools/dash dev smoke show               # the recorded table
-tools/dash dev smoke check              # re-probe, diff, exit 1 on regression
+tools/dash dev smoke check              # re-probe what is up, diff, exit 1 on regression
+tools/dash dev smoke check --all        # ...and hold the projects that are not up as well
 tools/dash dev smoke check --project law-ai
 ./tools/run-all-tests.sh                # includes the check (skips if the stack is down)
 ```
@@ -41,6 +42,14 @@ Four verdicts, and the difference matters:
 - **optional** — not running because a compose **profile** gates it
 (`--profile celery` starts djangoerp's worker; nothing else does). 7 of the fleet's 9 stopped services are this, and calling them failures would bury the one that is not.
 - **absent** — not running and nothing explains why.
+
+## What `check` holds
+
+`check` holds what is deployed: every registry project with at least one running container. A project nobody started is listed as "not up, not checked", and a service behind a compose profile nobody started as "optional, profile not started"; neither is a regression. The baseline is recorded with the whole fleet up, and the Docker VM on this bench (7.75 GiB) cannot hold the whole fleet, so before 2026-11-17 a check with only the core running reported every other project as a regression and `tools/run-all-tests.sh` could not pass. `--all` and `--project P` keep the strict reading: everything recorded for that scope must be there.
+
+The hub's own services are found under whichever compose project is running them: `fleet-hub` (from `dash dev up hub`) or the core that `tools/dash up` starts (`fleet`). Reading `fleet-hub` alone recorded a healthy console as absent. When two containers carry one project and service (a `docker run` copy of a compose image inherits its labels), the running, compose-named one is the one probed. A profile listed under the project's `profiles:` in `_data/ports.yml` is one `dash dev up` always activates, so a service behind it is expected, not optional.
+
+`record --project P` replaces that project's services and its unallocated containers and keeps every other project's.
 
 ## What the first recording found
 
