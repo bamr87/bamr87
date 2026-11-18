@@ -24,6 +24,7 @@ On 2026-11-15 a Claude Code session triaged all 160 open pull requests in 39 fle
 tools/dash prs                                   # the queue; reads GitHub only for what is past its TTL
 tools/dash prs --who amr --limit 200             # what waits on Amr
 tools/dash prs --kind batch --batch chore/agent-context-kit
+tools/dash prs --flag unlabelled --limit 300      # gated pull requests that carry no needs-amr label
 tools/dash prs refresh                           # read everything again under pr_queue.refresh_budget_s
 tools/dash prs actions                           # the bulk actions, what each writes, what governs it, its switch
 tools/dash prs plan rerun --pr bamr87/zer0-mistakes#625 --pr bamr87/fredgar-ai#140
@@ -44,6 +45,20 @@ The queue starts from the decision index ([DECISION-INDEX.md](DECISION-INDEX.md)
 | `next` | Who moves it next (`amr`, `agent`, `loop`, `author`), what they do, why, and the bulk action that does it. The first rule that holds wins: an unread pull request, a draft, a conflict (JEV), failing checks (an agent), a held run (Amr approves it), cancelled checks (a re-run), a bot pull request opened with `GITHUB_TOKEN` that never ran CI (Amr pushes with `FLEET_TOKEN` or closes and reopens it), behind its base (update the branch), changes requested, checks still running, gated (Amr reviews and merges), blocked by protection, no check that proves it green, and finally an ungated green pull request an agent may merge under § 12.2. |
 | `kinds` | security, dependabot, release, batch (a head branch open in `batch_min_repos` repos or more, never `dependabot/` or `release-please--`), harness (it changes `.claude/`, `CLAUDE.md`, `AGENTS.md`, `.mcp.json`, an agent workflow or a JEV step spec), ratification, draft. |
 | `triage` | The triage comment's next action, question and commands, shown as a hint for the person. Nothing in it is run, and it never changes the row's own verdict. |
+
+## Where the page disagrees with the queue
+
+A pull request says three things about itself that nobody recomputes: its labels, its next-action comment and the task list in its description. The queue reads all three against its own verdict and puts the disagreements in `flags` on each row and in `counts.flags`. A flag is a fact for the person reading the page. It never changes `gate`, `agent_merge` or `next`.
+
+| Flag | It means | What closes it |
+| --- | --- | --- |
+| `unlabelled` | The review gate holds it and it has no `needs-amr` label, so the label does not say what § 12.4 says it does: a missing label is not a reason to merge. `label.repo_has_label: false` means the repo has no such label yet | The `needs-amr` bulk action, after the label exists in the repo |
+| `no-comment` | It carries no comment with the triage marker | The `comment` bulk action |
+| `stale-comment` | A fact contradicts the comment: commits pushed after it was written, "mark it ready" on a pull request that is ready, "merge" on one that conflicts or has a failing check, "resolve a conflict" where there is none, "fix failing checks" where they pass. `comment.why` lists each one. Wording is never judged | The `comment` bulk action, which edits the same comment in place |
+| `open-tasks` | The description has unticked checkboxes that are work items. `tasks` gives `done` and `total` as GitHub shows them, and `open` without the pull-request template's unticked *Type Of Change* options, which are a choice and not work | The author ticks or removes them |
+| `tasks-contradict` | One of the unticked items says CI is green or the tests pass, while every check on the head commit passes | The same |
+
+The description is read for its task list and is not kept: only the counts and the first open items are cached, so a private repo's text stays out of `.fleet/prqueue/`.
 
 ## Bulk actions
 

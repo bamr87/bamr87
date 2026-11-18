@@ -203,6 +203,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_check_rollup.py`](tools/test_check_rollup.py) | Offline tests for `check_rollup.py`: both rollup shapes (`gh pr view` and GraphQL), same-second ordering, a run not yet started, unreadable times, only a cancellation se… |
 | [`test_claude_code_executes_lint.py`](tools/test_claude_code_executes_lint.py) | Fixture tests for tools/claude_code_executes_lint.py (constitution § 26).""" from __future__ import annotations |
 | [`test_conformance_frontend.py`](tools/test_conformance_frontend.py) | Fixture tests for the § 18 frontend-platform rows in tools/conformance.py (UPS-FE-70..73): N/A for tier none, tokens/shell per tier, warn-only until `frontend.enforce: t… |
+| [`test_conformance_instance.py`](tools/test_conformance_instance.py) | **The two roots of the checker** ([ADR 0011](../docs/adr/0011-one-framework-many-instances.md), phase P0): `conformance.py --instance DIR` (default `$FLEET_HOME`, else `… |
 | [`test_conformance_work.py`](tools/test_conformance_work.py) | Fixture tests for the contract-keyed rows in tools/conformance.py: UPS-WORK-01..13 (planning & delivery), UPS-AGENT-07/08/09 (decision D4: AGENTS.md canonical, CLAUDE.md… |
 | [`test_deep_dive.py`](tools/test_deep_dive.py) | Fixture tests for tools/deep_dive.py — the daily repo deep-dive tracker. |
 | [`test_docker_harmonize.py`](tools/test_docker_harmonize.py) | Fixture tests for tools/docker_harmonize.py — every rule, the |
