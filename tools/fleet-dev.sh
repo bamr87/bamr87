@@ -10,6 +10,7 @@
 # Usage:
 #   tools/fleet-dev.sh up [project...|--all]     start (default: hub)
 #   tools/fleet-dev.sh up <project> --debug      ...with the repo's debugpy layer
+#   tools/fleet-dev.sh up <project> --profile P  ...plus a compose profile (zer0-cms: imagegen)
 #   tools/fleet-dev.sh down [project...|--all]   stop
 #   tools/fleet-dev.sh build <project> [svc...]  build images
 #   tools/fleet-dev.sh ps [project...]           what is running, with URLs
@@ -70,6 +71,7 @@ ENV_FILE="$ROOT/compose/fleet.env"
 NETWORK="fleet-net"
 DEBUG=0
 EXTRA=()
+PROFILES=()
 
 c_ok()   { printf '\033[32m%s\033[0m\n' "$*"; }
 c_warn() { printf '\033[33m%s\033[0m\n' "$*"; }
@@ -97,6 +99,10 @@ elif what == "compose-path":
     print((projects.get(sys.argv[2]) or {}).get("compose", ""))
 elif what == "host":
     print((projects.get(sys.argv[2]) or {}).get("host", ""))
+elif what == "profiles":
+    # The compose profiles `up` activates for this project (see compose_args).
+    for prof in (projects.get(sys.argv[2]) or {}).get("profiles") or []:
+        print(prof)
 elif what == "list":
     for name, spec in projects.items():
         spec = spec or {}
@@ -139,6 +145,34 @@ ensure_network() {
   fi
 }
 
+# The shared trace store, on the network the projects are on. `fleet-hub`
+# attaches its own Phoenix to fleet-net (compose/shared.yml). The core that
+# `tools/dash up` runs (compose project `fleet`) has Phoenix on the `fleet`
+# network only, so a project that exports to `phoenix:4317` (bashos, law-ai)
+# resolved no such host and ran without traces. Attach the core's Phoenix with
+# the same two aliases. Recreating that container drops the attachment and the
+# next `up` puts it back.
+SHARED_ALIASES=(phoenix fleet-phoenix)
+ensure_shared() {
+  local core="${COMPOSE_PROJECT_NAME:-fleet}" cid a args=()
+  # fleet-hub's own Phoenix already answers; a second one would split the traces.
+  [[ -z "$(docker ps -q --filter label=com.docker.compose.project=fleet-hub \
+            --filter label=com.docker.compose.service=phoenix 2>/dev/null)" ]] || return 0
+  cid="$(docker ps -q --filter "label=com.docker.compose.project=${core}" \
+          --filter label=com.docker.compose.service=phoenix 2>/dev/null | head -1)"
+  [[ -n "$cid" ]] || return 0
+  if docker inspect -f '{{range $k, $_ := .NetworkSettings.Networks}}{{$k}} {{end}}' "$cid" \
+      | tr ' ' '\n' | grep -qx "$NETWORK"; then
+    return 0
+  fi
+  for a in "${SHARED_ALIASES[@]}"; do args+=(--alias "$a"); done
+  if docker network connect "${args[@]}" "$NETWORK" "$cid" 2>/dev/null; then
+    c_dim "  shared Phoenix attached to $NETWORK as ${SHARED_ALIASES[*]}"
+  else
+    c_warn "  could not attach the shared Phoenix to $NETWORK: traces from this project are dropped"
+  fi
+}
+
 ensure_submodule() {
   local path="$1" name="$2"
   [[ -f "$ROOT/$path" ]] || die "projects/$name is not checked out (run: git submodule update --init projects/$name)"
@@ -151,14 +185,26 @@ ensure_submodule() {
 # submodule's build contexts stay correct while the hub owns the port mapping.
 compose_args() {
   local name="$1"
+  local prof
   if [[ "$name" == "hub" ]]; then
     printf '%s\n' -p fleet-hub --env-file "$ENV_FILE" -f "$ROOT/compose/fleet.yml"
+    for prof in ${PROFILES[@]+"${PROFILES[@]}"}; do printf '%s\n' --profile "$prof"; done
     return
   fi
   local path; path="$(reg_query compose-path "$name")"
   [[ -n "$path" ]] || die "unknown project '$name' (try: tools/fleet-dev.sh list)"
   ensure_submodule "$path" "$name"
   printf '%s\n' -p "$name" --env-file "$ENV_FILE" -f "$ROOT/$path"
+
+  # Profiles are a global compose flag, so they belong here and not after the
+  # subcommand: `up`, `ps`, `logs` and `down` then all see the same services.
+  # The registry's `profiles:` are the ones a project needs to start at all
+  # (every zer0-cms service is behind one, and a bare `up` there selected
+  # nothing: "no service selected"); `--profile X` on the command line adds one.
+  while IFS= read -r prof; do
+    [[ -n "$prof" ]] && printf '%s\n' --profile "$prof"
+  done < <(reg_query profiles "$name")
+  for prof in ${PROFILES[@]+"${PROFILES[@]}"}; do printf '%s\n' --profile "$prof"; done
 
   # --debug layers the repo's OWN docker-compose.debug.yml — the file that
   # actually starts debugpy and bind-mounts the source. Without it an attach
@@ -250,6 +296,7 @@ cmd_up() {
   local failed=0
   while IFS= read -r p; do
     c_ok "→ up $p"
+    [[ "$p" == "hub" ]] || ensure_shared
     pg_preflight "$p"
     if dc "$p" up -d ${EXTRA[@]+"${EXTRA[@]}"}; then print_urls "$p"; else c_err "  $p failed"; failed=1; fi
   done < <(targets "$@")
@@ -319,15 +366,20 @@ main() {
   local cmd="${1:-help}"; shift || true
   # Pass anything after `--` straight through to docker compose.
   EXTRA=()
+  PROFILES=()
   DEBUG=0
   local args=()
-  local seen=0
+  local seen=0 want_profile=0
   for a in "$@"; do
     if [[ $seen -eq 1 ]]; then EXTRA+=("$a")
+    elif [[ $want_profile -eq 1 ]]; then PROFILES+=("$a"); want_profile=0
     elif [[ "$a" == "--" ]]; then seen=1
     elif [[ "$a" == "--debug" ]]; then DEBUG=1
+    elif [[ "$a" == "--profile" ]]; then want_profile=1
+    elif [[ "$a" == --profile=* ]]; then PROFILES+=("${a#--profile=}")
     else args+=("$a"); fi
   done
+  [[ $want_profile -eq 0 ]] || die "--profile needs a name"
   set -- ${args[@]+"${args[@]}"}
 
   case "$cmd" in

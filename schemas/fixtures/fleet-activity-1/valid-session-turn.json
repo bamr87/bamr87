@@ -1,0 +1,27 @@
+{
+  "schema": "fleet-activity/1",
+  "event_id": "d8c3b2f4-3e5a-4b7c-8d9e-1f2a3b4c5d6e",
+  "ts": "2026-11-15T21:04:30.002+00:00",
+  "source": "session",
+  "kind": "session.turn",
+  "seq": 12,
+  "cursor": 912455,
+  "node": "forge",
+  "project": "zer0-mistakes",
+  "repo": "bamr87/zer0-mistakes",
+  "actor": "claude-code",
+  "run_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+  "trace_id": "0af7651916cd43dd8448eb211c80319c",
+  "payload": {
+    "turn": 12,
+    "model": "claude-sonnet-4-5",
+    "input_tokens": 18234,
+    "output_tokens": 912,
+    "cost_usd_api_equivalent_estimate": 0.0412,
+    "tools": [
+      "Read",
+      "Edit",
+      "Bash"
+    ]
+  }
+}

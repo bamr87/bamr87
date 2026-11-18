@@ -171,6 +171,9 @@ schedule:
                                   # the daily chain's lanes; gated by vars.JEV_CONFLICTS_ENABLED.
   scorecard_sweep: "17 6 * * 0"   # weekly read-only OpenSSF Scorecard sweep → conformance.yml security:
                                   # (docs/SECURITY-POSTURE.md); gated by vars.SCORECARD_SWEEP_ENABLED.
+  fleet_snapshots: "17 4 * * 1"   # weekly conformance.yml + features_index.yml from real submodule checkouts,
+                                  # behind a shrink guard (#775): after update_submodules, before fleet_pulse
+                                  # (stale-data), build_dash and repo_evolution; gated by vars.FLEET_SNAPSHOTS_ENABLED.
   weekly_closeout: "17 20 * * 5"  # Friday 13:17 America/Denver (MST, UTC-7): close out open PRs, branches, clones
                                   # (docs/WEEKLY-CLOSEOUT.md); off until vars.WEEKLY_CLOSEOUT_ENABLED is 'true'.
                                   # UTC hours 17, 20 and 23 carry no other AI cron.
@@ -713,7 +716,7 @@ pr_queue:
 # (verify/scenarios/*.yml) both verify/runner.mjs and a Claude Code pass can
 # execute, and evidence bundles (test/evidence/<slug>/) linked back to the
 # feature. The hub aggregates coverage into _data/features_index.yml
-# (`dash features fleet --write`, refreshed by fleet-pulse) → /features/.
+# (`dash features fleet --write`, refreshed weekly by fleet-snapshots.yml) → /features/.
 # Kit: templates/verify/ · reusable gate: fleet-verify.yml · spec: UPS-QA-50..53
 # --------------------------------------------------------------------------- #
 verification:
@@ -844,6 +847,38 @@ budget:
     monthly_usd: 50
     scheduled_stop_pct: 80     # a --scheduled run stops at $40, leaving the rest for a manual run
 
+  # EXPEDITE SPRINTS — the per-sprint ceiling and circuit breaker (constitution
+  # § 27, docs/EXPEDITE-SPRINTS.md, tools/jev/sprints.py). Declaring a sprint is
+  # Amr's Gate A: he pins its item in _data/work_queue.yml `order:` and commits
+  # its entry here. Shape, one entry per sprint:
+  #
+  #   <slug>:                          # lowercase letters, digits, hyphens
+  #     item: issue:<owner>/<repo>#<n> # the work-queue key he pinned (pr:, roadmap:, spec:, backlog: too)
+  #     repos: [<owner>/<repo>]        # where its loops work; optional when `item` names the repo
+  #     usd: 30                        # the ceiling, API-equivalent (estimate), for the whole sprint
+  #     hours: 72                      # the appetite: the time box runs from `declared`
+  #     declared: 2026-11-20T15:00:00Z
+  #     ends: 2026-11-23T15:00:00Z     # optional; the earlier of this and declared + hours wins
+  #     note: why, in a line           # optional, never read by a loop
+  #
+  # Inside its time box every loop attempt on a sprint repo is sprint work: the
+  # loop runner, JEV tiers 1-2 and the issue pipeline's tier jobs run it only
+  # when the sprint's spend (the AI ledger's loop rows, JEV's ledger, the sprint
+  # repos' own CI runs, the issue pipeline's reservations) plus the attempt's
+  # FULL call-site cap fits under `usd`; otherwise `budget-skip`, JEV hands the
+  # PR to jev:needs-human, and the breaker is recorded as an event. The issue
+  # pipeline's scan reserves each tier's cap once for its whole run, and its
+  # hub jobs batch issues, so those caps are the estimate: every run's
+  # reservation is a row in _data/issue_pipeline.yml sprint.reservations that
+  # the next run, the loop runner and JEV count. When the time box
+  # closes the sprint is over and its item stays held until a new declaration
+  # (never extended). A ceiling sits INSIDE every cap above and never raises one:
+  # `usd` above harnesses.budget.monthly_ai_usd, a cap that is .inf/.nan/0 or
+  # negative, and two sprints whose boxes overlap (WIP 1) are refused at load.
+  # vars.EXPEDITE_SPRINT_ENABLED = 'false' stops every sprint loop (switches:
+  # hub/expedite-sprint). Changing this block is a gated change (§ 12.3).
+  sprints: {}
+
 # --------------------------------------------------------------------------- #
 # JEV — the harness-level agent logic engine (docs/JEV.md).
 #
@@ -970,8 +1005,9 @@ harness:
     # nothing said so). This wire makes that class of failure loud within days.
     # token_rotation gets 10 days of slack in the generator — it is weekly.
     stale_data_days: 3
-    # _data/conformance.yml (tools/conformance.py fleet --write) has no scheduled
-    # writer, so it gets a longer leash: older than this trips stale-data.
+    # _data/conformance.yml (tools/conformance.py fleet --write) is written
+    # weekly by fleet-snapshots.yml, so it gets a longer leash: one missed run
+    # is fine, two trip stale-data.
     conformance_stale_days: 14
     pass_rate_floor_pct: 75       # fleet-wide quality regression
     waste_ceiling_pct: 30         # non-success minutes / total minutes
@@ -1157,11 +1193,18 @@ harness:
       slo: on-change
     conformance:
       path: _data/conformance.yml
-      # No scheduled writer: `tools/dash spec fleet --write` runs by hand, and
-      # scorecard-sweep.yml writes only its `security:` block. It was 17 days
-      # old on 2026-11-07 (#763). The defect rule 4 names, left visible.
-      writer: null
+      # It had no scheduled writer until #775 (17 days old on 2026-11-07, #763).
+      # fleet-snapshots.yml regenerates it from real submodule checkouts behind
+      # a shrink guard; scorecard-sweep.yml writes only its `security:` block.
+      writer: fleet-snapshots.yml (dash spec fleet --write, weekly)
       slo_days: 14                # harness.trip_wires.conformance_stale_days
+    features-index:
+      path: _data/features_index.yml
+      # fleet-pulse wrote it daily from a checkout with no submodules, so it
+      # graded the hub alone (`repos_scanned: 1`); fleet-snapshots.yml is its
+      # only writer since #775.
+      writer: fleet-snapshots.yml (dash features fleet --write, weekly)
+      slo_days: 14
     token-rotation:
       path: _data/token_rotation.yml
       writer: token-rotation.yml
@@ -1595,7 +1638,12 @@ observability:
       # Elasticsearch to ~2 GiB RSS and an exit-137 OOM kill on the first
       # start. 512m indexes the fleet's log volume comfortably; raise it
       # (ES_HEAP in .env) before widening `dash observe ship --days`.
-      heap: { elasticsearch: 512m, logstash: 256m }
+      # Logstash had 256m while nothing but Claude Code's events reached it.
+      # Once Filebeat shipped container logs (2026-11-17) that heap ran out
+      # twice in an hour, the second time with its workers already cut to
+      # five, and between the two it collected its old generation every few
+      # seconds. 512m is what four pipelines and the Elasticsearch output hold.
+      heap: { elasticsearch: 512m, logstash: 512m }
 
   # ---- Metrics: Grafana over Elasticsearch AND Prometheus (FF-0003) -------- #
   metrics:
@@ -1685,6 +1733,52 @@ observability:
     engine: phoenix
     endpoint: http://127.0.0.1:6006
     doc: docs/HARNESS-OPS.md
+
+  # ---- Activity: the fleet activity replay store (HUB-072) ------------------ #
+  # Not a fourth plane: an ordered ledger of EVENTS and pointers (trace_id,
+  # run_id, container) that the replay view (epic #624) animates. Spans stay in
+  # Phoenix, resource samples in Prometheus, log text in Elasticsearch.
+  #
+  # P0 (#618) froze this block and the envelope schemas/fleet-activity-1.json;
+  # nothing reads either yet. P2 (#620) builds the hook, the engine-events
+  # collector and the writer against them, and every number below is a cap the
+  # code enforces, never a target. The reasons are in
+  # docs/prd/FLEET-ACTIVITY-REPLAY-DECISIONS.md; tools/test_fleet_config.py
+  # holds the block to its shape.
+  activity:
+    # Off until Amr approves the deploy step (constitution § 10.5). It gates the
+    # compose profile and the hook alike: while false the hook exits 0 at once
+    # and nothing is spooled.
+    enabled: false
+    profile: activity # `docker compose --profile activity`: the collector + writer (P2); nothing without it
+    schema: schemas/fleet-activity-1.json
+    # The allowlist: a producer whose source is not listed writes nothing.
+    # `harness` is reserved for the harness protocol (#626) and joins the list
+    # only when its payload profile lands.
+    sources: [container, hook, session, job, fleet_event]
+    bus:
+      channel: 'fleet:activity' # Redis PUBLISH: the live push, best effort
+      stream: 'fleet:activity' # Redis XADD: the durable hand-off to the writer
+    store:
+      service: db # the shared Postgres; no new storage engine
+      schema: fleet_activity # one append-only table, partitioned by month of ts
+    caps:
+      max_events_per_s: 50 # per (node, source) stream; over-cap events are dropped and counted, never queued
+      payload_max_bytes: 4096 # serialized, after redaction; a bigger payload is replaced by a size marker
+      spool_max_events: 5000 # the local fire-and-forget spool, oldest dropped first (tools/fleet_activity.py)
+      stream_maxlen: 100000 # XADD MAXLEN ~ on the Redis tail; Postgres holds the history
+      hook_budget_ms: 50 # a hook returns within this or gives up; it never changes Claude Code's exit status
+    retention:
+      partition: month # one partition per calendar month of ts
+      raw_days: 14 # a partition is rolled up and dropped once its NEWEST row is older than this
+      rollup_days: 180 # per-minute summaries kept this long
+    # ONE redaction list for every plane: a dotted path to it, never a copy.
+    redact: observability.logs.redact
+    # Container resource SAMPLES are not captured here. The OTel docker_stats
+    # receiver puts them in Prometheus (#598), and the replay reads them from
+    # there by container and time. This store keeps resource EVENTS (oom, die
+    # with its exit code, health_status) from the engine's event stream.
+    resource_samples: metrics
 
   # ---- Code index: Qdrant, written by Kilo Code ----------------------------- #
   # Not a fourth question. Logs/metrics/traces still answer what was said, how
@@ -2244,6 +2338,8 @@ ai_auth:
 # `workspaces:` keys are Console WORKSPACE names. A workspace claims repos by
 # registry name, by owner/repo (which may be outside the registry), or by
 # GitHub owner; every fleet repo nobody claims gets the Default Workspace's key.
+# Claim a registry repo by its name, never its owner/repo: the registry follows a
+# transfer and a pasted slug does not (test_fleet_config.py holds this).
 # A repo whose ai_auth order leaves api_key out is never sent one.
 # --------------------------------------------------------------------------- #
 api_keys:
@@ -2256,7 +2352,7 @@ api_keys:
     bamr87: { repos: [bamr87] }                      # the hub
     year-of-ai: { owners: [year-of-ai], repos: [year-of-ai/year-of-ai.github.io] }
     zer0-mistakes: { repos: [zer0-mistakes] }
-    bash-365.com: { repos: [amr-bash/bash-365.com] }  # a content site outside the registry
+    bash-365.com: { repos: [bash-365.com] }          # bash-365/bash-365.com, by registry name (#337)
     bashcrawl: { repos: [bashcrawl] }
   verify:                              # the cheap test — one call per key, a fraction of a cent
     model: claude-opus-5-5
@@ -2420,6 +2516,10 @@ switches:
       reason: null
       expires: null
     lifehacker-agents:
+      state: 'on'
+      reason: null
+      expires: null
+    expedite:
       state: 'on'
       reason: null
       expires: null
@@ -2620,6 +2720,22 @@ switches:
       flip: 'gh variable set SCORECARD_SWEEP_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
       cron: 17 6 * * 0
       dispatch_bypasses: true
+    hub/fleet-snapshots:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/fleet-snapshots.yml
+      group: hub-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: FLEET_SNAPSHOTS_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set FLEET_SNAPSHOTS_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
+      cron: 17 4 * * 1
+      dispatch_bypasses: true
     hub/token-rotation:
       repo: bamr87/bamr87
       workflow: .github/workflows/token-rotation.yml
@@ -2649,6 +2765,26 @@ switches:
       verified: false
       note: one local LaunchAgent (tools/install-weekly.sh), not a workflow; its three slots are weekly.schedule, local time
       flip: set `weekly.enabled` in _data/fleet.yml by PR
+    hub/expedite-sprint:
+      repo: bamr87/bamr87
+      workflow: tools/jev/sprints.py
+      group: expedite
+      owner: bamr87
+      scope: sprint
+      gate:
+        kind: repo_variable
+        name: EXPEDITE_SPRINT_ENABLED
+        semantics: opt_out
+      default: 'on'
+      state: unverified
+      verified: false
+      flip: 'gh variable set EXPEDITE_SPRINT_ENABLED -R bamr87/bamr87 --body false  # stop every sprint loop; record the flip here in the same PR'
+      dispatch_bypasses: true
+      note: >-
+        the sprint-scope switch (constitution § 27.6): it matters only while budget.sprints has an active sprint, and
+        stops that sprint's items in every loop — the issue pipeline's queue steps and jev-conflicts.yml are handed
+        vars.EXPEDITE_SPRINT_ENABLED, and the local loop runner and conflict sweep read it on --scheduled
+        (tools/jev/sprints.py); not a workflow of its own
     hub/backlog-fanout:
       repo: bamr87/bamr87
       workflow: .github/workflows/backlog-fanout.yml
@@ -2734,6 +2870,21 @@ switches:
       verified: false
       note: the fleet's one PR comment (constitution § 19); summarizes CI failures, no AI and no cron
       flip: 'gh variable set PR_REVIEW_ENABLED -R bamr87/bamr87 --body false  # disable; record the flip here in the same PR'
+    hub/pr-readiness:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/pr-review.yml
+      group: hub-maintenance
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: PR_READINESS_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      note: merge readiness in the one PR comment (ADR 0012); what is left before a pull request merges, and one review when nothing is; no AI and no cron
+      flip: 'gh variable set PR_READINESS_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
     hub/reconcile-registry:
       repo: bamr87/bamr87
       workflow: .github/workflows/reconcile-registry.yml

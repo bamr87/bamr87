@@ -10,19 +10,31 @@
 # The alternative (redact in each input) works right up until somebody adds a
 # third input and forgets, which is a class of bug that ships credentials.
 # Contract: _data/fleet.yml `observability:` · doc: docs/OBSERVABILITY.md
+#
+# Workers are set, never left to the default. The default is one worker per
+# CPU the container sees, for each pipeline: 44 threads on this bench, each
+# with its own compiled filters and a batch in flight, on a heap that
+# `observability.logs.ship.heap` sizes for a 7.7 GiB Docker VM. The inputs
+# only hand a batch to `enrich`, so one worker each; `enrich` does the work.
+# This is not what keeps the heap from running out (2026-11-17: it ran out
+# once with 44 workers and once with these five, until the heap was raised).
 # ---------------------------------------------------------------------------
 - pipeline.id: beats-in
   path.config: '/usr/share/logstash/pipeline/00-beats-in.conf'
+  pipeline.workers: 1
 
 - pipeline.id: http-in
   path.config: '/usr/share/logstash/pipeline/10-http-in.conf'
+  pipeline.workers: 1
 
 # Claude Code's OTel events, from the otel-collector (OTLP/JSON on :8089).
 - pipeline.id: otlp-in
   path.config: '/usr/share/logstash/pipeline/20-otlp-in.conf'
+  pipeline.workers: 1
 
 - pipeline.id: enrich
   path.config: '/usr/share/logstash/pipeline/90-enrich-out.conf'
+  pipeline.workers: 2
   # A persistent queue is what makes backpressure survive a restart: the
   # ingest decision was "everything", and a memory queue drops the overflow
   # silently when Elasticsearch is slow or down.

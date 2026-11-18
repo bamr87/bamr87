@@ -224,6 +224,16 @@ function PrBody({ it, base, onOpen }: { it: WorkItem; base: WorkBoard; onOpen: (
           return <span key={n}>{i ? ', ' : ''}{onBoard.has(k) ? <Anchor component="button" fz={13} onClick={() => onOpen(k)}>{`#${n}`}</Anchor> : `#${n}`}</span>;
         })}</Text>
       ) : null}
+      {d.clears?.length ? (
+        <Text fz={13}>
+          {d.merge_ready ? 'Merging it clears ' : `A ${d.fix_evidence ?? 'linked'} fix that is not mergeable yet (${d.mergeable_state ?? 'unknown'}). It would clear `}
+          {d.clears.map((c: string, i: number) => {
+            const k = `pr:${it.nwo}#${c.slice(1)}`;
+            return <span key={c}>{i ? ', ' : ''}{c.startsWith('#') && onBoard.has(k) ? <Anchor component="button" fz={13} onClick={() => onOpen(k)}>{c}</Anchor> : c}</span>;
+          })}
+          {d.clears.some((c: string) => c.startsWith('#')) ? '. Those PRs turn green once their branches are updated.' : '.'}
+        </Text>
+      ) : null}
       <Text fw={600} fz={14} mt="xs">Specs in this pull request</Text>
       {!hasConsole() ? <Text fz={13} c="dimmed">Reading a PR’s specs at its head runs on a console. Connect one to see them here.</Text>
         : specs.isError ? <Text fz={13} c="dimmed">{(specs.error as Error).message}</Text>

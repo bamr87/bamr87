@@ -23,7 +23,7 @@ coverage: listed
 | `filebeat/` | dir | `filebeat.yml`, the container-log shipper — label-gated docker autodiscover; vendored to the fleet as `templates/elk/filebeat.fleet.yml` and held equal by drift check (i) | required terminal |
 | `elasticsearch/` | dir | `ilm-policies.json` + `index-templates.json`, rendered from the contract's `retention_days` / `rollover` / `datasets` | generated |
 | `kibana/` | dir | `dashboards.ndjson` — data views, saved searches and the pinned dashboards, in Kibana's import format (one object per line; a JSON array is rejected) | generated |
-| `otel-collector/` | dir | `config.yaml` — the one OTLP ingress for Claude Code's native telemetry: metrics → Prometheus, events → Logstash `otlp-in` (never straight to Elasticsearch), traces → Phoenix mapped to OpenInference span kinds. Held to `_data/fleet.yml` `observability.claude_code` by `test_observe_contract.py` | required terminal |
+| `otel-collector/` | dir | `config.yaml` — the one OTLP ingress for Claude Code's native telemetry: metrics → Prometheus, events → Logstash `otlp-in` (never straight to Elasticsearch), traces → Phoenix mapped to OpenInference span kinds. Held to `_data/fleet.yml` `observability.claude_code` by `test_observe_contract.py`. Beside it, `genai-openinference.yml`: the one map of Claude Code ↔ OTel GenAI ↔ OpenInference span attributes with the semconv versions it was written against, held to the transform by `tools/test_activity_contract.py` (HUB-072) | required terminal |
 | `prometheus/` | dir | `prometheus.yml` — scrapes the collector's exporter (protobuf first, for start timestamps); retention lives on the compose command line, from `observability.metrics.retention` | required terminal |
 | `grafana/` | dir | `provisioning/` (datasource with a pinned uid + the dashboard provider, hand-authored) and `dashboards/fleet-logs.json` (generated, pinned uid) | required terminal |
 
@@ -31,6 +31,7 @@ coverage: listed
 
 - New Logstash input or filter → `logstash/pipeline/<NN>-<name>.conf`, registered in `pipelines.yml`; redaction and ECS mapping stay in `90-enrich-out.conf`
 - New collector route or processor → `otel-collector/config.yaml`; events still go to Logstash, never to an exporter that writes Elasticsearch directly
+- New span attribute mapping → a row in `otel-collector/genai-openinference.yml` first, then the statement in `config.yaml`'s `transform/openinference`
 - New dataset, retention change, or dashboard panel → `_data/fleet.yml` `observability:` and the renderers in `.github/scripts/dash-gen/fleet_observe.py`, then `dash observe verify --write`
 - Anything unrouted → propose an entry in this table first, then create it.
 

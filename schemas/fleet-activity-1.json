@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/bamr87/bamr87/blob/main/schemas/fleet-activity-1.json",
+  "title": "fleet-activity/1 — one event in the fleet activity store (HUB-072)",
+  "description": "The single envelope every activity producer writes and every reader receives: container lifecycle and resource events, Claude Code hook events, agent sessions, console jobs and HUB-024 fleet_event rows, each tagged by `source` (FR66, FR69, NFR13). Major version 1: changes are additive only (a new optional field, a new source or kind); a removal or a meaning change is fleet-activity-2.json. Unknown top-level fields are rejected so a typo fails loudly: a new field is added here first, then produced. Decisions: docs/prd/FLEET-ACTIVITY-REPLAY-DECISIONS.md. Fixtures: schemas/fixtures/fleet-activity-1/, checked by tools/test_activity_contract.py.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "event_id", "ts", "source", "kind", "seq", "node", "payload"],
+  "properties": {
+    "schema": {
+      "description": "The envelope's major version. Every event carries it so a reader can refuse a major it does not know.",
+      "const": "fleet-activity/1"
+    },
+    "event_id": {
+      "description": "Lowercase UUID set by the producer when the event is first spooled; the idempotency key of the at-least-once flush (INSERT … ON CONFLICT (event_id) DO NOTHING). A wrapped HUB-024 fleet_event keeps its own event_id.",
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "ts": {
+      "description": "When it happened at the source, in UTC (Z or +00:00), not when it was flushed. Replay timing reads this; replay order reads `cursor`.",
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,9})?(Z|\\+00:00)$"
+    },
+    "source": {
+      "description": "Which producer family wrote it. `harness` is reserved for the harness protocol (#626, schemas/harness-event-1.json), which owns that source's kinds and payload profile; no producer emits it before that lands, and `_data/fleet.yml` `observability.activity.sources` leaves it out.",
+      "enum": ["container", "hook", "session", "job", "fleet_event", "harness"]
+    },
+    "kind": {
+      "description": "Namespaced event kind, always `<source>.<what>`: container.start / die / oom / health_status, hook.pre_tool_use, session.turn, job.stalled, fleet_event.declined, harness.task.started.",
+      "type": "string",
+      "maxLength": 96,
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"
+    },
+    "seq": {
+      "description": "Producer sequence: strictly increasing within one (node, source) stream, assigned when the event is appended to that stream's spool. A gap is a lost event, so drops stay countable after the fact (NFR13); the writer never renumbers.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "cursor": {
+      "description": "Store sequence, assigned by the Postgres writer on insert and never by a producer: the global replay order and the SSE Last-Event-ID, one format for live and replay (FR67). Present on events read back from the store.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "node": {
+      "description": "Where it happened: a host key from `_data/fleet.yml` `nodes.hosts` (mac, forge), or `ci` for a GitHub-hosted runner.",
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "project": {
+      "description": "The `com.bamr87.fleet.project` label or registry name (`bamr87` for the hub).",
+      "type": "string",
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+    },
+    "repo": {
+      "description": "owner/name, from the `com.bamr87.fleet.repo` label, the registry or the git remote.",
+      "type": "string",
+      "maxLength": 140,
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "container": {
+      "description": "Docker container name.",
+      "type": "string",
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+    },
+    "service": {
+      "description": "Compose service name, when the container belongs to one.",
+      "type": "string",
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+    },
+    "actor": {
+      "description": "Who acted: an agent (claude-code, a subagent type), a loop or a bot id. A wrapped fleet_event's bot_id lands here; FR67 filters on it as `agent`.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "run_id": {
+      "description": "Correlates the events of one run: a Claude Code session id for hook and session events, the console job id for job events, the Docker container id for container events, the HUB-024 run_id for fleet_event.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "trace_id": {
+      "description": "W3C trace id, 32 lowercase hex, never all zeros: the same id Phoenix and Elasticsearch carry (fleet_lake.trace_id_for), so any event opens its trace tree (FR69).",
+      "type": "string",
+      "pattern": "^(?!0{32}$)[0-9a-f]{32}$"
+    },
+    "span_id": {
+      "description": "W3C span id, 16 lowercase hex, never all zeros: the span inside `trace_id` this event belongs to.",
+      "type": "string",
+      "pattern": "^(?!0{16}$)[0-9a-f]{16}$"
+    },
+    "pipeline_node": {
+      "description": "Node id in diagrams/pipeline-map/pipeline.json when the event maps onto one (FR17, FR18).",
+      "type": "string",
+      "maxLength": 128
+    },
+    "payload": {
+      "description": "Small source-specific JSON, redacted before it is spooled; never raw log text. The serialized size is capped by `observability.activity.caps.payload_max_bytes`, which the writer enforces. Every string and key is checked against the token patterns below, so a payload that still holds a token is not a valid event.",
+      "type": "object",
+      "$ref": "#/$defs/redacted"
+    }
+  },
+  "dependentRequired": {
+    "span_id": ["trace_id"]
+  },
+  "anyOf": [
+    {"required": ["run_id"]},
+    {"required": ["trace_id"]}
+  ],
+  "allOf": [
+    {
+      "$comment": "container: label-gated capture, so every event names its container and project label; the run is the container instance (its Docker id).",
+      "if": {"properties": {"source": {"const": "container"}}, "required": ["source"]},
+      "then": {
+        "required": ["container", "project", "run_id"],
+        "properties": {
+          "kind": {"pattern": "^container\\."},
+          "run_id": {"pattern": "^[0-9a-f]{12,64}$"}
+        }
+      }
+    },
+    {
+      "$comment": "hook: one Claude Code hook call; kind is hook.<hook_event_name in snake_case>.",
+      "if": {"properties": {"source": {"const": "hook"}}, "required": ["source"]},
+      "then": {
+        "required": ["run_id"],
+        "anyOf": [{"required": ["project"]}, {"required": ["repo"]}],
+        "properties": {"kind": {"pattern": "^hook\\."}}
+      }
+    },
+    {
+      "$comment": "session: an agent session's lifecycle, diffed from the live collector's snapshots.",
+      "if": {"properties": {"source": {"const": "session"}}, "required": ["source"]},
+      "then": {
+        "required": ["run_id"],
+        "anyOf": [{"required": ["project"]}, {"required": ["repo"]}],
+        "properties": {"kind": {"pattern": "^session\\."}}
+      }
+    },
+    {
+      "$comment": "job: a console job's state transition, the FR60 states.",
+      "if": {"properties": {"source": {"const": "job"}}, "required": ["source"]},
+      "then": {
+        "required": ["run_id"],
+        "properties": {"kind": {"enum": ["job.queued", "job.running", "job.stalled", "job.done", "job.failed"]}}
+      }
+    },
+    {
+      "$comment": "fleet_event: a HUB-024 row carried whole. event_id, ts, repo and run_id are lifted to the envelope, bot_id becomes actor, the rest of the row is the payload.",
+      "if": {"properties": {"source": {"const": "fleet_event"}}, "required": ["source"]},
+      "then": {
+        "required": ["actor", "run_id"],
+        "properties": {
+          "kind": {"enum": ["fleet_event.start", "fleet_event.finish", "fleet_event.declined", "fleet_event.blocked_handoff", "fleet_event.retry"]},
+          "payload": {
+            "required": ["task_ref", "decision", "outcome", "standard_version"],
+            "properties": {
+              "task_ref": {"type": "string"},
+              "decision": {"type": "string"},
+              "outcome": {"enum": ["success", "failure", "skipped", "pending", "unknown"]},
+              "standard_version": {"type": "string"},
+              "standard_source": {"type": "string"},
+              "detail": {"type": "object"},
+              "amendments": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["amendment", "repo", "relation"],
+                  "properties": {
+                    "amendment": {"type": "string"},
+                    "repo": {"type": "string"},
+                    "relation": {"enum": ["followed", "cited_for_decline", "conflicted"]}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "$comment": "harness: reserved. The kinds after `harness.` and the payload profile are #626's schemas/harness-event-1.json; this envelope owns only the common fields.",
+      "if": {"properties": {"source": {"const": "harness"}}, "required": ["source"]},
+      "then": {
+        "required": ["run_id"],
+        "properties": {"kind": {"pattern": "^harness\\."}}
+      }
+    }
+  ],
+  "$defs": {
+    "redacted": {
+      "description": "Recursively: no string value and no object key may still hold a token. The pattern is the union of tools/fleet_activity.py's redaction and `_data/fleet.yml` `observability.logs.redact` (tools/test_activity_contract.py plants each prefix and expects a rejection).",
+      "not": {"$ref": "#/$defs/secret"},
+      "propertyNames": {"not": {"$ref": "#/$defs/secret"}},
+      "items": {"$ref": "#/$defs/redacted"},
+      "additionalProperties": {"$ref": "#/$defs/redacted"}
+    },
+    "secret": {
+      "type": "string",
+      "pattern": "(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{16,}|xox[abposr]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{20,}|Bearer\\s+[A-Za-z0-9._-]{16,})"
+    }
+  }
+}

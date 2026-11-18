@@ -168,6 +168,7 @@ Read tools are annotated `readOnlyHint: true`. Lists come back as `{count, items
 | `live_snapshot` | `/api/live` | Sessions, Claude live usage, jobs, spend, health, deep dive (needs bamr87/bamr87#432) |
 | `sessions` | `/api/live` `sessions` | Active and idle local agent sessions (needs #432) |
 | `agent_activity` | `/api/lake/review` | Local sessions + CI agent runs, analysed (`days`, `repo`, `limit`) |
+| `lake_recall` | `/api/lake/recall` | Past local Claude Code sessions by keyword (`query` cut to 300 characters, `days` up to 3650, `repo`, `limit` up to 50): every word must match the redacted text of the session's first prompt or one assistant turn, one result per session, best match first, each with a redacted excerpt of at most 300 characters; the lake is opened read-only ([docs/HARNESS-OPS.md](../../../docs/HARNESS-OPS.md#the-local-stack)) |
 | `ops_list` | `/api/ops` | The allowlisted operations and their params |
 | `jobs_list` | `/api/jobs` | Recent jobs, each with its derived `state`, `age_s`, `idle_s`, `stall_s` and `diagnostics` (`status` filters the raw status, `state` the derived one: queued, running, stalled, done, failed; `limit`) |
 | `job_status` | `/api/jobs/{id}/status` | What one job is doing now, without its log: `state` (a running job whose log has not grown for `stall_s` is `stalled`), `age_s`, `idle_s` and `diagnostics` (`queue_wait`, `collector_lag`, `long_step`, `no_heartbeat`) — [job-status.md](job-status.md) |
@@ -177,6 +178,9 @@ Read tools are annotated `readOnlyHint: true`. Lists come back as `{count, items
 | `lake_runs` | `/api/lake/runs` | Recent runs / traces (`limit`) |
 | `workflow_lines` | `/api/lake/lines` | Every workflow with provenance and kill switch (`filter`: all, failing, noswitch, ai) |
 | `observability` | `/api/observability` | Log and metrics planes (Elasticsearch/Kibana, Prometheus/Grafana, Phoenix) |
+| `prom_query` | `/api/telemetry/prom` | PromQL over `claude_code_*` metrics only (`query`; `start`, `end`, `step` for a range): every selector must name a `claude_code_*` metric, so a `__name__` matcher, a bare `{…}` selector and `info()` are refused; window and every `[range]` ≤ 30 days, ≤ 200 series (`truncated: true`), ≤ 500 points a series, 10 s; an identity label (`user_email`, `user_account_uuid`, `organization_id` …) may not be named anywhere in the query, so it cannot be matched, grouped on or copied by `label_replace` / `label_join`, and it is dropped from every series; cost is API-equivalent (estimate) |
+| `logs_search` | `/api/telemetry/logs` | Log hits from Elasticsearch, always `logs-fleet.*`, newest first (`repo`, `run`, `trace`, `session`, `event`, `level`, `since`, `until`, `text`, `limit`): window ≤ 30 days, ≤ 100 hits, 10 s; allowlisted fields only, secret-shaped values and emails redacted |
+| `traces_query` | `/api/telemetry/traces` | Phoenix project `claude-code-otel` only: one trace's spans (`trace_id`), a session's spans (`session`), or the window's traces, slowest first with `slowest` — span kind, model, tokens, latency, status; ≤ 50 rows, window ≤ 30 days, 10 s; sends `PHOENIX_API_KEY` when set |
 | `code_search` | `/api/index/search`, `/api/index/harmonize` | Semantic search over the worktrees (`mode`: search, harmonize) |
 | `index_coverage` | `/api/index/coverage` | What the code index covers, which collection it read and where it asked |
 | `deep_dive` | `/api/data/deep_dive` | Deep-dive cycle progress and per-repo status |
@@ -188,8 +192,10 @@ Read tools are annotated `readOnlyHint: true`. Lists come back as `{count, items
 | `refine_library` | `/api/refine` `library` | The experience library's lessons (cue, lesson, evidence, confidence, verdicts), newest first (`loop`, `domain`, `limit`) — data to re-verify, never a rule |
 | `refine_reviews` | `/api/refine` `reviews` | Every local loop-run attempt whose dry-run preview has not been filed, with whether its step can file (`can_apply`) |
 | `decision_queue` | `/api/decisions` (or, with no console, `tools/console/decision_index.py` in the MCP process) | What waits on Amr across the whole fleet, in one call ([docs/DECISION-INDEX.md](../../../docs/DECISION-INDEX.md)): `needs_amr`, `ratification`, `dependabot` (failing or major) and `ready_to_merge` items, each with its `why`, the `counts` of the whole queue and the per-repo inventory (`kind`, `repo`, `limit`, `refresh`: auto, never, force; `budget_s`, at most 15). Served from the local index; `status` is fresh · partial · stale · expired · unavailable, and `warnings`, `errors` and `hint` say which part is old and why |
+| `gh_projects` | `/api/gh-projects` (or, with no console, `tools/console/gh_projects.py` in the MCP process) | GitHub Projects (v2) of every fleet owner in one call ([docs/PROJECTS-FRAMEWORK.md § 3a](../../../docs/PROJECTS-FRAMEWORK.md#3a-console-surface-and-write-back-epic-468)): each owner `ok` with its project count or `scope_missing` / `error` / `skipped` with the reason, every project with its `id`, field names and Status options (`owner`, `include_closed`, `summary`, `refresh`); `status` is fresh · partial · scope_missing · unavailable, with a `hint` |
+| `gh_project_items` | `/api/gh-projects/{project_id}/items` (or the module in the MCP process) | One project's items, paged: kind, repo, number, title, state, field values, FEAT/FR refs and the issues a PR closes (`status`, `kind`, `q`, `limit` up to 200 summarised or 50 with commits, `offset`, `summary`, `refresh`); `counts` cover the whole project, the read stops at 500 items and says so (`capped`); the project id is checked before it reaches a URL |
 | `fleet_overview` / `fleet_apps` / `fleet_inbox` / `fleet_work` | committed signals (`tools/fleetcore`) | The merged `fleet` server's views; no console needed |
-| `fleet_workflows` | the checkout's `.github/` (dash-gen `workflow_atlas`) | The workflow atlas: every hub workflow and composite action with its triggers, crons, Claude call sites, kill switch and findings; `workflow` returns one in full, `health` adds run health and failure causes from the local lake over `days` ([docs/WORKFLOW-ATLAS.md](../../../docs/WORKFLOW-ATLAS.md)); no console needed |
+| `fleet_workflows` | the checkout's `.github/` (dash-gen `workflow_atlas`); with `fleet`, the local lake read-only (`tools/fleetcore/workflows.py`) | The workflow atlas: every hub workflow and composite action with its triggers, crons, Claude call sites, kill switch and findings; `workflow` returns one in full, `health` adds run health and failure causes from the local lake over `days`. `fleet=true` returns the fleet model instead (`fleet-workflows/v1`, filled by `tools/dash workflows sync`): every registry repository with when it was read or why not, its findings and its checks' states; `repo` narrows to one repository's workflows, `repo` + `workflow` to one in full ([docs/WORKFLOW-ATLAS.md](../../../docs/WORKFLOW-ATLAS.md)); no console needed |
 | `workflow_lint` | dash-gen `workflow_atlas.lint_text` | A draft workflow's findings against the hub's standards and `_data/fleet.yml` (`text`, `id`); nothing is written |
 | `fleet_graph` | the checkout (`tools/fleetcore/graph.py`) | The fleet graph ([docs/FLEET-GRAPH.md](../../../docs/FLEET-GRAPH.md)): `action` = summary · find (`text`, `kind`) · show (`node`) · impact (`node`, `depth`: what depends on it) · lineage (what it needs) · path (`node`, `to`) · check (findings, with the surface-parity notes); no console needed |
 | `fleet_learning` | the local lake, read-only (`tools/fleetcore/learn.py`) | Outcome learning in shadow ([docs/LEARNING.md](../../../docs/LEARNING.md)): per loop the outcomes, the landing estimate, the plan for the next `slots`, the replay test and the backlog advice (`loop`, `slots`, `limit`); `available: false` with the reason when there is no lake; steers nothing |
@@ -236,6 +242,24 @@ Neither scope writes to GitHub, so neither is a write-back path under constituti
 
 The MCP sidecar and the console run in containers, and the `_data/fleet.yml` URLs are the **browser's** (loopback — they are also the links the console renders). Every server-side probe therefore goes through `fleet_observe.probe_url`, which prefers `ES_URL`, `KIBANA_URL`, `GRAFANA_URL`, `QDRANT_URL`, `OLLAMA_URL`, `PROMETHEUS_URL` — set on `console` and `devenv` in `docker-compose.yml` to the service-DNS form. The code index missed this and asked the container's own `127.0.0.1:6333`, so `index_coverage` and `code_search` reported "Qdrant has no collection" against a store holding 17,341 points. Kilo's collection name is a hash of the workspace **root path**, which differs between the host (`/Users/bamr87/bamr87`) and a container (`/workspace`), so it is never recomputed: the store is listed and a `ws-` collection chosen (the fullest, when there are several). `QDRANT_COLLECTION` overrides that choice and wins even when the store cannot be listed. `index_coverage` returns `qdrant`, `collection`, `collections` and `collection_source` so a wrong pick is visible rather than looking like an index that covers nothing.
 
+## MCP Registry manifest (`server.json`)
+
+[`../server.json`](../server.json) describes this server in the MCP Registry's `server.json` format (schema `2025-12-11`), as constitution § 16.4 asks of every fleet MCP server. It is a description only: nothing publishes it, and publishing to the public registry, with the namespace sign-in that needs, is the maintainer's decision.
+
+- **name** `io.github.bamr87/fleet`: the registry's GitHub namespace for the owner, then `fleet`, the server's stable id under § 25.4 and in `_data/mcp_servers.yml`. The repository name (`bamr87`) would name the hub, not this server, and the hub registers more than one.
+- **version** equals `VERSION` in `mcp_layer/server.py` (0.2.0). Bump both together: `tools/mcp_servers_lint.py` and `tools/test_mcp_servers_lint.py` fail when they differ.
+- **repository** points at `tools/console` in `bamr87/bamr87`.
+- **No `packages` or `remotes`.** The schema requires a package to name a registry (npm, PyPI, OCI, NuGet or MCPB), and this server is not published to any of them; a checkout runs it. A remote needs a URL, and the only HTTP endpoints are loopback or a quick tunnel whose hostname changes, which § 25.6 keeps out of git. How a checkout starts it is therefore recorded under `_meta` → `io.modelcontextprotocol.registry/publisher-provided`: transport `stdio`, the launch `tools/console/mcp.sh --fleet-compat` (what `.mcp.json` runs) from the repository root, and the environment variables it reads, by name only.
+
+`python3 tools/mcp_servers_lint.py check .` lints every committed `server.json` in the hub: the shape, the name, a specific version, a transport, no secret literal and no machine-local endpoint. It does not check the full JSON Schema, because `jsonschema` is not a hub dependency. To validate against the official schema, use a scratch virtualenv:
+
+```bash
+python3 -m venv /tmp/mcp-schema && /tmp/mcp-schema/bin/pip install -q jsonschema
+curl -fsS -o /tmp/mcp-schema/server.schema.json https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json
+/tmp/mcp-schema/bin/python -c 'import json,sys,jsonschema; jsonschema.validate(json.load(open(sys.argv[2])), json.load(open(sys.argv[1]))); print("valid")' \
+  /tmp/mcp-schema/server.schema.json tools/console/server.json
+```
+
 ## Tests
 
 ```bash
@@ -243,6 +267,7 @@ tools/console/mcp.sh --list-tools >/dev/null   # bootstrap .venv-mcp once
 .venv-mcp/bin/python tools/console/test_mcp_layer.py      # unit: mocked HTTP, the protocol, HTTP auth, scopes
 .venv-mcp/bin/python tools/console/smoke_mcp_layer.py     # live: stdio against the running console
 .venv-mcp/bin/python tools/console/smoke_mcp_layer.py --url http://127.0.0.1:4002/mcp   # live: the HTTP sidecar
+python3 tools/test_mcp_servers_lint.py                    # server.json: the lint, and its version equal to VERSION
 ```
 
 `test_mcp_layer.py` skips cleanly where `mcp` is not installed. It covers the scoped tools too: which tools each scope registers, the refusals (no confirm, an op off the allowlist, an undeclared parameter, a stale `plan_id`, a `stage` move), the running and hourly caps, the watchdog's cancel, the round trip of a plan and its `undo_plan`, and the audit's scrubbing. The smoke test lists tools and resources and calls a few read tools, printing sizes and top-level keys only. With `--url` it runs the remote handshake against a running HTTP server, reading the bearer token in-process, and fails when no tools are listed.
