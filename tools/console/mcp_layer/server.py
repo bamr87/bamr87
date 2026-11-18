@@ -55,7 +55,8 @@ from mcp_layer.client import ROOT, Console, ConsoleError, dotenv_value  # noqa: 
 VERSION = "0.2.0"
 INSTRUCTIONS = (
     "bamr87 Harness Console: the fleet's control plane. Start with console_overview, then drill in: "
-    "fleet_status, harness_health, live_snapshot, claude_telemetry, jobs_list/job_log, spend_vs_budget, lake_runs, workflow_lines, "
+    "fleet_status, harness_health, live_snapshot, claude_telemetry (raw telemetry: prom_query, logs_search, "
+    "traces_query), jobs_list/job_log, spend_vs_budget, lake_runs, workflow_lines, "
     "code_search, deep_dive. What waits on the maintainer across every repo is ONE call: decision_queue (never a "
     "sweep of each repo); every open pull request with who moves it next is ONE call: pr_queue, and pr_queue_plan "
     "previews a bulk action the user then confirms on the console. To reprioritize open work: work_board, work_item, then work_preview(plan) — it writes "
@@ -759,6 +760,54 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
                     raise ConsoleError("this console has no /api/claude-telemetry yet (feat/console-claude-telemetry)") from None
                 raise
         return call(run)
+
+    def telemetry(path: str, **q: Any) -> Any:
+        """GET one telemetry_query.py route with the arguments the caller set."""
+        def run():
+            try:
+                return c.get(path, **{k: v for k, v in q.items() if v not in (None, "")})
+            except ConsoleError as e:
+                if e.status == 404:
+                    raise ConsoleError(f"this console has no {path} yet (bamr87/bamr87#447)") from None
+                raise
+        return call(run)
+
+    @mcp.tool(annotations=READ)
+    def prom_query(query: str, start: str | None = None, end: str | None = None, step: str | None = None) -> Any:
+        """PromQL against the fleet's Prometheus, read-only, claude_code_* metrics only (e.g.
+        `sum by (model) (increase(claude_code_cost_usage_USD_total[24h] anchored))`). Every selector must
+        name a claude_code_* metric: a __name__ matcher, a bare {…} selector and info() are refused. No
+        `start` = an instant query at `end` (default now); with `start` = a range query, `step` raised to
+        keep ≤ 500 points. Times: now, now-6h, 6h, unix seconds or ISO 8601. Limits: window and every
+        [range] ≤ 30 days, ≤ 200 series (then truncated: true), 10 s. Identity labels (user_email,
+        user_account_uuid, organization_id …) may not appear anywhere in the query, even as a
+        label_replace/label_join argument, and are dropped from the answer. Cost metrics are Claude
+        Code's API-equivalent (estimate), not the subscription bill."""
+        return telemetry("/api/telemetry/prom", query=query, start=start, end=end, step=step)
+
+    @mcp.tool(annotations=READ)
+    def logs_search(repo: str = "", run: str = "", trace: str = "", session: str = "", event: str = "",
+                    level: str = "", since: str = "24h", until: str = "", text: str = "", limit: int = 20) -> Any:
+        """Log lines from the fleet's Elasticsearch, read-only: always the logs-fleet.* data streams (Actions
+        logs, labelled containers, Claude Code OTel events), newest first. Filters (all optional, ANDed):
+        repo (owner/name or project), run (Actions run id), trace (hex trace id), session (Claude Code session
+        id or prefix), event (event.action, e.g. api_request, tool_result, api_error), level (error, warn,
+        info…), since/until (window ≤ 30 days, default the last 24h), text (simple_query_string over the
+        message, ≤ 200 chars). Limits: ≤ 100 hits, 10 s; only allowlisted fields come back, identity fields
+        never, and secret-shaped values and emails are redacted. Cost fields are API-equivalent (estimate)."""
+        return telemetry("/api/telemetry/logs", repo=repo, run=run, trace=trace, session=session, event=event,
+                         level=level, since=since, until=until, text=text, limit=max(1, min(int(limit), 100)))
+
+    @mcp.tool(annotations=READ)
+    def traces_query(session: str = "", trace_id: str = "", slowest: bool = False, since: str = "24h",
+                     limit: int = 10) -> Any:
+        """Claude Code's live spans from Phoenix project claude-code-otel (fixed), read-only. trace_id (32 hex)
+        → that trace's spans; session → the session's spans, newest first; neither → traces in the window,
+        slowest first when slowest=true. Each span: name, span kind (AGENT/LLM/TOOL), model, tokens, latency,
+        status, tool. Limits: ≤ 50 rows, window ≤ 30 days (default 24h), 10 s. Needs PHOENIX_API_KEY in the
+        console's environment when Phoenix runs with authentication."""
+        return telemetry("/api/telemetry/traces", session=session, trace_id=trace_id,
+                         slowest="true" if slowest else None, since=since, limit=max(1, min(int(limit), 50)))
 
     @mcp.tool(annotations=READ)
     def sessions() -> Any:
