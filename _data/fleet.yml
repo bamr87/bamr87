@@ -1606,7 +1606,12 @@ observability:
       # Elasticsearch to ~2 GiB RSS and an exit-137 OOM kill on the first
       # start. 512m indexes the fleet's log volume comfortably; raise it
       # (ES_HEAP in .env) before widening `dash observe ship --days`.
-      heap: { elasticsearch: 512m, logstash: 256m }
+      # Logstash had 256m while nothing but Claude Code's events reached it.
+      # Once Filebeat shipped container logs (2026-11-17) that heap ran out
+      # twice in an hour, the second time with its workers already cut to
+      # five, and between the two it collected its old generation every few
+      # seconds. 512m is what four pipelines and the Elasticsearch output hold.
+      heap: { elasticsearch: 512m, logstash: 512m }
 
   # ---- Metrics: Grafana over Elasticsearch AND Prometheus (FF-0003) -------- #
   metrics:

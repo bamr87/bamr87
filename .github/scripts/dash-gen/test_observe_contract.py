@@ -214,6 +214,22 @@ def test_heap_defaults_agree_everywhere_they_are_written():
     assert es_env.count(heap["elasticsearch"]) == 2, f"-Xms and -Xmx disagree: {es_env}"
 
 
+def test_every_logstash_pipeline_sets_its_workers():
+    """Left unset, each pipeline gets one worker per CPU the container sees:
+    four pipelines on this bench's 11-CPU Docker VM were 44 workers, each with
+    its own compiled filters, on a heap sized for the machine. The workers are
+    sized for the heap, not the other way round; the heap itself is held by
+    test_heap_defaults_agree_everywhere_they_are_written."""
+    pipes = yaml.safe_load((CONFIG / "logstash" / "pipelines.yml").read_text())
+    total = 0
+    for pipe in pipes:
+        workers = pipe.get("pipeline.workers")
+        assert isinstance(workers, int) and workers >= 1, \
+            f"{pipe['pipeline.id']}: pipeline.workers is unset, so it defaults to the CPU count"
+        total += workers
+    assert total <= 8, f"{total} pipeline workers for a {CONTRACT['logs']['ship']['heap']['logstash']} heap"
+
+
 def test_env_example_declares_every_variable_the_elk_profile_reads():
     declared = set(ENV)
     for name, svc in ELK.items():

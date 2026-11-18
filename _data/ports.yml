@@ -222,6 +222,12 @@ projects:
   zer0-cms:
     host: compose
     compose: projects/zer0-cms/docker-compose.yml
+    # `profiles:` are the compose profiles `dash dev` activates for a project.
+    # Every service in this file is behind one, so a bare `up` selected nothing
+    # ("no service selected"). `content` is the platform: db, redis, the API
+    # and its workers. `imagegen` builds a second image and stays opt-in:
+    # `tools/dash dev up zer0-cms --profile imagegen`.
+    profiles: [content]
     services:
       content:  { port: 8117, band: api, var: ZER0_CMS_PORT }
       imagegen: { port: 8118, band: api, var: ZER0_CMS_IMAGEGEN_PORT }

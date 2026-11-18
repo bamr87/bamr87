@@ -176,14 +176,30 @@ cmd_docker() {
 # The public site, locally: the console's page built static exactly as
 # build-dash.yml builds it for Pages (tools/console/build-pages.sh), served at
 # the root on :4000 (DASH_SERVE_PORT, else SITE_PORT — the port _data/ports.yml
-# allocates). Binds loopback unless DASH_SERVE_HOST says otherwise (devenv sets
-# 0.0.0.0 so its published port reaches it). For the live, write-capable
-# version run `dash console` — the same page with an API behind it.
+# allocates). Binds loopback unless DASH_SERVE_HOST says otherwise. When the
+# devenv container is up and publishes that port, the page is built here and
+# served from inside it. For the live, write-capable version run `dash
+# console` — the same page with an API behind it.
 cmd_serve() {
   cd "$ROOT"
   local port="${DASH_SERVE_PORT:-${SITE_PORT:-4000}}" host="${DASH_SERVE_HOST:-127.0.0.1}"
   local out="$ROOT/tools/console/web/dist-pages"
   CONSOLE_BASE=/ SITE_URL="http://127.0.0.1:${port}" OUT="$out" PYTHON="${PY}" "${TOOLS}/console/build-pages.sh"
+  # While the core is up, the workspace container publishes this port
+  # (_data/ports.yml: `dash`, served_by: devenv), so the host cannot bind it:
+  # the server below died with "Address already in use" after a full build, and
+  # `dash verify` then waited four minutes for a site nobody was serving. The
+  # build needs PyYAML and Node, which the host has and the container's bare
+  # python does not, so build here and serve the same files from in there. The
+  # checkout is its /workspace.
+  if [[ -z "${DASH_SERVE_HOST:-}" ]] && command -v docker >/dev/null 2>&1 \
+     && [[ "$(docker compose port devenv "$port" 2>/dev/null || true)" == *":${port}" ]]; then
+    echo "dash serve: http://127.0.0.1:${port}/  (the published snapshot, served from the devenv container that publishes :${port}; Ctrl-C to stop)"
+    # No TTY (a task, CI, a pipe): -T, or compose refuses to start.
+    local tty=(); [[ -t 0 && -t 1 ]] || tty=(-T)
+    exec docker compose exec ${tty[@]+"${tty[@]}"} devenv \
+      python3 -m http.server "$port" --bind 0.0.0.0 -d "/workspace/${out#"$ROOT"/}"
+  fi
   echo "dash serve: http://127.0.0.1:${port}/  (the published snapshot; Ctrl-C to stop)"
   exec "${PY}" -m http.server "$port" --bind "$host" -d "$out"
 }
