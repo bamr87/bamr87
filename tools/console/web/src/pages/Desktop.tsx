@@ -19,8 +19,14 @@
 // open beside, Live beside Local, open in a new tab, copy link.
 //
 // A layout carries scene and app ids and geometry, never an address: a shared
-// link can only open what the registry declares. Below the reducer's narrow
-// width the desktop becomes a home screen: the icons, then one app at a time.
+// link can only open what the registry declares. Beside the reducer's own
+// layout it carries each app window's view (`a`, one entry per window): the
+// target id, the device and the path inside the app, so a shared link or a
+// reload reopens Live beside Local on its two targets. A target the app does
+// not declare, a device outside the device matrix and a path that would leave
+// the app's address are dropped, and the window falls back to the app's
+// default. Below the reducer's narrow width the desktop becomes a home
+// screen: the icons, then one app at a time.
 import {
   Fragment, useEffect, useMemo, useReducer, useRef, useState,
   type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent,
@@ -44,9 +50,9 @@ import { to } from '../lib/links';
 import { FLAT, NAV, activeIndex } from '../nav';
 import {
   MAX_WINDOWS, decodeLayout, effectiveExperience, encodeLayout, initialState, reduce,
-  type ShellAction, type ShellState, type ShellWindow,
+  type ShellAction, type ShellLayout, type ShellState, type ShellWindow,
 } from '../vendor/bashos/shell.js';
-import { AppPane, type AppView } from './Apps';
+import { AppPane, inside, type AppView } from './Apps';
 import { RepoApp } from './RepoApp';
 import c from './Desktop.module.css';
 
@@ -92,14 +98,83 @@ function repoIcon(repo: FleetRepo, size = 22): ReactNode {
 }
 
 // ------------------------------------------------------------------ layouts
-function encodeParam(state: ShellState): string {
-  return btoa(JSON.stringify(encodeLayout(state))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const contentKey = (w: ShellWindow) => `${w.id}|${w.sceneId}|${w.resourceId ?? ''}`;
+
+/** An app window's view in a layout: target id, device id, path inside the app. */
+interface LayoutView { t?: string; d?: string; p?: string }
+type Layout = ShellLayout & { a?: (LayoutView | null)[] };
+
+/**
+ * The reducer's layout (bashOS's, unchanged) plus `a`: one entry per window,
+ * the view an app window shows, or null. A layout with no view says nothing more.
+ */
+function layoutOf(state: ShellState, views: Record<string, AppView>): Layout {
+  const layout: Layout = encodeLayout(state);
+  const a = state.windows.map((w): LayoutView | null => {
+    const v = w.sceneId === 'app' ? views[contentKey(w)] : undefined;
+    if (!v || !(v.target || v.device || v.path)) return null;
+    return { t: v.target || undefined, d: v.device || undefined, p: v.path || undefined };
+  });
+  if (a.some(Boolean)) layout.a = a;
+  return layout;
+}
+
+/** What a layout may restore for one app window; null when nothing in it is the registry's. */
+function keptView(doc: AppsDoc, appId: string | null, raw: unknown): AppView | null {
+  const app = doc.apps.find((x) => x.id === appId);
+  if (!app || !raw || typeof raw !== 'object') return null;
+  const { t, d, p } = raw as Record<string, unknown>;
+  const view: AppView = {};
+  // Only a target the app declares: anything else is the app's default target.
+  const target = app.targets.find((x) => x.id === t);
+  if (target) view.target = target.id;
+  if (typeof d === 'string' && doc.viewports.some((v) => v.id === d)) view.device = d;
+  // Only a path AppPane would frame: one that stays inside the app's own address.
+  const base = (target ?? app.targets[0])?.url;
+  const path = typeof p === 'string' ? p.trim() : '';
+  if (base && path && path.length <= 300 && inside(base, path) !== base) view.path = path;
+  return Object.keys(view).length ? view : null;
+}
+
+/**
+ * Each restored window's view, from the layout's `a`. decodeLayout drops
+ * entries (an unknown scene, past the window cap, a second singleton) but never
+ * reorders them, and the windows dropped here are dropped by id, so walking the
+ * layout's windows in order pairs every window with its own entry.
+ */
+function viewsOf(payload: unknown, windows: ShellWindow[], doc: AppsDoc): Record<string, AppView> {
+  const raw = (payload ?? {}) as { w?: unknown; a?: unknown };
+  const entries = Array.isArray(raw.w) ? (raw.w as unknown[]) : [];
+  const shown = Array.isArray(raw.a) ? (raw.a as unknown[]) : [];
+  const same = (entry: unknown, w: ShellWindow) => {
+    if (!entry || typeof entry !== 'object') return false;
+    const { s, r } = entry as { s?: unknown; r?: unknown };
+    return s === w.sceneId && ((typeof r === 'string' && r) || null) === w.resourceId;
+  };
+  const out: Record<string, AppView> = {};
+  let j = 0;
+  for (const w of windows) {
+    while (j < entries.length && !same(entries[j], w)) j += 1;
+    if (j >= entries.length) break;
+    const view = w.sceneId === 'app' ? keptView(doc, w.resourceId, shown[j]) : null;
+    if (view) out[contentKey(w)] = view;
+    j += 1;
+  }
+  return out;
+}
+
+// base64url of the layout's UTF-8: a path typed inside an app may be any text,
+// which btoa alone refuses. An ASCII layout encodes exactly as it always has.
+function encodeParam(layout: Layout): string {
+  const bytes = new TextEncoder().encode(JSON.stringify(layout));
+  return btoa(Array.from(bytes, (b) => String.fromCharCode(b)).join('')).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 function decodeParam(raw: string | null): unknown {
   if (!raw) return null;
   try {
-    return JSON.parse(atob(raw.replace(/-/g, '+').replace(/_/g, '/')));
+    const bytes = Uint8Array.from(atob(raw.replace(/-/g, '+').replace(/_/g, '/')), (ch) => ch.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes));
   } catch {
     return null;
   }
@@ -113,17 +188,19 @@ function readTab(): unknown {
   }
 }
 
-function saveTab(state: ShellState): boolean {
+function saveTab(layout: Layout): boolean {
   try {
-    window.sessionStorage.setItem(TAB_KEY, JSON.stringify(encodeLayout(state)));
+    window.sessionStorage.setItem(TAB_KEY, JSON.stringify(layout));
     return true;
   } catch {
     return false; // a private window: the layout lives for this page load only
   }
 }
 
+interface Booted { state: ShellState; views: Record<string, AppView> }
+
 /** The first desktop: a shared link's layout, else this tab's last one, else Welcome. */
-function boot(doc: AppsDoc): ShellState {
+function boot(doc: AppsDoc): Booted {
   const framed = new Set(doc.apps.filter((a) => a.embed === 'frame').map((a) => a.id));
   const repos = new Set(doc.repos.map((r) => r.id));
   // A layout names ids; only ones the registry declares come back as windows.
@@ -137,17 +214,15 @@ function boot(doc: AppsDoc): ShellState {
     const windows = st?.windows.filter(known) ?? [];
     if (st && windows.length) {
       const focusId = windows.some((w) => w.id === st.focusId) ? st.focusId : windows[windows.length - 1].id;
-      return { ...st, experience: 'os', windows, focusId };
+      return { state: { ...st, experience: 'os', windows, focusId }, views: viewsOf(payload, windows, doc) };
     }
   }
   let state = reduce(initialState('welcome'), { type: 'experience', experience: 'os' });
   const first = state.windows[0];
   // Small: Welcome is a note, not the work.
   state = reduce(state, { type: 'move', id: first.id, xPct: 8, yPct: 8 });
-  return reduce(state, { type: 'resize', id: first.id, wPct: 50, hPct: 56 });
+  return { state: reduce(state, { type: 'resize', id: first.id, wPct: 50, hPct: 56 }), views: {} };
 }
-
-const contentKey = (w: ShellWindow) => `${w.id}|${w.sceneId}|${w.resourceId ?? ''}`;
 
 // ------------------------------------------------------------------- panels
 function WelcomePanel({ doc, open }: { doc: AppsDoc; open: Open }) {
@@ -361,8 +436,10 @@ function IconButton({ label, glyph, title, open: isOpen, onClick, onMenu }: {
 }
 
 function DesktopShell({ doc }: { doc: AppsDoc }) {
-  const [state, dispatch] = useReducer(reduce, doc, boot);
-  const [views, setViews] = useState<Record<string, AppView>>({});
+  // One boot for both: the windows and the views keyed by those windows' ids.
+  const [booted] = useState(() => boot(doc));
+  const [state, dispatch] = useReducer(reduce, booted.state);
+  const [views, setViews] = useState<Record<string, AppView>>(booted.views);
   const [dragging, setDragging] = useState(false);
   const [home, setHome] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -384,7 +461,9 @@ function DesktopShell({ doc }: { doc: AppsDoc }) {
   const withLivePaths = (st: ShellState): ShellState => ({
     ...st, windows: st.windows.map((w) => (w.sceneId === 'page' && live[w.id] ? { ...w, resourceId: live[w.id] } : w)),
   });
-  useEffect(() => { saveTab(withLivePaths(state)); }, [state, live]);
+  // ...and which target, device and path each app window shows.
+  const layout = () => layoutOf(withLivePaths(state), views);
+  useEffect(() => { saveTab(layout()); }, [state, live, views]);
   useEffect(() => {
     const t = window.setInterval(() => setNow(new Date()), 30_000);
     return () => window.clearInterval(t);
@@ -517,7 +596,7 @@ function DesktopShell({ doc }: { doc: AppsDoc }) {
   );
   const copyLink = () => {
     const url = new URL(window.location.href);
-    url.searchParams.set(LAYOUT_PARAM, encodeParam(withLivePaths(state)));
+    url.searchParams.set(LAYOUT_PARAM, encodeParam(layout()));
     void navigator.clipboard?.writeText(url.href).then(() => {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
