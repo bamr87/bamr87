@@ -6,7 +6,13 @@
 
 ## 1. Overview / problem
 
-The `bamr87/bamr87` repo is simultaneously the GitHub profile README, the fleet control plane ("dash") that vendors every project as a Git submodule, and the public Harness Console site. It hosts shared standards, kits and reusable actions (e.g. `claude-run`) that the rest of the fleet consumes.
+The bamr87 hub's direction is to become the ultimate open home for the fleet: the control plane, the shared standards, and a public window onto every project. See [constitution § 1](docs/constitution.md#1-mission).
+
+1. Provide data, tools, resources and transparency for all stakeholders, operators, contributors and the general public — the project registry, the Harness Console, the public documentation site, and the catalogs that make every repo visible and auditable.
+2. Be the source of fleet standards and the path they take into each repo — the constitution, amendments, the PRD, the feature catalog, the Universal Project Standard, kits and fan-out — so a rule is written once in the hub, ratified by the maintainer merging, and adopted consistently across the fleet.
+3. Run a reliable, agentic control plane for the work itself — the dash, the loops, JEV, the issue pipeline and the harness — so planning, execution, review and cost across the mounted projects stay governed, observable and local-first where they can be.
+
+Today the repo is simultaneously the GitHub profile README, the fleet control plane ("dash") that vendors every project as a Git submodule, and the public Harness Console site. It hosts shared standards, kits and reusable actions (e.g. `claude-run`) that the rest of the fleet consumes.
 
 ## 2. Target users
 
@@ -109,7 +115,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-062](features/features.yml) | Fleet frontend platform: registry frontend: block, tiers and UPS-FE-70..73 | partial | [`tools/frontend_registry.py`](tools/frontend_registry.py) · [`docs/FRONTEND-PLATFORM.md`](docs/FRONTEND-PLATFORM.md) | FR58 |
 | [HUB-063](features/features.yml) | JEV: the loop runner's context pack — the fleet's planes, read on the host for a sealed agent | partial | [`tools/jev/context.py`](tools/jev/context.py) · [`docs/JEV.md`](docs/JEV.md) | FR59 |
 | [HUB-064](features/features.yml) | In-flight job status for agents: state, ages and slowness diagnostics | planned | [`tools/console/mcp_layer/server.py`](tools/console/mcp_layer/server.py) · [`tools/console/docs/job-status.md`](tools/console/docs/job-status.md) | FR60 |
-| [HUB-065](features/features.yml) | Fleet PR review workflow with one sticky summary | planned | [`docs/amendments/0017-fleet-pr-review.md`](docs/amendments/0017-fleet-pr-review.md) | FR61 |
+| [HUB-065](features/features.yml) | Fleet PR review workflow with one sticky summary | partial | [`.github/workflows/pr-review.yml`](.github/workflows/pr-review.yml) · [`templates/pr-review/README.md`](templates/pr-review/README.md) | FR61 |
 | [HUB-066](features/features.yml) | Quest Log showcase: every deep-dived repo gets an article, two LinkedIn drafts and a better first screen | partial | [`.claude/skills/deep-dive-showcase/SKILL.md`](.claude/skills/deep-dive-showcase/SKILL.md) · [`docs/SHOWCASE.md`](docs/SHOWCASE.md) | FR62, NFR8 |
 | [HUB-067](features/features.yml) | The editor is a front door: every harness surface from VS Code through tools/dash | shipped | [`.vscode/launch.json`](.vscode/launch.json) · [`.vscode/README.md`](.vscode/README.md) | FR63 |
 | [HUB-068](features/features.yml) | Workloads placed across fleet nodes, with OpenTofu for node infrastructure | partial | [`tools/fleetcore/nodes.py`](tools/fleetcore/nodes.py) · [`docs/PLATFORM.md`](docs/PLATFORM.md) | FR64 |
@@ -159,6 +165,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-113](features/features.yml) | Run the harness and its loops one stage at a time from Claude Code: /harness, /loops and /console slash commands over the console's operation allowlist | shipped | [`tools/console/ops_cli.py`](tools/console/ops_cli.py) · [`.claude/README.md`](.claude/README.md) | FR129, FR65, FR63 |
 | [HUB-114](features/features.yml) | The weekly routine: Friday closes the week, Saturday checks next week's schedule can run, Sunday plans it | shipped | [`tools/weekly/cli.py`](tools/weekly/cli.py) · [`docs/WEEKLY.md`](docs/WEEKLY.md) | FR130 |
 | [HUB-115](features/features.yml) | Weekly close-out and weekend-prep loops, scheduled and maintained from the Harness Console | partial | [`.github/workflows/weekly-closeout.yml`](.github/workflows/weekly-closeout.yml) · [`docs/WEEKLY-CLOSEOUT.md`](docs/WEEKLY-CLOSEOUT.md) | FR131 |
+| [HUB-116](features/features.yml) | On-premise compute node: local LLMs and Claude Code sessions on Amr's own machine (planned) | planned | [`docs/ONPREM-COMPUTE.md`](docs/ONPREM-COMPUTE.md) | FR64, FR56, FR65, FR130, FR131, FR132, FR133, NFR32 |
+| [HUB-117](features/features.yml) | PR queue: every open pull request, who moves it next, and bulk actions an agent carries out once Amr confirms | partial | [`tools/console/web/src/pages/PrQueue.tsx`](tools/console/web/src/pages/PrQueue.tsx) · [`docs/PR-QUEUE.md`](docs/PR-QUEUE.md) | FR134, FR135 |
 
 **Requirement → feature trace**
 
@@ -230,7 +238,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR53 | HUB-056 |
 | FR54 | HUB-057, HUB-073 |
 | FR55 | HUB-058 |
-| FR56 | HUB-060, HUB-069, HUB-070, HUB-071, HUB-073, HUB-074 |
+| FR56 | HUB-060, HUB-069, HUB-070, HUB-071, HUB-073, HUB-074, HUB-116 |
 | FR57 | HUB-061 |
 | FR58 | HUB-062, HUB-078, HUB-079, HUB-080 |
 | FR59 | HUB-063, HUB-073 |
@@ -238,8 +246,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR61 | HUB-065 |
 | FR62 | HUB-066 |
 | FR63 | HUB-067, HUB-073, HUB-113 |
-| FR64 | HUB-068 |
-| FR65 | HUB-069, HUB-113 |
+| FR64 | HUB-068, HUB-116 |
+| FR65 | HUB-069, HUB-113, HUB-116 |
 | FR66 | HUB-072 |
 | FR67 | HUB-072 |
 | FR68 | HUB-072 |
@@ -323,8 +331,13 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | NFR30 | HUB-112 |
 | NFR31 | HUB-112 |
 | FR129 | HUB-113 |
-| FR130 | HUB-114 |
-| FR131 | HUB-115 |
+| FR130 | HUB-114, HUB-116 |
+| FR131 | HUB-115, HUB-116 |
+| FR132 | HUB-116 |
+| FR133 | HUB-116 |
+| NFR32 | HUB-116 |
+| FR134 | HUB-117 |
+| FR135 | HUB-117 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -345,7 +358,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR24: A daily deep-dive routine processes exactly one repo per day from an ordered rotation of every non-archived bamr87 repo, so every repo is processed once per 42-day cycle; each run is recorded in `_data/deep-dive.yml` (status, date, issues/PRs opened, findings, score, next focus) through a PR, and everything it files carries the `deep-dive` label; see [docs/DEEP-DIVE.md](docs/DEEP-DIVE.md)
 - FR25: The deep-dive tracker is refreshed daily from the GitHub API (open `deep-dive` issues/PRs per repo) as a never-auto-merged PR or a dry-run artifact, and the Harness Console shows cycle progress (x/N), the cycle calendar, per-repo status, scores, issue/PR links and the last/next repo at `/deep-dive`
 - FR26: The Harness Console's API is available as an MCP server (`tools/dash mcp`, `tools/console/mcp_layer/`) over stdio and streamable HTTP, exposing read tools and resources for fleet status, harness health and scorecard, live activity, sessions, jobs and logs, spend against budget, traces, workflow lines, observability, semantic code search and deep-dive progress, plus write tools (run an allowlisted op, cancel a job, workflow kill switch) that are off unless explicitly enabled; see [tools/console/docs/mcp-layer.md](tools/console/docs/mcp-layer.md)
-- FR27: Every Claude CI run in the fleet — in each registry repo and in the hub itself (`_data/fleet.yml` `hub.repo`) — is accounted in `_data/ai_usage.yml` with the SOURCE of its figure stated per run: the run's own reported `total_cost_usd` (summed per Claude session, de-duplicated by `session_id`), a token-rate price at API list prices including cache reads and writes, `no-spend` for a run that ran no Claude step, or an explicit estimate with a named basis; the monthly AI ceiling (`budget.monthly_ai_usd`) is evaluated on the ACCOUNTED total (measured + estimated), never on the measured half alone; see [docs/AI-INTEGRATION.md](docs/AI-INTEGRATION.md#usage-dashboard-transparency--audit)
+- FR27: Every Claude CI run in the fleet — in each registry repo and in the hub itself (`_data/fleet.yml` `hub.repo`) — is accounted in `_data/ai_usage.yml` with the SOURCE of its figure stated per run: the run's own reported `total_cost_usd` (summed per Claude session, de-duplicated by `session_id`), a token-rate price at API list prices including cache reads and writes, `no-spend` for a run that ran no Claude step, or an explicit estimate with a named basis; the monthly AI ceiling (`harnesses.budget.monthly_ai_usd`) is evaluated on the ACCOUNTED total (measured + estimated), never on the measured half alone; see [docs/AI-INTEGRATION.md](docs/AI-INTEGRATION.md#usage-dashboard-transparency--audit)
 - FR28: Sequential ids are assigned at MERGE, never in a pull request: a new feature, requirement, changelog entry, constitution amendment or roadmap entry is written as a fragment (`features/features.d/<slug>.yml`, `changelog.d/<slug>.md`, `docs/amendments/proposed/<slug>.md`, `_data/roadmap.d/<slug>.yml`) carrying `HUB-NEW` / `FR-NEW:<key>` / `number: NEW` / `FF-NEW` and referencing other new things by slug; one serialized process on the default branch (`tools/jev/number.py`, `jev-number.yml`) assigns the next free id, compiles the fragments into the numbered files, rewrites the slug references, regenerates every projection and publishes through the sanctioned bot-commit path. Assigned ids are immutable and never reused, generated files carry `merge=jev-regen` and append-only lists `merge=union` in `.gitattributes`, and CI regenerates and fails on drift rather than accepting a hand-merge; see [docs/JEV.md](docs/JEV.md) and [amendment 0002](docs/amendments/0002-conflict-free-numbering.md)
 - FR29: Every open issue and PR in a registry repo is an item of the Fleet Portfolio GitHub Project (and its domain project) carrying the required fields (Status, Priority, Area, Repo; Feature ID and PRD req when it changes a feature or requirement), defined once in `templates/projects/framework.yml` and checked by `tools/projects_lint.py`; see [docs/PROJECTS-FRAMEWORK.md](docs/PROJECTS-FRAMEWORK.md)
 - FR30: Feature ids in `features/features.yml` and PRD requirement ids are synced into the projects' Feature ID / PRD req single-select options, and the harness console shows project coverage (items untracked, items missing required fields, per repo) from a committed `_data/projects_board.yml`
@@ -450,6 +463,10 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR129: The product must let an operator run any part of the harness, and any stage of any loop on the Harness Console's loops page, from a Claude Code session through slash commands that run the console's own allowlisted operations with the console's validation and confirm gate, never a second implementation; a stage that writes to GitHub or spends Claude budget must ask first.
 - FR130: The hub must, every weekend and without help, close the week (save all work that exists only on the maintainer's machine, return the workspace to main without removing anything unmerged or in use, and give every open pull request and issue one disposition), check that each activity scheduled for the coming week can run, and prepare the week's recap, plan and brief, with execution by Claude Code, direction by the Grok bots, and every external write held for the maintainer's confirmation.
 - FR131: The control plane must schedule, dispatch and maintain a weekly close-out of open project work (Friday), a draft of next week's plan (Saturday) and a week-ahead brief (Sunday) as console loops built to the fleet harness standard, each off until its kill switch is set, none able to merge, force-push or change settings.
+- FR132: The hub must run its local entry points (tools/dash loop, conflicts, weekly and refine) unchanged on an enrolled on-premise node, from the node's own git checkout, under the same kill switches, caps, AI ledger and sandbox as on the maintainer's workstation, scheduled by one timer per installer and registered in the agent inventory; the node's housekeeping acts only on its own checkouts, worktrees, clones, archives and session state, saves before it removes, reports idle or stuck Claude Code sessions without ending them, and never needs the node to be up for the fleet to work (constitution § 30; docs/ONPREM-COMPUTE.md).
+- FR133: The hub must be able to run a loop step, a JEV tier, a typed decision or an embedding job on a local model served from an enrolled on-premise node only when that model is pinned by exact tag and digest under a local provider in _data/fleet.yml ai_models.allowed and the step's eval set passes on it; the model is served on the node's loopback only, receives no secret, and runs with the step's own tool allowlist; each run is recorded in the AI ledger with cost source local ($0 metered API spend, with its energy estimate), never summed with API-equivalent or metered figures (constitution § 30; docs/ONPREM-COMPUTE.md).
+- FR134: The Harness Console must list every open pull request of the hub and the registry repos in one queue, each with its checks collapsed per check to the latest run on the head commit, its review-gate verdict and reason, the merge method its repo allows, and who moves it next, filterable by repo, kind, gate and who, with fan-out batches grouped by head branch.
+- FR135: The PR queue must let the maintainer select pull requests and apply one bulk action through a plan made from live GitHub and shown per pull request first; the plan is applied only after the maintainer confirms, only while it still matches GitHub, through the console's job API, with each result recorded; a merge or close runs only while its pr_queue switch is on.
 
 **Non-functional**
 
@@ -463,7 +480,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - NFR8: the deep-dive routine and its refresh only open issues and PRs — never merge, force-push, or change settings or secrets — and the tracker holds no secret
 - NFR9: the MCP layer binds to loopback by default, requires a bearer token on HTTP (refusing to start without one), never prints or returns a token, marks every write tool destructive and refuses it without `confirm=true`, and adds no enforcement of its own beyond the console's allowlist and confirm gate
 - NFR10: the spend ledger never presents a measured figure as a complete one — every aggregate carries its estimated share, a model with no rate row is surfaced (`unpriced_models`) instead of being priced at zero, and locally published interactive spend is never folded into the CI totals or judged against the CI ceiling
-- NFR11: JEV never merges a pull request, never force-pushes or rebases, never uses `--admin` and never changes repository settings or secrets — it pushes merge commits only to same-repo pull-request branches whose authors are listed in `_data/fleet.yml` `jev.allowed_authors`, and comments; every model call is capped per attempt and the engine is capped at `budget.jev.monthly_usd` ($10) a month inside the $75 fleet ceiling, with scheduled runs stopping at `scheduled_stop_pct` of it, and every attempt is recorded in `_data/jev_resolutions.yml` with whether its cost was reported or estimated
+- NFR11: JEV never merges a pull request, never force-pushes or rebases, never uses `--admin` and never changes repository settings or secrets — it pushes merge commits only to same-repo pull-request branches whose authors are listed in `_data/fleet.yml` `jev.allowed_authors`, and comments; every model call is capped per attempt and the engine is capped at `budget.jev.monthly_usd` ($10) a month inside the fleet ceiling (`harnesses.budget.monthly_ai_usd`, $200), with scheduled runs stopping at `scheduled_stop_pct` of it, and every attempt is recorded in `_data/jev_resolutions.yml` with whether its cost was reported or estimated
 - NFR12: work tracking never depends on a token scope silently — every projects tool and collector reports `scope_missing: project` instead of an empty result, and project mutations run only from the sanctioned sync workflow or the MCP layer's confirm-gated write tools
 - NFR13: Activity capture and replay never block, slow or fail a fleet container, agent or loop: the collector is read-only (docker.sock read-only, no exec), bounded (rate, payload and retention caps from _data/fleet.yml), redacts before storage, counts every dropped event, binds to loopback, and never stores, prints or returns a secret.
 - NFR14: The harness core never depends on a single-vendor or pre-1.0 protocol: core tests pass with every adapter removed, a pinned spec drifting raises an attention item instead of a failure, and no adapter can bypass risk tiers, kill switches or budgets.
@@ -484,6 +501,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - NFR29: The feed must be a conversation of posts, comments and reactions. A fleet event appears only when an actor attaches it as context on a post they publish. The linked pull request, issue, run or report remains the system of record for that work.
 - NFR30: The conversation must live on GitHub Discussions in this repository. The hub must not keep a second store of posts, comments or reactions. If Discussions cannot accept the post, publishing must fail closed and must not open an issue instead.
 - NFR31: A post, comment or draft must contain no token, secret, credential or private-repository body. A cost figure that is an estimate must be labelled API-equivalent (estimate). A failed publish must not fail the actor's underlying work.
+- NFR32: A self-hosted GitHub Actions runner on an on-premise node must never run a job from a fork's pull request: only schedule and workflow_dispatch workflows on the default branch target its labels and a drift check fails any workflow reachable from a fork-raisable event that does; the repository requires approval for fork pull-request workflows from all external contributors; the runner is ephemeral, runs as its own unprivileged user in a container or VM with no access to the maintainer's home, keys, Claude credentials or .env, has a kill switch, and stays off until the maintainer registers it (constitution § 30.5).
 
 ## 6. Success metrics (proposed — not defined in sources)
 

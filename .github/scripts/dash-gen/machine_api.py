@@ -77,19 +77,21 @@ def compact_inbox(inbox: list | None, *, limit: int = 50) -> list[dict]:
     for item in inbox or []:
         if not isinstance(item, dict):
             continue
-        out.append(
-            {
-                "kind": item.get("kind"),
-                "repo": item.get("repo"),
-                "nwo": item.get("nwo"),
-                "ref": item.get("ref"),
-                "title": item.get("title"),
-                "why": item.get("why"),
-                "url": item.get("url"),
-                "priority": item.get("priority"),
-                "age_days": item.get("age_days"),
-            }
-        )
+        row = {
+            "kind": item.get("kind"),
+            "repo": item.get("repo"),
+            "nwo": item.get("nwo"),
+            "ref": item.get("ref"),
+            "title": item.get("title"),
+            "why": item.get("why"),
+            "url": item.get("url"),
+            "priority": item.get("priority"),
+            "age_days": item.get("age_days"),
+        }
+        if item.get("clears"):  # a `merge` item (FF-0036): what merging it clears, and on what evidence
+            row["clears"] = [str(c) for c in item["clears"]]
+            row["evidence"] = item.get("evidence")
+        out.append(row)
         if len(out) >= limit:
             break
     return out

@@ -1,0 +1,17 @@
+# The PR queue on the published site: never published, so the page says it runs on a console. The console run is recorded by hand in the evidence README.
+id: pr-queue
+feature: HUB-117
+title: "The PR queue lists every open pull request, filters it, selects rows and plans a bulk action"
+description: "/prs on the public build renders the PR queue header with 'Runs on a console' in place of the queue (it reads GitHub under the console's identity and can hold a private repo's titles, so it is never published) and does not scroll sideways. On a running console it shows the who-moves-next tabs with counts, the fan-out batch buttons, the bulk action bar and the table, and selecting the shown rows and planning Mark ready opens the per-pull-request plan with Check it still matches and Apply — recorded by hand in the evidence README (test/evidence/pr-queue/), never in CI, which serves only the public build."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_"]
+steps:
+  - goto: /prs
+  - expect: { status: 200 }
+  - wait: { selector: "text=Runs on a console" }
+  - expect: { text: "PR queue" }
+  - expect: { text: "Runs on a console" }
+  - expect: { text: "it is never published" }
+  - expect: { count: { selector: "[data-bulk-bar]", max: 0 } }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: pr-queue-public

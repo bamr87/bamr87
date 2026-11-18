@@ -673,10 +673,36 @@
       "presentation": { "group": "4-generate", "order": 8 }
     },
     {
+      // The PR queue (docs/PR-QUEUE.md): read-only. A bulk action is planned with
+      // `tools/dash prs plan <action> --pr …` and applied on the console's /prs page.
+      "name": "🔀 PR queue: every open pull request, who moves it next",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash prs queue --limit 200 && tools/dash prs actions",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 8 }
+    },
+    {
       "name": "🗺️ Workflow atlas: list / health (from the lake)",
       "type": "node-terminal",
       "request": "launch",
       "command": "tools/dash workflows list && tools/dash workflows health --days ${input:lakeDays}",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 9 }
+    },
+    {
+      "name": "🗺️ Workflow atlas: sync the fleet's workflow files into the lake (operator token)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash workflows sync",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 9 }
+    },
+    {
+      "name": "🗺️ Workflow atlas: the fleet model (fleet-workflows/v1, from the lake)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash workflows --fleet list",
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "4-generate", "order": 9 }
     },
@@ -1062,7 +1088,7 @@
       "name": "🧪 Console: tests (test_console, test_pages, mcp layer, gh projects)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "for t in test_console test_pages test_mcp_layer test_gh_projects test_subscription test_claude_telemetry test_tui_bridge test_health_autostart; do .venv-console/bin/python tools/console/$t.py || { echo FAILED: tools/console/$t.py; break; }; done",
+      "command": "for t in test_console test_pages test_mcp_layer test_gh_projects test_subscription test_claude_telemetry test_telemetry_query test_tui_bridge test_health_autostart; do .venv-console/bin/python tools/console/$t.py || { echo FAILED: tools/console/$t.py; break; }; done",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Console: bootstrap venv",
       "presentation": { "group": "6-verify", "order": 8 }
@@ -1243,7 +1269,7 @@
       "presentation": { "group": "7-projects", "order": 15 }
     },
     {
-      "name": "🧩 zer0-cms: content (:8117) + imagegen (:8118)",
+      "name": "🧩 zer0-cms: content (:8117)",
       "type": "node-terminal",
       "request": "launch",
       "command": "tools/dash dev up zer0-cms && tools/dash dev logs zer0-cms",
@@ -1708,7 +1734,7 @@
       "id": "verifyScenario",
       "description": "Scenario id (verify/scenarios/)",
       "type": "pickString",
-      "options": ["home", "dashboard", "connect", "engagements", "features", "harnesses", "schedules", "monitor", "roadmap", "triage", "work", "workflows", "loop-run", "refine", "apps", "desktop", "repo-app", "desktop-pages", "console-shell", "console-nav", "desktop-context-menu"],
+      "options": ["home", "dashboard", "connect", "engagements", "features", "harnesses", "schedules", "monitor", "roadmap", "triage", "work", "workflows", "loop-run", "refine", "apps", "desktop", "repo-app", "desktop-pages", "console-shell", "console-nav", "desktop-context-menu", "gh-projects", "pr-queue"],
       "default": "home"
     },
     {
@@ -1782,8 +1808,8 @@
       "description": "Submodule directory under projects/",
       "type": "pickString",
       "options": [
-        "README", "ai-world-view.github.io", "bamr87.github.io", "bash-365-apex", "bash-365.com",
-        "bashcrawl", "bashos", "cv-pro", "djangoerp", "edgar-pipeline", "fleet-infra", "fleet-mobile",
+        "README", "SCHEMA", "ai-world-view.github.io", "bamr87.github.io", "bash-365-apex", "bash-365.com",
+        "bashcrawl", "bashos", "cv-pro", "djangoerp", "dot-github", "edgar-pipeline", "fleet-infra", "fleet-mobile",
         "fleet-observe", "fredgar-ai", "githubai", "gitorio", "godotgo", "it-journey", "kvlite",
         "law-ai", "lifehacker.dev", "netprobe", "ocrmd", "outbox", "ragio-ai", "recon-engine", "rewind-arcade",
         "schema-lang", "scripts", "sec-lab", "sensor-mesh", "skills", "vs-sonic-pi",

@@ -61,7 +61,7 @@ features:
       by: agent
   - id: HUB-003
     title: "Fleet triage inbox"
-    description: "Daily snapshot of every open issue, PR (with CI status), and failing workflow across the fleet, scored and rendered as one prioritized inbox at /inbox (formerly /triage/)."
+    description: "Daily snapshot of every open issue, PR (with CI status), and failing workflow across the fleet, scored and rendered as one prioritized inbox at /inbox (formerly /triage/). A failing workflow is linked to the open PRs that fix it (verified, doctor or weak evidence), and a green, clean fix leads the inbox as a merge item that says what merging it clears (FF-0036)."
     implemented: true
     status: shipped
     prd: [FR5]
@@ -70,11 +70,14 @@ features:
     docs: docs/DAILY-ANALYSIS.md
     tags: [ dash, triage, fleet-pulse ]
     tests:
+      - .github/scripts/dash-gen/test_fleet_triage.py
       - .github/scripts/dash-gen/test_remediation.py
+      - tools/test_fleetcore.py
     scenarios:
       - verify/scenarios/triage.yml
     evidence:
       - test/evidence/triage
+      - test/evidence/merge-fix-pr
     verified:
       date: 2026-10-12
       by: agent
@@ -416,7 +419,7 @@ features:
       - tools/test_backlog_fanout.py
   - id: HUB-028
     title: "Work board: rebalance the loops' work by drag and drop"
-    description: "Every open issue, PR, roadmap spec, spec package and BACKLOG.md item on six lanes at /work, in the order the loops take them, with each loop's next-run picks marked by the issue pipeline's own queue builder. Drag within a lane to pin the order, across lanes to move an issue (agent: labels) or a roadmap spec (status), across P0-P3 to reprioritise; every change is previewed, then applied after one confirm. The order and overrides land in _data/work_queue.yml, which the issue pipeline and repo-evolution read. Drill-downs show issue gaps, the spec packages a PR changes read at its head, roadmap entries, spec tasks and open questions. Throughput shows each loop's cap, drain time and per-repo share. The fleet_work MCP tool reads the same board."
+    description: "Every open issue, PR, roadmap spec, spec package and BACKLOG.md item on six lanes at /work, in the order the loops take them, with each loop's next-run picks marked by the issue pipeline's own queue builder. Drag within a lane to pin the order, across lanes to move an issue (agent: labels) or a roadmap spec (status), across P0-P3 to reprioritise; every change is previewed, then applied after one confirm. The order and overrides land in _data/work_queue.yml, which the issue pipeline and repo-evolution read. Drill-downs show issue gaps, the spec packages a PR changes read at its head, roadmap entries, spec tasks and open questions. Throughput shows each loop's cap, drain time and per-repo share. A fix PR sorts ahead of the PRs it clears and the first hint names the merge (FF-0036). The fleet_work MCP tool reads the same board."
     implemented: true
     status: shipped
     prd: [FR5, FR6]
@@ -433,6 +436,7 @@ features:
       - verify/scenarios/work.yml
     evidence:
       - test/evidence/work
+      - test/evidence/merge-fix-pr
   - id: HUB-029
     title: "Daily repo deep dive: one repo a day, every repo once per cycle"
     description: "A daily routine (06:00 America/Denver) deep-dives one bamr87 repo per day — review, analysis, docs, issues, feature requests, UI/UX — labelling everything it files deep-dive, so every non-archived repo is processed once per 42-day cycle starting 2026-10-30. The ledger _data/deep-dive.yml (day, scheduled date, status, last processed, cycle, issues/PRs, findings, score, next focus) is kept by tools/deep_dive.py (today, record, refresh, json, rollover), refreshed daily by deep-dive.yml as a never-auto-merged PR (manual runs dry-run to an artifact), and rendered at /deep-dive with cycle progress, a cycle calendar, per-repo status, scores and links."
@@ -448,7 +452,7 @@ features:
       - tools/test_deep_dive.py
   - id: HUB-030
     title: "Real-time bot activity dashboard"
-    description: "A live view at /live in the harness console: active and idle Claude Code sessions, Claude live usage from Prometheus, Claude CI spend and Actions minutes against the _data/fleet.yml budgets ($75 and 40,000 min/month), jobs with live log tails, the harness scorecard, deep-dive cycle progress and an observability reachability check. Session data comes from the read-only host collector tools/console/live_collector.py, run by a LaunchAgent; the console serves GET /api/live and the GET /api/live/stream SSE feed (5 s updates, token auth), with a 5 s polling fallback. Spec: tools/console/docs/realtime-bot-dashboard-spec.md. In review in bamr87/bamr87#432 (https://github.com/bamr87/bamr87/pull/432), not merged; no per-session cost yet, and Actions minutes come from daily data."
+    description: "A live view at /live in the harness console: active and idle Claude Code sessions, Claude live usage from Prometheus, Claude CI spend and Actions minutes against the _data/fleet.yml harnesses.budget ceilings (monthly_ai_usd $200, monthly_actions_minutes 40,000 min/month), jobs with live log tails, the harness scorecard, deep-dive cycle progress and an observability reachability check. Session data comes from the read-only host collector tools/console/live_collector.py, run by a LaunchAgent; the console serves GET /api/live and the GET /api/live/stream SSE feed (5 s updates, token auth), with a 5 s polling fallback. Spec: tools/console/docs/realtime-bot-dashboard-spec.md. In review in bamr87/bamr87#432 (https://github.com/bamr87/bamr87/pull/432), not merged; no per-session cost yet, and Actions minutes come from daily data."
     implemented: true
     status: partial
     prd: [FR5]
@@ -475,7 +479,7 @@ features:
       - .github/scripts/dash-gen/test_fleet_index.py
   - id: HUB-032
     title: "Claude spend accounting: every CI run priced, estimated or proved free"
-    description: "The committed Claude ledger (_data/ai_usage.yml, tools/dash-gen ai-usage) accounts every AI run in the fleet instead of leaving 87% of them unpriced. It collects the HUB itself alongside the registry (_data/fleet.yml hub.repo is not a registry entry, so fleet-pulse's doctor, the issue pipeline's three tiers and the fan-outs — the largest caps in budget.call_sites — were missing from every number), detects Claude by all three routes the fleet uses (claude-code-action, the claude-run composite, a vendored scripts/ai/run.sh), and states the source of each run's figure: reported total_cost_usd summed across the run's Claude sessions and de-duplicated per session_id (last-match-wins charged a three-session run for one; the log zip holds each job's text twice, so summing raw matches double-charged), a token-rate price at API list prices with cache writes at 1.25x/2x input and reads at 0.1x, no-spend for a skipped run or a log with no Claude step in it (the loops' is-the-loop-on gate job — 146 of the 242 runs that read as unpriced on 2026-10-29), or an explicit est_cost_usd with a named basis (workflow median, turns at budget.usd_per_turn, fleet median). Totals report ci_cost_usd, ci_estimated_usd and ci_accounted_usd with the estimated share, and the $75/month budget check (harness_registry trends.ai_cost_usd) is judged on the accounted figure. Rendered at /ai-usage and /costs."
+    description: "The committed Claude ledger (_data/ai_usage.yml, tools/dash-gen ai-usage) accounts every AI run in the fleet instead of leaving 87% of them unpriced. It collects the HUB itself alongside the registry (_data/fleet.yml hub.repo is not a registry entry, so fleet-pulse's doctor, the issue pipeline's three tiers and the fan-outs — the largest caps in budget.call_sites — were missing from every number), detects Claude by all three routes the fleet uses (claude-code-action, the claude-run composite, a vendored scripts/ai/run.sh), and states the source of each run's figure: reported total_cost_usd summed across the run's Claude sessions and de-duplicated per session_id (last-match-wins charged a three-session run for one; the log zip holds each job's text twice, so summing raw matches double-charged), a token-rate price at API list prices with cache writes at 1.25x/2x input and reads at 0.1x, no-spend for a skipped run or a log with no Claude step in it (the loops' is-the-loop-on gate job — 146 of the 242 runs that read as unpriced on 2026-10-29), or an explicit est_cost_usd with a named basis (workflow median, turns at budget.usd_per_turn, fleet median). Totals report ci_cost_usd, ci_estimated_usd and ci_accounted_usd with the estimated share, and the monthly budget check against harnesses.budget.monthly_ai_usd (harness_registry trends.ai_cost_usd) is judged on the accounted figure. Rendered at /ai-usage and /costs."
     implemented: true
     status: shipped
     prd: [FR27, NFR10]
@@ -522,7 +526,7 @@ features:
       - test/evidence/workflows
   - id: HUB-035
     title: "JEV: conflict-free numbering + tiered PR conflict triage"
-    description: "JEV is the harness-level agent logic engine (planned in bamr87/it-journey's PRD roadmap, 2027 Q1); this is its first capability, in two halves. (1) Conflict-free numbering: a pull request never picks the next HUB-NNN, FRn/NFRn or amendment number — it writes a fragment (features/features.d/, changelog.d/, docs/amendments/proposed/) with HUB-NEW / FR-NEW:key / number: NEW and references other new things by slug, and tools/jev/number.py assigns the id on main under a concurrency group, compiles the fragments into features.yml, PRD.md, CHANGELOG.md and docs/amendments/NNNN-slug.md, regenerates the PRD block, docs index and CATALOG, and publishes through publish-data (never a bare push to a protected branch). .gitattributes marks generated files merge=jev-regen (tools/jev/merge-regen.sh keeps ours and records the path for regeneration) and two append-only files merge=union; because GitHub's mergeability check ignores custom merge drivers, the fully generated CATALOG.md and docs/README.md are also marked jev-main-only: only the post-merge job on main (jev-number.yml, after every push) regenerates and commits them, and drift-check.yml fails a PR that edits one (python3 -m tools.jev generated guard); generated spans (PRD block, README AUTO:projects, docs/DASH.md CLI reference) are regenerated by the same job and their PR-side drift checks are advisory (JEV_SPANS_ADVISORY=1); other generated files still fail CI on drift (proposed amendment generated-files-main-only). (2) The conflict engine: every six hours, and on a push to main, it lists open fleet PRs GitHub reports as CONFLICTING (registry + the year-of-ai, ai-world-view, bash-365, EissaLab and zer0-mistakes orgs), reproduces each with a trial merge, classifies it deterministically from the conflicted files' kinds, hunks and lines, and spends the cheapest tier that finishes: tier 0 costs nothing (regenerate / union / renumber), tier 1 is Haiku 4.5 capped at $0.25 per attempt for at most 3 files and 40 lines with no workflow, secret, migration or lockfile in the set, tier 2 is Sonnet capped at $1.50, tier 3 labels jev:needs-human with the triage report. Every tier merges base into head with a merge commit (never a rebase or force-push), validates with the repo's own gates plus a clean git diff --check and no leftover markers, and discards the attempt on failure. It never merges a PR, never uses --admin and never touches settings; it only pushes to same-repo branches from listed authors. Capped at $10/month (budget.jev) inside the $75 fleet ceiling, with scheduled runs stopping at 80%; every attempt is recorded in _data/jev_resolutions.yml with its cost and whether that cost was reported or estimated. jev.enabled is on with jev.auto_tiers: [tier0] (model tiers off until listed); the scheduled and push-to-main loop still waits for vars.JEV_CONFLICTS_ENABLED to be true."
+    description: "JEV is the harness-level agent logic engine (planned in bamr87/it-journey's PRD roadmap, 2027 Q1); this is its first capability, in two halves. (1) Conflict-free numbering: a pull request never picks the next HUB-NNN, FRn/NFRn or amendment number — it writes a fragment (features/features.d/, changelog.d/, docs/amendments/proposed/) with HUB-NEW / FR-NEW:key / number: NEW and references other new things by slug, and tools/jev/number.py assigns the id on main under a concurrency group, compiles the fragments into features.yml, PRD.md, CHANGELOG.md and docs/amendments/NNNN-slug.md, regenerates the PRD block, docs index and CATALOG, and publishes through publish-data (never a bare push to a protected branch). .gitattributes marks generated files merge=jev-regen (tools/jev/merge-regen.sh keeps ours and records the path for regeneration) and two append-only files merge=union; because GitHub's mergeability check ignores custom merge drivers, the fully generated CATALOG.md and docs/README.md are also marked jev-main-only: only the post-merge job on main (jev-number.yml, after every push) regenerates and commits them, and drift-check.yml fails a PR that edits one (python3 -m tools.jev generated guard); generated spans (PRD block, README AUTO:projects, docs/DASH.md CLI reference) are regenerated by the same job and their PR-side drift checks are advisory (JEV_SPANS_ADVISORY=1); other generated files still fail CI on drift (proposed amendment generated-files-main-only). (2) The conflict engine: every six hours, and on a push to main, it lists open fleet PRs GitHub reports as CONFLICTING (registry + the year-of-ai, ai-world-view, bash-365, EissaLab and zer0-mistakes orgs), reproduces each with a trial merge, classifies it deterministically from the conflicted files' kinds, hunks and lines, and spends the cheapest tier that finishes: tier 0 costs nothing (regenerate / union / renumber), tier 1 is Haiku 4.5 capped at $0.25 per attempt for at most 3 files and 40 lines with no workflow, secret, migration or lockfile in the set, tier 2 is Sonnet capped at $1.50, tier 3 labels jev:needs-human with the triage report. Every tier merges base into head with a merge commit (never a rebase or force-push), validates with the repo's own gates plus a clean git diff --check and no leftover markers, and discards the attempt on failure. It never merges a PR, never uses --admin and never touches settings; it only pushes to same-repo branches from listed authors. Capped at $10/month (budget.jev) inside the fleet ceiling (harnesses.budget.monthly_ai_usd), with scheduled runs stopping at 80%; every attempt is recorded in _data/jev_resolutions.yml with its cost and whether that cost was reported or estimated. jev.enabled is on with jev.auto_tiers: [tier0] (model tiers off until listed); the scheduled and push-to-main loop still waits for vars.JEV_CONFLICTS_ENABLED to be true."
     implemented: true
     status: partial
     prd: [FR28, NFR11]
@@ -649,8 +653,12 @@ features:
     description: Reads Projects (v2) of bamr87, year-of-ai, ai-world-view, bash-365 and EissaLab, links
       project items, issues, PRs, commits, repos and FEAT/FR refs into one graph, and plans write-back (projects,
       items, issue and PR fields) as a dry run that applies only behind HARNESS_PROJECTS_WRITES plus confirm,
-      with an audit log (constitution § 11).
-    implemented: false
+      with an audit log (constitution § 11). The read half is served (#470) by GET /api/gh-projects (every owner,
+      each with its projects or the reason it cannot be read) and /api/gh-projects/{id}/items (paged, capped
+      at 500), the MCP's read-only gh_projects and gh_project_items, and the console's GitHub Projects page
+      (a table, or a board by Status), under a TTL cache, a GraphQL call budget and a wall clock, never in
+      the public snapshot.
+    implemented: true
     status: partial
     surface: infra
     link: tools/console/gh_projects.py
@@ -663,6 +671,13 @@ features:
     tests:
     - tools/console/test_gh_projects.py
     - tools/test_projects_backfill.py
+    - tools/console/test_console.py
+    - tools/console/test_mcp_layer.py
+    - tools/console/test_pages.py
+    scenarios:
+    - verify/scenarios/gh-projects.yml
+    evidence:
+    - test/evidence/gh-projects
     prd:
     - FR32
     - FR33
@@ -1193,19 +1208,22 @@ features:
     description: A reusable hub workflow (.github/workflows/pr-review.yml) and per-repo stub that run every
       PR check, post one sticky summary updated in place (silent when clean), severity-tagged deduplicated
       inline findings and a fleet signature footer, as github-actions or the fleet app, never Amr's token;
-      proposed by amendment fleet-pr-review.
-    implemented: false
-    status: planned
+      proposed by amendment fleet-pr-review. Shipped so far are the CI-failure sticky (amendment
+      ci-failure-summary) and inline findings from each check's fleet-findings artifact; AI review (§ 19.7)
+      and the fleet-app identity (bamr87/bamr87#565) are still to come.
+    implemented: true
+    status: partial
     surface: infra
-    link: docs/amendments/0017-fleet-pr-review.md
-    docs: docs/amendments/0017-fleet-pr-review.md
+    link: .github/workflows/pr-review.yml
+    docs: templates/pr-review/README.md
     tags:
     - ci
     - governance
     - review
     date: 2026-11-01
     tests:
-    - na: planned; tests land with the implementation issue
+    - .github/scripts/dash-gen/test_pr_review.py
+    - .github/scripts/dash-gen/test_workflow_atlas.py
     prd:
     - FR61
   - id: HUB-066
@@ -1727,6 +1745,9 @@ features:
     prd:
     - FR58
     - FR77
+    verified:
+      date: 2026-11-16
+      by: agent
   - id: HUB-080
     title: 'The generated repo app: every repo in the fleet opens as an app, with or without a frontend
       of its own'
@@ -2406,9 +2427,10 @@ features:
       action or ai-lane workflow, a bare claude -p, a vendored runner, or another provider''s key. It used
       to know the first one only, which hid 56 of the fleet''s 117 AI workflows, 63 agents from _data/agents.yml
       and a 13-way cron collision. Each harness is graded against the standard declared in _data/fleet.yml
-      harnesses.standard: ten controls read from the workflow file, each traced to its rule (exact model,
-      dollar and turn caps, kill switch, ordered credential, trusted-author gate, least privilege, timeout,
-      off-the-hour cron, a fleet route), counted only where they can bind. A harness that falls short carries
+      harnesses.standard: twelve controls read from the workflow file, each traced to its rule (exact model,
+      dollar and turn caps, kill switch, ordered credential, trusted-author gate, least privilege, no wildcard
+      bot allowlist, no pull_request_target checkout of a PR head, timeout, off-the-hour cron, a fleet route),
+      counted only where they can bind. A harness that falls short carries
       its lever: kit-upgrade, kit-adopt, lane-adopt, fix-controls, factory-recompile, hub-fix or retire.
       Whether a kit copy is upgradeable is the fan-out''s own byte comparison, run at scan time, not the
       stamp. The console''s Harness inventory page lists one row per harness with its route, caps, verdict
@@ -2748,3 +2770,84 @@ features:
     - tools/test_weekly_closeout.py
     prd:
     - FR131
+  - id: HUB-116
+    title: 'On-premise compute node: local LLMs and Claude Code sessions on Amr''s own machine (planned)'
+    description: 'Plan only: enrol Amr''s new on-premise machine (Ryzen 9 9950X3D2, 64 GB, Radeon RX 9070
+      XT 16 GB, picked up 2026-11-10) as a second workload node in _data/fleet.yml nodes:, disabled until
+      its deploy step. It serves local LLMs through Ollama on its loopback (Vulkan baseline, ROCm in a container
+      compared; no CUDA), hosts Claude Code sessions (ssh + tmux, bashOS''s oneos-remote, and the hub''s
+      own headless entry points tools/dash loop | conflicts | weekly | refine under systemd user timers),
+      cleans its own worktrees, clones and idle session state with the weekly classifier, and closes the
+      weekly console lanes'' R6:no-local-entry gap with a local adapter; a self-hosted runner is optional
+      and fenced by constitution § 30.5. Cost is stated honestly: $0 metered API spend and no hosted minutes
+      for what moves onto the node, the same Claude subscription for Claude Code sessions, and a measured
+      electricity cost. Phased P0–P6 rollout in docs/ONPREM-COMPUTE.md.'
+    implemented: false
+    status: planned
+    surface: infra
+    link: docs/ONPREM-COMPUTE.md
+    docs: docs/ONPREM-COMPUTE.md
+    tags:
+    - platform
+    - nodes
+    - local-llm
+    - claude-code
+    - weekly
+    - housekeeping
+    - cost
+    date: 2026-11-15
+    tests:
+    - na: plan only; phases P2–P6 add their tests (tools/test_fleetcore_nodes.py for the node entry, the
+        weekly and JEV suites for the timers and the local tier)
+    prd:
+    - FR64
+    - FR56
+    - FR65
+    - FR130
+    - FR131
+    - FR132
+    - FR133
+    - NFR32
+  - id: HUB-117
+    title: 'PR queue: every open pull request, who moves it next, and bulk actions an agent carries out
+      once Amr confirms'
+    description: 'The console''s /prs page (also /api/prs, the MCP''s pr_queue and tools/dash prs) lists
+      every open pull request of the hub and the registry repos in one queue, built on the decision index
+      plus one batched detail read per pull request: checks collapsed per check to the latest run on the
+      head commit (a cancelled run followed by a success is green, so verify kit 0.1.0''s label-burst false
+      red stops hiding green pull requests), the review gate and its reason from tools/weekly/closeout.py''s
+      own rules, the merge method the repo allows, whether an agent may merge it under § 12.2, who moves
+      it next (Amr, an agent, a loop or the author) and the 2026-11-15 triage comment''s next action as
+      a hint. Filters by repo, kind (security, Dependabot, release, fan-out batch, AI harness, ratification,
+      draft), gate and who; fan-out batches group by head branch; select all, select filtered or a batch,
+      then plan one bulk action from live GitHub (mark ready, update branch, re-run cancelled or failed
+      checks one at a time, post or edit the next-action comment, add needs-amr, a capped local Claude Code
+      session, close, merge) and apply that exact plan through the console''s confirm-gated job API, which
+      re-plans and refuses a plan whose pull requests moved. Merge and close stay off behind pr_queue switches
+      until an amendment says a merge the maintainer confirms in the console is his own.'
+    implemented: true
+    status: partial
+    surface: ui
+    link: tools/console/web/src/pages/PrQueue.tsx
+    docs: docs/PR-QUEUE.md
+    tags:
+    - console
+    - pull-requests
+    - decisions
+    - bulk-actions
+    - fleetcore
+    - mcp
+    - governance
+    date: 2026-11-15
+    tests:
+    - tools/test_fleetcore_prqueue.py
+    - tools/console/test_pr_queue.py
+    - tools/console/test_mcp_layer.py
+    - tools/console/test_console.py
+    scenarios:
+    - verify/scenarios/pr-queue.yml
+    evidence:
+    - test/evidence/pr-queue
+    prd:
+    - FR134
+    - FR135

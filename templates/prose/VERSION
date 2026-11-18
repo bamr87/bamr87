@@ -1,10 +1,35 @@
 kit: prose
-version: 0.4.0
+version: 0.5.0
 source: bamr87/bamr87 templates/prose/
 seeded-by: tools/fanout.sh --kit prose
-files: markdown-oneline.yml, archive/markdown-oneline-{0.1.0,0.2.0}.yml (vendors tools/unwrap-prose.py)
-updated: 2026-10-22
+files: markdown-oneline.yml, archive/markdown-oneline-{0.1.0,0.2.0,0.3.0,0.4.0}.yml, test_prose_kit.py (vendors tools/unwrap-prose.py)
+updated: 2026-11-15
 changelog: |
+  0.5.0 — markdown-oneline.yml checks out the pull request's head by SHA
+  (`head.sha || github.sha`), not by branch name (`head.ref || github.ref`). A
+  bot PR on auto-merge (Dependabot, the hub's JEV numbering) merges seconds
+  after its last push and GitHub deletes its branch before this job starts, so
+  fetching the branch failed checkout after ~35s of retries: a red X on a PR
+  that had already merged, with nothing wrong in its markdown. The SHA stays
+  reachable through refs/pull/N/head. The repair step now also runs
+  `git ls-remote --exit-code --heads origin refs/heads/$HEAD_REF` before it
+  commits, and exits 0 when the branch is gone: pushing would recreate a merged
+  branch, and the push-to-default-branch run reports any prose instead. Same
+  two hunks as the hub's own copy (bamr87/bamr87#846).
+  archive/markdown-oneline-0.4.0.yml is the outgoing shape. 0.5.0 also adds
+  archive/markdown-oneline-0.3.0.yml, the shape #170 seeded, which opens with
+  a blank line: 5c648c43 dropped that line from the template on 2026-09-13
+  without archiving it, so the ten copies still on it (bamr87.github.io,
+  bash-365.com, djangoerp, githubai, law-ai, lifehacker.dev, scripts,
+  vs-sonic-pi, zer0-CMS, zer0-mistakes) read as hand-modified and --upgrade
+  skipped them. Survey of the default branches on 2026-11-15: 11 machine seeds
+  carry the bug and --upgrade now reaches all of them (10 on 0.3.0, bashcrawl
+  on 0.4.0); zpl-viewer is on the check-only 0.2.0 shape, which has no `ref:`;
+  README, it-journey and gitorio carry the bug in deliberately hand-edited
+  copies (local excludes, a branch filter) and need the two hunks by hand;
+  fredgar-ai's hand-edited copy is check-only and unaffected.
+  test_prose_kit.py holds the template to this: no checkout by branch name,
+  the gone-branch guard before the commit, every archived shape distinct.
   0.4.0 — the vendored tools/unwrap-prose.py unwraps list items. A wrapped
   item's indented continuation lines join the item line (a flush-left line
   after an item stays put: in a raw-read prompt it is a new instruction), and a later

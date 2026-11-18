@@ -365,10 +365,12 @@ export interface AppTarget {
   service?: string;
   port?: number;
   band?: string;
-  /** The command that starts a local target's stack. */
+  /** The command that starts a local target's stack (a devenv-hosted site: the `docker compose exec` that serves it). */
   start?: string | null;
-  /** The project a local target belongs to: what `dev-up` and `dev-down` take. */
+  /** The project a local target belongs to: what `dev-up` and `dev-down` take, for a compose-hosted one. */
   project?: string;
+  /** Where a local target runs: its own compose stack (the console can start it), or inside the hub's devenv container (it cannot). */
+  host?: 'compose' | 'devenv';
 }
 
 /** A registry frontend as the launcher lists it (fleetcore.apps, fleet-launcher/v1). */
@@ -494,6 +496,10 @@ export interface InboxItem {
   url: string;
   ref?: string;
   label: string;
+  /** kind `merge` (FF-0036): the red workflow(s), then the PRs red only because of it, that merging this PR clears. */
+  clears?: string[];
+  /** kind `merge`: the fix evidence, `verified` (its own run passed the failed jobs) or `doctor`. */
+  evidence?: string;
 }
 
 export interface FleetView {
@@ -1042,4 +1048,136 @@ export interface AssistDoc {
   prompt_sha256: string | null;
   max_question_chars: number;
   local: boolean;
+}
+
+// --- GitHub Projects (v2), read-only (gh_projects.py; /api/gh-projects*) ----
+export type GhProjectsStatus = 'fresh' | 'partial' | 'scope_missing' | 'unavailable';
+export interface GhProjectField {
+  id: string | null;
+  name: string | null;
+  type: string | null;
+  options: string[];
+}
+export interface GhProject {
+  owner: string;
+  id: string;
+  number: number;
+  title: string;
+  url: string;
+  closed: boolean;
+  fields: GhProjectField[];
+}
+export interface GhProjectOwner {
+  login: string;
+  kind: 'user' | 'organization';
+  status: 'ok' | 'scope_missing' | 'error' | 'skipped';
+  projects?: number;
+  error?: string;
+}
+export interface GhProjectsBudget {
+  limit: number;
+  window_s: number;
+  used: number;
+  left: number;
+  budget_s: number;
+  elapsed_s: number;
+}
+export interface GhProjectsDoc {
+  schema: string;
+  generated_at: string;
+  status: GhProjectsStatus;
+  complete: boolean;
+  source: 'live' | 'cache' | 'none';
+  age_s: number;
+  ttl_s: number;
+  token_source: string | null;
+  scope_missing: boolean;
+  read_only: boolean;
+  owners: GhProjectOwner[];
+  projects: GhProject[];
+  counts: { owners: number; read: number; projects: number; open: number };
+  budget: GhProjectsBudget;
+  hint: string | null;
+}
+export interface GhProjectItem {
+  item_id: string;
+  archived: boolean;
+  kind: 'issue' | 'pr' | 'draft' | 'unknown';
+  content_id: string | null;
+  repo: string | null;
+  number: number | null;
+  title: string;
+  state: string | null;
+  url: string | null;
+  fields: Dict<string | number | null>;
+  refs: string[];
+  closes: string[];
+  commits: { sha: string; headline: string; refs: string[] }[];
+}
+export interface GhProjectItemsDoc {
+  schema: string;
+  project_id: string;
+  generated_at: string;
+  status: GhProjectsStatus;
+  complete: boolean;
+  source: 'live' | 'cache' | 'none';
+  age_s: number;
+  token_source: string | null;
+  total: number;
+  matched: number;
+  limit: number;
+  offset: number;
+  next_offset: number | null;
+  capped: boolean;
+  max_items: number;
+  statuses: string[];
+  counts: { by_status: Dict<number>; by_kind: Dict<number> };
+  items: GhProjectItem[];
+  errors: string[];
+  budget: GhProjectsBudget;
+  hint: string | null;
+}
+// The PR queue (/api/prs; tools/fleetcore/prqueue.py, docs/PR-QUEUE.md).
+export type PrWho = 'amr' | 'agent' | 'loop' | 'author';
+export type PrCheckState = 'failing' | 'action_required' | 'cancelled' | 'pending' | 'green' | 'skipped' | 'none';
+export interface PrCheckRun {
+  name: string; workflow?: string; kind: 'check' | 'status'; state: PrCheckState; conclusion?: string; status?: string;
+  url?: string; run_id?: number; superseded?: number; at?: string;
+}
+export interface PrRow {
+  key: string; repo: string; number: number; title: string; url: string; author: string; bot: boolean; draft: boolean;
+  private: boolean; labels: string[]; age_days?: number; idle_days?: number; head?: string; base?: string; head_sha?: string;
+  mergeable?: string; merge_state?: string; review?: string; files?: number;
+  checks: { state: PrCheckState; rollup?: string | null; total: number; superseded: number; failing: string[]; cancelled: string[];
+    pending: string[]; action_required: string[]; green: number; skipped: number; false_red: boolean; unread?: boolean };
+  check_runs: PrCheckRun[];
+  kinds: string[]; batch?: string;
+  gate: { gated: boolean; reason: string };
+  merge_method?: string | null;
+  agent_merge: { ok: boolean; why: string };
+  next: { who: PrWho; action: string; why: string; act?: string; command?: string };
+  triage?: { next_action?: string; question?: string; commands?: string[]; who_hint?: string; url?: string; updated_at?: string };
+  read: boolean; review_threads?: number; applies: string[];
+}
+export interface PrAction { id: string; title: string; op: string; writes: string; governed: string; enabled: boolean; why: string; spend: boolean }
+export interface PrBatch { head: string; count: number; repos: number; green: number; gated: number; draft: number; keys: string[] }
+export interface PrQueue {
+  schema: string; generated_at: string; status: string; complete: boolean; rows: PrRow[]; batches: PrBatch[];
+  counts: { total: number; who: Record<PrWho, number>; kinds: Dict<number>; gated: number; ungated: number; checks: Dict<number>;
+    false_red: number; agent_mergeable: number; unread: number; triaged: number };
+  actions: PrAction[];
+  index: { status?: string; source?: string; age_s?: number | null; read_at?: string | null; ttl_s?: number };
+  detail: { wanted: number; read: number; stale: number; ttl_s: number };
+  elapsed_s: number; budget_s: number; matched: number; outside_registry: string[];
+  warnings: string[]; errors: { stage?: string; kind?: string; message?: string }[]; hint?: string | null;
+  switches: { merge: boolean; close: boolean; agent: boolean; github_writes: boolean };
+}
+export interface PrPlanItem {
+  key: string; repo: string; number: number; title?: string; url?: string; head_sha?: string; do: boolean; skip?: string;
+  preview?: string; warnings: string[]; next?: PrRow['next']; gate?: PrRow['gate'];
+}
+export interface PrPlan {
+  schema: string; plan_id: string; action: string; title: string; op: string; params: Dict<unknown>; created_at: string;
+  enabled: boolean; why: string; governed: string; writes: string; items: PrPlanItem[]; counts: { do: number; skip: number };
+  ceiling_usd?: number; cost_label?: string; warning?: string;
 }

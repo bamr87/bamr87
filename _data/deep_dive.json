@@ -2,44 +2,44 @@
   "schema": "deep-dive/v1",
   "owner": "bamr87",
   "label": "deep-dive",
-  "refreshed_at": "2026-11-15T12:23:35Z",
+  "refreshed_at": "2026-11-18T12:26:00Z",
   "summary": {
-    "as_of": "2026-11-15",
+    "as_of": "2026-11-18",
     "cycle": 1,
     "cycle_start": "2026-10-30",
     "cycle_end": "2026-12-10",
     "cycle_days": 42,
     "total": 38,
-    "day": 17,
-    "processed": 8,
+    "day": 20,
+    "processed": 13,
     "counts": {
-      "pending": 30,
+      "pending": 25,
       "in_progress": 0,
-      "done": 8,
+      "done": 13,
       "skipped": 0
     },
-    "progress": 0.2105,
+    "progress": 0.3421,
     "today": {
-      "date": "2026-11-15",
+      "date": "2026-11-18",
       "cycle": 1,
-      "day": 17,
+      "day": 20,
       "cycle_days": 42,
       "kind": "scheduled",
-      "repo": "gitorio"
+      "repo": "ocrmd"
     },
     "next": {
-      "date": "2026-11-16",
+      "date": "2026-11-19",
       "cycle": 1,
-      "day": 18,
+      "day": 21,
       "cycle_days": 42,
       "kind": "scheduled",
-      "repo": "SCHEMA"
+      "repo": "rewind-arcade"
     },
-    "last": ".github",
-    "last_date": "2026-11-13",
-    "avg_score": 45.0,
-    "open_issues": 59,
-    "open_prs": 6
+    "last": "ocrmd",
+    "last_date": "2026-11-18",
+    "avg_score": 50.5,
+    "open_issues": 57,
+    "open_prs": 5
   },
   "repos": [
     {
@@ -64,7 +64,7 @@
         "https://github.com/bamr87/it-journey/pull/901"
       ],
       "open_issues": 6,
-      "open_prs": 1,
+      "open_prs": 0,
       "findings": "Early manual run (2026-10-29, scheduled 2026-10-30). UPS conformance 45/58, 8 MUST failing: page_feedback off (FB-01/FE-13), issue templates lack type labels (WORK-09), fleet actions @main (WORK-10, needs-human), tracked site-quality package-lock (QA-40/REPO-07), vendored unwrap-prose drift + docs summary (fixed in PR #875). Bugs: make test checks removed pages/_posts; /feed.xml has 0 entries. Catalog lists retired posts/docs/notebooks as tbd. Planned FR-ITJ-014 quest feed, FR-ITJ-015 page feedback.",
       "score": 72.0,
       "next_focus": "Verify #875 merged and FR-ITJ-014/015 shipped; workflow pinning (#873); quest UI/UX at 390px; catalog retirement (#868)."
@@ -102,7 +102,7 @@
         "https://github.com/bamr87/bamr87/pull/508",
         "https://github.com/bamr87/bamr87/pull/579"
       ],
-      "open_issues": 13,
+      "open_issues": 12,
       "open_prs": 0,
       "findings": "Cycle 1 day 2, final. Outcomes: Amr merged #508 (docs_index --lint fix) and #509 (governance-records-lint feature); issues #500-#505 filed (dead amendment links + FR45/HUB-049 #500, amendment status/\u00a7 13 ordering #501, NFR11 budget mismatch #502, ungated docs_index lint #503, console a11y #504, governance-records-lint #505). Previously known python-tests and v1/v2 tag items were already fixed. HUB-039 has no PRD requirement (warning).",
       "score": 78.0,
@@ -330,16 +330,35 @@
       "day": 13,
       "repo": "zpl-viewer",
       "scheduled": "2026-11-11",
-      "status": "pending",
-      "last_processed": null,
+      "status": "done",
+      "last_processed": "2026-11-11",
       "cycle": 1,
-      "issues": [],
-      "prs": [],
+      "issues": [
+        "https://github.com/bamr87/zpl-viewer/issues/50",
+        "https://github.com/bamr87/zpl-viewer/issues/49",
+        "https://github.com/bamr87/zpl-viewer/issues/48",
+        "https://github.com/bamr87/zpl-viewer/issues/51",
+        "https://github.com/bamr87/zpl-viewer/issues/52",
+        "https://github.com/bamr87/zpl-viewer/issues/53",
+        "https://github.com/bamr87/zpl-viewer/issues/54",
+        "https://github.com/bamr87/zpl-viewer/issues/55",
+        "https://github.com/bamr87/zpl-viewer/issues/56",
+        "https://github.com/bamr87/zpl-viewer/issues/57",
+        "https://github.com/bamr87/zpl-viewer/issues/58",
+        "https://github.com/bamr87/zpl-viewer/issues/59",
+        "https://github.com/bamr87/zpl-viewer/issues/60",
+        "https://github.com/bamr87/zpl-viewer/issues/61",
+        "https://github.com/bamr87/zpl-viewer/issues/62"
+      ],
+      "prs": [
+        "https://github.com/bamr87/zpl-viewer/pull/47",
+        "https://github.com/bamr87/zpl-viewer/pull/63"
+      ],
       "open_issues": 0,
       "open_prs": 0,
-      "findings": "",
-      "score": null,
-      "next_focus": ""
+      "findings": "Healthy core: 216 unit + 7 e2e pass, lint/tsc/docs:check clean at review (main CI now red on the Playwright/ubuntu-26.04 runner, fix in #42). P2: crafted graphic/:Z64: fields decode without size caps and can exhaust extension-host memory or freeze the preview (#50); workspace settings can define a file/dir printer and disable deploy confirmation (#49); preview resets to label 1 + initial zoom on every refresh, PNG export always label 1 (#51); shared publish.yml targets npm for the extension: #39 merged, v0.3.0 tagged, npm publish failed at the credential guard, no VSIX/Marketplace (#48). P3: unused 'unsafe-eval' + Math.random nonce (#52); c8 reports 0% (real 88%) (#53); verify kit unfilled (#54); a11y gaps (#55); UPS gaps (#56); ZPL modules outside formats/ (#57). Catalog trace for #40 is in #46; docs PR #47 adds SECURITY.md (UPS 40 -> 42/57); 5 FRs planned ZPL-008..012 (#58-#62) in #63, stacked on #46. npm audit prod 0; 12 dev-only.",
+      "score": 70.0,
+      "next_focus": "Land graphic/inflate caps (#50) and workspace deploy scoping + Restricted Mode (#49/#59); decide the release target and VSIX path before the next release (#48); then preview state (#51) and a11y (#55); #41 waits on the first fleet-tokens release."
     },
     {
       "day": 14,
@@ -372,7 +391,7 @@
         "https://github.com/bamr87/law-ai/pull/234",
         "https://github.com/bamr87/law-ai/pull/233"
       ],
-      "open_issues": 17,
+      "open_issues": 16,
       "open_prs": 3,
       "findings": "Cycle 1 day 14 (owner pass by Law AI Lead). UPS conformance 53/71 automated checks pass, 9 MUST failing (most already tracked: /version #208, README link #212, SECURITY.md/issue forms #213, spec-gate #217, fleet-dod/lockfiles BL-20261026-04); governance_lint ok. New: prod accepts default SECRET_KEY (signs JWTs and the LSAT shuffle HMAC) and ALLOWED_HOSTS=* (#221); lsat-static WCAG 2.5.3 nav label-in-name and other axe findings (#222, nav fixed in draft #235); views not in the URL so #article permalinks open Overview (#223); question card shows section twice because type==section for all 211 items (#224); Makefile Playwright 1.63 vs lock 1.64.1 (#225); lawmode defaults to OpenAI gpt-4o against constitution section 1 and has no CI (#226, needs Amr); no code scanning on a public repo (#227); catalog misses shipped surfaces, PRD section 5 has no requirement ids (#228). Feature requests #229-#232 planned as LAWAI-018..021 in draft #234; docs drift and BACKLOG mirror in draft #233. Dependabot: 2 medium (minimatch).",
       "score": 66.0,
@@ -412,46 +431,70 @@
       "day": 16,
       "repo": "lifehacker.dev",
       "scheduled": "2026-11-14",
-      "status": "pending",
-      "last_processed": null,
+      "status": "done",
+      "last_processed": "2026-11-15",
       "cycle": 1,
-      "issues": [],
-      "prs": [],
+      "issues": [
+        "https://github.com/bamr87/lifehacker.dev/issues/816",
+        "https://github.com/bamr87/lifehacker.dev/issues/817",
+        "https://github.com/bamr87/lifehacker.dev/issues/818",
+        "https://github.com/bamr87/lifehacker.dev/issues/819"
+      ],
+      "prs": [
+        "https://github.com/bamr87/lifehacker.dev/pull/820"
+      ],
       "open_issues": 0,
       "open_prs": 0,
-      "findings": "",
-      "score": null,
-      "next_focus": ""
+      "findings": "Harness gate PASS; conformance 49/64 (10 MUST fail). Filed 4: placeholder verify scenario/no UI scenarios, missing issue+PR templates, lockfile deviations absent from sdlc.yml, fleet refs on @main. Already tracked: #803 #804 #808 #783 #801. Docs PR traces LHD-002 to NFR2.",
+      "score": 72.0,
+      "next_focus": "Triage #816-#819; land #814/#808/#803; resolve LHD-NEW id (#801) so features_index validates; bind verify scenarios to real feature ids."
     },
     {
       "day": 17,
       "repo": "gitorio",
       "scheduled": "2026-11-15",
-      "status": "pending",
-      "last_processed": null,
+      "status": "done",
+      "last_processed": "2026-11-15",
       "cycle": 1,
-      "issues": [],
-      "prs": [],
+      "issues": [
+        "https://github.com/bamr87/gitorio/issues/180",
+        "https://github.com/bamr87/gitorio/issues/181",
+        "https://github.com/bamr87/gitorio/issues/182",
+        "https://github.com/bamr87/gitorio/issues/183",
+        "https://github.com/bamr87/gitorio/issues/184"
+      ],
+      "prs": [
+        "https://github.com/bamr87/gitorio/pull/185"
+      ],
       "open_issues": 0,
       "open_prs": 0,
-      "findings": "",
-      "score": null,
-      "next_focus": ""
+      "findings": "App gates green (678 tests, typecheck, build, maps/reference/spec/backlog/docs-index); 5 new findings: smoke-home TODO-001 id, 3 hooks lint warnings, feedback widget unmounted (UPS-FB-01/FE-13), root-layout checker mismatch (lockfile/.env.example), 4 features with prd TBD + stale ROADMAP boxes. Skip link/meta/templates/pins already in #166/#167/#176/#172/#173.",
+      "score": 77.0,
+      "next_focus": "Land #176/#179, mount the feedback widget, resolve PRD traces for GITORIO-001/004/005/006, fix Factory 1 on main (#47) and the generator auth fallback (#159)"
     },
     {
       "day": 18,
       "repo": "SCHEMA",
       "scheduled": "2026-11-16",
-      "status": "pending",
-      "last_processed": null,
+      "status": "done",
+      "last_processed": "2026-11-16",
       "cycle": 1,
-      "issues": [],
-      "prs": [],
+      "issues": [
+        "https://github.com/bamr87/SCHEMA/issues/17",
+        "https://github.com/bamr87/SCHEMA/issues/18",
+        "https://github.com/bamr87/SCHEMA/issues/15",
+        "https://github.com/bamr87/SCHEMA/issues/16"
+      ],
+      "prs": [
+        "https://github.com/bamr87/SCHEMA/pull/19",
+        "https://github.com/bamr87/SCHEMA/pull/13",
+        "https://github.com/bamr87/SCHEMA/pull/14"
+      ],
       "open_issues": 0,
       "open_prs": 0,
-      "findings": "",
-      "score": null,
-      "next_focus": ""
+      "findings": "Day 18 SCHEMA @ 8b37153: solid stdlib linter + distribution contract + tests (7/10). High: #15 verify PASS when all copies absent (cmd_verify lines 297\u2013337); #16 check has no --json. Medium: catalog prd TBD for SCHEMA-001\u2013004 and 006 and constitution \u00a7 3 still listing CLAUDE.md not AGENTS.md (#17, docs PR #19 with amendment 0002); claude.yml is kit 0.5.0 with claude-auth@main, addressed by #13 and in conflict with #14. Feature: AGENTS.md protocol snippet (#18, agent:queued). Low: stale CHANGELOG commit count; .vscode hidden from strict coverage.",
+      "score": 7.0,
+      "next_focus": "Claude Code lands #15 (and #16, #18 when queued). Merge order for #13 then #14 is Amr's. Amr reviews docs PR #19 (amendment 0002: PRD traces and AGENTS.md precedence)."
     },
     {
       "day": 19,
@@ -472,16 +515,31 @@
       "day": 20,
       "repo": "ocrmd",
       "scheduled": "2026-11-18",
-      "status": "pending",
-      "last_processed": null,
+      "status": "done",
+      "last_processed": "2026-11-18",
       "cycle": 1,
-      "issues": [],
-      "prs": [],
+      "issues": [
+        "https://github.com/bamr87/ocrmd/issues/27",
+        "https://github.com/bamr87/ocrmd/issues/28",
+        "https://github.com/bamr87/ocrmd/issues/29",
+        "https://github.com/bamr87/ocrmd/issues/30",
+        "https://github.com/bamr87/ocrmd/issues/31",
+        "https://github.com/bamr87/ocrmd/issues/32",
+        "https://github.com/bamr87/ocrmd/issues/33",
+        "https://github.com/bamr87/ocrmd/issues/34",
+        "https://github.com/bamr87/ocrmd/issues/35",
+        "https://github.com/bamr87/ocrmd/issues/36",
+        "https://github.com/bamr87/ocrmd/issues/37"
+      ],
+      "prs": [
+        "https://github.com/bamr87/ocrmd/pull/38",
+        "https://github.com/bamr87/ocrmd/pull/39"
+      ],
       "open_issues": 0,
       "open_prs": 0,
-      "findings": "",
-      "score": null,
-      "next_focus": ""
+      "findings": "Public repo, main @ b6a2e8b (0.1.1). Two-read contract is real: local OCR vs Claude vision, visible disagreement flags, digits never auto-resolved, PDF text layer is the primary reading on born-digital pages. Main ci has been red since 2026-11-11 17:45 MST (typer 0.29 broke gen_reference.py); PR CI runs ruff only, so the break landed on merge. Draft #20 fixes the generator (macos-verified); draft #22 pins typer<0.29 and conflicts. Open PRs #22 and #26 both add OCRMD-007 (figure components vs constitution missions / amendment 0002). #25 covers #17 and #18 but overlaps #26 on docs. #21 and #24 both edit claude.yml. #23 covers #19 templates but not SECURITY.md; PVR is still off. 8 UPS MUSTs fail on main (4 already in open PRs). No model allowlist; xAI/grok-4 is an unlisted standard deviation. Local pytest on Linux: 277 passed, 5 skipped, 25 failed (font path, RapidOCR admission/split, typo). 3 planned FRs OCRMD-008..010 (local VLM, Docling/Marker digital-PDF structure, table reconstruction). UPS 40/56. Filed issues #27-#37 and PRs #38-#39; deep-dive label not created.",
+      "score": 70.0,
+      "next_focus": "Land #20 (drop the typo pin from #22); resolve the OCRMD-007 clash and rebase #25/#26; get Amr's #19 A/B/C and then merge #39 only after PVR is on; pin remaining @main workflows; add a cheap Linux pytest subset on PRs; then the RapidOCR admission/split gap and orientation-probe default."
     },
     {
       "day": 21,

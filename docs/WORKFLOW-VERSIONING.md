@@ -47,7 +47,7 @@ jobs:
 
 `fleet-conformance.yml` checks out the spec and checker separately, at `hub-ref` (default `main`). A caller that pins the workflow but not `hub-ref` still gets the checker from `main`, so pass the same ref to both.
 
-Migrating the existing `@main` callers to `@v1` is a separate, later change (one fan-out through `templates/standard-ci/` and `templates/conformance/`); this page only makes the tags available.
+The kits seed callers at the floating major: `templates/standard-ci/` and `templates/sdlc/` (`release-please.yml`) since `v2.0.0`, and `templates/conformance/` (0.2.0) and `templates/verify/` (0.3.0) since `v2.1.0`, each passing `hub-ref: v2` so the tooling it checks out is the same version. A repo still on an `@main` caller moves with `tools/fanout.sh --kit standardize --artifacts conformance --upgrade` (or `--kit verify --upgrade`), which repins only an untouched machine seed.
 
 ## What each bump promises
 
@@ -68,6 +68,15 @@ A new major never moves existing callers. The previous floating major is frozen 
 When a major ships, each caller is tried on it, one PR per repo through the caller templates. A caller that stays green moves to `@vN`. A caller that turns red pins the previous major (`@v1`) until its own failures are fixed, and then moves.
 
 The first planned major is `v2.0.0`, for #310: `standard-ci` stops ignoring failed dependency installs (`|| true`), which can turn a green caller red. `v1` keeps the lenient installs.
+
+## Pins resolve before they ship
+
+A caller that pins a ref without the file it names fails at startup: the run has no jobs, and nothing in the caller's repository says why. law-ai's CI on `main` failed that way from 2026-10-30, because its `ci.yml` called `spec-gate.yml@v2` while `v2` still pointed at 2.0.0, which predates the file; the `spec-driven` kit's caller template carried the same pin until v2.1.0 was cut (#610). Two rules follow, and [`hub_refs.py`](../.github/scripts/dash-gen/hub_refs.py) checks both.
+
+- **A kit template pins only a ref that contains its target.** A new reusable workflow or action ships in a release, and `vX` moves to it, before any template under `templates/` pins it at `@vX`. Drift check (q) resolves every hub pin in `templates/` against the hub's tags on every pull request, offline, and warns on one that does not resolve. `tools/fanout.sh` resolves the kit's caller templates before it clones a target: its dry run names an unresolved pin, and `--apply` refuses to run until the pin resolves.
+- **Before you tag, list what the release must carry.** Run `python3 .github/scripts/dash-gen/hub_refs.py check templates` for the kit templates and `python3 .github/scripts/dash-gen/hub_refs.py fleet` for the fleet's callers, as the daily harness scan recorded them (`_data/harness_registry.yml` `hub_refs`). Each broken pin names its fix. When the file is on `main` under `[Unreleased]`, the fix is this release: cut `vX.Y.0` and move `vX` (steps 2 and 3 below), then run the check again with fresh tags (`git fetch --no-tags --depth=1 origin '+refs/tags/v*:refs/tags/v*'`). Every pin should read `ok`.
+
+A pin reads `ok`, `ref-missing` (the hub has no such ref), `file-missing-at-ref` (the ref exists but lacks the file) or `unverified`. `unverified` covers a tag missing from the local clone and any GitHub answer other than a 404, and it is never counted as broken or as clean. Repinning a caller to a SHA or to `@main` is only a stopgap: a SHA pin breaks drift check (k), and an `@main` pin breaks UPS-WORK-10. For a caller on a floating major, the fix is the hub release.
 
 ## Cutting a release
 
@@ -92,7 +101,11 @@ Releases are cut by hand from `main` until a release automation is adopted for t
 
    For a major release, create the new `vX` instead and leave the previous major where it is.
 
+4. Check the pins: `python3 tools/test_template_pins.py` resolves every `bamr87/bamr87` and `bamr87/.github` pin in `templates/` and in the hub's own workflows and actions against the tags GitHub now serves, and fails on any pin whose ref lacks the file it names.
+
 **Rollback.** If a minor or patch release breaks callers, point `vX` back at the previous `vX.Y.Z` (step 3 with the older version) and fix forward in a new patch. Never delete or move an immutable `vX.Y.Z` tag.
+
+**Pins follow the tag.** A caller pins a tag only once that tag carries the file: a new workflow or action ships in a release (and `vX` moves) before a template, or a hub reusable workflow, pins it at `@vX`. `tools/test_template_pins.py` runs in `python-tests.yml`, so a pull request that pins ahead of the tag fails, and so does the next run after a rollback that takes a pinned file away. From 2026-10-26 until v2.1.0 the `spec-driven` kit pinned `spec-gate.yml@v2` while `v2` predated the file, and law-ai's CI, pinned the same way, failed at startup ([#457](https://github.com/bamr87/bamr87/issues/457)).
 
 ## See also
 

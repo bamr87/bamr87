@@ -155,3 +155,11 @@
 	path = projects/recon-engine
 	url = https://github.com/bamr87/recon-engine.git
 	branch = main
+[submodule "projects/SCHEMA"]
+	path = projects/SCHEMA
+	url = https://github.com/bamr87/SCHEMA.git
+	branch = main
+[submodule "projects/dot-github"]
+	path = projects/dot-github
+	url = https://github.com/bamr87/.github.git
+	branch = main

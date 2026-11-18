@@ -5,10 +5,12 @@
 #                parses, every task / input / compound member resolves, each
 #                picker equals its registry, every port an entry names is one
 #                the plane it talks to publishes, and no entry bypasses
-#                tools/dash. Plus fixture tests for conformance.py UPS-REPO-40.
+#                tools/dash. fleet.code-workspace opens the hub and declared
+#                submodules only. Plus fixture tests for conformance.py
+#                UPS-REPO-40.
 # Author:        bamr87
 # Created:       2026-11-02
-# Last Modified: 2026-11-02
+# Last Modified: 2026-11-16
 # Version:       1.0.0
 # Usage:         python3 tools/test_vscode_launch.py          (PyYAML only)
 #                run by tools/run-all-tests.sh
@@ -67,6 +69,7 @@ TASKS = jsonc(VSCODE / "tasks.json")
 SETTINGS = jsonc(VSCODE / "settings.json")
 EXTENSIONS = jsonc(VSCODE / "extensions.json")
 README = (VSCODE / "README.md").read_text(encoding="utf-8")
+WORKSPACE = jsonc(ROOT / "fleet.code-workspace")
 PORTS = load_yaml("_data/ports.yml")
 FLEET = load_yaml("_data/fleet.yml")
 COMPOSE = load_yaml("docker-compose.yml")
@@ -113,6 +116,10 @@ def compose_hosted() -> set[str]:
     return {n for n, s in (PORTS.get("projects") or {}).items() if (s or {}).get("host") == "compose"}
 
 
+def devenv_hosted() -> dict[str, dict]:
+    return {n: s for n, s in (PORTS.get("projects") or {}).items() if (s or {}).get("host") == "devenv"}
+
+
 def allocations(project: str) -> set[int]:
     spec = (PORTS.get("projects") or {}).get(project) or {}
     out = {a["port"] for a in (spec.get("services") or {}).values()}
@@ -125,9 +132,13 @@ def debug_allocations() -> set[int]:
     return {a["port"] for s in (PORTS.get("projects") or {}).values() for a in ((s or {}).get("debug") or {}).values()}
 
 
-def gitmodule_dirs() -> set[str]:
+def gitmodule_paths() -> set[str]:
     text = (ROOT / ".gitmodules").read_text(encoding="utf-8")
-    return {m.group(1).rsplit("/", 1)[-1] for m in re.finditer(r"^\s*path\s*=\s*(\S+)", text, flags=re.M)}
+    return {m.group(1) for m in re.finditer(r"^\s*path\s*=\s*(\S+)", text, flags=re.M)}
+
+
+def gitmodule_dirs() -> set[str]:
+    return {p.rsplit("/", 1)[-1] for p in gitmodule_paths()}
 
 
 def content_sites() -> set[str]:
@@ -241,6 +252,31 @@ class Ports(unittest.TestCase):
                 for port in map(int, PORT_IN_NAME.findall(name)):
                     self.assertIn(port, devenv, f"{name}: devenv does not publish {port} (docker-compose.yml devenv ports)")
 
+    def test_devenv_hosted_allocations_are_ports_devenv_publishes(self):
+        """A `host: devenv` project is served from inside devenv, and the app
+        portal frames its _data/ports.yml port: an allocation devenv does not
+        publish (bamr87.github.io's 4012, #702) is an address nothing answers."""
+        devenv = service_ports("devenv")
+        self.assertTrue(devenv_hosted(), "no devenv-hosted project in _data/ports.yml")
+        for name, spec in devenv_hosted().items():
+            for sname, alloc in (spec.get("services") or {}).items():
+                for port in (alloc.get("port"), alloc.get("livereload")):
+                    if port is not None:
+                        self.assertIn(port, devenv, f"{name}/{sname}: devenv does not publish {port} (docker-compose.yml devenv ports)")
+
+    def test_devenv_hosted_start_is_its_launch_entry(self):
+        """The portal offers a devenv site's `start:` to copy, and F5 runs its
+        launch.json entry: one command, so the two cannot drift, from an entry
+        whose name carries the allocated port."""
+        entries = {cmd: name for name, cmd in commands()}
+        for name, spec in devenv_hosted().items():
+            start = spec.get("start")
+            self.assertTrue(start, f"{name}: a devenv-hosted project carries `start:`, its launch.json command")
+            self.assertIn(start, entries, f"{name}: `start:` is not the command of any .vscode/launch.json entry")
+            ports = {a["port"] for a in (spec.get("services") or {}).values()}
+            named = set(map(int, PORT_IN_NAME.findall(entries[start])))
+            self.assertTrue(ports & named, f"{entries[start]}: its name carries {sorted(named)}, not {name}'s {sorted(ports)}")
+
     def test_dev_entries_use_ports_yml_allocations(self):
         for name, cmd in commands():
             m = re.search(r"tools/dash dev up ([a-z0-9.-]+)", cmd)
@@ -306,6 +342,40 @@ class Readme(unittest.TestCase):
                        "portNumber", "fleetProjects"):
                 continue  # free-text or self-explanatory pickers
             self.assertIn(f"`{pid}`", README, f"README 'Inputs' does not name the picker {pid}")
+
+
+class FleetWorkspace(unittest.TestCase):
+    """fleet.code-workspace — the hub and the submodules the fleet is run with,
+    as one window. home.code-workspace went stale the way launch.json did (roots
+    for clones that are no longer where it points), so this one is held to .gitmodules."""
+
+    def setUp(self):
+        self.folders = WORKSPACE.get("folders") or []
+        self.roots = [f["path"] for f in self.folders[1:]]
+        self.settings = WORKSPACE.get("settings") or {}
+
+    def test_hub_is_the_first_root(self):
+        # The first folder is what an agent session and `${workspaceFolder:bamr87}` resolve to.
+        self.assertTrue(self.folders, "fleet.code-workspace has no folders")
+        self.assertEqual((self.folders[0].get("name"), self.folders[0].get("path")), ("bamr87", "."))
+
+    def test_every_other_root_is_a_declared_submodule(self):
+        declared = gitmodule_paths()
+        self.assertTrue(self.roots, "fleet.code-workspace opens the hub alone")
+        self.assertEqual(len(self.roots), len(set(self.roots)), "a root is listed twice")
+        for path in self.roots:
+            self.assertIn(path, declared, f"{path} is not a submodule path in .gitmodules (retired, renamed, or outside this checkout)")
+
+    def test_search_is_deduplicated_for_exactly_the_roots(self):
+        # A root is also a directory under the hub; without its key every hit there lists twice.
+        excluded = {k for k, on in (self.settings.get("search.exclude") or {}).items() if on and k.startswith("projects/")}
+        self.assertEqual(excluded, set(self.roots), "search.exclude and the folder list disagree")
+
+    def test_carries_no_entries_and_no_personal_preferences(self):
+        for block in ("launch", "tasks"):
+            self.assertNotIn(block, WORKSPACE, f"a {block} block here is a second list; entries live in .vscode/ (§ 20)")
+        for key in ("editor.fontSize", "editor.lineHeight", "files.autoSave", "editor.minimap.enabled"):
+            self.assertNotIn(key, self.settings, f"{key} is a personal preference (home.code-workspace)")
 
 
 class ConformanceVscode(unittest.TestCase):

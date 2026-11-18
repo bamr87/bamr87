@@ -36,10 +36,21 @@ one place that answers, for ~40 repos at once:
              or ai-lane workflow, a bare `claude -p`, a vendored runner, or
              another provider's key — and the controls the constitution asks
              of it (pinned model, dollar and turn caps, kill switch, ordered
-             auth, trusted-author gate, least privilege, timeout, off-the-hour
-             cron). Each harness carries what it is missing and the LEVER that
-             rebuilds it: a kit upgrade, a kit re-seed, a move onto the
-             reusable lane, a blueprint recompile, a hub fix, or retirement.
+             auth, trusted-author gate, least privilege, no wildcard bot
+             allowlist, no pull_request_target checkout of a PR head, timeout,
+             off-the-hour cron). Each harness carries what it is missing and
+             the LEVER that rebuilds it: a kit upgrade, a kit re-seed, a move
+             onto the reusable lane, a blueprint recompile, a hub fix, or
+             retirement.
+  HUB REFS   every `uses:` pin of a hub reusable workflow or action in each
+             repo's workflow files (`hub_refs`: path, line, target, ref,
+             status), resolved once per distinct target@ref against GitHub by
+             hub_refs.py. A pin at a ref that lacks its target fails the
+             caller at startup with no job, so it is a `hub-ref-broken`
+             attention item carrying the computed fix (FF-0037). Files past
+             `inventory.max_workflow_files` or unreadable are counted in
+             `hub_refs_unread_files`, an unreadable repo stays `scanned:
+             false`: unread, never clean.
 
 This file is a CONSUMED INTERFACE: GitFactory's Fleet Studio (gitorio
 specs/012-fleet-studio) reads the committed output as its fleet roster and
@@ -84,6 +95,7 @@ except ImportError:  # pragma: no cover
 
 import actions_analytics  # registry loading + owner_repo + token resolution
 import harness  # the rotation ledger's post-run repo state (rotation_repo_state)
+import hub_refs  # pins of hub reusable workflows/actions, and whether they resolve
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 FLEET_DEFAULT = REPO_ROOT / "_data" / "fleet.yml"
@@ -142,6 +154,24 @@ TIMEOUT_RX = re.compile(r"^\s*timeout-minutes:\s*\S", re.M)
 UNTRUSTED_TRIGGERS = {"issue_comment", "issues", "pull_request_review",
                       "pull_request_review_comment", "pull_request_target", "discussion",
                       "discussion_comment"}
+# claude-code-action checks a human actor's repository permission before it
+# runs; a bot on its `allowed_bots` list is waved through unchecked ("Allowed
+# bots are not checked for repository permissions"), so '*' lets any GitHub
+# App's comment spend the credential. The fallback for a file YAML cannot parse.
+ALLOWED_BOTS_RX = re.compile(r"^\s*allowed_bots:\s*([^#\n]*?)\s*(?:#.*)?$", re.M)
+# A pull_request_target run holds the base repo's secrets and a write token.
+# Checking out the PR's head (or its merge ref, which contains the head) runs
+# a stranger's code with both. These expressions name that code; a checkout
+# whose `ref:` or `repository:` carries one checks it out.
+PR_HEAD_RX = re.compile(
+    r"github\.event\.pull_request\.(?:head\.(?:sha|ref|repo\.full_name)|merge_commit_sha)\b|"
+    r"github\.head_ref\b|refs/pull/[^\n'\"]*?/(?:head|merge)\b")
+# The same thing done in a run step: `gh pr checkout`, or a git command that
+# fetches or checks out the PR's ref on the same line.
+RUN_HEAD_RX = re.compile(
+    r"\bgh\s+pr\s+checkout\b|"
+    r"\bgit\s+(?:fetch|checkout|switch|pull|worktree\s+add)\b[^\n]*"
+    r"(?:\bpull/|github\.event\.pull_request\.(?:head\.(?:sha|ref)|merge_commit_sha)|github\.head_ref)")
 # The per-invocation dollar ceiling, as a `claude_args` flag or a claude-run
 # `max-budget-usd:` input. Recorded beside max_turns because turns bound
 # iterations, not spend (_data/fleet.yml `budget:`).
@@ -238,6 +268,14 @@ DEFAULT_STANDARD = {
             "applies": list(ALL_KINDS)},
         "least-privilege": {
             "title": "declares top-level permissions, never write-all",
+            "rule": "bamr87/bamr87#514",
+            "applies": list(ALL_KINDS)},
+        "no-wildcard-bots": {
+            "title": "never lets every bot start the run (allowed_bots '*')",
+            "rule": "bamr87/bamr87#514",
+            "applies": list(ALL_KINDS)},
+        "safe-pr-target": {
+            "title": "never checks out a PR's head on pull_request_target",
             "rule": "bamr87/bamr87#514",
             "applies": list(ALL_KINDS)},
         "timeout": {
@@ -732,8 +770,62 @@ def classify_workflow(path: str, text: str) -> dict:
         open_triggers = UNTRUSTED_TRIGGERS & set(info["triggers"])
         info["author_gate"] = bool(AUTHOR_GATE_RX.search(code)) if open_triggers else None
         info["least_privilege"] = _least_privilege(data, code)
+        # None when there is nothing to ask: no claude-code-action step to
+        # carry an allowlist, no pull_request_target run to check out a head.
+        info["wildcard_bots"] = _wildcard_bots(data, code, routes)
+        info["pr_target_head_checkout"] = _pr_target_head_checkout(data, info["triggers"])
         info["timeout"] = bool(TIMEOUT_RX.search(code)) or bool(defaults.get("timeout"))
     return info
+
+
+def _steps(data: dict) -> Iterable[dict]:
+    """Every step of every job, in file order."""
+    jobs = data.get("jobs")
+    for job in (jobs.values() if isinstance(jobs, dict) else []):
+        steps = job.get("steps") if isinstance(job, dict) else None
+        for step in (steps if isinstance(steps, list) else []):
+            if isinstance(step, dict):
+                yield step
+
+
+def _wildcard_bots(data, code: str, routes: list[str]) -> bool | None:
+    """Whether a claude-code-action step lets every bot start the run
+    (`allowed_bots: '*'`, alone or in the list). None when the file has no
+    such step, or when no step names '*' and one hands the list over as an
+    expression: decided at run time, so the file cannot say."""
+    if "claude-code-action" not in routes:
+        return None
+    if isinstance(data, dict):
+        values = []
+        for step in _steps(data):
+            inputs = step.get("with")
+            if (str(step.get("uses") or "").startswith(CLAUDE_ACTION_MARKER)
+                    and isinstance(inputs, dict) and inputs.get("allowed_bots") is not None):
+                values.append(str(inputs["allowed_bots"]))
+    else:
+        values = [m.group(1) for m in ALLOWED_BOTS_RX.finditer(code)]
+    if any("*" in (t.strip().strip("'\"") for t in v.split(",")) for v in values):
+        return True
+    return None if any("${{" in v for v in values) else False
+
+
+def _pr_target_head_checkout(data, triggers: list[str]) -> bool | None:
+    """Whether a pull_request_target workflow checks out the PR's head: an
+    actions/checkout whose `ref:` or `repository:` names it, or a run step
+    that fetches or checks it out. None on any other trigger: a plain
+    pull_request run from a fork gets no secrets and a read-only token. (A
+    file YAML cannot parse never reads as pull_request_target: its triggers
+    come from the cron fallback alone.)"""
+    if "pull_request_target" not in triggers or not isinstance(data, dict):
+        return None
+    for step in _steps(data):
+        inputs = step.get("with") if isinstance(step.get("with"), dict) else {}
+        if str(step.get("uses") or "").startswith("actions/checkout") and any(
+                PR_HEAD_RX.search(str(inputs.get(k) or "")) for k in ("ref", "repository")):
+            return True
+        if isinstance(step.get("run"), str) and RUN_HEAD_RX.search(step["run"]):
+            return True
+    return False
 
 
 def _least_privilege(data, code: str) -> bool:
@@ -807,6 +899,14 @@ def _cap(h: dict, fact: str):
     return None if fact in (h.get("runtime") or []) else False
 
 
+def _never(h: dict, fact: str):
+    """A fact that must be false. A row with no value for it has nothing for
+    the control to bind: no step that could do the thing, or a scan stored
+    before the fact was recorded."""
+    value = h.get(fact)
+    return None if value is None else not value
+
+
 CONTROL_CHECKS = {
     "standard-route": lambda h, cfg: bool(
         (cfg["standard"]["routes"].get(h.get("route")) or {}).get("standard")),
@@ -819,6 +919,8 @@ CONTROL_CHECKS = {
     "trusted-author": lambda h, cfg: h.get("author_gate"),
     "least-privilege": lambda h, cfg: (
         None if _called_only(h) else bool(h.get("least_privilege"))),
+    "no-wildcard-bots": lambda h, cfg: _never(h, "wildcard_bots"),
+    "safe-pr-target": lambda h, cfg: _never(h, "pr_target_head_checkout"),
     "timeout": lambda h, cfg: bool(h.get("timeout")),
     "off-hour-cron": lambda h, cfg: (
         not any(_fires_on_the_hour(c) for c in h["crons"]) if h.get("crons") else None),
@@ -1324,6 +1426,22 @@ def build_attention(repos: list[dict], throughput: dict, trends: dict, cfg: dict
                 f"{len(r['harnesses'])} AI workflow(s) can still run",
                 "archive the repo on GitHub (a setting: the maintainer's), remove the workflows, "
                 "or correct `status` in _data/projects.yml", repo=r["repo"])
+        # A pin of a hub workflow or action at a ref that lacks it fails the
+        # caller at startup with no job, and nothing in the caller's repo says
+        # why (law-ai, 2026-10-30: spec-gate.yml@v2 before v2.1.0). One item
+        # per target@ref, carrying the fix computed from the hub's own state;
+        # an unverified pin is not a finding.
+        broken: dict[tuple[str, str], list[dict]] = {}
+        for ref in r.get("hub_refs") or []:
+            if ref.get("status") in hub_refs.BROKEN:
+                broken.setdefault((ref["target"], ref["ref"]), []).append(ref)
+        for (target, at), pins in sorted(broken.items()):
+            where = ", ".join(f"{p['path']}:{p['line']}" for p in pins[:4])
+            fix = pins[0].get("fix") or ["repin to a ref that carries it"]
+            add(88, "hub-ref-broken",
+                f"{where} calls {target}@{at}: {pins[0].get('detail') or pins[0]['status']} — "
+                "the workflow fails at startup with no job",
+                fix[0] + (f" ({fix[1]})" if len(fix) > 1 else ""), repo=r["repo"])
         for h in r.get("harnesses") or []:
             if h.get("last_conclusion") == "failure" or "failing" in (h.get("flags") or []):
                 add(75, "harness-failing",
@@ -1458,14 +1576,21 @@ def scan_repo(gh, project: dict, cfg: dict, secret_states: dict[str, str],
     # says so: silently dropping the tail hid harnesses with no trace.
     row["workflows_listed"] = len(files)
     row["workflows_truncated"] = len(files) > cfg["inventory"]["max_workflow_files"]
+    # Pins of hub workflows/actions, resolved after the scan (resolve_hub_refs).
+    # A file this scan did not read is counted, never assumed clean: a 404 or
+    # a cap on the caller's side is not a finding either way.
+    row["hub_refs"] = []
+    row["hub_refs_unread_files"] = max(0, len(files) - cfg["inventory"]["max_workflow_files"])
     files = files[: cfg["inventory"]["max_workflow_files"]]
     shapes = kit_shapes(hub_version, repo_name=name or "")
     for entry in files:
         try:
             text = repo.get_contents(entry.path).decoded_content.decode("utf-8", "replace")
         except Exception:
+            row["hub_refs_unread_files"] += 1
             continue
         row["workflows_total"] += 1
+        row["hub_refs"].extend(hub_refs.extract(text, entry.path, hub=cfg["hub_nwo"]))
         info = classify_workflow(entry.path, text)
         for cron in info["crons"]:
             row["scheduled"].append({
@@ -1522,6 +1647,10 @@ def harness_row(repo_name: str | None, info: dict, text: str, hub_version: str |
         "author_gate": info.get("author_gate"),
         "least_privilege": bool(info.get("least_privilege")),
         "timeout": bool(info.get("timeout")),
+        # null = nothing to ask (no claude-code-action step; not a
+        # pull_request_target workflow), as `author_gate` is
+        "wildcard_bots": info.get("wildcard_bots"),
+        "pr_target_head_checkout": info.get("pr_target_head_checkout"),
     }
 
 
@@ -1549,6 +1678,23 @@ def collect_fleet(gh, registry: list[dict], cfg: dict, rotation: dict,
         sys.stderr.write(f"  harness · {project.get('name')}\n")
         rows.append(scan_repo(gh, project, cfg, secret_states, hub_version))
     return rows
+
+
+def resolve_hub_refs(repos: list[dict], resolver: "hub_refs.Resolver",
+                     facts: "hub_refs.TreeFacts | None") -> int:
+    """Give every scanned pin its status (and a broken one its fix), one lookup
+    per distinct target@ref across the whole fleet. Returns the lookups spent."""
+    for r in repos:
+        hub_refs.annotate(r.get("hub_refs") or [], resolver, facts)
+    return resolver.lookups
+
+
+def live_hub_resolver(token: str | None, cfg: dict) -> "hub_refs.Resolver":
+    """GitHub first (the hub is public, so its 404 is authoritative), then this
+    checkout's tags; fleet-pulse checks out without tags, so that fallback
+    mostly reads unverified, which is never a finding."""
+    return hub_refs.Resolver(hub_refs.ApiBackend(hub_refs.http_getter(token), cfg["hub_nwo"]),
+                             hub_refs.GitBackend(REPO_ROOT, worktree_is_default=False))
 
 
 # --------------------------------------------------------------------------- #
@@ -1595,6 +1741,7 @@ def finalize(repos: list[dict], cfg: dict, hub_version: str | None, ai_usage: di
     # Live harnesses only: a workflow in an archived repo is listed (lever:
     # retire) but is not an AI workflow the fleet runs.
     all_harnesses = [h for r in repos if not is_dormant(r) for h in r.get("harnesses") or []]
+    live_pins = [p for r in repos if not is_dormant(r) for p in r.get("hub_refs") or []]
     totals = {
         "repos": len(repos),
         "repos_scanned": sum(1 for r in repos if r.get("scanned")),
@@ -1619,6 +1766,14 @@ def finalize(repos: list[dict], cfg: dict, hub_version: str | None, ai_usage: di
         "harnesses_retired": catalog["retired"],
         "harnesses_dormant": catalog["dormant"],
         "repos_truncated": sum(1 for r in repos if r.get("workflows_truncated")),
+        # Pins of hub workflows/actions in live repos (FF-0037). Unread repos
+        # and files are counted beside them so a clean count never hides them.
+        "hub_refs": len(live_pins),
+        "hub_refs_broken": sum(1 for p in live_pins if p.get("status") in hub_refs.BROKEN),
+        "hub_refs_unverified": sum(1 for p in live_pins if p.get("status") == "unverified"),
+        "hub_refs_unread_repos": sum(1 for r in repos
+                                     if not r.get("external") and not r.get("scanned")),
+        "hub_refs_unread_files": sum(int(r.get("hub_refs_unread_files") or 0) for r in repos),
     }
     standard = cfg["standard"]
     return {
@@ -1766,6 +1921,12 @@ def run(args: argparse.Namespace) -> int:
                 registry = yaml.safe_load(fh) or []
             repos = collect_fleet(gh, registry, cfg, rotation, hub_version)
             scan_mode, scanned_at = "live", now.strftime("%Y-%m-%d %H:%M UTC")
+            # The fix for a broken pin reads main's own state: this checkout
+            # (fleet-pulse runs on main), and the release tags GitHub serves.
+            resolver = live_hub_resolver(token, cfg)
+            facts = hub_refs.TreeFacts(REPO_ROOT, tags_fn=resolver.tags)
+            spent = resolve_hub_refs(repos, resolver, facts)
+            sys.stderr.write(f"  hub refs · {spent} distinct target@ref resolved\n")
     if not repos:
         # No credentials (or --offline): reuse the previous committed scan so
         # the offline analytics still refresh — same degrade-don't-die posture

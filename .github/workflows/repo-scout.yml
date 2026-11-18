@@ -37,8 +37,9 @@ name: 🔭 Repo Scout
 #   FLEET_TOKEN  REQUIRED. Cross-repo checkout (private targets) and the
 #                issue + label writes in `file`. Probed with `gh api user`,
 #                never merely presence-checked, BEFORE any Claude spend.
-#   CLAUDE_CODE_OAUTH_TOKEN  preferred Claude auth; ANTHROPIC_API_KEY fallback,
-#                in the order the repo's CLAUDE_AUTH_ORDER names.
+#   CLAUDE_CODE_OAUTH_TOKEN  Claude auth (OAuth only for now).
+# Claude auth: OAuth only (CLAUDE_CODE_OAUTH_TOKEN). ANTHROPIC_API_KEY disabled for now
+# (2026-11-15); to restore, re-add the secrets.ANTHROPIC_API_KEY reference.
 #
 # Docs: docs/SCOUT.md · brief template: .github/scout/ · agent step spec (the
 # hard-rules prompt, allowlist, caps by reference to _data/fleet.yml):
@@ -96,7 +97,7 @@ jobs:
       max_parallel: ${{ steps.plan.outputs.max_parallel }}
       model: ${{ steps.plan.outputs.model }}
     env:
-      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
       FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN }}
     steps:
       - uses: actions/checkout@v7
@@ -106,7 +107,7 @@ jobs:
       - name: Require Claude auth
         if: ${{ env.HAS_CLAUDE_AUTH != 'true' }}
         run: |
-          echo "::error::No Claude auth. Set CLAUDE_CODE_OAUTH_TOKEN (preferred) or ANTHROPIC_API_KEY. See docs/AI-INTEGRATION.md."
+          echo "::error::No Claude auth. Set CLAUDE_CODE_OAUTH_TOKEN (OAuth only; ANTHROPIC_API_KEY is disabled for now). See docs/AI-INTEGRATION.md."
           exit 1
 
       # A secret can be SET and still be dead. Probe it for real, and stop here
@@ -206,7 +207,7 @@ jobs:
       max-parallel: ${{ fromJson(needs.plan.outputs.max_parallel) }}
       matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
     env:
-      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
       NAME: ${{ matrix.name }}
       NWO: ${{ matrix.nwo }}
       BRIEF: .scout/${{ matrix.brief }}
@@ -252,7 +253,6 @@ jobs:
         with:
           order: ${{ vars.CLAUDE_AUTH_ORDER }}
           has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       # NO GitHub token in this step's env. The agent reads text anyone can
       # write (open issue titles, the repository), and its allowlist runs
@@ -278,7 +278,6 @@ jobs:
           JEV_STEP_SHA256: 3ac362eac2dbfe7a500edc33d0c7dc9e831d97dc9f54f525e6207700c8cf79fa
         with:
           claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
-          anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
           # BUDGET: one repo per job, so both caps are per repo. The turn cap is
           # the LITERAL of _data/fleet.yml scout.max_turns (test_scout.py asserts
           # they agree) and the dollar ceiling is budget.call_sites — a

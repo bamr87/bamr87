@@ -2353,3 +2353,28 @@
   source: manual
   created: 2026-11-10
   issue_url: null
+
+- id: FF-0055
+  title: Let the maintainer merge and close from the console's PR queue
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P1
+  effort: S
+  category: feature
+  problem: 'The PR queue (HUB-117) plans and applies every bulk action except merge and close: § 11.2
+    says the console never merges, § 11.1 lists no pull-request close, and § 12.2 lets an agent merge
+    only an ungated pull request with a merge commit. On 2026-11-15 that left 160 open pull requests to
+    be merged by hand, one `gh pr merge` at a time, although every one had been triaged.'
+  proposal: 'An amendment (direction: a Grok bot under § 26, or Amr) that says a merge or close the maintainer
+    selects and confirms in the console''s PR queue is his own action, applied by Claude Code through
+    the OPS remote-write path: a live recheck, `--match-head-commit`, the repo''s allowed method, never
+    `--admin` or `--auto`, and each repo''s own merge rules kept. Then a gated pull request sets `pr_queue.merge.enabled`
+    and `pr_queue.close.enabled` to true; the code is already in place behind those switches.'
+  acceptance:
+  - The amendment is ratified and names § 11.2, § 11.1 and § 12.2 as amended.
+  - With the switches on, a dry run and an apply of a merge plan on two real pull requests record each
+    result, and lifehacker.dev and gitorio's Dependabot rule still hold.
+  source: manual
+  created: 2026-11-15
+  issue_url: https://github.com/bamr87/bamr87/issues/863

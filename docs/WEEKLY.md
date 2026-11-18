@@ -72,7 +72,7 @@ Every open pull request comes from the [decision index](DECISION-INDEX.md) (a ha
 | **Awaiting ratification** | Changes the constitution, an amendment or an ADR | You: only the maintainer merges it (§ 8) |
 | **Waiting on Amr** | A gate or hold label, a gated path, a release pull request, a Dependabot bump that is major or states no versions, an untrusted author, no check that succeeded, a base that is not the default branch, or a repo whose own rules keep merges with you | You |
 | **Conflicting** | Conflicts with its base | JEV: `tools/dash conflicts sweep` (§ 12.7) |
-| **Checks failing** | A check failed or was cancelled, or changes were requested | Carried into next week's Unblock lane |
+| **Checks failing** | A check failed or was cancelled with no later run of it, or changes were requested | Carried into next week's Unblock lane |
 | **Not settled** | Checks or merge state still computing | Nobody yet; Sunday reads it again |
 | **Stale** | An issue untouched for 30 days with no priority above P2, a draft untouched for 14, a blocked pull request untouched for 30 | The close-out agent proposes; you decide and act |
 | **Carried** | Open and moving | Sunday ranks it |
@@ -84,7 +84,7 @@ The gate holds a pull request that:
 - **changes a gated path**, matched without regard to case: anything under `.github/`, `_data/fleet.yml` and the other registries that carry budgets, agents and roles, the constitution, amendments and ADRs, `AGENTS.md`, `CLAUDE.md`, `SECURITY.md` and `CODEOWNERS`, agent and MCP config, `.gitmodules`, infrastructure, compose files and Dockerfiles, `.env` files, the `tools/dash` entry points and every shell script in `tools/`, JEV, this routine's own code, and the kits and specs. The list is `gate_paths` in `tools/weekly/closeout.py`; `weekly.closeout.gate_paths` adds to it and cannot remove from it, and `repo_gate_paths` adds a repo's own content gate;
 - **renames or copies a file**, because the path it came from cannot be read, or changes 100 files or more, past what one read returns;
 - **comes from an author who is not trusted.** People and bots are kept apart: a name `jev.allowed_authors` lists as a bot is trusted only as a bot, so nobody can register a bot's name and borrow its standing;
-- **is not provably green**: every check must have finished, none failed or been cancelled, and at least one succeeded. A pull request whose every check was skipped proves nothing;
+- **is not provably green**: every check must have finished, none failed or been cancelled, and at least one succeeded. A pull request whose every check was skipped proves nothing. A cancelled run is set aside first when a later run of the same check (same workflow, same check name) on the same commit exists, because that later run is the check's verdict and it is judged in its place. A workflow that cancels in progress on every label event leaves one such row per label, and GitHub's own rollup calls the commit red; on 2026-11-15 that was 25 fleet pull requests whose real run had passed. A cancelled run nothing superseded still fails, and a later pass never hides a failure. The rule is `tools/check_rollup.py`, which the decision index and the PM review read checks through too;
 - **targets a branch that is not the repo's default**, sits in a repo that does not allow merge commits (the routine merges no other way), or in a repo `never_merge` names.
 
 The list is as good as the moment it was read. Whoever merges reads the pull request again first (§ 12.1): a label, a new commit or a failed check can arrive after Friday. One limit no read removes: a required check that has not started yet has no entry to read, so it cannot be seen as missing.
@@ -237,7 +237,7 @@ They meet on the week's issue: both use the same title, and each writes under it
 
 ## Writing
 
-The routine is the daily chronicle generator § 23 asked for, run weekly. It drafts `pages/posts/YYYY-MM-DD-chronicle.md` for each active day without one, and `YYYY-MM-DD-weekly-retro.md` for the week, with secret-shaped text redacted. Features lead each repo's list, and routine bot commits are left out.
+The routine is the daily chronicle generator § 23 asked for, run weekly. It drafts `pages/posts/YYYY-MM-DD-chronicle.md` for each active day without one, and `YYYY-MM-DD-weekly-retro.md` for the week, with secret-shaped text redacted. Features lead each repo's list, and routine bot commits are left out. Each post is served at its dated address, `/blog/YYYY-MM-DD-chronicle` or `/blog/YYYY-MM-DD-weekly-retro`, on the console and on the public site (`pages/SCHEMA.md`).
 
 Posts are drafts until reviewed (§ 23.4): they wait in the run folder, and `confirm --apply` is the review that publishes them. Read them first. The retro ends with an *In my own words* section for your notes; left empty, it is removed on publish. `--keep-drafts` lands the posts as drafts, and `--publish FILE` also publishes an older draft.
 
