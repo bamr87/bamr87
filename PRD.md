@@ -6,7 +6,13 @@
 
 ## 1. Overview / problem
 
-The `bamr87/bamr87` repo is simultaneously the GitHub profile README, the fleet control plane ("dash") that vendors every project as a Git submodule, and the public Harness Console site. It hosts shared standards, kits and reusable actions (e.g. `claude-run`) that the rest of the fleet consumes.
+The bamr87 hub's direction is to become the ultimate open home for the fleet: the control plane, the shared standards, and a public window onto every project. See [constitution § 1](docs/constitution.md#1-mission).
+
+1. Provide data, tools, resources and transparency for all stakeholders, operators, contributors and the general public — the project registry, the Harness Console, the public documentation site, and the catalogs that make every repo visible and auditable.
+2. Be the source of fleet standards and the path they take into each repo — the constitution, amendments, the PRD, the feature catalog, the Universal Project Standard, kits and fan-out — so a rule is written once in the hub, ratified by the maintainer merging, and adopted consistently across the fleet.
+3. Run a reliable, agentic control plane for the work itself — the dash, the loops, JEV, the issue pipeline and the harness — so planning, execution, review and cost across the mounted projects stay governed, observable and local-first where they can be.
+
+Today the repo is simultaneously the GitHub profile README, the fleet control plane ("dash") that vendors every project as a Git submodule, and the public Harness Console site. It hosts shared standards, kits and reusable actions (e.g. `claude-run`) that the rest of the fleet consumes.
 
 ## 2. Target users
 

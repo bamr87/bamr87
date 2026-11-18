@@ -38,7 +38,7 @@ I'm a **Solutions Architect** and **ERP Specialist** based in Denver, CO, with *
 
 ## 🗂️ Portfolio
 
-Every repository I own, grouped by what it is. Each line gives the repo, its one-line description and, when there is one, its live site. Repo descriptions, topics and READMEs follow one [portfolio standard](docs/PORTFOLIO.md), so any README you open has the same shape: overview, features, quick start, structure, development, changelog and license.
+Every repository I own, grouped by what it is. Each line gives the repo, its one-line description and, when there is one, its live site. Repo descriptions, topics and READMEs follow one [portfolio standard](docs/PORTFOLIO.md), and each README's about section is a [site map](docs/ABOUT-SECTION.md) of the repo's fundamental pages.
 
 Marks: `🧪 experimental` prototype or research · `🛠️ maintenance mode` fixes only · `💤 unmaintained` parked, not archived · `🍴 fork` of someone else's project. There are no private or GitHub-archived repos at the moment; they would be marked `🔒 private` (name and description only) and `🗄️ archived`.
 
@@ -183,6 +183,8 @@ I believe in continuous learning and sharing knowledge. I document my journey th
 
 Besides being my profile, this repo is the **control plane** for the portfolio: a monorepo that mounts about 40 of the projects above as Git submodules under `projects/`, plus the shared standards, CI, dashboards and AI harnesses that keep them consistent. The dash is live at [bamr87.github.io/bamr87](https://bamr87.github.io/bamr87/).
 
+The bamr87 hub's direction is to become the ultimate open home for the fleet: the control plane, the shared standards, and a public window onto every project. See [constitution § 1](docs/constitution.md#1-mission).
+
 ```
 bamr87/
 ├── projects/    # the fleet: one Git submodule per project
@@ -209,13 +211,17 @@ cd bamr87
 
 ## 📖 Documentation
 
-- **[docs/README.md](docs/README.md)**: The index of every document in the hub, generated from each document's summary line
-- **[AGENTS.md](AGENTS.md)**: How to work in the hub — commands, layout, conventions, the standing rules and the loops (canonical for agents and contributors)
-- **[docs/SUBMODULES.md](docs/SUBMODULES.md)**: The submodule workflow — commit in the submodule, then bump the pointer
-- **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**: Development environment setup
-- **[docs/DASH.md](docs/DASH.md)**: The dash architecture — registry, surfaces, gates, AI loop
-- **[CONTRIBUTING.md](CONTRIBUTING.md)**: Contribution guidelines
-- **[docs/PORTFOLIO.md](docs/PORTFOLIO.md)**: The portfolio standard — descriptions, topic taxonomy, homepage rule and README skeleton
+This cluster is the hub's about-section site map ([docs/ABOUT-SECTION.md](docs/ABOUT-SECTION.md)): the fundamental pages for the control-plane half of this profile repository.
+
+- **Docs index:** **[docs/README.md](docs/README.md)** — every document in the hub, generated from each document's summary line
+- **Getting started:** the [Quick start](#-quick-start) above; environment notes in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
+- **Contributing:** **[CONTRIBUTING.md](CONTRIBUTING.md)**, **[AGENTS.md](AGENTS.md)** (how to work in the hub — commands, layout, conventions, the standing rules and the loops)
+- **Governance:** [constitution](docs/constitution.md) (mission in [§ 1](docs/constitution.md#1-mission)), [amendments](docs/amendments/README.md), [PRD](PRD.md), [feature catalog](features/features.yml)
+- **Roadmap / backlog:** [`_data/roadmap.yml`](_data/roadmap.yml), [docs/PM.md](docs/PM.md), [Fleet project #14](https://github.com/users/bamr87/projects/14)
+- **Changelog / releases:** [CHANGELOG.md](CHANGELOG.md), [Releases](https://github.com/bamr87/bamr87/releases)
+- **Organization and fleet context:** [docs/FLEET.md](docs/FLEET.md), [docs/SUBMODULES.md](docs/SUBMODULES.md), [docs/PORTFOLIO.md](docs/PORTFOLIO.md), [docs/STANDARDS.md](docs/STANDARDS.md)
+- **Dash architecture:** [docs/DASH.md](docs/DASH.md)
+- **Live site:** [bamr87.github.io/bamr87](https://bamr87.github.io/bamr87/)
 
 To change this index, edit [`_data/projects.yml`](_data/projects.yml) (fleet members) or [`_data/portfolio.yml`](_data/portfolio.yml) (grouping and display-only extras), then run `tools/dash-gen readme` (the drift gate fails a PR whose README is stale, and the nightly registry reconciliation regenerates it in its own PR).
 
