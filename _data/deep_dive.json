@@ -2,15 +2,15 @@
   "schema": "deep-dive/v1",
   "owner": "bamr87",
   "label": "deep-dive",
-  "refreshed_at": "2026-11-16T12:34:38Z",
+  "refreshed_at": "2026-11-17T12:26:11Z",
   "summary": {
-    "as_of": "2026-11-16",
+    "as_of": "2026-11-17",
     "cycle": 1,
     "cycle_start": "2026-10-30",
     "cycle_end": "2026-12-10",
     "cycle_days": 42,
     "total": 38,
-    "day": 18,
+    "day": 19,
     "processed": 8,
     "counts": {
       "pending": 30,
@@ -20,14 +20,6 @@
     },
     "progress": 0.2105,
     "today": {
-      "date": "2026-11-16",
-      "cycle": 1,
-      "day": 18,
-      "cycle_days": 42,
-      "kind": "scheduled",
-      "repo": "SCHEMA"
-    },
-    "next": {
       "date": "2026-11-17",
       "cycle": 1,
       "day": 19,
@@ -35,10 +27,18 @@
       "kind": "scheduled",
       "repo": "bashos"
     },
+    "next": {
+      "date": "2026-11-18",
+      "cycle": 1,
+      "day": 20,
+      "cycle_days": 42,
+      "kind": "scheduled",
+      "repo": "ocrmd"
+    },
     "last": ".github",
     "last_date": "2026-11-13",
     "avg_score": 45.0,
-    "open_issues": 68,
+    "open_issues": 67,
     "open_prs": 7
   },
   "repos": [
@@ -102,7 +102,7 @@
         "https://github.com/bamr87/bamr87/pull/508",
         "https://github.com/bamr87/bamr87/pull/579"
       ],
-      "open_issues": 13,
+      "open_issues": 12,
       "open_prs": 0,
       "findings": "Cycle 1 day 2, final. Outcomes: Amr merged #508 (docs_index --lint fix) and #509 (governance-records-lint feature); issues #500-#505 filed (dead amendment links + FR45/HUB-049 #500, amendment status/\u00a7 13 ordering #501, NFR11 budget mismatch #502, ungated docs_index lint #503, console a11y #504, governance-records-lint #505). Previously known python-tests and v1/v2 tag items were already fixed. HUB-039 has no PRD requirement (warning).",
       "score": 78.0,

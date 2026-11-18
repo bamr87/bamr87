@@ -26,7 +26,7 @@ Because triage and harness are committed, a fresh clone already shows red/amber 
 | # | Tab | Shows | `enter` |
 | --- | --- | --- | --- |
 | 1 | **Apps** | Every registry project: health, CI, last commit, triage score, open issues/PRs, failing workflows, security alerts, checkout, containers. The detail pane follows the cursor. | Opens this project's items in the Inbox |
-| 2 | **Inbox** | The fleet inbox (flagged items, highest priority first). From a drill-down: **all** of one repo's open items from `by_repo`, ranked with the same priorities. | Opens the issue / PR / run |
+| 2 | **Inbox** | The fleet inbox (flagged items, highest priority first). A `merge` row (95) leads it: a green, clean PR that fixes a failing workflow, its why column counting what merging it clears (FF-0036). From a drill-down: **all** of one repo's open items from `by_repo`, ranked with the same priorities. | Opens the issue / PR / run |
 | 3 | **Attention** | Red/amber on _either_ signal (health or triage), worst first | Repo's items |
 | 4 | **Monitor** | The `/monitor/` health board | Repo's items |
 | 5 | **Harness** | Trip wires (tripped first), then the scorecard with its desired direction and threshold | — |

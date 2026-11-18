@@ -130,12 +130,25 @@ class MachineApiTests(unittest.TestCase):
 
         self.assertEqual(fleet["status"], "ok")
         self.assertEqual(fleet["inbox"][0]["title"], "CI")
+        self.assertNotIn("clears", fleet["inbox"][0])  # only a merge item carries it
         self.assertEqual(fleet["by_repo"][0]["workflows_failing"], 1)
         self.assertEqual(health["counts"]["red"], 1)
         self.assertEqual(harness["tripped_count"], 1)
         self.assertEqual(issues["totals"]["open_issues"], 3)
         self.assertEqual(index["priority_hint"]["title"], "CI")
         self.assertIn("Top inbox item", written["llms"].read_text())
+
+    def test_a_merge_item_keeps_what_it_clears(self) -> None:
+        """FF-0036: a merge item leads the inbox, and an agent reading fleet.json
+        gets `clears` and the evidence, as fleet_inbox's do."""
+        merge = {"kind": "merge", "repo": "bashcrawl", "nwo": "bamr87/bashcrawl", "ref": "#133",
+                 "title": "fix(ci): exclude CHANGELOG.md", "url": "https://example.test/133", "priority": 95,
+                 "why": "Merge #133: clears CI on main and #127 once its branch is updated", "age_days": 3,
+                 "clears": [".github/workflows/ci.yml", "#127"], "evidence": "verified"}
+        rows = m.compact_inbox([merge, {"kind": "workflow", "title": "CI", "priority": 90}])
+        self.assertEqual(rows[0]["clears"], [".github/workflows/ci.yml", "#127"])
+        self.assertEqual((rows[0]["kind"], rows[0]["evidence"]), ("merge", "verified"))
+        self.assertNotIn("clears", rows[1])
 
 
 if __name__ == "__main__":

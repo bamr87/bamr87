@@ -61,7 +61,7 @@ features:
       by: agent
   - id: HUB-003
     title: "Fleet triage inbox"
-    description: "Daily snapshot of every open issue, PR (with CI status), and failing workflow across the fleet, scored and rendered as one prioritized inbox at /inbox (formerly /triage/)."
+    description: "Daily snapshot of every open issue, PR (with CI status), and failing workflow across the fleet, scored and rendered as one prioritized inbox at /inbox (formerly /triage/). A failing workflow is linked to the open PRs that fix it (verified, doctor or weak evidence), and a green, clean fix leads the inbox as a merge item that says what merging it clears (FF-0036)."
     implemented: true
     status: shipped
     prd: [FR5]
@@ -70,11 +70,14 @@ features:
     docs: docs/DAILY-ANALYSIS.md
     tags: [ dash, triage, fleet-pulse ]
     tests:
+      - .github/scripts/dash-gen/test_fleet_triage.py
       - .github/scripts/dash-gen/test_remediation.py
+      - tools/test_fleetcore.py
     scenarios:
       - verify/scenarios/triage.yml
     evidence:
       - test/evidence/triage
+      - test/evidence/merge-fix-pr
     verified:
       date: 2026-10-12
       by: agent
@@ -416,7 +419,7 @@ features:
       - tools/test_backlog_fanout.py
   - id: HUB-028
     title: "Work board: rebalance the loops' work by drag and drop"
-    description: "Every open issue, PR, roadmap spec, spec package and BACKLOG.md item on six lanes at /work, in the order the loops take them, with each loop's next-run picks marked by the issue pipeline's own queue builder. Drag within a lane to pin the order, across lanes to move an issue (agent: labels) or a roadmap spec (status), across P0-P3 to reprioritise; every change is previewed, then applied after one confirm. The order and overrides land in _data/work_queue.yml, which the issue pipeline and repo-evolution read. Drill-downs show issue gaps, the spec packages a PR changes read at its head, roadmap entries, spec tasks and open questions. Throughput shows each loop's cap, drain time and per-repo share. The fleet_work MCP tool reads the same board."
+    description: "Every open issue, PR, roadmap spec, spec package and BACKLOG.md item on six lanes at /work, in the order the loops take them, with each loop's next-run picks marked by the issue pipeline's own queue builder. Drag within a lane to pin the order, across lanes to move an issue (agent: labels) or a roadmap spec (status), across P0-P3 to reprioritise; every change is previewed, then applied after one confirm. The order and overrides land in _data/work_queue.yml, which the issue pipeline and repo-evolution read. Drill-downs show issue gaps, the spec packages a PR changes read at its head, roadmap entries, spec tasks and open questions. Throughput shows each loop's cap, drain time and per-repo share. A fix PR sorts ahead of the PRs it clears and the first hint names the merge (FF-0036). The fleet_work MCP tool reads the same board."
     implemented: true
     status: shipped
     prd: [FR5, FR6]
@@ -433,6 +436,7 @@ features:
       - verify/scenarios/work.yml
     evidence:
       - test/evidence/work
+      - test/evidence/merge-fix-pr
   - id: HUB-029
     title: "Daily repo deep dive: one repo a day, every repo once per cycle"
     description: "A daily routine (06:00 America/Denver) deep-dives one bamr87 repo per day — review, analysis, docs, issues, feature requests, UI/UX — labelling everything it files deep-dive, so every non-archived repo is processed once per 42-day cycle starting 2026-10-30. The ledger _data/deep-dive.yml (day, scheduled date, status, last processed, cycle, issues/PRs, findings, score, next focus) is kept by tools/deep_dive.py (today, record, refresh, json, rollover), refreshed daily by deep-dive.yml as a never-auto-merged PR (manual runs dry-run to an artifact), and rendered at /deep-dive with cycle progress, a cycle calendar, per-repo status, scores and links."

@@ -98,7 +98,8 @@ DECISION_LIMIT_MAX = 200
 # (each row's per-check list and timestamps stay on the console's page).
 PRQ_LIMIT_MAX = 200
 PRQ_ROW_FIELDS = ("key", "title", "url", "author", "draft", "private", "labels", "kinds", "batch", "head", "head_sha",
-                  "mergeable", "merge_state", "review", "gate", "merge_method", "agent_merge", "next", "idle_days")
+                  "mergeable", "merge_state", "review", "gate", "merge_method", "agent_merge", "next", "idle_days",
+                  "flags", "label", "comment", "tasks")
 
 
 def decision_local(**query: Any) -> dict:
@@ -1031,18 +1032,23 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
     @mcp.tool(annotations=READ)
     def pr_queue(who: Literal["", "amr", "agent", "loop", "author"] = "", kind: str = "", repo: str = "",
                  gate: Literal["", "gated", "ungated"] = "", batch: str = "", limit: int = 50,
-                 refresh: Literal["auto", "never", "force"] = "auto") -> Any:
+                 refresh: Literal["auto", "never", "force"] = "auto",
+                 flag: Literal["", "unlabelled", "stale-comment", "no-comment", "open-tasks", "tasks-contradict"] = "") -> Any:
         """Every open pull request of the hub and the registry repos in ONE call (docs/PR-QUEUE.md): its checks
         collapsed per check (a cancelled run followed by a success is green — `false_red` marks the ones GitHub
         still shows red), the review gate (§ 12.3, with its reason), the merge method the repo allows, who moves
         it next (amr · agent · loop · author) and the bulk action that does it, the fan-out batches by head
-        branch, and the 2026-11-15 triage comment's next action as a hint. Filter by who, kind (security,
-        dependabot, release, batch, harness, ratification, draft), repo, gate or batch (a head branch). Read
+        branch, and the 2026-11-15 triage comment's next action as a hint. Each row's `flags` say where the
+        page disagrees with that reading: `unlabelled` (gated, but no needs-amr label, so the label does not
+        tell an agent to leave it), `stale-comment` / `no-comment` (the next-action comment), `open-tasks` and
+        `tasks-contradict` (the description's task list; `tasks` has done/total); `counts.flags` totals them.
+        Filter by who, kind (security, dependabot, release, batch, harness, ratification, draft), repo, gate,
+        batch (a head branch) or flag. Read
         `status` and `warnings` before relying on it. Read-only: to act, plan with pr_queue_plan and let the
         user confirm the plan on the console (the prs-act / prs-agent operations)."""
         def run():
             q = {"who": who, "kind": kind, "repo": repo, "gate": gate, "batch": batch, "refresh": refresh,
-                 "limit": max(0, min(int(limit), PRQ_LIMIT_MAX))}
+                 "flag": flag, "limit": max(0, min(int(limit), PRQ_LIMIT_MAX))}
             doc = c.get("/api/prs", **q)
             doc["rows"] = [{k: r.get(k) for k in PRQ_ROW_FIELDS if r.get(k) not in (None, [], {})}
                            | {"checks": {k: (r.get("checks") or {}).get(k) for k in ("state", "false_red", "failing", "cancelled")},
@@ -1090,7 +1096,8 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
 
     @mcp.tool(annotations=READ)
     def fleet_inbox(repo: str = "", limit: int = 30) -> Any:
-        """The fleet inbox (flagged issues, PRs, failing workflows, highest priority first), or one repo's open items."""
+        """The fleet inbox (flagged issues, PRs, failing workflows, highest priority first), or one repo's open items.
+        A `merge` item (95) is a green, clean fix PR; its `clears` lists the red workflow and the PRs it turns green."""
         return local("t_inbox", {"repo": repo, "limit": limit})
 
     @mcp.tool(annotations=READ)

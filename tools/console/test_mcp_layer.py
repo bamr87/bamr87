@@ -616,6 +616,26 @@ class MergedFleet(unittest.TestCase):
             apps = payload(*call(s, "fleet_apps", {"query": "zzzz-no-such-project"}))
             self.assertEqual(apps["count"], 0)
 
+    def test_fleet_inbox_carries_a_merge_items_clears(self):
+        """FF-0036: through the layer too, a merge item (a green, clean fix PR) reaches the agent
+        with what merging it clears and on what evidence."""
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # tools/, for fleetcore
+        from fleetcore import mcp_server as legacy
+        clears = [".github/workflows/ci.yml", "#127"]
+        merge = {"kind": "merge", "repo": "bashcrawl", "ref": "#133", "title": "fix(ci): exclude CHANGELOG.md",
+                 "why": "Merge #133: clears CI on main and #127 once its branch is updated", "age_days": 3,
+                 "url": "https://github.com/bamr87/bashcrawl/pull/133", "priority": 95, "clears": clears,
+                 "evidence": "verified"}
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "_data").mkdir()
+            (Path(d) / "_data" / "projects.yml").write_text("[]\n")
+            (Path(d) / "_data" / "fleet_triage.yml").write_text(
+                json.dumps({"generated_at": "2026-11-02 18:00 UTC", "by_repo": [], "inbox": [merge]}))
+            with mock.patch.object(legacy, "ROOT", Path(d)):
+                inbox = payload(*call(srv.build_server(FakeConsole(), allow_writes=False), "fleet_inbox"))
+        top = inbox["items"][0]
+        self.assertEqual((top["kind"], top["priority"], top["clears"], top["evidence"]), ("merge", 95, clears, "verified"))
+
 
 class Tokens(unittest.TestCase):
     def test_http_token_never_falls_back_to_console_token(self):
