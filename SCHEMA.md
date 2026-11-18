@@ -51,6 +51,7 @@ coverage: listed
 | `.agents/` | dir | Project agent skills loaded from this worktree | |
 | `.vscode/` | dir | The editor as a front door (constitution § 20): launch configurations and tasks for every harness surface through `tools/dash`, machine-neutral settings, the shared extension list; pickers held to the registries by `tools/test_vscode_launch.py` | required |
 | `home.code-workspace` | file | Consolidated VS Code multi-root workspace (dash + related clones) | |
+| `fleet.code-workspace` | file | VS Code multi-root workspace for running the fleet: the hub first, then the agent SDLC, context, content and fleet-operations submodules as their own roots; no entries or preferences of its own, folders held to `.gitmodules` by `tools/test_vscode_launch.py` | |
 | `*.code-workspace` | pattern | Other VS Code multi-root workspaces over a group of submodules (e.g. `bash-cms`: the content sites) | |
 | `remediation-workorder.md` | file | Ephemeral remediation work order (dash-gen remediate → fleet-pulse doctor; gitignored) | generated |
 | `issue-workorder-t*.md` | pattern | Ephemeral per-tier issue work orders (`dash issues` → issue-pipeline.yml; gitignored) | generated |

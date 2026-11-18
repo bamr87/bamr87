@@ -409,6 +409,76 @@ class DetailTests(unittest.TestCase):
         self.assertIn("flag", q.FILTERS)
 
 
+class LiveRowTests(unittest.TestCase):
+    """One pull request read live and run through the model: what its own workflow asks for."""
+
+    def node(self, **kw):
+        base = {"id": "PR_9", "number": 7, "title": "docs: a fix", "url": "https://github.com/o/app/pull/7", "state": "OPEN",
+                "createdAt": "2026-11-10T00:00:00Z", "updatedAt": "2026-11-14T00:00:00Z", "isDraft": False, "isCrossRepository": False,
+                "baseRefName": "main", "headRefName": "docs/fix", "author": {"login": "bamr87", "__typename": "User"},
+                "labels": {"nodes": [{"name": "docs"}]}, "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN", "reviewDecision": None,
+                "headRefOid": SHA, "body": "Fixes a typo.\n\nGoverned by: FR12\n\n- [x] Docs updated\n",
+                "repository": {"nameWithOwner": "o/app", "isPrivate": False, "mergeCommitAllowed": True, "squashMergeAllowed": True,
+                               "rebaseMergeAllowed": False, "defaultBranchRef": {"name": "main"}, "gateLabel": {"name": "needs-amr"}},
+                "files": {"totalCount": 1, "nodes": [{"path": "docs/a.md", "changeType": "MODIFIED"}]},
+                "reviewThreads": {"totalCount": 0, "nodes": []}, "comments": {"nodes": []},
+                "commits": {"nodes": [{"commit": {"oid": SHA, "committedDate": "2026-11-13T00:00:00Z", "statusCheckRollup": {
+                    "state": "SUCCESS", "contexts": {"totalCount": 1, "nodes": [
+                        {"__typename": "CheckRun", "name": "verify", "status": "COMPLETED", "conclusion": "SUCCESS",
+                         "startedAt": "2026-11-13T00:01:00Z", "completedAt": "2026-11-13T00:02:00Z",
+                         "checkSuite": {"workflowRun": {"databaseId": 1, "event": "pull_request", "workflow": {"name": "Verify"}}}}]}}}}]}}
+        base.update(kw)
+        return base
+
+    def runner(self, node, seen=None):
+        def run(argv, **_kw):
+            if seen is not None:
+                seen.append(argv)
+            out = json.dumps({"data": {"repository": {"pullRequest": node}}}) if node is not None else ""
+            return subprocess.CompletedProcess(argv, 0 if node is not None else 1, out, "" if node is not None else "GraphQL: Could not resolve")
+        return run
+
+    def test_one_query_about_one_pull_request_gives_its_row_and_readiness(self):
+        seen = []
+        row = q.live_row("o/app", 7, root=Path(TMP), runner=self.runner(self.node(), seen), now=lambda: 1794873600.0)
+        self.assertEqual(len(seen), 1)
+        self.assertEqual(seen[0][:3], ["gh", "api", "graphql"])
+        self.assertIn("owner=o", seen[0])
+        self.assertIn("number=7", seen[0])
+        self.assertEqual((row["key"], row["author"], row["labels"], row["head_sha"], row["state"]), ("o/app#7", "bamr87", ["docs"], SHA, "OPEN"))
+        self.assertEqual(row["checks"]["state"], "green")
+        states = {i["key"]: i["state"] for i in row["readiness"]["items"]}
+        self.assertEqual((states["ci"], states["base"], states["state"], states["trace"], states["tasks"]), ("done",) * 5)
+
+    def test_a_missing_trace_and_a_draft_are_work(self):
+        row = q.live_row("o/app", 7, root=Path(TMP), runner=self.runner(self.node(isDraft=True, body="No trace here.")))
+        states = {i["key"]: i["state"] for i in row["readiness"]["items"]}
+        self.assertEqual((row["readiness"]["verdict"], states["state"], states["trace"]), ("not-ready", "todo", "note"))
+
+    def test_a_pull_request_that_cannot_be_read_raises_and_a_bad_ref_is_refused(self):
+        with self.assertRaises(LookupError):
+            q.live_row("o/app", 7, root=Path(TMP), runner=self.runner(None))
+        with self.assertRaises(ValueError):
+            q.live_row("not a repo", 7, root=Path(TMP), runner=self.runner(self.node()))
+
+    def test_both_queries_are_well_formed_and_share_the_detail_fields(self):
+        for query in (q.DETAIL_Q, q.PR_Q):
+            self.assertEqual(query.count("{"), query.count("}"))
+            self.assertIn(q.DETAIL_FIELDS, query)
+        self.assertIn("pullRequest(number:$number)", q.PR_Q)
+        self.assertIn("nodes(ids:$ids)", q.DETAIL_Q)
+
+    def test_verdict_filter_and_the_text_report(self):
+        row = q.live_row("o/app", 7, root=Path(TMP), runner=self.runner(self.node(isDraft=True)))
+        text = q.render_ready(row)
+        self.assertTrue(text.startswith("o/app#7 @ aaaaaaaaa: Not ready to merge ("), text[:80])   # how many depends on the fleet's trust list
+        self.assertIn("[todo] still a draft", text)
+        self.assertEqual(len(q.filtered([row], {"verdict": "not-ready"})), 1)
+        self.assertEqual(q.filtered([row], {"verdict": "ready"}), [])
+        with self.assertRaises(ValueError):
+            q.queue(Path(TMP), refresh="never", filters={"verdict": "maybe"})
+
+
 class CliTests(unittest.TestCase):
     def test_actions_lists_the_switches(self):
         import contextlib
