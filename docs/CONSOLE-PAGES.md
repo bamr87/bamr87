@@ -6,7 +6,7 @@
 
 | Build | Served by | Data comes from | Base |
 | --- | --- | --- | --- |
-| **Console** | `tools/dash console` (FastAPI, 127.0.0.1:4001) | the console's live `/api` | `/` |
+| **Console** | `tools/dash console` (FastAPI, with the Django backend beside it on `/admin/` and `/api/v1/`; 127.0.0.1:4001) | the console's live `/api` | `/` |
 | **Public** | GitHub Pages (`build-dash.yml`) | a snapshot of the same `/api` documents, written at build time | `/bamr87/` |
 
 The two builds show the same pages: the profile (Home, About, Experience, Portfolio, Writing, Services, Contact) and every console section (Overview, Fleet, Harnesses, Spend, Observe, Content, Operate, Settings).

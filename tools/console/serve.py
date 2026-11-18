@@ -35,7 +35,8 @@ def unix_socket(path: str) -> socket.socket:
 
 
 def main() -> None:
-    config = uvicorn.Config("app:app", host=os.environ.get("CONSOLE_HOST", "127.0.0.1"),
+    # dispatch:app — Django for /admin/, /accounts/, /api/v1/, the FastAPI app for the rest (dispatch.py).
+    config = uvicorn.Config("dispatch:app", host=os.environ.get("CONSOLE_HOST", "127.0.0.1"),
                             port=int(os.environ.get("CONSOLE_PORT", "4001")))
     sockets = [config.bind_socket()]
     if uds := os.environ.get("CONSOLE_UDS"):

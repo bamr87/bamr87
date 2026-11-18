@@ -200,6 +200,7 @@
     // end, every allowlisted `dash` operation as a job. Three ways to run it:
     //   native debug  uvicorn under debugpy on :4004 (so it never fights the
     //                 compose console on :4001); breakpoints in app.py/core.py
+    //                 and the Django backend (backend/, ADR 0006)
     //   compose       `tools/dash console --docker` — the long-lived service
     //   native        `CONSOLE_RELOAD=1 tools/dash console` on :4001
     // The page is a Vite app (tools/console/web); its dev server on :5173
@@ -209,7 +210,10 @@
       "type": "debugpy",
       "request": "launch",
       "module": "uvicorn",
-      "args": ["app:app", "--host", "127.0.0.1", "--port", "4004"],
+      // dispatch:app, as run.sh serves it: Django for /admin/, /accounts/, /api/v1/,
+      // the FastAPI app for the rest (tools/console/dispatch.py). Apply the
+      // backend's migrations first with "Console: Django migrate".
+      "args": ["dispatch:app", "--host", "127.0.0.1", "--port", "4004"],
       "cwd": "${workspaceFolder}/tools/console",
       "python": "${workspaceFolder}/.venv-console/bin/python",
       "console": "integratedTerminal",
@@ -350,6 +354,28 @@
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Console: bootstrap venv",
       "presentation": { "group": "1-console", "order": 13 }
+    },
+    // The Django backend beside the FastAPI app (tools/console/backend/, ADR
+    // 0006): its own manage.py with the console's interpreter, against the
+    // native console's state (.fleet/console/; the compose console keeps its
+    // own in the console-run volume). run.sh migrates on every start too.
+    {
+      "name": "🎛️ Console: Django migrate (native backend state)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": ".venv-console/bin/python tools/console/backend/manage.py migrate",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Console: bootstrap venv",
+      "presentation": { "group": "1-console", "order": 14 }
+    },
+    {
+      "name": "🎛️ Console: Django createsuperuser (an admin login)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": ".venv-console/bin/python tools/console/backend/manage.py createsuperuser",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Console: bootstrap venv",
+      "presentation": { "group": "1-console", "order": 15 }
     },
 
     // ------------------------------------------------------------------ SITE
@@ -1096,7 +1122,7 @@
       "name": "🧪 Console: tests (test_console, test_pages, mcp layer, gh projects)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "for t in test_console test_pages test_mcp_layer test_gh_projects test_subscription test_claude_telemetry test_telemetry_query test_tui_bridge test_health_autostart; do .venv-console/bin/python tools/console/$t.py || { echo FAILED: tools/console/$t.py; break; }; done",
+      "command": "for t in test_console test_backend test_pages test_mcp_layer test_gh_projects test_subscription test_claude_telemetry test_telemetry_query test_tui_bridge test_health_autostart; do .venv-console/bin/python tools/console/$t.py || { echo FAILED: tools/console/$t.py; break; }; done",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Console: bootstrap venv",
       "presentation": { "group": "6-verify", "order": 8 }
