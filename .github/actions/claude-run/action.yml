@@ -12,7 +12,9 @@
 # this manifest (run.sh) installs Claude Code (best-effort), resolves the model
 # (--model > AI_MODEL > the CONSUMER repo's _data/ai.yml > the fleet default),
 # runs `claude -p` in the repo's credential order (AI_AUTH_ORDER, default
-# oauth then api_key; a REFUSED credential moves on to the next one), and falls
+# oauth then api_key; a REFUSED credential moves on to the next one; a
+# TRANSIENT failure that billed nothing is re-run on the same one, per
+# AI_TRANSIENT_RETRIES / AI_TRANSIENT_BACKOFF in the step env), and falls
 # back to the Claude API when the
 # consumer ships scripts/ai/api_call.rb|py. A call that was ATTEMPTED and FAILED
 # with no fallback fails THIS step with the reason the run gave — never a silent

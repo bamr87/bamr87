@@ -1,0 +1,56 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.bamr87/fleet",
+  "title": "bamr87 Harness Console",
+  "description": "The bamr87 fleet's control plane: fleet status, harness health, jobs, spend and the Work board",
+  "version": "0.2.0",
+  "repository": {
+    "url": "https://github.com/bamr87/bamr87",
+    "source": "github",
+    "subfolder": "tools/console"
+  },
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "registryId": "fleet",
+      "registry": "_data/mcp_servers.yml",
+      "docs": "tools/console/docs/mcp-layer.md",
+      "published": false,
+      "transport": {
+        "type": "stdio"
+      },
+      "launch": {
+        "command": "tools/console/mcp.sh",
+        "args": ["--fleet-compat"],
+        "cwd": "repository root"
+      },
+      "environmentVariables": [
+        {
+          "name": "DASH_CONSOLE_URL",
+          "description": "The Harness Console the server wraps; unset means the local console",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "DASH_CONSOLE_TOKEN",
+          "description": "The console's bearer token; unset means the line in the repository's .env",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "HARNESS_MCP_ALLOW_WRITES",
+          "description": "true (or 1) registers the destructive write tools, each still behind confirm=true; off by default",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "boolean"
+        },
+        {
+          "name": "HARNESS_MCP_SCOPES",
+          "description": "Comma list of narrow, audited write scopes (jobs, work); empty grants none",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ],
+      "notes": "Not a published package: a checkout runs it with tools/console/mcp.sh, which bootstraps .venv-mcp. The streamable HTTP transport (mcp.sh --http) binds loopback only and is not declared as a remote."
+    }
+  }
+}

@@ -17,9 +17,19 @@
 #   tools/fleet-compose.py   → compose/fleet.env (committed) + compose/overrides/ validation
 #   tools/check-drift.sh (m) → collision + conformance gate
 #   .vscode/launch.json      → the per-app debug targets
+#   tools/fleetcore/apps.py  → each frontend's local target in the app portal
+#                              (`tools/dash apps`, the console's Apps page)
 #
 # Adding a project: add a `projects:` entry, run `tools/fleet-compose.py sync`,
 # commit the generated override. Never hand-pick a number outside its band.
+#
+# DEVENV-HOSTED PROJECTS (`host: devenv`) have no compose file of their own and
+# are served from inside the hub's devenv container, so they take their ports
+# from the WORKSPACE bands: the block docker-compose.yml's devenv service
+# publishes, mirroring _data/fleet.yml `containers.ports.workspace*`. That port
+# is their local target in the app portal, and their `start:` is the command
+# their .vscode/launch.json entry runs (there is no `tools/dash dev up` for
+# them); tools/test_vscode_launch.py holds the three equal.
 #
 # NOTE ON HOST BINDING: every allocation is published on 127.0.0.1 only. On
 # Docker Desktop for Mac a 0.0.0.0 mapping also opens an IPv6 docker-proxy
@@ -30,18 +40,28 @@
 schema: fleet-ports/v1
 
 # ---------------------------------------------------------------------------
-# Bands — every allocation must fall inside its role's range.
+# Bands — every allocation must fall inside its role's range, and no two bands
+# overlap. A Jekyll allocation's `livereload` falls in `<band>_livereload` when
+# that band exists, else in `livereload`.
 # ---------------------------------------------------------------------------
 bands:
   hub:        { range: [4000, 4009], purpose: "Hub's own surfaces: dash, console" }
   jekyll:     { range: [4010, 4039], purpose: "Jekyll/static sites, one per project" }
   livereload: { range: [35730, 35759], purpose: "Jekyll livereload, mirrors the jekyll band" }
-  frontend:   { range: [5000, 5199], purpose: "Vite/Node frontends and static previews (5000 = cv-pro, grandfathered)" }
+  frontend:   { range: [5020, 5199], purpose: "Vite/Node frontends and static previews" }
   api:        { range: [8100, 8149], purpose: "HTTP APIs and server-rendered apps" }
   docs:       { range: [8000, 8009], purpose: "Hub/devenv documentation servers (MkDocs)" }
   debug:      { range: [5700, 5749], purpose: "debugpy / node --inspect attach points" }
   database:   { range: [5430, 5469], purpose: "Per-project databases that cannot share (see shared:)" }
   cache:      { range: [6380, 6399], purpose: "Per-project caches that cannot share" }
+  # The workspace block, for `host: devenv` projects only: what the hub's devenv
+  # container publishes for the servers started inside it. The ranges are
+  # _data/fleet.yml `containers.ports.workspace*` (test_fleet_compose.py holds
+  # them equal), clear of every band above so an F5 in the workspace and a
+  # compose stack never want the same port.
+  workspace:            { range: [4040, 4069], purpose: "Jekyll-in-devenv (containers.ports.workspace)" }
+  workspace_livereload: { range: [35760, 35789], purpose: "Their livereload, mirrors the workspace band" }
+  workspace_node:       { range: [5000, 5019], purpose: "Vite-in-devenv (containers.ports.workspace_node)" }
 
 # ---------------------------------------------------------------------------
 # Shared services — exactly ONE instance, hub-owned, on the `fleet-net`
@@ -87,6 +107,8 @@ shared:
 #   host:     how the hub reaches it — `compose` (the project's own
 #             docker-compose.yml, included by compose/fleet.yml) or `devenv`
 #             (no compose of its own; run via `docker compose exec devenv`).
+#   start:    devenv only — the command that serves it, exactly its
+#             .vscode/launch.json entry's (the app portal shows it to copy).
 #   services: service name in that compose file → allocation.
 #   var:      the namespaced env var written into compose/fleet.env. Namespaced on
 #             purpose: djangoerp and barodybroject both read POSTGRES_PORT, and
@@ -205,20 +227,25 @@ projects:
       imagegen: { port: 8118, band: api, var: ZER0_CMS_IMAGEGEN_PORT }
 
   # ---- devenv-hosted: no compose of their own --------------------------------
-  # Run via `docker compose exec devenv`; ports published by the devenv service.
+  # Run via `docker compose exec devenv`, on the workspace bands the devenv
+  # service publishes; `start:` is their .vscode/launch.json entry's command.
   cv-pro:
     host: devenv
+    start: "docker compose exec -w /workspace/projects/cv-pro/app devenv sh -c '[ -d node_modules/.bin ] || npm install --no-package-lock --no-audit --no-fund; exec npx vite --host 0.0.0.0 --port 5000'"
     services:
-      vite: { port: 5000, band: frontend, var: CV_PORT }
+      vite: { port: 5000, band: workspace_node, var: CV_PORT }
   bamr87.github.io:
     host: devenv
+    start: "docker compose exec -w /workspace/projects/bamr87.github.io devenv sh -c 'bundle check >/dev/null 2>&1 || bundle install; exec bundle exec jekyll serve --host 0.0.0.0 --port 4040 --livereload --livereload-port 35760'"
     services:
-      jekyll: { port: 4012, band: jekyll, var: BAMR87_IO_PORT, livereload: 35732 }
+      jekyll: { port: 4040, band: workspace, var: BAMR87_IO_PORT, livereload: 35760 }
   lifehacker.dev:
     host: devenv
+    start: "docker compose exec -w /workspace/projects/lifehacker.dev devenv sh -c 'bundle check >/dev/null 2>&1 || bundle install; exec bundle exec jekyll serve --host 0.0.0.0 --port 4041 --livereload --livereload-port 35761'"
     services:
-      jekyll: { port: 4013, band: jekyll, var: LIFEHACKER_PORT, livereload: 35733 }
+      jekyll: { port: 4041, band: workspace, var: LIFEHACKER_PORT, livereload: 35761 }
   rewind-arcade:
     host: devenv
+    start: "docker compose exec -w /workspace/projects/rewind-arcade/arcade devenv sh -c '[ -d node_modules/.bin ] || npm install --no-package-lock --no-audit --no-fund; exec npx vite --host 0.0.0.0 --port 5001'"
     services:
-      vite: { port: 5175, band: frontend, var: REWIND_ARCADE_PORT }
+      vite: { port: 5001, band: workspace_node, var: REWIND_ARCADE_PORT }
