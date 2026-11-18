@@ -63,6 +63,18 @@ jobs:
           GITHUB_HEAD_REF: ${{ github.head_ref }}
         run: python3 -m tools.jev generated guard --range HEAD^1 HEAD
 
+      # Check (q) resolves every hub pin in templates/ against the hub's own
+      # release tags, offline, and the checkout above has none. Fetch only the
+      # v* tags, each at depth 1 (its tree, not its history), forced so a moved
+      # floating major is read where it is now. Keep this AFTER the guard: when
+      # a tag points at HEAD (a release just cut), a depth-1 fetch makes HEAD a
+      # shallow boundary and HEAD^1 unreachable. A failed fetch leaves (q)
+      # reading unverified, which is never a finding.
+      - name: Fetch the release tags check (q) reads
+        run: |
+          git fetch --no-tags --depth=1 origin '+refs/tags/v*:refs/tags/v*' \
+            || echo "::warning::could not fetch the v* tags; drift check (q) reports its pins unverified"
+
       # JEV_SPANS_ADVISORY: a stale generated SPAN (README AUTO:projects, the
       # docs/DASH.md CLI reference) warns instead of failing — main's post-merge
       # job regenerates it, so a PR is never asked to (and never conflicts on it).

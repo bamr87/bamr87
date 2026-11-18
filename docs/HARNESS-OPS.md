@@ -104,6 +104,16 @@ Enrolment is the existing registration path plus two levers — nothing new to r
 
 Requires `FLEET_TOKEN` with contents + pull-requests + **workflows** write on the targets (GitHub refuses a push touching `.github/workflows/*` without it).
 
+### Hub pins that do not resolve
+
+A fleet caller that pins `bamr87/bamr87/.github/workflows/<file>@<ref>` (or an action) at a ref without that file fails at startup with no job, and the failure names nothing. law-ai's CI on `main` failed this way from 2026-10-30, with `spec-gate.yml@v2` pinned while `v2` predated the file (FF-0037, #610). Three places now resolve these pins through one module, [`hub_refs.py`](../.github/scripts/dash-gen/hub_refs.py). Each resolves a distinct target@ref once per run, to `ok`, `ref-missing`, `file-missing-at-ref` or `unverified`:
+
+- **The daily inventory.** The scan already reads every owned repo's workflow files, so each row of `_data/harness_registry.yml` also carries `hub_refs` (path, line, target, ref, status, and the computed `fix` when a pin is broken). The pins are resolved against GitHub; the hub is public, so a 404 there is authoritative. A broken pin becomes a `hub-ref-broken` attention item, severity 88, one per repo and target@ref, and its `action` is the fix: when the file is on `main`, cut the next `vX.Y.0` and move `vX`; when the ref was never cut, cut it or repin; when the file is gone from `main` too, repin to its replacement. An unverified pin is not a finding. A repo the token cannot read stays `scanned: false`. Files past `inventory.max_workflow_files`, and files the scan could not fetch, are counted in `hub_refs_unread_files`. Either way they are unread, never clean, and the totals carry `hub_refs`, `hub_refs_broken`, `hub_refs_unverified`, `hub_refs_unread_repos` and `hub_refs_unread_files`.
+- **Drift check (q).** On every pull request it resolves the pins in `templates/` against the hub's own tags, offline, and warns only. Under `--remote`/`--ci` it also lists the broken fleet callers from the committed inventory, with no API call.
+- **The fan-out pre-flight.** `tools/fanout.sh` resolves the kit's caller templates before it clones a target. The dry run names an unresolved pin; `--apply` refuses to run until it resolves.
+
+The release rules these checks serve are in [WORKFLOW-VERSIONING.md](WORKFLOW-VERSIONING.md#pins-resolve-before-they-ship).
+
 ## Control throughput
 
 Scheduled agent work is a **standing commitment** — it runs whether or not anyone asked that day — so it is the half the contract caps (`harnesses.throughput`):
@@ -221,6 +231,8 @@ The harness standard (2026-11-11) is additive too, so the marker stays `harness-
 - `max_budget_usd` is the ceiling in force: for an `ai-lane` or `claude-run` caller that passes none, the route's default.
 - `totals.ai_workflows`, `mention_handlers`, `scheduled_agents` and the throughput estimate count live harnesses only. The workflows of a repo GitHub has archived are still listed, with `lever: retire`.
 - `deployable` is now also false for a repo the registry marks archived, so `--gaps` never offers one to the fan-out.
+
+Hub pins (FF-0037) are additive as well, and the marker holds. New keys: on each scanned `repos[]` row, `hub_refs` (a list of `path`, `line`, `kind`, `target`, `ref`, `uses` and `status`, plus `detail` and `fix` when they apply) and `hub_refs_unread_files`; five `totals` (`hub_refs`, `hub_refs_broken`, `hub_refs_unverified`, `hub_refs_unread_repos`, `hub_refs_unread_files`); and the `hub-ref-broken` attention kind. A row from a scan taken before this change has no `hub_refs` key, and `hub_refs.py fleet` reports that as not yet recorded, never as clean.
 
 A reader that wants only the harnesses the old scanner saw can filter on `route: claude-code-action`.
 

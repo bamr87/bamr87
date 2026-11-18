@@ -1,0 +1,145 @@
+{
+  "_about": "Responses in the shapes the three stores answer, for test_telemetry_query.py (no network). Prometheus: HTTP API v1 /api/v1/query and /query_range. Elasticsearch: _search over the logs-fleet.* data streams with the fields fleet_observe.py maps and logstash/pipeline/20-otlp-in.conf writes. Phoenix: REST v1 SpansResponseBody and GetTracesResponseBody from the image's own /openapi.json. Values are synthetic; __GHP__ and __SKANT__ are filled in by the test, so no token-shaped string is committed.",
+  "prometheus": {
+    "vector": {
+      "status": "success",
+      "data": {
+        "resultType": "vector",
+        "result": [
+          {
+            "metric": {"model": "claude-opus-5", "session_id": "0b6c1f2e-1111-4a2b-9c3d-123456789abc", "type": "cacheRead", "user_email": "someone@example.com", "user_account_uuid": "8f0e7d6c-2222-4b3a-8c1d-abcdefabcdef", "user_account_id": "user_01ABCDEF", "user_id": "a1b2c3d4", "organization_id": "9e8d7c6b-3333-4c2b-9a1e-fedcbafedcba", "process_owner": "someone", "app_version": "2.1.300"},
+            "value": [1763200000.123, "10130"]
+          },
+          {
+            "metric": {"model": "claude-sonnet-5", "session_id": "0b6c1f2e-1111-4a2b-9c3d-123456789abc", "type": "output", "user_email": "someone@example.com"},
+            "value": [1763200000.123, "4"]
+          }
+        ]
+      }
+    },
+    "matrix": {
+      "status": "success",
+      "data": {
+        "resultType": "matrix",
+        "result": [
+          {"metric": {"model": "claude-opus-5"}, "values": [[1763196400, "0.05"], [1763198200, "0.08"], [1763200000, "0.1015"]]}
+        ]
+      }
+    },
+    "scalar": {"status": "success", "data": {"resultType": "scalar", "result": [1763200000.123, "2"]}},
+    "bad_data": {"status": "error", "errorType": "bad_data", "error": "invalid parameter \"query\": 1:9: parse error: unexpected right parenthesis ')'"}
+  },
+  "elasticsearch": {
+    "search": {
+      "took": 4,
+      "timed_out": false,
+      "_shards": {"total": 3, "successful": 3, "skipped": 0, "failed": 0},
+      "hits": {
+        "total": {"value": 3, "relation": "eq"},
+        "max_score": null,
+        "hits": [
+          {
+            "_index": ".ds-logs-fleet.claude-default-2026.11.15-000001",
+            "_id": "c1",
+            "_score": null,
+            "_source": {
+              "@timestamp": "2026-11-15T10:00:02.500Z",
+              "message": "claude_code.api_request",
+              "event": {"action": "api_request", "module": "claude_code", "kind": "event"},
+              "log": {"level": "info"},
+              "fleet": {"repo": "bamr87/bamr87"},
+              "trace": {"id": "4bf92f3577b34da6a3ce929d0e0e4736"},
+              "span": {"id": "00f067aa0ba902b7"},
+              "service": {"name": "claude-code"},
+              "user": {"email": "someone@example.com", "id": "a1b2c3d4"},
+              "claude": {"session_id": "0b6c1f2e-1111-4a2b-9c3d-123456789abc", "model": "claude-opus-5", "input_tokens": 2, "output_tokens": 4, "cache_read_tokens": 10130, "cache_creation_tokens": 9633, "cost_usd": 0.1015, "duration_ms": 2500, "user_email": "someone@example.com", "organization_id": "9e8d7c6b-3333-4c2b-9a1e-fedcbafedcba", "tool_parameters": "{\"command\": \"echo hi\"}"}
+            },
+            "sort": [1763200802500]
+          },
+          {
+            "_index": ".ds-logs-fleet.claude-default-2026.11.15-000001",
+            "_id": "c2",
+            "_score": null,
+            "_source": {
+              "@timestamp": "2026-11-15T10:00:01.000Z",
+              "message": "claude_code.tool_result",
+              "event": {"action": "tool_result", "module": "claude_code", "kind": "event"},
+              "log": {"level": "warn"},
+              "claude": {"session_id": "0b6c1f2e-1111-4a2b-9c3d-123456789abc", "tool_name": "Bash", "success": "false", "error": "curl -H 'Authorization: Bearer abcdefghijklmnop0123456789' failed for someone@example.com with key __SKANT__"}
+            }
+          },
+          {
+            "_index": ".ds-logs-fleet.actions-default-2026.11.15-000001",
+            "_id": "a1",
+            "_score": null,
+            "_source": {
+              "@timestamp": "2026-11-15T09:59:00.000Z",
+              "message": "##[error]push rejected: remote: invalid credentials __GHP__ (token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2lnbmF0dXJl)",
+              "log": {"level": "error"},
+              "event": {"dataset": "fleet.actions", "module": "github.actions"},
+              "fleet": {"repo": "bamr87/bamr87", "project": "bamr87"},
+              "ci": {"run_id": 19400000001, "run_attempt": 1, "workflow": "drift-check", "job": "drift", "step": "Run check", "conclusion": "failure", "sha": "0123456789abcdef0123456789abcdef01234567"},
+              "url": {"full": "https://github.com/bamr87/bamr87/actions/runs/19400000001"},
+              "trace": {"id": "5c0a2f3577b34da6a3ce929d0e0e4737"}
+            }
+          }
+        ]
+      }
+    },
+    "bad_query": {"error": {"root_cause": [{"type": "parsing_exception", "reason": "[simple_query_string] unknown token"}], "type": "parsing_exception", "reason": "[simple_query_string] unknown token"}, "status": 400}
+  },
+  "phoenix": {
+    "spans": {
+      "data": [
+        {
+          "id": "U3BhbjoxMjM=",
+          "name": "claude_code.interaction",
+          "context": {"trace_id": "4bf92f3577b34da6a3ce929d0e0e4736", "span_id": "a0f067aa0ba902b0"},
+          "span_kind": "AGENT",
+          "parent_id": null,
+          "start_time": "2026-11-15T10:00:00.000000+00:00",
+          "end_time": "2026-11-15T10:00:04.250000+00:00",
+          "status_code": "OK",
+          "status_message": "",
+          "attributes": {"session.id": "0b6c1f2e-1111-4a2b-9c3d-123456789abc", "user.email": "someone@example.com", "openinference.span.kind": "AGENT"},
+          "events": []
+        },
+        {
+          "id": "U3BhbjoxMjQ=",
+          "name": "claude_code.llm_request",
+          "context": {"trace_id": "4bf92f3577b34da6a3ce929d0e0e4736", "span_id": "00f067aa0ba902b7"},
+          "span_kind": "LLM",
+          "parent_id": "a0f067aa0ba902b0",
+          "start_time": "2026-11-15T10:00:00.100000+00:00",
+          "end_time": "2026-11-15T10:00:02.600000+00:00",
+          "status_code": "OK",
+          "status_message": "",
+          "attributes": {"llm.model_name": "claude-opus-5", "llm.token_count.prompt": 19765, "llm.token_count.completion": 4, "llm.token_count.total": 19769, "llm.token_count.prompt_details.cache_read": 10130, "llm.token_count.prompt_details.cache_write": 9633, "session.id": "0b6c1f2e-1111-4a2b-9c3d-123456789abc", "user.account_uuid": "8f0e7d6c-2222-4b3a-8c1d-abcdefabcdef"},
+          "events": []
+        },
+        {
+          "id": "U3BhbjoxMjU=",
+          "name": "claude_code.tool",
+          "context": {"trace_id": "4bf92f3577b34da6a3ce929d0e0e4736", "span_id": "b0f067aa0ba902b8"},
+          "span_kind": "TOOL",
+          "parent_id": "a0f067aa0ba902b0",
+          "start_time": "2026-11-15T10:00:02.700000Z",
+          "end_time": "2026-11-15T10:00:04.200000Z",
+          "status_code": "ERROR",
+          "status_message": "exit 1: token __GHP__ rejected",
+          "attributes": {"tool": {"name": "Bash"}, "session": {"id": "0b6c1f2e-1111-4a2b-9c3d-123456789abc"}, "llm": {"model_name": "claude-opus-5"}},
+          "events": []
+        }
+      ],
+      "next_cursor": null
+    },
+    "traces": {
+      "data": [
+        {"id": "VHJhY2U6MQ==", "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736", "project_id": "UHJvamVjdDox", "start_time": "2026-11-15T10:00:00+00:00", "end_time": "2026-11-15T10:01:30+00:00", "token_count_prompt": 39530, "token_count_completion": 812, "token_count_total": 40342, "spans": null},
+        {"id": "VHJhY2U6Mg==", "trace_id": "5c0a2f3577b34da6a3ce929d0e0e4737", "project_id": "UHJvamVjdDox", "start_time": "2026-11-15T09:00:00+00:00", "end_time": "2026-11-15T09:00:12.500000+00:00", "token_count_prompt": 1200, "token_count_completion": 30, "token_count_total": 1230, "spans": null}
+      ],
+      "next_cursor": "VHJhY2U6Mw=="
+    },
+    "unauthorized": {"detail": "Unauthorized"}
+  }
+}

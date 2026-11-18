@@ -42,6 +42,15 @@ one place that answers, for ~40 repos at once:
              the LEVER that rebuilds it: a kit upgrade, a kit re-seed, a move
              onto the reusable lane, a blueprint recompile, a hub fix, or
              retirement.
+  HUB REFS   every `uses:` pin of a hub reusable workflow or action in each
+             repo's workflow files (`hub_refs`: path, line, target, ref,
+             status), resolved once per distinct target@ref against GitHub by
+             hub_refs.py. A pin at a ref that lacks its target fails the
+             caller at startup with no job, so it is a `hub-ref-broken`
+             attention item carrying the computed fix (FF-0037). Files past
+             `inventory.max_workflow_files` or unreadable are counted in
+             `hub_refs_unread_files`, an unreadable repo stays `scanned:
+             false`: unread, never clean.
 
 This file is a CONSUMED INTERFACE: GitFactory's Fleet Studio (gitorio
 specs/012-fleet-studio) reads the committed output as its fleet roster and
@@ -86,6 +95,7 @@ except ImportError:  # pragma: no cover
 
 import actions_analytics  # registry loading + owner_repo + token resolution
 import harness  # the rotation ledger's post-run repo state (rotation_repo_state)
+import hub_refs  # pins of hub reusable workflows/actions, and whether they resolve
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 FLEET_DEFAULT = REPO_ROOT / "_data" / "fleet.yml"
@@ -1416,6 +1426,22 @@ def build_attention(repos: list[dict], throughput: dict, trends: dict, cfg: dict
                 f"{len(r['harnesses'])} AI workflow(s) can still run",
                 "archive the repo on GitHub (a setting: the maintainer's), remove the workflows, "
                 "or correct `status` in _data/projects.yml", repo=r["repo"])
+        # A pin of a hub workflow or action at a ref that lacks it fails the
+        # caller at startup with no job, and nothing in the caller's repo says
+        # why (law-ai, 2026-10-30: spec-gate.yml@v2 before v2.1.0). One item
+        # per target@ref, carrying the fix computed from the hub's own state;
+        # an unverified pin is not a finding.
+        broken: dict[tuple[str, str], list[dict]] = {}
+        for ref in r.get("hub_refs") or []:
+            if ref.get("status") in hub_refs.BROKEN:
+                broken.setdefault((ref["target"], ref["ref"]), []).append(ref)
+        for (target, at), pins in sorted(broken.items()):
+            where = ", ".join(f"{p['path']}:{p['line']}" for p in pins[:4])
+            fix = pins[0].get("fix") or ["repin to a ref that carries it"]
+            add(88, "hub-ref-broken",
+                f"{where} calls {target}@{at}: {pins[0].get('detail') or pins[0]['status']} — "
+                "the workflow fails at startup with no job",
+                fix[0] + (f" ({fix[1]})" if len(fix) > 1 else ""), repo=r["repo"])
         for h in r.get("harnesses") or []:
             if h.get("last_conclusion") == "failure" or "failing" in (h.get("flags") or []):
                 add(75, "harness-failing",
@@ -1550,14 +1576,21 @@ def scan_repo(gh, project: dict, cfg: dict, secret_states: dict[str, str],
     # says so: silently dropping the tail hid harnesses with no trace.
     row["workflows_listed"] = len(files)
     row["workflows_truncated"] = len(files) > cfg["inventory"]["max_workflow_files"]
+    # Pins of hub workflows/actions, resolved after the scan (resolve_hub_refs).
+    # A file this scan did not read is counted, never assumed clean: a 404 or
+    # a cap on the caller's side is not a finding either way.
+    row["hub_refs"] = []
+    row["hub_refs_unread_files"] = max(0, len(files) - cfg["inventory"]["max_workflow_files"])
     files = files[: cfg["inventory"]["max_workflow_files"]]
     shapes = kit_shapes(hub_version, repo_name=name or "")
     for entry in files:
         try:
             text = repo.get_contents(entry.path).decoded_content.decode("utf-8", "replace")
         except Exception:
+            row["hub_refs_unread_files"] += 1
             continue
         row["workflows_total"] += 1
+        row["hub_refs"].extend(hub_refs.extract(text, entry.path, hub=cfg["hub_nwo"]))
         info = classify_workflow(entry.path, text)
         for cron in info["crons"]:
             row["scheduled"].append({
@@ -1647,6 +1680,23 @@ def collect_fleet(gh, registry: list[dict], cfg: dict, rotation: dict,
     return rows
 
 
+def resolve_hub_refs(repos: list[dict], resolver: "hub_refs.Resolver",
+                     facts: "hub_refs.TreeFacts | None") -> int:
+    """Give every scanned pin its status (and a broken one its fix), one lookup
+    per distinct target@ref across the whole fleet. Returns the lookups spent."""
+    for r in repos:
+        hub_refs.annotate(r.get("hub_refs") or [], resolver, facts)
+    return resolver.lookups
+
+
+def live_hub_resolver(token: str | None, cfg: dict) -> "hub_refs.Resolver":
+    """GitHub first (the hub is public, so its 404 is authoritative), then this
+    checkout's tags; fleet-pulse checks out without tags, so that fallback
+    mostly reads unverified, which is never a finding."""
+    return hub_refs.Resolver(hub_refs.ApiBackend(hub_refs.http_getter(token), cfg["hub_nwo"]),
+                             hub_refs.GitBackend(REPO_ROOT, worktree_is_default=False))
+
+
 # --------------------------------------------------------------------------- #
 # assembly
 # --------------------------------------------------------------------------- #
@@ -1691,6 +1741,7 @@ def finalize(repos: list[dict], cfg: dict, hub_version: str | None, ai_usage: di
     # Live harnesses only: a workflow in an archived repo is listed (lever:
     # retire) but is not an AI workflow the fleet runs.
     all_harnesses = [h for r in repos if not is_dormant(r) for h in r.get("harnesses") or []]
+    live_pins = [p for r in repos if not is_dormant(r) for p in r.get("hub_refs") or []]
     totals = {
         "repos": len(repos),
         "repos_scanned": sum(1 for r in repos if r.get("scanned")),
@@ -1715,6 +1766,14 @@ def finalize(repos: list[dict], cfg: dict, hub_version: str | None, ai_usage: di
         "harnesses_retired": catalog["retired"],
         "harnesses_dormant": catalog["dormant"],
         "repos_truncated": sum(1 for r in repos if r.get("workflows_truncated")),
+        # Pins of hub workflows/actions in live repos (FF-0037). Unread repos
+        # and files are counted beside them so a clean count never hides them.
+        "hub_refs": len(live_pins),
+        "hub_refs_broken": sum(1 for p in live_pins if p.get("status") in hub_refs.BROKEN),
+        "hub_refs_unverified": sum(1 for p in live_pins if p.get("status") == "unverified"),
+        "hub_refs_unread_repos": sum(1 for r in repos
+                                     if not r.get("external") and not r.get("scanned")),
+        "hub_refs_unread_files": sum(int(r.get("hub_refs_unread_files") or 0) for r in repos),
     }
     standard = cfg["standard"]
     return {
@@ -1862,6 +1921,12 @@ def run(args: argparse.Namespace) -> int:
                 registry = yaml.safe_load(fh) or []
             repos = collect_fleet(gh, registry, cfg, rotation, hub_version)
             scan_mode, scanned_at = "live", now.strftime("%Y-%m-%d %H:%M UTC")
+            # The fix for a broken pin reads main's own state: this checkout
+            # (fleet-pulse runs on main), and the release tags GitHub serves.
+            resolver = live_hub_resolver(token, cfg)
+            facts = hub_refs.TreeFacts(REPO_ROOT, tags_fn=resolver.tags)
+            spent = resolve_hub_refs(repos, resolver, facts)
+            sys.stderr.write(f"  hub refs · {spent} distinct target@ref resolved\n")
     if not repos:
         # No credentials (or --offline): reuse the previous committed scan so
         # the offline analytics still refresh — same degrade-don't-die posture

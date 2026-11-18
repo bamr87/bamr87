@@ -33,7 +33,7 @@ totals:
     R1: 115
     R2: 133
     R3: 0
-    R4: 2
+    R4: 0
     R5: 3
     R6: 77
 kpis:
@@ -166,7 +166,11 @@ sources:
     slo: on-change
   conformance:
     path: _data/conformance.yml
-    writer: null
+    writer: fleet-snapshots.yml (dash spec fleet --write, weekly)
+    slo: 14d
+  features-index:
+    path: _data/features_index.yml
+    writer: fleet-snapshots.yml (dash features fleet --write, weekly)
     slo: 14d
   token-rotation:
     path: _data/token_rotation.yml
@@ -421,7 +425,7 @@ agents:
     false_signal_pct: 20
     silent_failure_pct: 5
   reads:
-    conformance: null
+    conformance: fleet-snapshots.yml (dash spec fleet --write, weekly)
     fleet-config: maintainer (reviewed PR)
     github-live: GitHub
     registry: maintainer (reviewed PR); reconcile-registry.yml proposes the changes
@@ -434,7 +438,6 @@ agents:
   first_seen: '2026-11-07'
   gaps:
   - R2:missing:cost_source,tool_errors
-  - R4:no-writer:conformance
 - id: ci:bamr87:repo-scout
   kind: ci-scheduled
   category: ci-agent-step
@@ -4036,7 +4039,7 @@ agents:
     silent_failure_pct: 5
   reads:
     code-index: Kilo Code's indexer, when the editor opens the workspace (kilo.jsonc)
-    conformance: null
+    conformance: fleet-snapshots.yml (dash spec fleet --write, weekly)
     fleet-config: maintainer (reviewed PR)
     harness-library: maintainer (reviewed PR; tools/dash refine library, the reflector's draft PRs)
     lake: local:harness-review
@@ -4052,7 +4055,6 @@ agents:
   first_seen: '2026-11-07'
   gaps:
   - R2:missing:permission_denials,tool_errors
-  - R4:no-writer:conformance
 - id: loop:repo-scout/scout
   kind: loop-step
   category: local-loop-step

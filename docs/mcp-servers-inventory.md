@@ -23,7 +23,7 @@
 - [ ] `tools/console/docs/mcp-layer.md` — operator guide for console MCP
 - [ ] `_data/specs.yml` UPS requiring `.mcp.json` baseline (`github`, `memory`, `sequentialthinking`, `context7`)
 - [ ] `docs/agentic-patterns/patterns/10-model-context-protocol.md` — ADP-10 evidence
-- [ ] #541 — Console MCP Registry `server.json` (AI-ready § 16)
+- [x] #541 — Console MCP Registry `server.json` (AI-ready § 16): `tools/console/server.json`, linted by `tools/mcp_servers_lint.py`, not published
 
 ## Related repos (cheaply visible)
 

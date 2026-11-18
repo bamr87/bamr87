@@ -62,6 +62,9 @@ def test_the_snapshot_publishes_nothing_local():
     assert "auth" not in docs(), "the auth document must not be published"
     # The decision index is read with the operator's token and can hold a private repo's titles.
     assert "decisions" not in docs(), "the decision queue must not be published"
+    # So are GitHub Projects (gh_projects.py): the page has a route, the snapshot no document.
+    assert not [k for k in docs() if k.startswith("gh-projects")], "GitHub Projects must not be published"
+    assert "gh-projects" in snapshot.STATIC_ROUTES and "localOnly('GitHub Projects')" in (WEB / "api" / "static.ts").read_text()
     assert docs()["capabilities"]["env_tokens"] == {} and docs()["capabilities"]["mode"] == "snapshot"
 
 
@@ -103,7 +106,9 @@ def test_the_launcher_is_published_as_addresses_with_a_page_per_app():
     doc = docs()["apps"]
     assert doc["schema"] == "fleet-launcher/v1" and doc["apps"], "no launcher in the snapshot"
     keys = {k for a in doc["apps"] for t in a["targets"] for k in t}
-    assert keys <= {"id", "kind", "label", "url", "service", "port", "band", "start", "project"}, f"unexpected target fields: {sorted(keys)}"
+    # `host` is the registry's `compose` or `devenv`, not anything observed here
+    assert keys <= {"id", "kind", "label", "url", "service", "port", "band", "start", "project", "host"}, f"unexpected target fields: {sorted(keys)}"
+    assert {t["host"] for a in doc["apps"] for t in a["targets"] if t["kind"] == "local"} <= {"compose", "devenv"}
     routes = snapshot.routes(docs())
     for a in doc["apps"]:
         assert f"apps/{a['id']}" in routes, f"/apps/{a['id']} would 404 on Pages"

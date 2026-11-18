@@ -44,7 +44,7 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 | Kit | Version | Updated | Seeded by | Files |
 | --- | --- | --- | --- | --- |
 | [`agent-context/`](templates/agent-context/) | 0.7.0 | 2026-11-15 | .github/workflows/fanout.yml (kit standardize or harness; artifacts agent-context, claude… | `CLAUDE.template.md`, `agent-auditor.template.md`, `claude.yml`, `quarantine.template.md`, `settings.template.json` |
-| [`ai-ready/`](templates/ai-ready/) | 0.0.0 | 2026-10-30 | not yet; fan-out follows ratification of constitution § 16 (amendment ai-ready-foundation) | `README.md` |
+| [`ai-ready/`](templates/ai-ready/) | 0.1.0 | 2026-11-15 | not yet; no fan-out is wired for this kit. | `README.md`, `agent-card.template.json`, `test_ai_ready_kit.py` |
 | [`ai-runner/`](templates/ai-runner/) | 0.4.0 | 2026-11-14 | consumed BY REFERENCE (uses: bamr87/bamr87/.github/actions/claude-run@v2, or the reusable… | `README.md`, `ai-lane.template.yml`, `tests/contract.sh` |
 | [`community/`](templates/community/) | 0.1.0 | 2026-10-03 | Distribution is by INHERITANCE first: the PR template, the issue forms, CONTRIBUTING.md,… | `.github/CODEOWNERS`, `.github/ISSUE_TEMPLATE/bug_report.yml`, `.github/ISSUE_TEMPLATE/config.yml`, `.github/ISSUE_TEMPLATE/documentation.yml`, `.github/ISSUE_TEMPLATE/feature_request.yml`, `.github/… |
 | [`conformance/`](templates/conformance/) | 0.2.0 | 2026-11-14 | tools/fanout.sh --kit standardize --artifacts conformance (fanout.yml, kit standardize) | `README.md`, `conformance.yml` |
@@ -202,6 +202,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_backlog_fanout.py`](tools/test_backlog_fanout.py) | Fixture tests for tools/backlog_fanout.py + tools/fleet_activity.py. |
 | [`test_check_rollup.py`](tools/test_check_rollup.py) | Offline tests for `check_rollup.py`: both rollup shapes (`gh pr view` and GraphQL), same-second ordering, a run not yet started, unreadable times, only a cancellation se… |
 | [`test_claude_code_executes_lint.py`](tools/test_claude_code_executes_lint.py) | Fixture tests for tools/claude_code_executes_lint.py (constitution § 26).""" from __future__ import annotations |
+| [`test_conformance_backend.py`](tools/test_conformance_backend.py) | Fixture tests for the UPS-BE-10/11 rows in tools/conformance.py (/healthz and /version): they bind to `api, app (server-rendered)`, so a repo with no server side is N/A,… |
 | [`test_conformance_frontend.py`](tools/test_conformance_frontend.py) | Fixture tests for the § 18 frontend-platform rows in tools/conformance.py (UPS-FE-70..73): N/A for tier none, tokens/shell per tier, warn-only until `frontend.enforce: t… |
 | [`test_conformance_instance.py`](tools/test_conformance_instance.py) | **The two roots of the checker** ([ADR 0011](../docs/adr/0011-one-framework-many-instances.md), phase P0): `conformance.py --instance DIR` (default `$FLEET_HOME`, else `… |
 | [`test_conformance_work.py`](tools/test_conformance_work.py) | Fixture tests for the contract-keyed rows in tools/conformance.py: UPS-WORK-01..13 (planning & delivery), UPS-AGENT-07/08/09 (decision D4: AGENTS.md canonical, CLAUDE.md… |
