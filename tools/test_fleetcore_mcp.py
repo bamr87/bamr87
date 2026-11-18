@@ -203,6 +203,32 @@ def test_fleet_true_serves_the_fleet_workflow_model():
         os.rmdir(tmp)
 
 
+def test_fleet_nodes_is_the_status_document_and_never_probes_an_off_node():
+    """fleet_nodes returns fleetcore.nodes.status_doc as it is — the keys `tools/dash node
+    status --json` prints and /api/nodes serves — and the committed model's disabled
+    node is never in an argv (no ssh, no docker -H). Every probe is stubbed to time out."""
+    import subprocess
+    from fleetcore import nodes
+    seen: list[list[str]] = []
+
+    def run(argv, **kw):
+        seen.append(list(argv))
+        raise subprocess.TimeoutExpired(argv, kw.get("timeout") or 0)
+
+    real, subprocess.run = subprocess.run, run
+    try:
+        doc, err = call("fleet_nodes")
+        direct = nodes.status_doc()
+    finally:
+        subprocess.run = real
+    assert not err and doc["schema"] == "fleet-nodes/v1" and set(doc) == set(direct), doc
+    assert [set(x) for x in doc["nodes"]] == [set(x) for x in direct["nodes"]]
+    off = {h.name for h in nodes.load_model().workload() if not h.enabled}
+    assert {x["name"] for x in doc["nodes"] if x["status"] == "off"} == off
+    assert not [a for a in seen if a[0] == "ssh" or "-H" in a], seen
+    assert doc["drift"] is None and doc["drift_read"] == [], "no container list was read: drift is not read, not zero"
+
+
 def test_fleet_inbox_returns_the_merge_item_and_what_it_clears():
     """FF-0036: a green, clean fix PR is a `merge` item at 95, and an agent
     reading fleet_inbox gets `clears` — the red workflow and the PRs red only

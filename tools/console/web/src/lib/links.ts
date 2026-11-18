@@ -40,6 +40,7 @@ export const to = {
   },
   inbox: (kind?: string) => `/inbox${kind ? `?kind=${enc(kind)}` : ''}`,
   containers: () => '/containers',
+  nodes: () => '/nodes',
   ghProjects: (f: { project?: string; view?: 'table' | 'board' } = {}) => {
     const qs = new URLSearchParams();
     if (f.project) qs.set('project', f.project);

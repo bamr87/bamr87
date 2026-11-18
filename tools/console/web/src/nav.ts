@@ -6,7 +6,7 @@
 import {
   IconActivity, IconAppWindow, IconApps, IconBox, IconDeviceDesktop, IconBrandGithub, IconBrandDocker, IconBriefcase, IconCalendarTime, IconChartBar, IconCoin,
   IconFileText, IconGauge, IconGitBranch, IconGitPullRequest, IconHeartbeat, IconHome, IconInbox, IconKey, IconLayoutBoardSplit, IconLayoutGrid, IconLayoutKanban, IconListCheck, IconMicroscope, IconListDetails, IconLogs,
-  IconMail, IconPencil, IconPlayerPlay, IconPlugConnected, IconReceipt, IconRepeat, IconRoute, IconRoadSign, IconSearch, IconSettings,
+  IconMail, IconPencil, IconPlayerPlay, IconPlugConnected, IconReceipt, IconRepeat, IconRoute, IconRoadSign, IconSearch, IconServer2, IconSettings,
   IconTerminal2, IconTool, IconTools, IconTopologyStar3, IconUser, IconFlask, IconSparkles, type Icon,
 } from '@tabler/icons-react';
 
@@ -61,6 +61,7 @@ export const NAV: NavSection[] = [
       { label: 'GitHub', to: '/github', icon: IconBrandGithub, hint: 'connect through the OAuth App; manage issues, runs and workflows' },
       { label: 'GitHub Projects', to: '/gh-projects', icon: IconLayoutBoardSplit, hint: 'Projects (v2) across every owner: a table, or a board by Status — read-only' },
       { label: 'Containers', to: '/containers', icon: IconBrandDocker, hint: 'containers on every Docker host' },
+      { label: 'Nodes', to: '/nodes', icon: IconServer2, hint: 'where hub workloads run: each node’s role, on/off state, reachability, capacity and placed services' },
     ],
   },
   {

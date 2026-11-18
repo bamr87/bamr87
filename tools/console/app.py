@@ -1013,6 +1013,17 @@ def fleet_docker() -> dict:
     return fviews.dash_view(core.REPO_ROOT, docker=True)["docker"]
 
 
+@app.get("/api/nodes", dependencies=[Depends(require_token)])
+def nodes_view() -> dict:
+    """Where hub workloads run (fleetcore.nodes.status_doc; docs/PLATFORM.md):
+    each node's role, on/off state, reachability, capacity and hub services,
+    the placement rows and the drift — the document `tools/dash node status
+    --json` prints and the MCP's fleet_nodes returns. Read-only. A node that is
+    not enabled is never probed; an unreachable one is `unknown`, never a 5xx;
+    concurrent polls share one answer for core.NODES_TTL seconds."""
+    return core.nodes_doc()
+
+
 @app.get("/api/apps", dependencies=[Depends(require_token)])
 def apps_view() -> dict:
     """The app portal's launcher (fleetcore.apps): every registry frontend with

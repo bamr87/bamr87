@@ -1306,7 +1306,14 @@ features:
       link key; `tools/dash infra plan|apply` runs OpenTofu (infra/node) for the node''s network and data
       volumes, apply gated on --yes and a saved plan of the current inputs; .github/workflows/infra.yml
       validates the HCL. forge ships disabled, so nothing moves until that flag is the deploy step (ADR
-      0003, docs/PLATFORM.md).'
+      0003, docs/PLATFORM.md). The status is one document, fleetcore.nodes.status_doc, read on every surface
+      (P11, bamr87/bamr87#605): `tools/dash node status --json`, the console''s GET /api/nodes and Nodes page
+      (a card per node with its role, on/off state, reachability, capacity and placed services, the drift
+      and the placement table) with a placement-drift line on the Overview, the MCP''s fleet_nodes and a Node
+      column in the terminal dash''s Docker tab. A node that is not enabled is never probed, an unreachable
+      one is `unknown` within the probe''s time limit, drift covers only the nodes whose containers were read
+      (`drift_read`; `drift` is null and reads as not read, never a zero, when none was), and the published
+      page shows the committed model with nothing probed.'
     implemented: true
     status: partial
     surface: infra
@@ -1321,9 +1328,21 @@ features:
     - docker
     - placement
     - offload
+    - console
+    - mcp
+    - tui
     date: 2026-11-02
     tests:
     - tools/test_fleetcore_nodes.py
+    - tools/test_fleetcore_mcp.py
+    - tools/console/test_console.py
+    - tools/console/test_mcp_layer.py
+    - tools/console/test_pages.py
+    - tools/tui/test_app.py
+    scenarios:
+    - verify/scenarios/nodes.yml
+    evidence:
+    - test/evidence/nodes
     prd:
     - FR64
   - id: HUB-069

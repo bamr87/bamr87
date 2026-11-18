@@ -493,6 +493,40 @@ async def t_docker_join_and_tab(root: Path) -> None:
             assert b.opened == ["https://github.com/bamr87/beta"], b.opened
 
 
+NODES_FLEET = {"nodes": {"edge": "mac", "hosts": {
+    "mac": {"role": "edge", "docker": "local"},
+    "forge": {"role": "workload", "enabled": False, "ssh": "forge", "docker": "ssh://forge"}}}}
+
+
+async def t_docker_node_column(root: Path) -> None:
+    """The Docker tab names each host's node from _data/fleet.yml `nodes:` —
+    `forge (off)` for a node that is not enabled — and reaching that name runs
+    no subprocess: the map is read from the file, never probed."""
+    import subprocess as sp
+    (root / "_data" / "fleet.yml").write_text(yaml.safe_dump(NODES_FLEET), encoding="utf-8")
+    app = A.DashTui(root=root, hosts=["local", "ssh://forge", "tcp://lab:2375"])
+    app.action_poll_host = lambda: None  # no real docker in tests
+    real, probes = sp.run, []
+    sp.run = lambda argv, **kw: probes.append(argv) or real(argv, **kw)
+    try:
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            boxes = [
+                dh.Container(name="fleet-console-1", state="running", status="Up", host="local"),
+                dh.Container(name="fleet-kibana-1", state="running", status="Up", host="forge"),
+                dh.Container(name="lab-web-1", state="running", status="Up", host="lab:2375"),
+            ]
+            app._host_done(boxes, {})
+            await pilot.press("6")
+            await pilot.pause()
+            nodes = {cell(app, "docker", r, 0): cell(app, "docker", r, 1) for r in range(3)}
+            assert nodes == {"local": "mac", "forge": "forge (off)", "lab:2375": "—"}, nodes
+            assert cell(app, "docker", 0, 3).startswith(("fleet-", "lab-")), "Name moved one column right"
+    finally:
+        sp.run = real
+    assert probes == [], f"the node column probed something: {probes}"
+
+
 async def t_harness_tab(root: Path) -> None:
     app = A.DashTui(root=root, hosts=[])
     async with app.run_test(size=SIZE) as pilot:
@@ -546,6 +580,7 @@ CASES = [
     t_strip_ansi_holds_a_split_sequence,
     t_search_and_escape,
     t_docker_join_and_tab,
+    t_docker_node_column,
     t_harness_tab,
     t_reload_on_disk_change,
     t_refresh_health_streams_progress,

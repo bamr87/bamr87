@@ -10,7 +10,7 @@ import type {
   AppsDoc, AuthDoc, Capabilities, ProjectReadme, ConfigDoc, DockerView, FleetView, Job, LakeLine, LakeRun, Op,
   ProjectDetail, StateDoc, TuiStatus, Dict, GithubStatus, GhRepo, GhRepoDetail, GhAction, GhIssue,
   SiteIndex, SitePage, SitePost, GithubFleet, PullSpecs, WorkBoard, WorkItemDetail, WorkPlan,
-  WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint, RefineDoc, EvidenceDoc, TextFile, AssistDoc, JobTail, PrQueue,
+  WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint, RefineDoc, EvidenceDoc, TextFile, AssistDoc, JobTail, PrQueue, NodesDoc,
   GhProjectsDoc, GhProjectItemsDoc,
 } from './types';
 
@@ -83,6 +83,8 @@ export const useReach = (url: string | null | undefined, enabled = true, pollMs 
   });
 
 export const useDocker = () => useQuery({ queryKey: ['docker'], queryFn: () => api<DockerView>('/api/fleet/docker'), staleTime: 15_000 });
+// The console answers from a 15 s cache (core.NODES_TTL), so polling faster only re-reads it.
+export const useNodes = () => useQuery({ queryKey: ['nodes'], queryFn: () => api<NodesDoc>('/api/nodes'), staleTime: 15_000 });
 export const useProject = (name: string) =>
   useQuery({ queryKey: ['project', name], queryFn: () => api<ProjectDetail>(`/api/project/${encodeURIComponent(name)}`), staleTime: 30_000 });
 

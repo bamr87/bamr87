@@ -338,6 +338,37 @@ class ReadTools(unittest.TestCase):
         self.assertIn("401", text)
         self.assertNotIn("s3cret-token", text)
 
+    # ---------------------------------------------------------------- nodes
+    def test_fleet_nodes_is_the_consoles_document_unchanged(self):
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # tools/, for fleetcore
+        from fleetcore import nodes
+        doc = nodes.status_doc(probe=False)
+        fc = FakeConsole({"/api/nodes": doc})
+        p = payload(*call(srv.build_server(fc), "fleet_nodes"))
+        self.assertEqual(p, json.loads(json.dumps(doc)))
+        self.assertEqual(fc.calls, [("GET", "/api/nodes", {}, None)])
+
+    def test_fleet_nodes_without_a_console_is_the_same_function_in_process(self):
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        from fleetcore import mcp_server as legacy
+        from fleetcore import nodes
+        want = nodes.status_doc(probe=False)
+        for err in (ConsoleError("console unreachable at http://fake: refused"),
+                    ConsoleError("console GET /api/nodes -> 404: Not Found", 404)):
+            with mock.patch.object(legacy, "t_nodes", lambda _a: nodes.status_doc(probe=False)):  # no probe here
+                res, text = call(srv.build_server(FakeConsole({"/api/nodes": err})), "fleet_nodes")
+            self.assertFalse(res.is_error, text)
+            got = payload(res, text)
+            self.assertEqual(set(got), set(want))
+            self.assertEqual([n["name"] for n in got["nodes"]], [n["name"] for n in want["nodes"]])
+
+    def test_fleet_nodes_refusal_is_a_tool_error_not_a_fallback(self):
+        fc = FakeConsole({"/api/nodes": ConsoleError("console GET /api/nodes -> 401: bad token", 401)})
+        res, text = call(srv.build_server(fc), "fleet_nodes")
+        self.assertTrue(res.is_error)
+        self.assertIn("401", text)
+        self.assertNotIn("s3cret-token", text)
+
     def test_clip_marks_truncation(self):
         out = srv.clip({"a": "y" * 5000}, limit=100)
         self.assertTrue(out["truncated"])
@@ -734,7 +765,7 @@ class TelemetryQueryTools(unittest.TestCase):
 
 class MergedFleet(unittest.TestCase):
     """tools/fleetcore/mcp_server.py folded in: same names, the legacy writes only on --fleet-compat or writes on."""
-    LEGACY_READ = {"fleet_overview", "fleet_apps", "fleet_inbox", "fleet_docker", "fleet_work",
+    LEGACY_READ = {"fleet_overview", "fleet_apps", "fleet_inbox", "fleet_docker", "fleet_nodes", "fleet_work",
                    "fleet_workflows", "workflow_lint", "fleet_graph", "fleet_learning",
                    "console_ops", "console_jobs", "console_job_log"}
 

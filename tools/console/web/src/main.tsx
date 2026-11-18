@@ -38,6 +38,7 @@ import { Desktop } from './pages/Desktop';
 import { Inbox } from './pages/Inbox';
 import { PrQueue } from './pages/PrQueue';
 import { Containers } from './pages/Containers';
+import { Nodes } from './pages/Nodes';
 import { Inventory } from './pages/Inventory';
 import { HealthPage } from './pages/HealthPage';
 import { Schedules } from './pages/Schedules';
@@ -105,6 +106,7 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="inbox" element={<Inbox />} />
                   <Route path="prs" element={<PrQueue />} />
                   <Route path="containers" element={<Containers />} />
+                  <Route path="nodes" element={<Nodes />} />
                   <Route path="github" element={<GithubPage />} />
                   <Route path="github/:owner/:repo" element={<GithubRepoPage />} />
                   <Route path="gh-projects" element={<GhProjects />} />

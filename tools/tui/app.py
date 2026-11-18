@@ -39,6 +39,7 @@ from fleetcore import fleet as fl  # noqa: E402
 from fleetcore import host as dh  # noqa: E402
 from fleetcore import keys as fk  # noqa: E402
 from fleetcore import loopjob as floop  # noqa: E402
+from fleetcore import nodes as fnodes  # noqa: E402
 from fleetcore import theme as ftheme  # noqa: E402
 from fleetcore.client import ConsoleClient, ConsoleError  # noqa: E402
 
@@ -265,6 +266,10 @@ class DashTui(App):
         self._mtimes: dict[str, float] = {}
         self.containers: list[dh.Container] = []
         self.host_errors: dict[str, str] = {}
+        # Docker host label -> its node in _data/fleet.yml `nodes:` (the Docker
+        # tab's Node column). Read from the file, never probed: a node that is
+        # off is named as off, and nothing here reaches it.
+        self.host_nodes: dict[str, dict] = {}
         self._hosts = dh.docker_hosts() if hosts is None else hosts
 
     @property
@@ -313,7 +318,7 @@ class DashTui(App):
             "attn": ("H", "Repo", "Triage", "Why"),
             "monitor": (" ", "Repo", "CI", "Activity", "Issues", "PRs", "Sec", "Why"),
             "harness": (" ", "Signal", "Value", "Detail"),
-            "docker": ("Host", "State", "Name", "Project", "Status", "Ports"),
+            "docker": ("Host", "Node", "State", "Name", "Project", "Status", "Ports"),
             "jobs": ("Status", "Operation", "Started", "Exit"),
         }
         for table_id, names in cols.items():
@@ -332,6 +337,7 @@ class DashTui(App):
     def reload(self) -> None:
         self.snapshot = fl.load_snapshot(self.root)
         self._mtimes = fl.data_mtimes(self.root)
+        self.host_nodes = fnodes.host_nodes(self.root)
         dh.attach(self.rows, self.containers)
         self._paint()
 
@@ -604,11 +610,20 @@ class DashTui(App):
             None if harness and harness.present else "No _data/harness_health.yml — `tools/dash harness` computes it.",
         )
 
+    def _node_cell(self, host: str) -> Text:
+        """The node a Docker host is (fleetcore.nodes.host_nodes): `mac`, `forge
+        (off)` for a node that is not enabled, `—` for a host the model does not name."""
+        node = self.host_nodes.get(host)
+        if not node:
+            return _plain("—")
+        return _plain(node["node"]) if node["enabled"] else Text(f"{node['node']} (off)", style=DIM)
+
     def _paint_docker(self) -> None:
         boxes = sorted(self.containers, key=lambda c: (c.host, not c.running, c.name))
         cells = [
             (
                 c.host,
+                self._node_cell(c.host),
                 Text("up", style=COLOR["green"]) if c.running else _plain(c.state or "—"),
                 _clip(c.name, 40),
                 _clip(c.owner or c.fleet_project or c.project or "—", 24),
