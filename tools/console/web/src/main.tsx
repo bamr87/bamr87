@@ -36,6 +36,7 @@ import { ProjectPage } from './pages/ProjectPage';
 import { AppWorkspace, Apps } from './pages/Apps';
 import { Desktop } from './pages/Desktop';
 import { Inbox } from './pages/Inbox';
+import { PrQueue } from './pages/PrQueue';
 import { Containers } from './pages/Containers';
 import { Inventory } from './pages/Inventory';
 import { HealthPage } from './pages/HealthPage';
@@ -61,6 +62,7 @@ const TerminalPage = lazy(() => import('./pages/TerminalPage').then((m) => ({ de
 import { ConfigPage } from './pages/ConfigPage';
 import { AuthPage } from './pages/AuthPage';
 import { GithubPage, GithubRepoPage } from './pages/GithubPage';
+import { GhProjects } from './pages/GhProjects';
 import { NotFound } from './pages/NotFound';
 
 const queryClient = new QueryClient({
@@ -101,9 +103,11 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="apps" element={<Apps />} />
                   <Route path="apps/:id" element={<AppWorkspace />} />
                   <Route path="inbox" element={<Inbox />} />
+                  <Route path="prs" element={<PrQueue />} />
                   <Route path="containers" element={<Containers />} />
                   <Route path="github" element={<GithubPage />} />
                   <Route path="github/:owner/:repo" element={<GithubRepoPage />} />
+                  <Route path="gh-projects" element={<GhProjects />} />
                   <Route path="harnesses" element={<Inventory />} />
                   <Route path="harnesses/health" element={<HealthPage />} />
                   <Route path="schedules" element={<Schedules />} />

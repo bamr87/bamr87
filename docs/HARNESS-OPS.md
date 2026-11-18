@@ -49,10 +49,12 @@ The baseline asks whether a repo *has* a harness. The standard asks whether each
 | `auth-ordered` | takes its credential in the repo's `CLAUDE_AUTH_ORDER` | AGENTS.md standing rule; `ai_auth:` | all |
 | `trusted-author` | gates a run a stranger can trigger on its author | [#514](https://github.com/bamr87/bamr87/issues/514) | all |
 | `least-privilege` | declares top-level `permissions:`, never `write-all` | #514 | all |
+| `no-wildcard-bots` | never lets every bot start the run: no `allowed_bots: '*'` on a `claude-code-action` step | #514 | all |
+| `safe-pr-target` | never checks out a PR's head on `pull_request_target` | #514 | all |
 | `timeout` | bounds wall-clock time (`timeout-minutes`) | HARNESS.md layer 3 | all |
 | `off-hour-cron` | no cron fires on the hour | AGENTS.md standing rule; the schedule map below | scheduled |
 
-A control is counted only where it can bind. A workflow no stranger can trigger has no author gate to check. One that only a person or a caller workflow starts has no standing run for a kill switch to stop, and a manual dispatch bypasses the switch by design. A reusable workflow with no trigger of its own runs under its caller's permissions. A model handed over as an expression is decided at run time, so the file cannot say which it is. Mention handlers are not held to `kill-switch` or `turn-cap`, the same exemption `harness.efficacy.kinds.ci-mention` declares. The two hub routes supply what a caller does not pass: `ai-lane` carries the dollar cap, the ordered credential and the timeout, and resolves a pinned model itself. Those defaults are read from the lane's own files at scan time, so the inventory cannot disagree with the lane it grades.
+A control is counted only where it can bind. A workflow no stranger can trigger has no author gate to check. One that only a person or a caller workflow starts has no standing run for a kill switch to stop, and a manual dispatch bypasses the switch by design. A reusable workflow with no trigger of its own runs under its caller's permissions. Only a `claude-code-action` step carries an `allowed_bots` list, so `no-wildcard-bots` binds only where there is one. The action checks a person's repository permission but never a listed bot's, so `'*'` lets any GitHub App's comment spend the credential. `safe-pr-target` binds only on `pull_request_target`, which runs with the base repository's secrets and a write token. An `actions/checkout` whose `ref:` or `repository:` names the head (`github.event.pull_request.head.*`, `github.head_ref`, `merge_commit_sha`, `refs/pull/*/head` or `/merge`) fails it, and so does a run step that does `gh pr checkout` or fetches or checks out `pull/…`. Naming the head SHA to post a status passes, and a plain `pull_request` run is not graded, because GitHub gives a fork's run no secrets. A model or a bot list handed over as an expression is decided at run time, so the file cannot say which it is. Mention handlers are not held to `kill-switch` or `turn-cap`, the same exemption `harness.efficacy.kinds.ci-mention` declares. The two hub routes supply what a caller does not pass: `ai-lane` carries the dollar cap, the ordered credential and the timeout, and resolves a pinned model itself. Those defaults are read from the lane's own files at scan time, so the inventory cannot disagree with the lane it grades.
 
 **Every harness off the standard has a lever.** The rebuild plan on `/harnesses` groups them, and the attention queue carries one `standard-gap` finding per lever instead of one per harness:
 
@@ -101,6 +103,16 @@ Enrolment is the existing registration path plus two levers — nothing new to r
 - CLI equivalent: `tools/dash harnesses deploy [--gaps|--target <name>] [--artifacts csv] [--upgrade] [--apply]`.
 
 Requires `FLEET_TOKEN` with contents + pull-requests + **workflows** write on the targets (GitHub refuses a push touching `.github/workflows/*` without it).
+
+### Hub pins that do not resolve
+
+A fleet caller that pins `bamr87/bamr87/.github/workflows/<file>@<ref>` (or an action) at a ref without that file fails at startup with no job, and the failure names nothing. law-ai's CI on `main` failed this way from 2026-10-30, with `spec-gate.yml@v2` pinned while `v2` predated the file (FF-0037, #610). Three places now resolve these pins through one module, [`hub_refs.py`](../.github/scripts/dash-gen/hub_refs.py). Each resolves a distinct target@ref once per run, to `ok`, `ref-missing`, `file-missing-at-ref` or `unverified`:
+
+- **The daily inventory.** The scan already reads every owned repo's workflow files, so each row of `_data/harness_registry.yml` also carries `hub_refs` (path, line, target, ref, status, and the computed `fix` when a pin is broken). The pins are resolved against GitHub; the hub is public, so a 404 there is authoritative. A broken pin becomes a `hub-ref-broken` attention item, severity 88, one per repo and target@ref, and its `action` is the fix: when the file is on `main`, cut the next `vX.Y.0` and move `vX`; when the ref was never cut, cut it or repin; when the file is gone from `main` too, repin to its replacement. An unverified pin is not a finding. A repo the token cannot read stays `scanned: false`. Files past `inventory.max_workflow_files`, and files the scan could not fetch, are counted in `hub_refs_unread_files`. Either way they are unread, never clean, and the totals carry `hub_refs`, `hub_refs_broken`, `hub_refs_unverified`, `hub_refs_unread_repos` and `hub_refs_unread_files`.
+- **Drift check (q).** On every pull request it resolves the pins in `templates/` against the hub's own tags, offline, and warns only. Under `--remote`/`--ci` it also lists the broken fleet callers from the committed inventory, with no API call.
+- **The fan-out pre-flight.** `tools/fanout.sh` resolves the kit's caller templates before it clones a target. The dry run names an unresolved pin; `--apply` refuses to run until it resolves.
+
+The release rules these checks serve are in [WORKFLOW-VERSIONING.md](WORKFLOW-VERSIONING.md#pins-resolve-before-they-ship).
 
 ## Control throughput
 
@@ -220,7 +232,11 @@ The harness standard (2026-11-11) is additive too, so the marker stays `harness-
 - `totals.ai_workflows`, `mention_handlers`, `scheduled_agents` and the throughput estimate count live harnesses only. The workflows of a repo GitHub has archived are still listed, with `lever: retire`.
 - `deployable` is now also false for a repo the registry marks archived, so `--gaps` never offers one to the fan-out.
 
+Hub pins (FF-0037) are additive as well, and the marker holds. New keys: on each scanned `repos[]` row, `hub_refs` (a list of `path`, `line`, `kind`, `target`, `ref`, `uses` and `status`, plus `detail` and `fix` when they apply) and `hub_refs_unread_files`; five `totals` (`hub_refs`, `hub_refs_broken`, `hub_refs_unverified`, `hub_refs_unread_repos`, `hub_refs_unread_files`); and the `hub-ref-broken` attention kind. A row from a scan taken before this change has no `hub_refs` key, and `hub_refs.py fleet` reports that as not yet recorded, never as clean.
+
 A reader that wants only the harnesses the old scanner saw can filter on `route: claude-code-action`.
+
+The two #514 controls (2026-11-15) are additive as well: each `harnesses[]` row gains `wildcard_bots` and `pr_target_head_checkout`. Each one is `true` or `false`, or `null` when there is nothing to ask: no `claude-code-action` step, a bot list handed over as an expression, or a workflow not on `pull_request_target`. A row from a scan stored before the keys existed has neither key, and neither control is graded on it until the next live scan.
 
 ## Operate — the short card
 

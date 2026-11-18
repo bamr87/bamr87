@@ -22,9 +22,18 @@ name: 🐍 Python Tests
 # SHARDS
 # ------
 # One serial job took 21 minutes against a 25-minute timeout, so the files run as
-# four parallel jobs: three files were 72% of that time. `rest` is the glob minus
-# the named files, so a new test file can never be left out, and renaming a named
-# file fails its shard instead of dropping it. Re-balance by moving a name.
+# parallel jobs. `rest` is the glob minus the named files, so a new test file can
+# never be left out, and renaming a named file fails its shard instead of dropping
+# it. Re-balance by moving a name.
+#
+# Three shards, not four (2026-11-17, fleet doctor): under sysmon test_pages.py
+# fell from ~10 minutes to ~15 s, so its own `pages` job billed a full minute of
+# setup for 15 s of tests while `rest` ran ~6.5 minutes. Measured on run
+# 44023815938: jev-loop 297 s (test_jev_loop.py alone), rest 370 s (113 files;
+# test_ai_run 58 s, test_jev_reflect 34 s), console 166 s, pages 15 s. Moving
+# pages, test_ai_run and test_jev_reflect into `console` gives about 300 / 280 /
+# 270 s: the same wall clock (jev-loop bounds it) and two fewer billed
+# job-minutes per run (18 -> 16 across the shards).
 #
 # The `python-tests` job is the one result: it combines coverage and fails unless
 # every shard passed. It keeps this workflow's check name, which the ratify guard
@@ -70,10 +79,14 @@ name: 🐍 Python Tests
 # run only after its four shards had booted: 45 of the 60 push runs between
 # 2026-11-05 and 2026-11-10 ended cancelled, 21 of them within 90 seconds, each
 # about 5 billed job-minutes for a result nobody would read (bamr87/bamr87#799).
-# So a push run waits 90 seconds in `changes`, the one cheap job, where the next
-# push cancels it before any shard starts. That costs one more billed minute on
-# a push run that survives. The last push of a burst still runs every suite on
-# main's tip. A PR, the nightly run and a manual dispatch do not wait.
+# So a push run waits 110 seconds in `changes`, the one cheap job, where the
+# next push cancels it before any shard starts. That costs one more billed
+# minute on a push run that survives. The last push of a burst still runs every
+# suite on main's tip. A PR, the nightly run and a manual dispatch do not wait.
+# The wait was 90 seconds until merge bursts on 2026-11-10 outlasted it
+# (bamr87/bamr87#821). `changes` took 92-96 s around that wait, so 110 s keeps
+# it under 120 s, still 2 billed minutes. Never go above about 115 s: from
+# there `changes` can bill 3.
 
 on:
   pull_request:
@@ -124,23 +137,22 @@ jobs:
           if [ "$run" = false ]; then echo "::notice::docs-only change; skipping the test shards"; fi
 
       # PUSH DEBOUNCE (header): give the next push of a merge burst time to
-      # cancel this run here, before the four shards boot.
+      # cancel this run here, before the shards boot.
       - name: Wait for a superseding push
         if: ${{ github.event_name == 'push' }}
-        run: sleep 90
+        run: sleep 110
 
   tests:
     needs: changes
     if: ${{ needs.changes.outputs.run != 'false' }}
     name: tests (${{ matrix.shard }})
     runs-on: ubuntu-latest
-    # The slowest shard (`pages`) takes about 10 minutes, the others about 6;
-    # this still stops a hung test.
+    # Each shard takes about 5 minutes (SHARDS above); this still stops a hung test.
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        shard: [pages, jev-loop, console, rest]
+        shard: [jev-loop, console, rest]
     steps:
       - uses: actions/checkout@v7
 
@@ -175,18 +187,18 @@ jobs:
         env:
           SHARD: ${{ matrix.shard }}
           # sys.monitoring, not the ctrace tracer: same coverage, ~40% less
-          # test time on the named shards (see COVERAGE CORE above).
+          # test time on the named files (see COVERAGE CORE above).
           COVERAGE_CORE: sysmon
         run: |
           shopt -s nullglob
           all=(.github/scripts/dash-gen/test_*.py tools/test_*.py tools/console/test_*.py tools/tui/test_*.py templates/*/test_*.py)
           [ "${#all[@]}" -gt 0 ] || { echo "::error::no test files found"; exit 1; }
-          named=(tools/console/test_pages.py tools/test_jev_loop.py tools/console/test_console.py tools/test_jev_spec.py)
+          console=(tools/console/test_console.py tools/test_jev_spec.py tools/console/test_pages.py .github/scripts/dash-gen/test_ai_run.py tools/test_jev_reflect.py)
+          named=(tools/test_jev_loop.py "${console[@]}")
           files=()
           case "$SHARD" in
-            pages)    files=(tools/console/test_pages.py) ;;
             jev-loop) files=(tools/test_jev_loop.py) ;;
-            console)  files=(tools/console/test_console.py tools/test_jev_spec.py) ;;
+            console)  files=("${console[@]}") ;;
             rest)
               for t in "${all[@]}"; do
                 case " ${named[*]} " in *" $t "*) ;; *) files+=("$t") ;; esac

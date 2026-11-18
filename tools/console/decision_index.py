@@ -58,6 +58,10 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path.insert(0, str(HERE))
 from gh_projects import redact  # noqa: E402
+if str(HERE.parent) not in sys.path:  # tools/: fleetcore, the core every surface shares, and check_rollup
+    sys.path.insert(0, str(HERE.parent))
+import check_rollup  # noqa: E402
+from fleetcore import yamlio  # noqa: E402
 
 API = (os.environ.get("GITHUB_API_URL") or "https://api.github.com").rstrip("/") + "/graphql"
 USER_AGENT = "bamr87-harness-console"
@@ -121,11 +125,13 @@ REPOS_Q = """query($q:String!,$n:Int!,$after:String){ search(query:$q,type:REPOS
   issues(states:OPEN){ totalCount } pullRequests(states:OPEN){ totalCount } } } }
  rateLimit{ cost remaining resetAt } }"""
 # The slow fields, asked only for the pull requests the scan found and in small parallel batches: one page of
-# 100 pull requests carrying them runs past GitHub's own 10 s limit and comes back as a 502.
+# 100 pull requests carrying them runs past GitHub's own 10 s limit and comes back as a 502. The rollup's
+# contexts are read so a cancelled run a later run of the same check superseded does not count as a failure
+# (tools/check_rollup.py): GitHub's own rollup state does count it.
 ENRICH_Q = """query($ids:[ID!]!){ nodes(ids:$ids){ ... on PullRequest{ id mergeable mergeStateStatus reviewDecision
   autoMergeRequest{ enabledAt } files(first:100){ totalCount nodes{ path } }
-  commits(last:1){ nodes{ commit{ statusCheckRollup{ state } } } } } }
- rateLimit{ cost remaining resetAt } }"""
+  commits(last:1){ nodes{ commit{ statusCheckRollup{ %s } } } } } }
+ rateLimit{ cost remaining resetAt } }""" % check_rollup.ROLLUP_FIELDS
 
 HINTS = {
     "no_token": "give the console a GitHub token: the GitHub page, GH_TOKEN, or `gh auth login`",
@@ -180,7 +186,7 @@ def _merged(base: dict, over: Any) -> dict:
 
 def _load_yaml(path: Path) -> Any:
     try:
-        return yaml.safe_load(path.read_text(encoding="utf-8"))
+        return yamlio.load(path)
     except (OSError, yaml.YAMLError):
         return None
 
@@ -369,7 +375,7 @@ def enrichment(node: dict, updated_at: str | None, paths_rx: list[re.Pattern], n
     rollup = (commit.get("commit") or {}).get("statusCheckRollup") or {}
     return {
         "mergeable": node.get("mergeable"), "merge_state": node.get("mergeStateStatus"),
-        "review": node.get("reviewDecision"), "checks": rollup.get("state"),
+        "review": node.get("reviewDecision"), "checks": check_rollup.corrected_state(rollup),
         "auto_merge": bool(node.get("autoMergeRequest")), "files": files.get("totalCount"), "files_read": len(paths),
         "governs": [p for p in paths if any(rx.search(p) for rx in paths_rx)][:10],
         "for_updated_at": updated_at, "at": now,

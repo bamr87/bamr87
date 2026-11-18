@@ -27,16 +27,40 @@ committed signals the pulse job just refreshed and computes:
              an action — the doctor/pipeline loops own the fixes; this is the
              alarm panel.
 
+  AGENTIC    the agentic layer (constitution § 29, epic #773 phase E2, #776):
+             wires on the agents' own inputs, judged against _data/fleet.yml
+             `harness.agentic` and `harness.sources`. Each reports `tripped`
+             as true, false or `unknown` (an input it needs is absent: never
+             green, never an alarm), and stays in SHADOW for `shadow_days`
+             after its `first_seen` (carried forward from the committed
+             harness_health.yml): a shadowed wire is published but never
+             counts in `tripped_count`. The groups so far:
+               source-freshness     every harness.sources entry against its
+                                    own `slo_days`, and a source with no
+                                    writer (§ 29.4)
+               measurement-coverage the hub is in the analytics, no repo was
+                                    truncated, each parity block is within
+                                    tolerance
+               unknown-agent-cost   the share of agent runs whose cost could
+                                    not be read
+
 Inputs (all optional — a missing or degraded signal nulls that metric, never
 crashes; the wire that watches for staleness is exactly how a missing input
 becomes visible):
 
   _data/actions_usage.yml   cost / effectiveness / waste  (Layer 6) — job-minutes
                             since actions-usage/v2: the cost wires read cost,
-                            the `slow` flag (analytics) reads the wall clock
+                            the `slow` flag (analytics) reads the wall clock;
+                            its `parity` and `coverage` blocks feed the
+                            agentic layer
   _data/fleet_triage.yml    standing open-state           (Layers 3+6)
   _data/issue_pipeline.yml  escalations + agent PRs       (Layer 3)
   _data/token_rotation.yml  credential ages               (Layer 5)
+  _data/ai_usage.yml        agent cost, its parity and coverage (agentic)
+  _data/agents.yml          who reads a stale source      (agentic)
+  harness.sources files     each committed `_data/*.yml` source, for its age;
+                            a source that is not a committed file (the lake,
+                            a live API) is `unknown`, never read from `~/`
 
 Output: _data/harness_health.yml (committed, published by fleet-pulse.yml's
 pulse job, rendered by the dash). With GITHUB_OUTPUT set it emits
@@ -50,6 +74,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -66,6 +91,8 @@ TRIAGE_DEFAULT = REPO_ROOT / "_data" / "fleet_triage.yml"
 PIPELINE_DEFAULT = REPO_ROOT / "_data" / "issue_pipeline.yml"
 ROTATION_DEFAULT = REPO_ROOT / "_data" / "token_rotation.yml"
 CONFORMANCE_DEFAULT = REPO_ROOT / "_data" / "conformance.yml"
+AI_USAGE_DEFAULT = REPO_ROOT / "_data" / "ai_usage.yml"
+AGENTS_DEFAULT = REPO_ROOT / "_data" / "agents.yml"
 OUT_DEFAULT = REPO_ROOT / "_data" / "harness_health.yml"
 
 # Mirrors the `harness:` block in _data/fleet.yml — that file is the contract,
@@ -85,6 +112,19 @@ DEFAULT_TRIP_WIRES = {
     "standing_failures_max": 30,
     "credential_grace_days": 15,
 }
+DEFAULT_AGENTIC = {
+    "shadow_days": 14,
+    "parity_tolerance_pct": 5.0,
+    "unknown_cost_max_pct": 25.0,
+}
+
+# A harness.sources path this module may read: one committed YAML file under
+# _data/. Anything else (the lake, ~/.claude, a live API, a directory) is
+# reported `unknown` — the agentic layer runs in CI and never reads the Mac.
+COMMITTED_SOURCE_RX = re.compile(r"^_data/[A-Za-z0-9_][A-Za-z0-9_./-]*\.ya?ml$")
+# The parity blocks E1 (#775) publishes, per analytics file.
+PARITY_MEASURES = (("actions_usage", "actions_minutes"), ("ai_usage", "ai_ci_cost"))
+UNKNOWN = "unknown"
 
 
 # --------------------------------------------------------------------------- #
@@ -102,11 +142,41 @@ def load_yaml(path: Path) -> dict:
 
 
 def load_config(fleet_path: Path) -> dict:
-    cfg = load_yaml(fleet_path).get("harness") or {}
+    fleet = load_yaml(fleet_path)
+    cfg = fleet.get("harness") or {}
+    hub = fleet.get("hub") if isinstance(fleet.get("hub"), dict) else {}
+    sources = cfg.get("sources")
     return {
         "scorecard": {**DEFAULT_SCORECARD, **(cfg.get("scorecard") or {})},
         "trip_wires": {**DEFAULT_TRIP_WIRES, **(cfg.get("trip_wires") or {})},
+        "agentic": {**DEFAULT_AGENTIC, **(cfg.get("agentic") or {})},
+        "sources": sources if isinstance(sources, dict) else {},
+        "hub_repo": hub.get("repo") if isinstance(hub.get("repo"), str) else None,
     }
+
+
+def load_declared_sources(sources_cfg: dict, root: Path, preloaded: dict | None = None) -> dict:
+    """Each `harness.sources` entry with an `slo_days`, as data to date.
+
+    A path that is one committed `_data/*.yml` file is read (`preloaded`
+    supplies the inputs this run already holds, keyed by source id, so a
+    `--usage` override is judged as itself); `{}` means the file is missing.
+    Any other path maps to None: not readable offline, reported `unknown`.
+    """
+    preloaded = preloaded or {}
+    out: dict = {}
+    for sid, spec in (sources_cfg or {}).items():
+        if not isinstance(spec, dict) or not isinstance(spec.get("slo_days"), (int, float)):
+            continue
+        if sid in preloaded:
+            out[sid] = preloaded[sid] or {}
+            continue
+        path = spec.get("path")
+        if isinstance(path, str) and COMMITTED_SOURCE_RX.match(path) and ".." not in path:
+            out[sid] = load_yaml(root / path)
+        else:
+            out[sid] = None
+    return out
 
 
 def parse_generated_at(value: object) -> dt.datetime | None:
@@ -127,7 +197,8 @@ def parse_generated_at(value: object) -> dt.datetime | None:
 
 
 def source_age_days(data: dict, now: dt.datetime) -> float | None:
-    ts = parse_generated_at(data.get("generated_at"))
+    # ai_usage.yml stamps `generated`, every other signal `generated_at`.
+    ts = parse_generated_at(data.get("generated_at") or data.get("generated"))
     if ts is None:
         return None
     return round((now - ts).total_seconds() / 86400, 1)
@@ -268,11 +339,11 @@ def evaluate_trip_wires(
         "issue_pipeline": pipeline,
         "token_rotation": rotation,
     }
-    # The UPS conformance snapshot (tools/conformance.py fleet --write) has no
-    # scheduled writer: it is regenerated by hand, so it once sat 38 days old
-    # while this wire said "all fleet signals fresh" and the repo-evolution
-    # brief read it as current. It gets its own, longer limit. None = not
-    # watched (callers that predate it); {} = the file is missing.
+    # The UPS conformance snapshot (tools/conformance.py fleet --write) was
+    # regenerated by hand until fleet-snapshots.yml (weekly, #775), so it once
+    # sat 38 days old while this wire said "all fleet signals fresh" and the
+    # repo-evolution brief read it as current. Weekly, it gets its own, longer
+    # limit. None = not watched (callers that predate it); {} = the file is missing.
     if conformance is not None:
         sources["conformance"] = conformance
     stale = []
@@ -387,10 +458,331 @@ def evaluate_trip_wires(
 
 
 # --------------------------------------------------------------------------- #
+# the agentic layer (constitution § 29; epic #773, phase E2: #776)
+# --------------------------------------------------------------------------- #
+def combine(states: list) -> object:
+    """A wire's verdict from its checks: any trip trips it; otherwise one check
+    that could not be read keeps it `unknown` (never green); else quiet."""
+    if any(s is True for s in states):
+        return True
+    if any(s == UNKNOWN for s in states):
+        return UNKNOWN
+    return False
+
+
+def _num(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
+def _as_date(value: object) -> dt.date | None:
+    if isinstance(value, dt.datetime):
+        return value.date()
+    if isinstance(value, dt.date):
+        return value
+    if isinstance(value, str):
+        try:
+            return dt.date.fromisoformat(value[:10])
+        except ValueError:
+            return None
+    return None
+
+
+def _readers(agents: dict | None) -> dict[str, int]:
+    """Source id -> how many registered agents read it (_data/agents.yml)."""
+    counts: dict[str, int] = {}
+    for agent in (agents or {}).get("agents") or []:
+        if isinstance(agent, dict) and isinstance(agent.get("reads"), dict):
+            for sid in agent["reads"]:
+                counts[sid] = counts.get(sid, 0) + 1
+    return counts
+
+
+def wire_source_freshness(cfg: dict, sources: dict, now: dt.datetime, agents: dict | None) -> dict:
+    """§ 29.4: a source with no writer is a defect, and so is one older than its
+    SLO. Every `harness.sources` entry with an `slo_days` is dated against it;
+    one that is not a committed file is `unknown` (and does not decide the
+    verdict); a null writer trips whatever the source's SLO kind."""
+    readers = _readers(agents)
+    rows: list[dict] = []
+    for sid, spec in (cfg.get("sources") or {}).items():
+        if not isinstance(spec, dict):
+            continue
+        no_writer = not spec.get("writer")
+        slo = _num(spec.get("slo_days"))
+        if slo is None and not no_writer:
+            continue  # on-change / live: a reviewed PR or the run itself keeps it current
+        row: dict = {"source": sid, "path": spec.get("path")}
+        if slo is not None:
+            row["slo_days"] = spec["slo_days"]
+        else:
+            row["slo"] = spec.get("slo")
+        state, why, age = "ok", [], None
+        if slo is not None:
+            data = sources.get(sid)
+            if data is None:
+                state, why = UNKNOWN, ["not a committed _data/*.yml file, so not read offline"]
+            elif not data:
+                state, why = "missing", ["missing"]
+            else:
+                age = source_age_days(data, now)
+                if age is None:
+                    state, why = "undated", ["no generated_at"]
+                elif age > slo:
+                    state, why = "stale", [f"older than {spec['slo_days']}d"]
+        if no_writer:
+            why.append("no writer")
+            if state in ("ok", UNKNOWN):
+                state = "no-writer"
+        row["age_days"] = age
+        row["state"] = state
+        if why:
+            row["why"] = "; ".join(why)
+        if state not in ("ok", UNKNOWN) and readers.get(sid):
+            row["readers"] = readers[sid]
+        rows.append(row)
+
+    bad = [r for r in rows if r["state"] not in ("ok", UNKNOWN)]
+    unread = [r["source"] for r in rows if r["state"] == UNKNOWN]
+    judged = len(rows) - len(unread)
+    if bad:
+        tripped: object = True
+        summary = (f"{len(bad)} of {len(rows)} declared sources past their SLO or without a writer: "
+                   + ", ".join(r["source"] for r in bad))
+    elif not judged:
+        tripped = UNKNOWN
+        summary = ("no declared source with an SLO can be read offline" if rows
+                   else "_data/fleet.yml declares no harness.sources with an slo_days")
+    else:
+        tripped = False
+        summary = f"all {judged} readable declared sources within their SLO"
+    if unread:
+        summary += f" ({len(unread)} not readable offline: {', '.join(unread)})"
+    return {"tripped": tripped, "summary": summary, "detail": rows}
+
+
+def _is_hub(row: dict, hub: str) -> bool:
+    return row.get("nwo") == hub or row.get("repo") in (hub, hub.split("/")[-1])
+
+
+def wire_coverage_hub(cfg: dict, analytics: dict) -> dict:
+    """The hub is not in the registry, so a collector that walks only the
+    registry drops the fleet's largest spender (2026-11-07: the hub was
+    missing from actions_usage.yml). Present = a `by_repo` row, or a
+    `coverage.repos` row the collector read without an error."""
+    hub = cfg.get("hub_repo")
+    if not hub:
+        return {"tripped": UNKNOWN, "summary": "_data/fleet.yml names no hub.repo to look for", "detail": []}
+    rows, states = [], []
+    for name, data in analytics.items():
+        if not data:
+            rows.append({"analytics": name, "state": UNKNOWN, "why": "missing"})
+            states.append(UNKNOWN)
+            continue
+        cov = data.get("coverage") if isinstance(data.get("coverage"), dict) else {}
+        listed = any(isinstance(r, dict) and _is_hub(r, hub) for r in data.get("by_repo") or [])
+        scanned = any(isinstance(r, dict) and _is_hub(r, hub) and not r.get("error")
+                      for r in cov.get("repos") or [])
+        present = listed or scanned
+        rows.append({"analytics": name, "state": "present" if present else "absent"})
+        states.append(not present)
+    tripped = combine(states)
+    absent = [r["analytics"] for r in rows if r["state"] == "absent"]
+    if tripped is True:
+        summary = f"the hub ({hub}) is missing from {', '.join(absent)}"
+    elif tripped == UNKNOWN:
+        summary = "cannot tell whether the hub is measured: " + ", ".join(
+            r["analytics"] for r in rows if r["state"] == UNKNOWN) + " missing"
+    else:
+        summary = f"the hub ({hub}) is in every analytics"
+    return {"tripped": tripped, "summary": summary, "detail": rows}
+
+
+def wire_coverage_complete(analytics: dict) -> dict:
+    """No collector stopped short: no repo truncated, no run missed, no repo the
+    collector could not read. An analytics file without a `coverage` block
+    predates coverage reporting and is `unknown`."""
+    rows, states = [], []
+    for name, data in analytics.items():
+        cov = data.get("coverage") if isinstance(data, dict) else None
+        if not data or not isinstance(cov, dict) or not cov:
+            rows.append({"analytics": name, "state": UNKNOWN,
+                         "why": "missing" if not data else "no coverage block"})
+            states.append(UNKNOWN)
+            continue
+        repos = [r for r in cov.get("repos") or [] if isinstance(r, dict)]
+        truncated = sorted({str(x) for x in cov.get("truncated_repos") or []}
+                           | {str(r.get("repo") or r.get("nwo")) for r in repos if r.get("truncated")})
+        unread = sorted(str(r.get("repo") or r.get("nwo")) for r in repos if r.get("error"))
+        missed = int(_num(cov.get("runs_missed")) or 0)
+        incomplete = bool(cov.get("truncated")) or bool(truncated) or bool(unread) or missed > 0
+        row: dict = {"analytics": name, "state": "incomplete" if incomplete else "complete"}
+        if truncated:
+            row["truncated_repos"] = truncated
+        if unread:
+            row["unread_repos"] = unread
+        if missed:
+            row["runs_missed"] = missed
+        rows.append(row)
+        states.append(incomplete)
+    tripped = combine(states)
+    if tripped is True:
+        summary = "a collector stopped short: " + ", ".join(
+            r["analytics"] for r in rows if r["state"] == "incomplete")
+    elif tripped == UNKNOWN:
+        summary = "coverage unknown for " + ", ".join(
+            f"{r['analytics']} ({r['why']})" for r in rows if r["state"] == UNKNOWN)
+    else:
+        summary = "every collector read every repo in its window"
+    return {"tripped": tripped, "summary": summary, "detail": rows}
+
+
+def wire_coverage_parity(agentic: dict, analytics: dict) -> dict:
+    """Each derived total against its own source (E1, #775): Actions minutes
+    against the billing meter, the CI agent cost against the claude-cost
+    result lines. A missing block or a null gap is `unknown`, never green."""
+    tol = float(agentic["parity_tolerance_pct"])
+    rows, states = [], []
+    for name, measure in PARITY_MEASURES:
+        data = analytics.get(name) or {}
+        parity = data.get("parity") if isinstance(data.get("parity"), dict) else {}
+        block = parity.get(measure)
+        row: dict = {"analytics": name, "measure": measure, "tolerance_pct": tol}
+        if not data:
+            row.update(state=UNKNOWN, why="missing")
+        elif not isinstance(block, dict):
+            row.update(state=UNKNOWN, why=f"no parity.{measure} block")
+        else:
+            gap = _num(block.get("gap_pct"))
+            row["gap_pct"] = gap
+            if block.get("sampled"):
+                row["sampled"] = True
+            if gap is None:
+                row.update(state=UNKNOWN, why=str(block.get("reason") or "gap_pct is null"))
+            else:
+                row["state"] = "out" if abs(gap) > tol else "within"
+        rows.append(row)
+        states.append(UNKNOWN if row["state"] == UNKNOWN else row["state"] == "out")
+    tripped = combine(states)
+    if tripped is True:
+        summary = f"parity out of ±{tol:g}%: " + ", ".join(
+            f"{r['measure']} {r['gap_pct']:+g}%" for r in rows if r["state"] == "out")
+    elif tripped == UNKNOWN:
+        summary = "parity unknown for " + ", ".join(
+            f"{r['measure']} ({r['why']})" for r in rows if r["state"] == UNKNOWN)
+    else:
+        summary = f"every parity measure within ±{tol:g}%"
+    return {"tripped": tripped, "summary": summary, "detail": rows}
+
+
+def wire_unknown_agent_cost(agentic: dict, ai_usage: dict) -> dict:
+    """§ 29.2: a run that reads $0 when its cost is unknown is a silent failure.
+    Of the CI agent runs that spent (priced + estimated; no-spend runs are a
+    real $0), the share whose cost could not be read from the run itself."""
+    ceiling = float(agentic["unknown_cost_max_pct"])
+    if not ai_usage:
+        return {"tripped": UNKNOWN, "summary": "ai_usage.yml is missing", "detail": []}
+    tot = ai_usage.get("totals") if isinstance(ai_usage.get("totals"), dict) else {}
+    priced, unpriced = _num(tot.get("ci_priced_runs")), _num(tot.get("ci_unpriced_runs"))
+    if priced is None or unpriced is None:
+        return {"tripped": UNKNOWN, "detail": [],
+                "summary": "ai_usage.yml totals carry no ci_priced_runs / ci_unpriced_runs"}
+    runs = priced + unpriced
+    if not runs:
+        return {"tripped": UNKNOWN, "detail": [],
+                "summary": "no CI agent run with spend in the window to judge"}
+    pct = round(100 * unpriced / runs, 1)
+    detail: list[dict] = [{
+        "scope": "fleet", "agent_runs": int(runs), "unpriced_runs": int(unpriced),
+        "unknown_pct": pct, "ceiling_pct": ceiling,
+        "measured_usd": tot.get("ci_cost_usd"), "estimated_usd": tot.get("ci_estimated_usd"),
+    }]
+    worst = sorted(
+        (r for r in ai_usage.get("by_repo") or []
+         if isinstance(r, dict) and (_num(r.get("unpriced_runs")) or 0) > 0),
+        key=lambda r: (-float(r["unpriced_runs"]), str(r.get("repo"))),
+    )[:5]
+    for r in worst:
+        n = (_num(r.get("priced_runs")) or 0) + float(r["unpriced_runs"])
+        detail.append({"scope": "repo", "repo": r.get("repo"), "agent_runs": int(n),
+                       "unpriced_runs": int(r["unpriced_runs"]),
+                       "unknown_pct": round(100 * float(r["unpriced_runs"]) / n, 1)})
+    return {
+        "tripped": pct > ceiling,
+        "summary": f"{pct}% of {int(runs)} CI agent runs have no readable cost vs ceiling {ceiling:g}%",
+        "detail": detail,
+    }
+
+
+def apply_shadow(wires: list[dict], previous: dict | None, now: dt.datetime, shadow_days: object) -> list[dict]:
+    """Stamp each wire's `first_seen` (carried forward from the previous
+    harness_health.yml, else today) and put it in shadow until `shadow_days`
+    after it. A shadowed wire is published but never counts in tripped_count."""
+    seen: dict[str, dt.date] = {}
+    for w in (previous or {}).get("agentic") or []:
+        if isinstance(w, dict) and w.get("id"):
+            first = _as_date(w.get("first_seen"))
+            if first:
+                seen[str(w["id"])] = first
+    today = now.date()
+    days = int(_num(shadow_days) or 0)
+    out = []
+    for w in wires:
+        first = min(seen.get(w["id"], today), today)  # a future stamp cannot stretch the shadow
+        until = first + dt.timedelta(days=days)
+        out.append({
+            "id": w["id"], "group": w["group"], "tripped": w["tripped"],
+            "shadow": today < until, "first_seen": first.isoformat(), "shadow_until": until.isoformat(),
+            "summary": w["summary"], "detail": w.get("detail") or [],
+        })
+    return out
+
+
+def evaluate_agentic_layer(
+    cfg: dict,
+    usage: dict,
+    ai_usage: dict,
+    sources: dict,
+    now: dt.datetime,
+    *,
+    agents: dict | None = None,
+    previous: dict | None = None,
+) -> list[dict]:
+    """The agentic layer's wires, every one reported. `sources` maps each
+    `harness.sources` id to its parsed data ({} = missing, None = not readable
+    offline); see load_declared_sources. Offline and deterministic."""
+    agentic = {**DEFAULT_AGENTIC, **(cfg.get("agentic") or {})}
+    analytics = {"actions_usage": usage or {}, "ai_usage": ai_usage or {}}
+    built = [
+        ("source-freshness", "source-freshness", wire_source_freshness(cfg, sources or {}, now, agents)),
+        ("coverage-hub", "measurement-coverage", wire_coverage_hub(cfg, analytics)),
+        ("coverage-complete", "measurement-coverage", wire_coverage_complete(analytics)),
+        ("coverage-parity", "measurement-coverage", wire_coverage_parity(agentic, analytics)),
+        ("unknown-agent-cost", "unknown-agent-cost", wire_unknown_agent_cost(agentic, ai_usage or {})),
+    ]
+    wires = [{"id": wid, "group": group, **body} for wid, group, body in built]
+    return apply_shadow(wires, previous, now, agentic["shadow_days"])
+
+
+def live_trips(agentic: list[dict]) -> list[dict]:
+    """The agentic wires that count: tripped (not unknown) and out of shadow."""
+    return [w for w in agentic if w.get("tripped") is True and not w.get("shadow")]
+
+
+# --------------------------------------------------------------------------- #
 # entry point
 # --------------------------------------------------------------------------- #
+def parse_now(value: object) -> dt.datetime:
+    """`--now` pins the clock (fixture tests, a replay of a past day's signals)."""
+    if isinstance(value, str) and value:
+        ts = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return ts if ts.tzinfo else ts.replace(tzinfo=dt.timezone.utc)
+    return dt.datetime.now(dt.timezone.utc)
+
+
 def run(args: argparse.Namespace) -> int:
-    now = dt.datetime.now(dt.timezone.utc)
+    now = parse_now(getattr(args, "now", None))
     cfg = load_config(Path(args.fleet))
     usage = load_yaml(Path(args.usage))
     triage = load_yaml(Path(args.triage))
@@ -398,9 +790,32 @@ def run(args: argparse.Namespace) -> int:
     rotation = load_yaml(Path(args.rotation))
     conformance = load_yaml(Path(args.conformance))
 
+    # The agentic layer's inputs. A caller that predates them (a Namespace
+    # without the attribute) gets an empty input, never a read of the tree.
+    def optional(name: str) -> dict:
+        path = getattr(args, name, None)
+        return load_yaml(Path(path)) if path else {}
+
+    ai_usage = optional("ai_usage")
+    agents = optional("agents")
+    previous = optional("previous")
+    sources = load_declared_sources(
+        cfg["sources"], Path(getattr(args, "root", None) or REPO_ROOT),
+        preloaded={
+            "actions-usage": usage, "ai-usage": ai_usage, "fleet-triage": triage,
+            "issue-pipeline": pipeline, "token-rotation": rotation,
+            "conformance": conformance, "harness-health": previous,
+        },
+    )
+
     scorecard = build_scorecard(cfg, usage, triage, pipeline, rotation)
     wires = evaluate_trip_wires(cfg, usage, triage, pipeline, rotation, now, conformance=conformance)
     tripped = [w for w in wires if w["tripped"]]
+    agentic = evaluate_agentic_layer(cfg, usage, ai_usage, sources, now, agents=agents, previous=previous)
+    live = live_trips(agentic)
+    shadowed = [w for w in agentic if w["tripped"] is True and w["shadow"]]
+    unknown = [w for w in agentic if w["tripped"] == UNKNOWN]
+    tripped_count = len(tripped) + len(live)
 
     out = {
         "generated_at": now.strftime("%Y-%m-%d %H:%M UTC"),
@@ -412,16 +827,21 @@ def run(args: argparse.Namespace) -> int:
                 ("issue_pipeline", pipeline),
                 ("token_rotation", rotation),
                 ("conformance", conformance),
+                ("ai_usage", ai_usage),
             )
         },
         "scorecard": scorecard,
         "trip_wires": wires,
-        "tripped_count": len(tripped),
+        "agentic": agentic,
+        "tripped_count": tripped_count,
         "note": (
             "Six-layer harness health: scorecard + trip wires computed offline from "
-            "the committed fleet signals (docs/HARNESS.md). Thresholds live in "
-            "_data/fleet.yml `harness:`. A tripped wire is an attention item; the "
-            "doctor and issue-pipeline loops own the fixes."
+            "the committed fleet signals (docs/HARNESS.md), and the agentic layer "
+            "(constitution § 29): wires on the agents' own inputs, each true, false "
+            "or unknown, in shadow for harness.agentic.shadow_days after first_seen. "
+            "tripped_count counts the trip wires and the agentic wires out of shadow. "
+            "Thresholds live in _data/fleet.yml `harness:`. A tripped wire is an "
+            "attention item; the doctor and issue-pipeline loops own the fixes."
         ),
     }
 
@@ -435,15 +855,23 @@ def run(args: argparse.Namespace) -> int:
         yaml.safe_dump(out, fh, sort_keys=False, allow_unicode=True)
 
     if not args.quiet:
-        sys.stderr.write(f"Wrote {out_path} — {len(tripped)}/{len(wires)} trip wires tripped\n")
-        for w in tripped:
+        sys.stderr.write(
+            f"Wrote {out_path} — {len(tripped)}/{len(wires)} trip wires tripped; agentic layer: "
+            f"{len(live)} tripped, {len(shadowed)} tripped in shadow, {len(unknown)} unknown "
+            f"of {len(agentic)}\n"
+        )
+        for w in tripped + live:
             sys.stderr.write(f"  ⚠ {w['id']}: {w['summary']}\n")
+        for w in shadowed:
+            sys.stderr.write(f"  ~ {w['id']} (shadow until {w['shadow_until']}): {w['summary']}\n")
+        for w in unknown:
+            sys.stderr.write(f"  ? {w['id']}: {w['summary']}\n")
 
     gh_out = os.environ.get("GITHUB_OUTPUT")
     if gh_out:
         with open(gh_out, "a") as fh:
-            fh.write(f"tripped_count={len(tripped)}\n")
-            fh.write(f"has_tripped={'true' if tripped else 'false'}\n")
+            fh.write(f"tripped_count={tripped_count}\n")
+            fh.write(f"has_tripped={'true' if tripped_count else 'false'}\n")
     return 0
 
 
@@ -455,6 +883,16 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--rotation", default=str(ROTATION_DEFAULT), help="token_rotation.yml input")
     parser.add_argument("--conformance", default=str(CONFORMANCE_DEFAULT),
                         help="conformance.yml input (UPS snapshot; watched by stale-data)")
+    parser.add_argument("--ai-usage", dest="ai_usage", default=str(AI_USAGE_DEFAULT),
+                        help="ai_usage.yml input (agent cost, its parity and coverage; agentic layer)")
+    parser.add_argument("--agents", default=str(AGENTS_DEFAULT),
+                        help="agents.yml input (who reads a stale source; agentic layer)")
+    parser.add_argument("--previous", default=str(OUT_DEFAULT),
+                        help="the committed harness_health.yml the agentic wires' first_seen is carried from")
+    parser.add_argument("--root", default=str(REPO_ROOT),
+                        help="checkout the harness.sources paths resolve against")
+    parser.add_argument("--now", default=None,
+                        help="pin the clock (ISO 8601, UTC if no offset): fixture tests and replays")
     parser.add_argument("--out", default=str(OUT_DEFAULT), help="output path")
     parser.add_argument("--quiet", action="store_true", help="suppress the summary lines")
     parser.set_defaults(func=run)

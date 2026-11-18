@@ -684,7 +684,7 @@
 
 - name: .github
   slug: dot-github
-  submodule_path: null      # org-level repo; a hidden dir under projects/ would be fragile
+  submodule_path: projects/dot-github   # mounted under its slug: a hidden dir under projects/ would be fragile
   branch: main
   repo_url: https://github.com/bamr87/.github
   description: "Shared reusable GitHub Actions workflows, release-please setup and community health files for every bamr87 repo."
@@ -695,10 +695,21 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
+  frontend:
+    type: none
+    tier: none
+    framework: none
+    surfaces: []
+    token_version: none
+    entry_url: null
+    shell: none
 
 - name: SCHEMA
   slug: schema
-  submodule_path: null      # upstream of the vendored tools/schema_lint.py
+  submodule_path: projects/SCHEMA   # upstream of the vendored tools/schema_lint.py
   branch: main
   repo_url: https://github.com/bamr87/SCHEMA
   description: "Pyramid Schema: the SCHEMA.md protocol and linter that let AI agents look up repo structure instead of guessing it."
@@ -709,6 +720,17 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: adopted
+  license: MIT
+  frontend:
+    type: none
+    tier: none
+    framework: none
+    surfaces: []
+    token_version: none
+    entry_url: null
+    shell: none
 
 - name: archify
   slug: archify

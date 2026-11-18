@@ -513,7 +513,8 @@ class DashTui(App):
                 i.kind,
                 _clip(i.repo, 24),
                 _clip(i.label, 90),
-                _clip(i.why, 32),
+                # a merge item's `why` is a sentence; the column gets its count of what it clears
+                _clip(i.brief, 32),
                 "—" if i.age_days is None else f"{i.age_days}d",
             )
             for i in items

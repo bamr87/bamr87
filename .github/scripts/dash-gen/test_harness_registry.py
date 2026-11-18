@@ -25,10 +25,16 @@ so a wrong grade becomes a wrong PR or a false alarm):
   * the standard grades stored facts, so a reused scan regrades offline, a row
     from before the facts existed is left ungraded, and a control that cannot
     bind (no stranger can trigger it, a person starts it) is not counted;
+  * the #514 guardrails hold: no `allowed_bots: '*'`, and no checkout of a
+    PR's head on pull_request_target (checking out the base passes);
   * `upgradeable` is the fan-out's own byte comparison, not the stamp — a
     stamped copy edited by hand is never offered to the upgrade lever;
   * the kit's mention handler passes the standard it is graded on, and the
-    hub's own copy is that kit, byte for byte.
+    hub's own copy is that kit, byte for byte;
+  * every hub pin a scan reads is recorded and resolved once per target@ref
+    fleet-wide; a broken one is a `hub-ref-broken` item carrying its fix, an
+    unverified one is not, and a file or repo the scan could not read is
+    counted as unread, never as clean (FF-0037).
 
 Deliberately dependency-light — no network, no gh, no pytest. Needs only PyYAML:
 
@@ -918,7 +924,9 @@ def test_a_hand_rolled_route_is_off_the_standard():
 def test_a_loop_built_to_the_standard_passes_every_control():
     h = graded(STANDARD_LOOP)
     st = h["standard"]
-    assert st["conformant"] and st["missing"] == [] and st["met"] == st["of"] == 9, st
+    # every control but `trusted-author` (no stranger can start it) and
+    # `safe-pr-target` (not a pull_request_target run)
+    assert st["conformant"] and st["missing"] == [] and st["met"] == st["of"] == 10, st
 
 
 def test_an_alias_is_not_a_pinned_model():
@@ -936,7 +944,7 @@ def test_a_model_decided_at_run_time_is_not_graded():
     h = graded(STANDARD_LOOP.replace("--model claude-opus-5-5",
                                      "--model ${{ needs.plan.outputs.model }}"))
     assert h["model"] is None and h["model_source"] == "expression"
-    assert h["standard"]["conformant"] and h["standard"]["of"] == 8
+    assert h["standard"]["conformant"] and h["standard"]["of"] == 9
 
 
 def test_a_cap_forwarded_from_a_caller_is_not_called_missing():
@@ -947,7 +955,7 @@ def test_a_cap_forwarded_from_a_caller_is_not_called_missing():
     h = graded(forwarded)
     assert h["max_turns"] is None and h["max_budget_usd"] is None
     assert h["runtime"] == ["max_turns", "max_budget_usd"]
-    assert h["standard"]["conformant"] and h["standard"]["of"] == 7
+    assert h["standard"]["conformant"] and h["standard"]["of"] == 8
     # a cap that is simply absent is still missing
     absent = graded(STANDARD_LOOP.replace("            --max-turns 240\n", ""))
     assert absent["runtime"] == [] and absent["standard"]["missing"] == ["turn-cap"]
@@ -979,6 +987,122 @@ def test_a_mention_from_a_stranger_needs_an_author_gate():
     h = graded(MENTION_WF, path=".github/workflows/claude.yml")
     assert h["author_gate"] is False
     assert "trusted-author" in h["standard"]["missing"]
+
+
+def test_a_bot_allowlist_of_every_bot_is_off_the_standard():
+    """claude-code-action checks a human actor's repository permission and
+    never a listed bot's, so `allowed_bots: '*'` lets any GitHub App's comment
+    spend the credential (#514)."""
+    h = graded(STANDARD_LOOP)
+    assert h["wildcard_bots"] is False  # no list is the action's default: no bots
+    step = "          claude_args: >-\n"
+    for value, wild in (("'*'", True), ('"dependabot[bot], *"', True),
+                        ("dependabot[bot]", False)):
+        h = graded(STANDARD_LOOP.replace(step, f"          allowed_bots: {value}\n" + step))
+        assert h["wildcard_bots"] is wild, value
+        assert ("no-wildcard-bots" in h["standard"]["missing"]) is wild, (value, h["standard"])
+    assert graded(STANDARD_LOOP.replace(step, "          allowed_bots: '*'\n" + step))[
+        "standard"]["missing"] == ["no-wildcard-bots"]
+    # a list handed over as an expression is decided at run time: not graded
+    h = graded(STANDARD_LOOP.replace(step, "          allowed_bots: ${{ vars.BOTS }}\n" + step))
+    assert h["wildcard_bots"] is None
+    assert h["standard"]["conformant"] and h["standard"]["of"] == 9
+    # only a claude-code-action step carries the list: a hub route has nothing to ask
+    assert graded(LANE_CALLER)["wildcard_bots"] is None
+    # a file YAML cannot parse still shows the wildcard to the line fallback
+    broken = ("on: [push\njobs:\n  a:\n    steps:\n"
+              "      - uses: anthropics/claude-code-action@v1\n        with:\n"
+              "          allowed_bots: '*'  # every bot\n")
+    info = hr.classify_workflow(".github/workflows/x.yml", broken)
+    assert info["parse_error"] and info["wildcard_bots"] is True
+
+
+PR_TARGET_WF = """\
+name: PR reviewer
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  review:
+    if: vars.PR_REVIEW_ENABLED != 'false' && github.event.pull_request.author_association == 'OWNER'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - id: claude-auth
+        uses: bamr87/bamr87/.github/actions/claude-auth@v2
+        with:
+          order: ${{ vars.CLAUDE_AUTH_ORDER }}
+      - run: gh api repos/${{ github.repository }}/statuses/${{ github.event.pull_request.head.sha }} -f state=pending
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
+          claude_args: >-
+            --model claude-sonnet-5-5
+            --max-turns 30
+            --max-budget-usd 10
+"""
+
+
+def test_a_pull_request_target_run_never_checks_out_the_head():
+    """pull_request_target runs with the base repo's secrets and a write
+    token; checking out the PR's head hands both to a stranger's code (#514).
+    Checking out the base, or naming the head SHA to post a status, is safe."""
+    base = graded(PR_TARGET_WF)
+    assert base["kind"] == "event-agent" and base["pr_target_head_checkout"] is False
+    assert base["standard"]["conformant"], base["standard"]
+    checkout = "      - uses: actions/checkout@v7\n"
+    heads = (
+        checkout + "        with:\n          ref: ${{ github.event.pull_request.head.sha }}\n",
+        checkout + "        with:\n"
+                   "          repository: ${{ github.event.pull_request.head.repo.full_name }}\n"
+                   "          ref: ${{ github.head_ref }}\n",
+        checkout + "        with:\n"
+                   "          ref: refs/pull/${{ github.event.pull_request.number }}/merge\n",
+        checkout + "      - run: gh pr checkout ${{ github.event.pull_request.number }}\n",
+        checkout + "      - run: |\n"
+                   "          git fetch origin pull/${{ github.event.pull_request.number }}/head:pr\n"
+                   "          git switch pr\n",
+    )
+    for head in heads:
+        h = graded(PR_TARGET_WF.replace(checkout, head))
+        assert h["pr_target_head_checkout"] is True, head
+        assert h["standard"]["missing"] == ["safe-pr-target"], (head, h["standard"])
+    # the same checkout on pull_request: a fork's run gets no secrets and a
+    # read-only token, so there is nothing for the control to bind
+    plain = graded(PR_TARGET_WF.replace("pull_request_target:", "pull_request:")
+                   .replace(checkout, heads[0]))
+    assert plain["pr_target_head_checkout"] is None
+    assert plain["standard"]["conformant"], plain["standard"]
+
+
+def test_a_scan_from_before_the_514_facts_leaves_them_ungraded():
+    """A reused scan stored before `wildcard_bots` and `pr_target_head_checkout`
+    were recorded has nothing for either control to read: neither is counted,
+    neither is called missing, until the next live scan records them."""
+    row = graded(PR_TARGET_WF.replace(
+        "      - uses: actions/checkout@v7\n",
+        "      - uses: actions/checkout@v7\n        with:\n"
+        "          ref: ${{ github.event.pull_request.head.sha }}\n"))
+    assert row["standard"]["missing"] == ["safe-pr-target"]
+    stored = {k: v for k, v in row.items()
+              if k not in ("wildcard_bots", "pr_target_head_checkout", "standard")}
+    verdict = hr.grade_harness(stored, CFG)
+    assert verdict["conformant"] and verdict["of"] == row["standard"]["of"] - 2, verdict
+
+
+def test_the_contract_turns_the_514_controls_on():
+    """The detectors live here; `harnesses.standard` in _data/fleet.yml is what
+    turns a control on. Both bind every kind of harness."""
+    cfg = hr.load_config(hr.FLEET_DEFAULT)
+    for cid in ("no-wildcard-bots", "safe-pr-target"):
+        spec = cfg["standard"]["controls"].get(cid)
+        assert spec and spec["applies"] == hr.ALL_KINDS, (cid, spec)
+        assert spec["rule"] == "bamr87/bamr87#514", (cid, spec)
 
 
 def test_the_contract_turns_controls_off_and_ignores_unknown_ones():
@@ -1248,6 +1372,125 @@ def test_a_truncated_repo_says_so():
     item = next(i for i in out["attention"] if i["kind"] == "inventory-truncated")
     assert item["repo"] == "big" and "60 of 72" in item["summary"]
     assert out["totals"]["repos_truncated"] == 1
+
+
+# --------------------------------------------------------------------------- #
+# hub refs (FF-0037): pins of hub reusable workflows/actions in each repo
+# --------------------------------------------------------------------------- #
+class _Content:
+    def __init__(self, path: str, text: str = ""):
+        self.path, self.name = path, path.rsplit("/", 1)[-1]
+        self.decoded_content = text.encode()
+
+
+class _Repo:
+    """A PyGithub repository as `scan_repo` reads it: the root listing, the
+    workflows directory, each file; `unreadable` paths raise like a 404."""
+
+    def __init__(self, files: dict[str, str], unreadable: set[str] = frozenset()):
+        self.archived, self.files, self.unreadable = False, files, unreadable
+
+    def get_contents(self, path: str):
+        if path == "":
+            return [_Content(".github")]
+        if path == ".github/workflows":
+            return [_Content(p) for p in sorted(self.files)]
+        if path in self.files and path not in self.unreadable:
+            return _Content(path, self.files[path])
+        raise RuntimeError(f"404 {path}")
+
+
+class _Gh:
+    def __init__(self, repos: dict[str, _Repo]):
+        self.repos = repos
+
+    def get_repo(self, nwo: str) -> _Repo:
+        if nwo not in self.repos:
+            raise RuntimeError("404")
+        return self.repos[nwo]
+
+
+def _pin(target: str, ref: str) -> str:
+    return f"jobs:\n  call:\n    uses: bamr87/bamr87/.github/workflows/{target}@{ref}\n"
+
+
+def test_the_scan_records_hub_pins_and_counts_what_it_did_not_read():
+    files = {
+        ".github/workflows/a-ci.yml": _pin("spec-gate.yml", "v2"),
+        ".github/workflows/b-local.yml": "jobs:\n  c:\n    uses: ./.github/workflows/x.yml\n",
+        ".github/workflows/c-gone.yml": _pin("standard-ci.yml", "v2"),     # unreadable
+        ".github/workflows/d-past-cap.yml": _pin("standard-ci.yml", "v2"),  # past the cap
+    }
+    cfg = dict(CFG, inventory=dict(CFG["inventory"], max_workflow_files=3))
+    gh = _Gh({"bamr87/law-ai": _Repo(files, unreadable={".github/workflows/c-gone.yml"})})
+    row = hr.scan_repo(gh, {"name": "law-ai", "repo_url": "https://github.com/bamr87/law-ai"},
+                       cfg, {}, "0.6.0")
+    assert row["scanned"] is True
+    assert [(p["path"], p["line"], p["target"], p["ref"]) for p in row["hub_refs"]] == [
+        (".github/workflows/a-ci.yml", 3, ".github/workflows/spec-gate.yml", "v2")], row["hub_refs"]
+    assert row["hub_refs_unread_files"] == 2  # one 404 on the caller side, one past the cap
+    # a repo the token cannot read is unread: no hub_refs, never a clean list
+    dark = hr.scan_repo(gh, {"name": "private", "repo_url": "https://github.com/bamr87/private"},
+                        cfg, {}, "0.6.0")
+    assert dark["scanned"] is False and "hub_refs" not in dark
+
+
+def test_a_broken_hub_pin_is_an_attention_item_carrying_its_fix():
+    import hub_refs
+
+    class Api:
+        calls = 0
+
+        def __call__(self, path, accept=None):
+            Api.calls += 1
+            if "/matching-refs/" in path:
+                return 200, [{"ref": f"refs/tags/{t}"} for t in ("v1", "v1.0.0", "v2", "v2.0.0")]
+            if "/commits/" in path:
+                return (200, "0" * 40) if path.endswith(("/v2", "/v1")) else (422, None)
+            if "spec-gate.yml?ref=v2" in path:
+                return 404, None
+            if "flaky.yml" in path:
+                return 503, None
+            return 200, {"name": "x"}
+
+    pin = lambda path, target, ref: dict(  # noqa: E731
+        path=path, line=3, kind="workflow", target=f".github/workflows/{target}", ref=ref,
+        uses=f"bamr87/bamr87/.github/workflows/{target}@{ref}")
+    law = repo_row(name="law-ai", hub_refs=[pin(".github/workflows/ci.yml", "spec-gate.yml", "v2"),
+                                            pin(".github/workflows/gate.yml", "spec-gate.yml", "v2"),
+                                            pin(".github/workflows/ci.yml", "standard-ci.yml", "v2")],
+                   hub_refs_unread_files=0)
+    other = repo_row(name="other", hub_refs=[pin(".github/workflows/ci.yml", "spec-gate.yml", "v2"),
+                                             pin(".github/workflows/f.yml", "flaky.yml", "v2")])
+    dead = repo_row(name="dead", archived=True,
+                    hub_refs=[pin(".github/workflows/ci.yml", "spec-gate.yml", "v2")])
+    dark = repo_row(name="dark", scanned=False)
+    resolver = hub_refs.Resolver(hub_refs.ApiBackend(Api()))
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        (root / ".github/workflows").mkdir(parents=True)
+        (root / ".github/workflows/spec-gate.yml").write_text("on: workflow_call\n")
+        (root / "CHANGELOG.md").write_text("## [Unreleased]\n\n- `spec-gate.yml`\n\n## [2.0.0]\n")
+        spent = hr.resolve_hub_refs([law, other, dead, dark], resolver,
+                                    hub_refs.TreeFacts(root, tags_fn=resolver.tags))
+    assert spent == 3  # spec-gate@v2, standard-ci@v2, flaky@v2: once each, fleet-wide
+    assert [p["status"] for p in law["hub_refs"]] == ["file-missing-at-ref"] * 2 + ["ok"]
+    assert other["hub_refs"][1]["status"] == "unverified" and "fix" not in other["hub_refs"][1]
+    out = hr.finalize([law, other, dead, dark], CFG, "0.6.0", {}, {}, "live", "now", NOW)
+    items = [i for i in out["attention"] if i["kind"] == "hub-ref-broken"]
+    # one per repo and target@ref (law-ai's two callers share one), none for
+    # the archived repo, none for the unverified pin
+    assert sorted(i["repo"] for i in items) == ["law-ai", "other"], items
+    law_item = next(i for i in items if i["repo"] == "law-ai")
+    assert law_item["severity"] >= 85
+    assert law_item["action"].startswith("cut v2.1.0 and move v2"), law_item
+    assert ".github/workflows/ci.yml:3, .github/workflows/gate.yml:3" in law_item["summary"]
+    assert out["schema"] == "harness-registry/v1"  # additive: the marker holds
+    by_repo = {r["repo"]: r for r in out["repos"]}
+    assert set(by_repo["law-ai"]["hub_refs"][0]) >= {"path", "line", "target", "ref", "status", "fix"}
+    t = out["totals"]
+    assert (t["hub_refs"], t["hub_refs_broken"], t["hub_refs_unverified"]) == (5, 3, 1), t
+    assert t["hub_refs_unread_repos"] == 1  # `dark`: unread, never clean
 
 
 

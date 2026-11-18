@@ -250,6 +250,46 @@ def test_workflow_run_pr_token_and_bare_push():
         assert "bare-push" in rules(GOOD.replace("run: echo ok", f"run: {bad}")), bad
 
 
+def test_pr_comment_is_a_warning_outside_pr_review():
+    step = lambda body: GOOD.replace("        run: echo ok", body)
+    on_pr = lambda text: text.replace("  workflow_dispatch:\n", "  pull_request:\n  workflow_dispatch:\n", 1)
+    for bad in ('        run: gh pr comment "$PR" --body-file out.md',
+                "        run: gh pr review 7 --comment -b hi",
+                '        run: gh api "repos/o/r/issues/$PR/comments" -f body="$body"',
+                "        run: |\n          gh api repos/o/r/issues/${{ github.event.pull_request.number }}/comments \\\n"
+                "            --input body.json",
+                "        run: gh api -X POST repos/o/r/pulls/7/comments --input c.json",
+                "        uses: marocchino/sticky-pull-request-comment@v2",
+                "        uses: peter-evans/create-or-update-comment@v4\n        with:\n"
+                "          issue-number: ${{ github.event.pull_request.number }}",
+                "        uses: actions/github-script@v8\n        with:\n"
+                "          script: |\n            github.rest.pulls.createReview({owner, repo, pull_number: 7, event: 'COMMENT'})"):
+        found = [f for f in wa.lint_text(step(bad), FLEET, ".github/workflows/good-loop.yml")["findings"]
+                 if f["rule"] == "pr-comment"]
+        assert found and found[0]["severity"] == "warn", bad
+    for ok in ('        run: gh issue comment "$ISSUE" --body-file out.md',
+               '        run: gh api "repos/o/r/issues/$PR/comments" --paginate --jq ".[].id"',
+               '        run: gh api "repos/o/r/issues/$NUMBER/comments" -f body="$body"',
+               "        run: |\n          # gh pr comment would post here; the comment line is not code\n          echo ok",
+               "        uses: peter-evans/create-or-update-comment@v4\n        with:\n          issue-number: ${{ env.ISSUE }}",
+               "        uses: actions/github-script@v8\n        with:\n"
+               "          script: |\n            github.rest.issues.createComment({owner, repo, issue_number: 3, body: 'x'})"):
+        assert "pr-comment" not in rules(step(ok)), ok
+    assert "pr-comment" in rules(on_pr(step('        run: gh api "repos/o/r/issues/$NUMBER/comments" -f body="$body"'))), \
+        "on a pull_request trigger every issue comment lands on the PR"
+    assert "pr-comment" in rules(on_pr(step("        uses: actions/github-script@v8\n        with:\n"
+                                            "          script: |\n            github.rest.issues.createComment({body: 'x'})")))
+    pair = step("        uses: marocchino/sticky-pull-request-comment@v2\n"
+                "      - uses: marocchino/sticky-pull-request-comment@v2\n        with:\n          delete: true")
+    assert len([f for f in wa.lint_text(pair, FLEET, ".github/workflows/good-loop.yml")["findings"]
+                if f["rule"] == "pr-comment"]) == 1, "a post-then-delete pair in one job is one finding"
+    stub = ("name: PR review\non:\n  workflow_run:\n    workflows: [\"**\", \"!PR review\"]\n    types: [completed]\n"
+            "permissions:\n  contents: read\njobs:\n  review:\n    uses: bamr87/bamr87/.github/workflows/pr-review.yml@v2\n")
+    assert "pr-comment" not in rules(stub, file=".github/workflows/pr-review.yml"), "the stub is the sanctioned route"
+    hub = (REPO_ROOT / ".github/workflows/pr-review.yml").read_text(encoding="utf-8")
+    assert "pr-comment" not in rules(hub, file=".github/workflows/pr-review.yml"), "the hub's own pr-review.yml"
+
+
 def test_node_alias_is_the_quota_defect():
     node = "      - uses: actions/checkout@v7\n      - uses: actions/setup-node@v7\n        with:\n          node-version: {}\n"
     setup = lambda version: GOOD.replace("      - uses: actions/checkout@v7\n", node.format(version))

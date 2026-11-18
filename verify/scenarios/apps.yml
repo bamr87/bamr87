@@ -2,7 +2,7 @@
 id: apps
 feature: HUB-078
 title: "The Apps page lists every fleet frontend and opens one without sending a visitor's browser anywhere unasked"
-description: "/apps lists every frontend the registry declares with its live and local addresses and filters them by kind; the public build asks none of those addresses anything while the list is on screen. A frontend with no browser surface opens as the generated repo app and says which component it is owed, and a local dev stack is checked only after the reader asks, because a public page must not reach into a visitor's own machine on load. Nothing scrolls sideways."
+description: "/apps lists every frontend the registry declares with its live and local addresses and filters them by kind; the public build asks none of those addresses anything while the list is on screen. A frontend with no browser surface opens as the generated repo app and says which component it is owed, and a local dev stack is checked only after the reader asks, because a public page must not reach into a visitor's own machine on load. A devenv-hosted site's Local target is the workspace port devenv publishes, with the command that serves it. Nothing scrolls sideways."
 viewports: [desktop, mobile]
 ignore_console: ["Failed to load resource", "net::ERR_"]
 steps:
@@ -34,3 +34,13 @@ steps:
   - expect: { text: "tools/dash dev up gitorio" }
   - expect: { no_horizontal_scroll: true }
   - screenshot: app-local-asks-first
+  # A devenv-hosted site has a Local target too (#702): the workspace port the
+  # hub's devenv container publishes, and the command that serves it there.
+  - goto: "/apps/bamr87.github.io/?target=local"
+  - expect: { status: 200 }
+  - wait: { selector: "text=A local stack answers only on the machine that runs it." }
+  - expect: { text: "Check 127.0.0.1:4040" }
+  - expect: { count: { selector: "iframe", max: 0 } }
+  - expect: { text: "docker compose exec -w /workspace/projects/bamr87.github.io devenv" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: app-devenv-local-asks-first

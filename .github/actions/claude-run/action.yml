@@ -4,7 +4,7 @@
 # -----------------------------------------------------------------------------
 # Consume it BY REFERENCE, never by copy:
 #
-#   - uses: bamr87/bamr87/.github/actions/claude-run@main
+#   - uses: bamr87/bamr87/.github/actions/claude-run@v2
 #     with: { agent: grow, prompt: "…", tools: "Bash,Read,Write,Edit,Grep,Glob" }
 #
 # or take the whole lane (kill switch, concurrency, checkout, runtimes, this
@@ -12,15 +12,21 @@
 # this manifest (run.sh) installs Claude Code (best-effort), resolves the model
 # (--model > AI_MODEL > the CONSUMER repo's _data/ai.yml > the fleet default),
 # runs `claude -p` in the repo's credential order (AI_AUTH_ORDER, default
-# oauth then api_key; a REFUSED credential moves on to the next one), and falls
+# oauth then api_key; a REFUSED credential moves on to the next one; a
+# TRANSIENT failure that billed nothing is re-run on the same one, per
+# AI_TRANSIENT_RETRIES / AI_TRANSIENT_BACKOFF in the step env), and falls
 # back to the Claude API when the
 # consumer ships scripts/ai/api_call.rb|py. A call that was ATTEMPTED and FAILED
 # with no fallback fails THIS step with the reason the run gave — never a silent
 # no-op for a later step to discover (run.sh, EXIT CODES). With NO auth at all
 # the step is a clean no-op (exit 0), so lanes degrade gracefully when unset.
 #
-# Auth comes from the job env: CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`;
-# drives the primary path) and/or ANTHROPIC_API_KEY (primary + fallback).
+# Auth comes from the job env: CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`).
+# Claude auth: OAuth only (CLAUDE_CODE_OAUTH_TOKEN). ANTHROPIC_API_KEY disabled for
+# now (2026-11-15): the step below unsets it before run.sh, which also ignores
+# `api_key` in AI_AUTH_ORDER (no key-billed Claude Code run, no Claude API
+# fallback). To restore, drop the two OAuth-only guards (here and in run.sh)
+# and re-add the secrets.ANTHROPIC_API_KEY reference to the job env.
 #
 # METERING (optional, consumer-owned): when the consumer carries
 # scripts/ai/usage.rb + usage_report.rb, run.sh records every call's tokens and
@@ -87,8 +93,11 @@ runs:
         MAX_BUDGET_USD: ${{ inputs.max-budget-usd }}
         PERMISSION_MODE: ${{ inputs.permission-mode }}
       run: |
-        if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-          echo "::warning::no Claude auth (CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY) — AI step is a no-op."
+        # OAuth only for now (2026-11-15): a job env that still carries the key
+        # never hands it to Claude. See the header to restore.
+        unset ANTHROPIC_API_KEY
+        if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+          echo "::warning::no Claude auth (CLAUDE_CODE_OAUTH_TOKEN; ANTHROPIC_API_KEY is disabled for now, OAuth only) — AI step is a no-op."
           exit 0
         fi
         # Keep the install log: when the CLI is missing, `command -v claude`
@@ -100,7 +109,14 @@ runs:
         if ! npm install -g @anthropic-ai/claude-code@latest >"$RUNNER_TEMP/npm-install.log" 2>&1; then
           echo "::warning::Claude Code install failed — using the Claude API fallback."
           tail -n 40 "$RUNNER_TEMP/npm-install.log" >&2 || true
+        elif ! command -v claude >/dev/null 2>&1; then
+          # An install that exits 0 but leaves no `claude` on PATH is the
+          # silent case: say so and name the log instead of carrying on.
+          echo "::warning::npm install exited 0 but no \`claude\` is on PATH — see $RUNNER_TEMP/npm-install.log."
         fi
+        # Always log what was actually installed: an install that "succeeded"
+        # with the wrong release (2.1.197 on Node 20, bamr87#499) left no trace.
+        echo "claude-run: Claude Code $(claude --version 2>/dev/null || echo 'not installed') on Node $(node --version 2>/dev/null || echo 'not installed')"
         # Nested calls: a skill the agent runs (e.g. an illustrator) may need the
         # runner too. Export its location so a consumer's thin scripts/ai/run.sh
         # shim can find it without a second copy or a download.

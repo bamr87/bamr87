@@ -19,8 +19,8 @@ Description: Executable Universal Project Standard (UPS) checker. Runs the
              UPS-REPO-21 rows are keyed to that contract.
 Author: bamr87
 Created: 2026-09-01
-Last Modified: 2026-10-04
-Version: 0.3.2
+Last Modified: 2026-11-15
+Version: 0.3.3
 Usage: python3 tools/conformance.py check [PATH] [--kinds site,app] [--tier active] [--gate] [--json] [--hub DIR]
        python3 tools/conformance.py fleet [--write _data/conformance.yml] [--json]
        python3 tools/conformance.py kinds [PATH]      # print detected kinds
@@ -38,7 +38,7 @@ from pathlib import Path
 
 import yaml
 
-CHECKER_VERSION = "0.3.2"
+CHECKER_VERSION = "0.3.3"
 HUB_DEFAULT = Path(__file__).resolve().parent.parent
 KINDS = ("site", "app", "api", "lib", "cli", "ext", "content", "fork")
 LOCKFILES = ("package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "Gemfile.lock",
@@ -53,9 +53,14 @@ SKIP_DIRS = {".git", "node_modules", "_site", "site", "dist", "build", ".venv", 
 # repo model
 # --------------------------------------------------------------------------- #
 class Repo:
-    def __init__(self, path: Path, hub: Path):
+    def __init__(self, path: Path, hub: Path, instance: Path | None = None):
         self.path = path.resolve()
+        # Two roots (docs/adr/0011): `hub` is the FRAMEWORK checkout — the spec,
+        # the contracts, the kits and the tools a copy is compared against;
+        # `instance` is the control plane that OWNS this repo — its registry and
+        # its settings. They are the same directory unless an instance is named.
         self.hub = hub.resolve()
+        self.instance = (instance or hub).resolve()
         self._tracked: list[str] | None = None
         self._files: list[Path] | None = None
         self.registry_entry: dict | None = None   # hub registry entry; fleet mode sets it
@@ -880,14 +885,114 @@ def _fb_contract(r, k):
     return _ok(hit or "") if hit else _no("no fleet-feedback issue marker — the widget does not emit the contract body")
 
 
+# --------------------------------------------------------------------------- #
+# UPS-BE-10/11 bind to `api, app (server-rendered)` (specs/BACKEND.md). binds()
+# reads only `applies:`, so an `app` repo binds whether or not anything of it
+# runs on a server; these two rows apply the qualifier themselves. A repo with
+# no server side (a browser-only SPA, a game, firmware, a stdio tool) has no
+# HTTP process to answer /healthz or /version, and is N/A. Any one signal below
+# keeps the rows checked, so a doubtful repo stays checked as before.
+# --------------------------------------------------------------------------- #
+BE_SERVER_FILES = ("manage.py", "config.ru", "config/application.rb", "Procfile", "fly.toml",
+                   "wrangler.toml", "wrangler.json", "wrangler.jsonc", "Dockerfile*")
+BE_SERVER_DIRS = ("", "app", "frontend", "web", "client", "backend", "api", "server")
+BE_NODE_SERVER_DEPS = ("next", "nuxt", "@remix-run/node", "@remix-run/server-runtime", "@sveltejs/kit",
+                       "@astrojs/node", "express", "fastify", "koa", "hono", "@nestjs/core", "wrangler")
+BE_PY_SERVER_RX = (r"(?im)(?:^\s*|[\"'])(django|fastapi|flask|starlette|aiohttp|sanic|tornado|quart|litestar|"
+                   r"falcon|bottle|uvicorn|gunicorn)(?=$|[\s<>=~!\[;@\"',])")
+BE_RUBY_SERVER_RX = r"""(?m)^\s*gem\s+["'](rails|sinatra|hanami|roda|puma)["']"""
+# Code that answers requests itself with no framework dependency: a Python
+# BaseHTTPRequestHandler subclass, an asyncio or wsgiref server, Go's net/http.
+# A static-file preview (SimpleHTTPRequestHandler, `python -m http.server`) is
+# not a server side, and Node is left to its dependencies, because a static
+# app's own tooling (playtest and preview scripts) starts an http server too.
+BE_SERVE_CODE_RX = (r"\(\s*(?:http\.server\.)?BaseHTTPRequestHandler\s*\)|\bwsgiref\.simple_server\b"
+                    r"|\basyncio\.start_server\(|\bhttp\.ListenAndServe(?:TLS)?\(")
+
+
+def _manifest_dirs(r) -> list[Path]:
+    """Where a dependency manifest counts: the root, each top-level directory
+    and apps/* and packages/*, skipping nested repositories (as files() does)."""
+    def own(p: Path) -> bool:
+        return p.is_dir() and p.name not in SKIP_DIRS and not p.name.startswith(".") and not (p / ".git").exists()
+
+    def children(p: Path) -> list[Path]:
+        try:
+            return sorted(q for q in p.iterdir() if own(q))
+        except OSError:
+            return []
+    dirs = [r.path]
+    for p in children(r.path):
+        dirs.append(p)
+        if p.name in ("apps", "packages"):
+            dirs.extend(children(p))
+    return dirs
+
+
+def _server_dep(d: Path) -> str | None:
+    """The server framework a directory's package.json, requirements.txt,
+    pyproject.toml or Gemfile depends on, or None."""
+    try:
+        pj = json.loads((d / "package.json").read_text(encoding="utf-8")) if (d / "package.json").is_file() else {}
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        pj = {}
+    if isinstance(pj, dict):
+        deps = {name for key in ("dependencies", "devDependencies") if isinstance(pj.get(key), dict) for name in pj[key]}
+        hit = next((x for x in BE_NODE_SERVER_DEPS if x in deps), None)
+        if hit:
+            return f"package.json depends on {hit}"
+    for name, rx in (("requirements.txt", BE_PY_SERVER_RX), ("pyproject.toml", BE_PY_SERVER_RX), ("Gemfile", BE_RUBY_SERVER_RX)):
+        try:
+            text = (d / name).read_text(encoding="utf-8", errors="replace") if (d / name).is_file() else ""
+        except OSError:
+            text = ""
+        m = re.search(rx, re.sub(r"(?m)#.*$", "", text))
+        if m:
+            return f"{name} depends on {m.group(1)}"
+    return None
+
+
+def _server_side(r, k) -> str | None:
+    """Why the repo runs a server (the BE-10/11 evidence), or None when nothing of it does."""
+    if "api" in k or "api" in detect_kinds(r):
+        return "kind api"
+    for d in BE_SERVER_DIRS:
+        for f in BE_SERVER_FILES:
+            hit = r.glob1(f"{d}/{f}" if d else f)
+            if hit:
+                return hit
+    for d in _manifest_dirs(r):
+        dep = _server_dep(d)
+        if dep:
+            rel = d.relative_to(r.path)
+            return dep if rel == Path(".") else f"{rel}/{dep}"
+    for p in r.files({".py", ".go"}):
+        rel = p.relative_to(r.path)
+        if {"test", "tests"} & set(rel.parts) or p.name.startswith("test_") or p.name.endswith("_test.go"):
+            continue
+        try:
+            if p.stat().st_size <= 300_000 and re.search(BE_SERVE_CODE_RX, p.read_text(encoding="utf-8", errors="replace")):
+                return str(rel)
+        except OSError:
+            continue
+    return None
+
+
+BE_NA = "n/a: no server side found — binds to api and app (server-rendered), specs/BACKEND.md"
+
+
 @check("UPS-BE-10")
 def _healthz(r, k):
+    if _server_side(r, k) is None:
+        return _ok(BE_NA)
     hit = r.grep(r"healthz|/health\b|readyz", {".py", ".ts", ".rb", ".js"})
     return _ok(hit or "") if hit else _no("no /healthz or /readyz route")
 
 
 @check("UPS-BE-11")
 def _version_route(r, k):
+    if _server_side(r, k) is None:
+        return _ok(BE_NA)
     hit = r.grep(r'["\']/version["\']|/api/version|route.*version', {".py", ".ts", ".rb", ".js"})
     return _ok(hit or "") if hit else _no("no /version endpoint")
 
@@ -1060,7 +1165,7 @@ def registry_entry(r) -> dict | None:
     if r.registry_entry is None:
         r.registry_entry = {}
         nwo = _origin_nwo(r)
-        reg = r.hub / "_data" / "projects.yml"
+        reg = r.instance / "_data" / "projects.yml"
         if nwo and reg.is_file():
             for e in yaml.safe_load(reg.read_text(encoding="utf-8")) or []:
                 if re.sub(r"^https://github\.com/", "", str(e.get("repo_url", ""))).rstrip("/").lower() == nwo:
@@ -1533,13 +1638,20 @@ def _freshness(r, k):
 
 
 def fleet_types(r) -> set[str]:
-    """Contract labels_source: hub _data/fleet.yml issue_pipeline.labels (types)."""
-    try:
-        cfg = yaml.safe_load((r.hub / "_data" / "fleet.yml").read_text(encoding="utf-8")) or {}
-        types = cfg["issue_pipeline"]["labels"]["types"]
-        return {str(t) for t in types} if types else set(FLEET_TYPES_FALLBACK)
-    except (OSError, KeyError, TypeError, yaml.YAMLError):
-        return set(FLEET_TYPES_FALLBACK)
+    """Contract labels_source: _data/fleet.yml issue_pipeline.labels (types).
+
+    The instance's settings win; an instance that does not set the labels gets
+    the framework's, and a checkout with neither gets the fallback.
+    """
+    for root in dict.fromkeys((r.instance, r.hub)):
+        try:
+            cfg = yaml.safe_load((root / "_data" / "fleet.yml").read_text(encoding="utf-8")) or {}
+            types = cfg["issue_pipeline"]["labels"]["types"]
+        except (OSError, KeyError, TypeError, yaml.YAMLError):
+            continue
+        if types:
+            return {str(t) for t in types}
+    return set(FLEET_TYPES_FALLBACK)
 
 
 def _form_labels(p: Path) -> list[str] | None:
@@ -1896,16 +2008,31 @@ def kinds_from_stack(entry: dict) -> list[str] | None:
     return [str(x) for x in k] if isinstance(k, list) and k else None
 
 
-def fleet(hub: Path, write: Path | None, as_json: bool) -> int:
+def instance_data(instance: Path, hub: Path, name: str) -> Path:
+    """An instance's own `_data/<name>`, else the framework's as the default."""
+    own = instance / "_data" / name
+    return own if own.is_file() else hub / "_data" / name
+
+
+def fleet(hub: Path, write: Path | None, as_json: bool, instance: Path | None = None) -> int:
+    """Check every checked-out repo of one instance's registry.
+
+    `hub` is the framework checkout (spec, contracts, kits, tools). `instance`
+    is the control plane whose `_data/projects.yml` lists the repos and whose
+    `projects/` holds them; it defaults to `hub`, the single-root layout. The
+    registry is the instance's alone; `standards.yml` is the instance's when it
+    has one, else the framework's tiers.
+    """
+    instance = instance or hub
     specs = load_specs(hub)
-    registry = yaml.safe_load((hub / "_data" / "projects.yml").read_text(encoding="utf-8")) or []
-    standards = yaml.safe_load((hub / "_data" / "standards.yml").read_text(encoding="utf-8")) or {}
+    registry = yaml.safe_load((instance / "_data" / "projects.yml").read_text(encoding="utf-8")) or []
+    standards = yaml.safe_load(instance_data(instance, hub, "standards.yml").read_text(encoding="utf-8")) or {}
     repos, skipped = [], []
     for e in registry:
         sub = e.get("submodule_path")
         if not sub:
             continue
-        path = hub / sub
+        path = instance / sub
         if not (path / ".git").exists() and not (path / "README.md").exists():
             skipped.append({"name": e["name"], "reason": "not checked out"})
             continue
@@ -1913,7 +2040,7 @@ def fleet(hub: Path, write: Path | None, as_json: bool) -> int:
         if tier in ("fork", "archived"):
             skipped.append({"name": e["name"], "reason": f"tier {tier}"})
             continue
-        repo = Repo(path, hub)
+        repo = Repo(path, hub, instance)
         repo.registry_entry = e
         kinds = kinds_from_stack(e) or profile_kinds(repo) or detect_kinds(repo)
         res = run_checks(repo, kinds, tier, specs)
@@ -1996,18 +2123,25 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--json", action="store_true")
     c.add_argument("--hub", default=str(HUB_DEFAULT), help="hub checkout holding _data/specs.yml")
     f = sub.add_parser("fleet", help="check every checked-out submodule")
-    f.add_argument("--write", nargs="?", const=str(HUB_DEFAULT / "_data" / "conformance.yml"))
+    f.add_argument("--write", nargs="?", const="",
+                   help="write the snapshot (default: the instance's _data/conformance.yml)")
     f.add_argument("--json", action="store_true")
     f.add_argument("--hub", default=str(HUB_DEFAULT))
     k = sub.add_parser("kinds", help="print detected kinds for a path")
     k.add_argument("path", nargs="?", default=".")
     k.add_argument("--hub", default=str(HUB_DEFAULT))
+    for p in (c, f, k):
+        p.add_argument("--instance", default=os.environ.get("FLEET_HOME") or None,
+                       help="the control plane that owns the repos: its _data/projects.yml and projects/ "
+                            "(default: $FLEET_HOME, else --hub; docs/adr/0011)")
     a = ap.parse_args(argv)
     hub = Path(a.hub)
+    instance = Path(a.instance) if a.instance else hub
 
     if a.cmd == "fleet":
-        return fleet(hub, Path(a.write) if a.write else None, a.json)
-    repo = Repo(Path(a.path), hub)
+        write = None if a.write is None else Path(a.write) if a.write else instance / "_data" / "conformance.yml"
+        return fleet(hub, write, a.json, instance)
+    repo = Repo(Path(a.path), hub, instance)
     if a.cmd == "kinds":
         print(",".join(detect_kinds(repo)))
         return 0

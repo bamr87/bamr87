@@ -10,7 +10,8 @@ import type {
   AppsDoc, AuthDoc, Capabilities, ProjectReadme, ConfigDoc, DockerView, FleetView, Job, LakeLine, LakeRun, Op,
   ProjectDetail, StateDoc, TuiStatus, Dict, GithubStatus, GhRepo, GhRepoDetail, GhAction, GhIssue,
   SiteIndex, SitePage, SitePost, GithubFleet, PullSpecs, WorkBoard, WorkItemDetail, WorkPlan,
-  WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint, RefineDoc, EvidenceDoc, TextFile, AssistDoc, JobTail,
+  WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint, RefineDoc, EvidenceDoc, TextFile, AssistDoc, JobTail, PrQueue,
+  GhProjectsDoc, GhProjectItemsDoc,
 } from './types';
 
 const minute = 60_000;
@@ -124,6 +125,10 @@ export const useAuth = () => useQuery({ queryKey: ['auth'], queryFn: () => api<A
 export const useTuiStatus = () => useQuery({ queryKey: ['tui-status'], queryFn: () => api<TuiStatus>('/api/tui/status'), refetchInterval: 10_000 });
 
 // --- The Work board (dash-gen work_board.py) --------------------------------
+/** The PR queue, as `auto` serves it (the index and the detail cache until their TTL); the page's
+ * "Read GitHub now" puts one forced read into this same cache entry. */
+export const usePrQueue = () =>
+  useQuery({ queryKey: ['prs', 'auto'], queryFn: () => api<PrQueue>('/api/prs?refresh=auto'), staleTime: 60_000, placeholderData: keepPreviousData });
 export const useWork = () => useQuery({ queryKey: ['work'], queryFn: () => api<WorkBoard>('/api/work'), staleTime: 30_000 });
 /** The board as a staged plan would leave it; nothing is written. */
 export const useWorkPreview = (plan: WorkPlan | null) =>
@@ -185,6 +190,22 @@ export const useGithubIssue = (nwo: string, n: number | null) =>
   useQuery({ queryKey: ['github', 'issue', nwo, n], queryFn: () => api<{ issue: GhIssue; comments: { id: number; user: string; body: string; created_at: string; html_url: string }[] }>(`/api/github/repos/${nwo}/issues/${n}`), enabled: n != null });
 export const useGithubLog = () =>
   useQuery({ queryKey: ['github', 'log'], queryFn: () => api<GhAction[]>('/api/github/log'), refetchInterval: 15_000 });
+
+// --- GitHub Projects (v2), read-only (gh_projects.py) ----------------------
+// A console-only read with the operator's token: the public snapshot carries
+// none of it (a private project's title must not reach Pages), so on the
+// published page these answer 501 and the page says so.
+export const useGhProjects = (enabled = true) =>
+  useQuery({ queryKey: ['gh-projects'], queryFn: () => api<GhProjectsDoc>('/api/gh-projects'), enabled, staleTime: 5 * minute, retry: false });
+/** Every item a board needs in one read (the API's cap); the table pages it in the browser. */
+export const useGhProjectItems = (projectId: string | null) =>
+  useQuery({
+    queryKey: ['gh-projects', 'items', projectId],
+    queryFn: () => api<GhProjectItemsDoc>(`/api/gh-projects/${encodeURIComponent(projectId ?? '')}/items?limit=500`),
+    enabled: Boolean(projectId),
+    staleTime: 5 * minute,
+    retry: false,
+  });
 
 // --- The site: profile, pages, posts, public registries (site_docs.py) -----
 export const useSite = () => useQuery({ queryKey: ['site'], queryFn: () => api<SiteIndex>('/api/site'), staleTime: 10 * minute });

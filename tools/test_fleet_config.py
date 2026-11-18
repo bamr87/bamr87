@@ -311,6 +311,27 @@ def test_the_live_api_keys_contract_resolves_cleanly():
     assert {t["slot"] for t in targets.values()} >= {"default", "bamr87"}, targets
 
 
+def test_the_live_api_keys_contract_names_no_moved_repo():
+    """#337: bash-365.com moved from amr-bash/ to the bash-365 org and joined the
+    registry, but its workspace still claimed the old owner/repo, so `dash keys
+    rotate` targeted a name GitHub's GraphQL API no longer resolves. A repo the
+    registry knows is claimed by its registry name, which follows a transfer."""
+    live = fc.load(fc.FLEET)
+    registry = fc.load(fc.REGISTRY)
+    targets, _ = fc.key_targets(live, registry)
+    slot = {nwo: t["slot"] for nwo, t in targets.items()}
+    assert slot.get("bash-365/bash-365.com") == "bash-365.com", \
+        {n: s for n, s in slot.items() if "bash-365" in n}
+    assert not [n for n in targets if n.split("/")[0] == "amr-bash"], sorted(targets)
+
+    by_name = {str(p.get("name")): fc.owner_repo(p.get("repo_url") or "") for p in registry}
+    stale = [f"{ws}: {entry} (the registry has {by_name[entry.split('/')[-1]]})"
+             for ws, spec in live["api_keys"]["workspaces"].items()
+             for entry in (spec or {}).get("repos") or []
+             if "/" in entry and by_name.get(entry.split("/")[-1]) not in (None, entry)]
+    assert not stale, f"an explicit owner/repo shadows a moved registry repo: {stale}"
+
+
 def test_inventory_reads_the_workspace_from_scope_and_tolerates_org_scoped_keys():
     """#522: the SDK's BetaAPIKey has no top-level workspace_id; an
     organization-scoped key has none at all. Neither may crash the watch."""

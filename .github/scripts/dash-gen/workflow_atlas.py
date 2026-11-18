@@ -128,6 +128,13 @@ RULES: list[dict] = [
     dict(id="bare-push", severity="warn", title="Never a bare push to the default branch",
          why="A ruleset change froze the fleet's data for three weeks when every loop ended in `git push`.",
          fix="Publish through `.github/actions/utilities/publish-data`.", doc=STANDARDS_DOC, gate=None),
+    dict(id="pr-comment", severity="warn", title="PR comments go through pr-review.yml",
+         why="Constitution § 19: of 173 automated PR comments audited in 2026-11, 10 were actionable. A check that "
+             "comments by itself posts on every push, on Dependabot PRs and as whoever's token it holds. Warn-only "
+             "until the repo's fan-out PR lands (§ 19.9).",
+         fix="Upload findings as a `fleet-findings` artifact for pr-review.yml to post inline, send tables to "
+             "`$GITHUB_STEP_SUMMARY`, and drop the comment step.",
+         doc="templates/pr-review/README.md", gate=None),
     dict(id="undocumented", severity="warn", title="Listed in its README",
          why="The README tables are the inventory people read; a file missing there is a file nobody owns.",
          fix="Add a row to the README table (or remove the stale row).", doc=README_DOC, gate=None),
@@ -157,6 +164,20 @@ NULL_CMP_RX = re.compile(r"inputs\.([\w-]+)\s*[!=]=\s*false\b|\bfalse\s*[!=]=\s*
 EVENT_GUARD_RX = re.compile(r"github\.event_name\s*[!=]=\s*'(?:workflow_dispatch|schedule)'")
 ONLY_JOB_TOKEN_RX = re.compile(r"^\s*(?:\$\{\{\s*)?(?:github\.token|secrets\.GITHUB_TOKEN)(?:\s*\}\})?\s*$")
 NODE_ALIAS_RX = re.compile(r"^\s*(?:lts/|latest$|current$|node$)")
+# `pr-comment` (§ 19.1): a step that posts on a pull request itself. An issue
+# comment counts only when it lands on a PR: the workflow runs on a PR event,
+# or the number it comments on is named for one.
+PR_COMMENT_CLI_RX = re.compile(r"\bgh\s+pr\s+(?:comment|review)\b")
+PULLS_COMMENTS_RX = re.compile(r"\bpulls/[^/\s\"']+/(?:comments|reviews)\b")
+ISSUE_COMMENTS_RX = re.compile(r"\bissues/([^/\n]{1,80}?)/comments\b")
+API_WRITE_RX = re.compile(r"(?:^|\s)(?:-[fFd]\s|--(?:raw-)?field\b|--input\b|--data\b|-X\s*(?:POST|PATCH)\b"
+                          r"|--method\s+(?:POST|PATCH)\b)")
+PR_NUMBER_RX = re.compile(r"(?i)pull|\bpr\b|\bpr_|github\.event\.number")
+PR_ONLY_COMMENT_ACTIONS = ("marocchino/sticky-pull-request-comment", "thollander/actions-comment-pull-request",
+                           "mshick/add-pr-comment")
+SCRIPT_REVIEW_RX = re.compile(r"\b(?:createReview|createReviewComment|submitReview)\b")
+SCRIPT_COMMENT_RX = re.compile(r"\b(?:createComment|updateComment)\b")
+PR_TRIGGERS = {"pull_request", "pull_request_target"}
 DEFAULT_BRANCHES = ("main", "master")
 CLAUDE_ACTION = "anthropics/claude-code-action"
 ID_RX = re.compile(r"^[a-z][a-z0-9-]{1,40}$")
@@ -761,6 +782,33 @@ def _pushes(run: str) -> list[tuple[str, str]]:
     return out
 
 
+def _pr_comment(run: str, uses: str, with_: dict, on_pr: bool) -> str | None:
+    """What shows that a step posts a PR comment by itself, or None."""
+    for line in run.replace("\\\n", " ").splitlines():
+        m = PR_COMMENT_CLI_RX.search(line)
+        if m:
+            return m.group(0)
+        if not API_WRITE_RX.search(line):
+            continue
+        m = PULLS_COMMENTS_RX.search(line)
+        if m:
+            return m.group(0)
+        m = ISSUE_COMMENTS_RX.search(line)
+        if m and (on_pr or PR_NUMBER_RX.search(m.group(1))):
+            return m.group(0)
+    action = uses.split("@")[0]
+    if action in PR_ONLY_COMMENT_ACTIONS:
+        return action
+    if action == "peter-evans/create-or-update-comment" and (on_pr or PR_NUMBER_RX.search(str(with_.get("issue-number") or ""))):
+        return action
+    if action == "actions/github-script":
+        script = str(with_.get("script") or "")
+        m = SCRIPT_REVIEW_RX.search(script) or (SCRIPT_COMMENT_RX.search(script) if on_pr or PR_NUMBER_RX.search(script) else None)
+        if m:
+            return f"github-script {m.group(0)}"
+    return None
+
+
 def _token_of(*envs: dict) -> str:
     """The token `gh` would use: GH_TOKEN, else GITHUB_TOKEN, innermost env first."""
     for env in envs:
@@ -860,6 +908,7 @@ def lint_workflow(wf: dict, text: str, fleet: dict, hub_rules: bool = True) -> l
         out.append(_finding("workflow-run", "workflow", wid, file, "Triggered by `workflow_run`.",
                             _line_of(text, r"^\s+workflow_run:")))
     wf_env = data.get("env") if isinstance(data.get("env"), dict) else {}
+    commenters: set[tuple] = set()
     for jid, job in (data.get("jobs") or {}).items():
         if not isinstance(job, dict):
             continue
@@ -889,6 +938,12 @@ def lint_workflow(wf: dict, text: str, fleet: dict, hub_rules: bool = True) -> l
                 out.append(_finding("pr-token", "workflow", wid, file,
                                     f"Job `{jid}` opens a PR with GITHUB_TOKEN; its CI will not run.",
                                     _job_line(text, str(jid)), str(jid)))
+            shown = _pr_comment(run, uses, with_, bool(triggers & PR_TRIGGERS))
+            if shown and (jid, shown) not in commenters:  # a post-then-delete pair is one finding
+                commenters.add((jid, shown))
+                out.append(_finding("pr-comment", "workflow", wid, file,
+                                    f"Job `{jid}` posts on a pull request itself (`{shown[:80]}`), "
+                                    "not through pr-review.yml.", _job_line(text, str(jid)), str(jid)))
             if reusable_only:
                 continue
             for line, how in _pushes(run):
@@ -1268,6 +1323,8 @@ jobs:
 # dispatched run looks right. A manual dispatch always runs.
 # Spend: the agent step is continue-on-error and the cost step owns the
 # verdict (usage-limit: skip), so a spent Claude window is a warning.
+# Claude auth: OAuth only (CLAUDE_CODE_OAUTH_TOKEN). ANTHROPIC_API_KEY disabled for now
+# (2026-11-15); to restore, re-add the secrets.ANTHROPIC_API_KEY reference.
 
 on:
   schedule:
@@ -1292,7 +1349,7 @@ jobs:
       issues: write
       id-token: write         # OIDC for claude-code-action OAuth
     env:
-      HAS_CLAUDE_AUTH: ${{{{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}}}
+      HAS_CLAUDE_AUTH: ${{{{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}}}
     steps:
       - uses: actions/checkout@v7
 
@@ -1303,7 +1360,6 @@ jobs:
         with:
           order: ${{{{ vars.CLAUDE_AUTH_ORDER }}}}
           has-oauth: ${{{{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}}}
-          api-key: ${{{{ secrets.ANTHROPIC_API_KEY }}}}
 
       - name: Run the agent
         id: agent
@@ -1313,7 +1369,6 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{{{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}}}
-          anthropic_api_key: ${{{{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}}}
           claude_args: >-
             --model claude-sonnet-5-5
             --max-turns 40

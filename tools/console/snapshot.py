@@ -86,6 +86,7 @@ STATIC_ROUTES: dict[str, tuple[str, str]] = {
     "desktop": ("Desktop", "The bashOS desktop: an icon for every fleet app, each opened in a window with the same controls."),
     "apps": ("Apps", "Every fleet frontend in one place: open the live site or a local stack inside the console, at any device size."),
     "inbox": ("Inbox", "Flagged issues, pull requests and failing workflows across the fleet."),
+    "prs": ("PR queue", "Every open pull request, who moves it next, and bulk actions an agent carries out once the maintainer confirms."),
     "roadmap": ("Roadmap", "Planned features across the fleet, by status and priority."),
     "work": ("Work board", "Every open issue, PR, roadmap spec and backlog item, in the order the loops take them."),
     "refine": ("Refine", "Harness refinement: the surface check, one Propose–Probe–Compose plan per loop, the experience library, the review queue."),
@@ -94,6 +95,7 @@ STATIC_ROUTES: dict[str, tuple[str, str]] = {
     "features": ("Features", "What each repo does and what proves it — the fleet feature index."),
     "engagements": ("Engagements", "Every project as a client: estimates, actuals and leverage."),
     "github": ("GitHub", "Manage fleet repos' issues, runs and workflows."),
+    "gh-projects": ("GitHub Projects", "GitHub Projects (v2) across every fleet owner, as a table or a board by Status — read on a console with the operator's token, never published."),
     "containers": ("Containers", "The fleet dev stack: ports, images and services."),
     "harnesses": ("Harness inventory", "Every AI workflow in the fleet, graded against the harness standard."),
     "harnesses/health": ("Harness health", "Trip wires and the six-layer harness scorecard."),
@@ -237,7 +239,6 @@ def documents() -> dict[str, object]:
         "github/fleet": {"owner": ghl._hub_owner(), "hub": ghl._hub(), "repos": ghl.fleet_repos(),
                          "dispatchable": core.dispatchable()},
         "github/log": [],
-        "site": site_docs.site_index(include_drafts=False),
         # Addresses from the two registries: nothing here was probed, so there
         # is no laptop's port state to keep out of the public build.
         "apps": fapps.apps_view(core.REPO_ROOT),
@@ -246,14 +247,22 @@ def documents() -> dict[str, object]:
         docs[f"fleet/{sort}"] = view
     for p in registry:
         docs[f"project/{p['name']}"] = project(p["name"])
-    for meta in site_docs.pages():
-        docs[f"site/page/{meta['slug']}"] = site_docs.page(meta["slug"])
-    for meta in site_docs.posts():
-        docs[f"site/post/{meta['slug']}"] = site_docs.post(meta["slug"])
+    docs.update(site_documents())
     for name in site_docs.PUBLIC_DATA:
         value = site_docs.data(name)
         if value is not None:
             docs[f"data/{name}"] = value
+    return docs
+
+
+def site_documents() -> dict[str, object]:
+    """The site's own documents, drafts left out: its index, each long-form
+    page and each published post, one document per address."""
+    docs: dict[str, object] = {"site": site_docs.site_index(include_drafts=False)}
+    for meta in docs["site"]["pages"]:
+        docs[f"site/page/{meta['slug']}"] = site_docs.page(meta["slug"])
+    for meta in docs["site"]["posts"]:
+        docs[f"site/post/{meta['slug']}"] = site_docs.post(meta["slug"])
     return docs
 
 

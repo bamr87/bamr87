@@ -15,10 +15,10 @@ coverage: listed
 | `agent-context/` | dir | Agent-context kit: CLAUDE.md scaffold + @claude OAuth workflow, seeded by fanout.yml (kit standardize) | terminal |
 | `community/` | dir | Community kit: the ONE PR template carrying the fleet Definition of Done (`fleet-dod` markers), issue forms with fleet labels, `labels.yml` taxonomy, CODEOWNERS, Dependabot, CONTRIBUTING, SECURITY, Code of Conduct; distributed by owner `.github` inheritance (UPS-REPO-14..19, UPS-QA-41, UPS-WORK-03/09) | terminal |
 | `standard-ci/` | dir | Reusable CI gate caller seeded by fanout.yml (kit standardize) | terminal |
-| `release-pipeline/` | dir | release-please pipeline kit seeded by adopt-release | terminal |
-| `prose/` | dir | Prose style kit: markdown-oneline CI check enforcing one-paragraph-per-line, seeded by fanout | terminal |
+| `release-pipeline/` | dir | release-please pipeline kit seeded by adopt-release: ci.yml + release.yml callers (`bamr87/.github` release workflows pinned `@v1`), RELEASING.md, VERSION + archive (`adopt-release.sh --upgrade`) | terminal |
+| `prose/` | dir | Prose style kit: markdown-oneline CI check enforcing one-paragraph-per-line (self-healing on PRs), seeded by fanout; VERSION + archive of every seeded shape, contract test `test_prose_kit.py` | terminal |
 | `conformance/` | dir | In-repo UPS gate kit: thin caller of the reusable fleet-conformance.yml (artifact `conformance`) | terminal |
-| `pr-review/` | dir | The fleet's one PR comment: stub calling the reusable pr-review.yml (constitution § 19), seeded by fanout | terminal |
+| `pr-review/` | dir | The fleet's one PR comment: stub calling the reusable pr-review.yml (constitution § 19), seeded by fanout, VERSION + archive | terminal |
 | `ux-audit/` | dir | OPT-IN UX audit kit: R1–R13 gate + axe evidence + critique prompts (UPS-FE-53/60) | terminal |
 | `governance/` | dir | Governance kit: constitution template, amendment log (README, 0000 template, 0001 ratification record), PRD ↔ feature catalog link (specs/WORK.md UPS-WORK-15/16; validator tools/governance_lint.py; fan-out `tools/fanout.sh --kit governance`), VERSION | terminal |
 | `projects/` | dir | Work-tracking kit (constitution § 9, amendment 0003): `framework.yml` — the projects/fields/lifecycle/label-map spec checked by `tools/projects_lint.py` — and `auto-add.yml`, the reusable auto-add workflow skeleton for bamr87/.github (docs/PROJECTS-FRAMEWORK.md) | terminal |
@@ -32,7 +32,7 @@ coverage: listed
 | `sdlc/` | dir | SDLC kit (core, per repo): `.github/sdlc.yml` profile + its JSON Schema (`sdlc.schema.json`, the UPS-WORK-01 contract), canonical `AGENTS.md` + pointer `CLAUDE.md` (D4), law-ai-format ADR log (D2), release-please caller `@v1` + one config per release type + manifest + CHANGELOG seed (D5), content queue (UPS-WORK-01/04/05/12, AGENT-07/08/09, REPO-21) | terminal |
 | `verify/` | dir | Agent verification kit: feature index scaffold, verify run config, user scenario, Playwright runner + MCP config, fleet-verify caller, verify-feature skill + verifier agent, VERSION + archive (spec: specs/QUALITY.md UPS-QA-50..53; doc: docs/VERIFICATION.md) | terminal |
 | `site-quality/` | dir | Site quality kit: thin caller of the reusable site-quality.yml (pinned `@v2`; Lighthouse CI + axe-core 390/1366 px + pa11y contrast, fresh-theme build or live URLs), the `.github/site-quality.yml` config template + its JSON Schema, pass/fail fixture sites and schema fixtures; seeded by `fanout.sh --kit site-quality` (spec: specs/QUALITY.md UPS-QA-60..63) | terminal |
-| `ai-ready/` | dir | AI-ready foundation kit (constitution § 16): spec for the `ai-ready.yml` manifest, llms.txt and data API generators, MCP servers (per service and per content site), `server.json`, CLI `--json` and the AIEO score threshold; checked by `tools/conformance.py` `ai-ready` | terminal |
+| `ai-ready/` | dir | AI-ready foundation kit (constitution § 16): the A2A v1.0 Agent Card template and kit tests, plus the spec for the `ai-ready.yml` manifest, llms.txt and data API generators, MCP servers (per service and per content site), `server.json`, CLI `--json` and the AIEO score threshold, each planned file linked to its issue; checked by `tools/conformance.py` `ai-ready` | terminal |
 
 ## Placement
 

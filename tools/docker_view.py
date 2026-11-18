@@ -64,9 +64,11 @@ OUT = os.path.join(HUB, "_data", "docker.yml")
 
 # Bands whose allocation is something you can open in a browser. Everything
 # else gets a connect command instead of a dead link — a `psql://` href helps
-# nobody, and a debug port answers to a debugger, not to GET /.
-WEB_BANDS = {"hub", "jekyll", "frontend", "api", "docs"}
-BAND_KIND = {"database": "db", "cache": "cache", "debug": "debug", "livereload": "livereload"}
+# nobody, and a debug port answers to a debugger, not to GET /. The workspace
+# bands are the sites and frontends served inside devenv (`host: devenv`).
+WEB_BANDS = {"hub", "jekyll", "frontend", "api", "docs", "workspace", "workspace_node"}
+BAND_KIND = {"database": "db", "cache": "cache", "debug": "debug", "livereload": "livereload",
+             "workspace_livereload": "livereload"}
 
 
 # ---------------------------------------------------------------------------
@@ -596,12 +598,16 @@ def unregistered_repos(projects, scan=True):
 
 
 def band_rows(ports, projects):
+    bands = ports.get("bands") or {}
     used = {}
     for proj in projects:
         for row in proj["services"] + proj["debug"]:
             used.setdefault(row["band"], []).append(row["port"])
             if row.get("livereload"):
-                used.setdefault("livereload", []).append(row["livereload"])
+                # A band with its own livereload band (`workspace_livereload`)
+                # counts there, as tools/fleet-compose.py's gate places it.
+                lr_band = f"{row['band']}_livereload"
+                used.setdefault(lr_band if lr_band in bands else "livereload", []).append(row["livereload"])
     rows = []
     for name, spec in (ports.get("bands") or {}).items():
         lo, hi = spec["range"]

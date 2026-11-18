@@ -171,6 +171,9 @@ schedule:
                                   # the daily chain's lanes; gated by vars.JEV_CONFLICTS_ENABLED.
   scorecard_sweep: "17 6 * * 0"   # weekly read-only OpenSSF Scorecard sweep → conformance.yml security:
                                   # (docs/SECURITY-POSTURE.md); gated by vars.SCORECARD_SWEEP_ENABLED.
+  fleet_snapshots: "17 4 * * 1"   # weekly conformance.yml + features_index.yml from real submodule checkouts,
+                                  # behind a shrink guard (#775): after update_submodules, before fleet_pulse
+                                  # (stale-data), build_dash and repo_evolution; gated by vars.FLEET_SNAPSHOTS_ENABLED.
   weekly_closeout: "17 20 * * 5"  # Friday 13:17 America/Denver (MST, UTC-7): close out open PRs, branches, clones
                                   # (docs/WEEKLY-CLOSEOUT.md); off until vars.WEEKLY_CLOSEOUT_ENABLED is 'true'.
                                   # UTC hours 17, 20 and 23 carry no other AI cron.
@@ -249,6 +252,21 @@ remediation:
   # for three weeks is stale *and* genuinely broken. Set 0 to switch it off.
   stale_after_days: 7             # latest run older than this ⇒ sorts below every
                                   # live candidate of the same severity, never dropped
+  # The fifth guard reads the SIZE of the waste. `high-cost-low-value` and
+  # `cancel-heavy` are shares (of minutes, of runs) over a 4-job-minute floor in
+  # actions_analytics, so one bad burst on a cheap workflow raises them, and a
+  # slot costs the doctor ~46 Opus turns. recon-engine `ci.yml` was queued on
+  # `cancel-heavy` for 4.0 wasted job-minutes in 14 days, all from one 5-commit
+  # burst its working `cancel-in-progress` guard cut short (bamr87/bamr87#823);
+  # zer0-mistakes `issue-autopilot.yml` on `high-cost-low-value` for 6.6, from
+  # one failed run (bamr87/bamr87#797). Below this many wasted job-minutes in
+  # the window those two flags, and the `min_priority` fallback they would
+  # leave behind, are dropped. Like the first three this SUPPRESSES: the waste
+  # is measured, and a record without `waste_min` is never floored. `slow` is
+  # latency and `cron-heavy` the scheduled share, so neither is touched, nor
+  # is `failing`/`flaky`. Set 0 to switch it off.
+  min_cost_waste_min: 15          # wasted job-min in the window below which
+                                  # high-cost-low-value / cancel-heavy can't queue
   # Signals ranked highest-first. A workflow matching several is ranked by its
   # strongest and reported with all of them.
   severity:
@@ -649,6 +667,47 @@ decisions:
     skip_branches: [chore/jev-ratify]                # the ratification-record branch is automation's (§ 12.3)
 
 # --------------------------------------------------------------------------- #
+# PR queue — every open pull request of the hub and the registry repos, who
+# moves each one next, and bulk actions an agent carries out once the maintainer
+# confirms (docs/PR-QUEUE.md, the console's /prs, `tools/dash prs`, the MCP's
+# pr_queue). Built on the decision index above plus one batched detail read per
+# pull request (.fleet/prqueue/, gitignored). Every action is planned from live
+# GitHub first and applied only with the same plan_id after the confirm.
+#
+# `merge` and `close` stay off: § 11.2 says the console never merges, § 11.1
+# lists no pull-request close, and § 12.2 lets an agent merge only an ungated
+# pull request with a merge commit. A merge the maintainer selects and confirms
+# here is arguably his own, but the constitution has to say so first; turning
+# either on is a gated change (§ 12.3) after that amendment is ratified.
+# --------------------------------------------------------------------------- #
+pr_queue:
+  ttl_s: 600                # a pull request's detail older than this, or read before its last update, is read again
+  budget_s: 20              # the wall clock of one /api/prs answer; past it the answer is partial and says so
+  refresh_budget_s: 90      # the same for `tools/dash prs refresh`
+  detail_batch: 5           # pull requests per detail query (checks, files, comments make each one heavy)
+  concurrency: 6
+  max_targets: 50           # pull requests per plan (§ 11.5 caps a plan at 50 ops)
+  batch_min_repos: 2        # a head branch open in this many repos is a fan-out batch
+  rerun_wait_s: 900         # one re-run must finish before the next on the same pull request starts
+  merge:
+    enabled: false          # see above: off until the amendment; never_merge repos come from weekly.closeout
+  close:
+    enabled: false          # see above: off until the amendment
+  agent:                    # local:pr-queue-agent (_data/agents.yml): one capped session per pull request
+    enabled: true           # runs only on the maintainer's confirm in the console (confirm: spend)
+    model: claude-sonnet-5-5   # an exact id in ai_models.allowed (§ 13.3)
+    max_turns: 40
+    usd: 2                  # per pull request, API-equivalent (estimate); inside budget.loops.monthly_usd
+    max_prs: 5              # pull requests per run
+    timeout_s: 1800
+  repo_rules:               # a repo's own rule the queue honours, from its constitution or ADRs
+    bamr87/gitorio:
+      dependabot_merge_label: dep:merge-approved   # ADR-039: Dependabot merges go through this label
+    bamr87/it-journey:
+      agent_deny_paths:                            # the Warden Pact keeps agents out of the workflows
+        - '(^|/)\.github/workflows/'
+
+# --------------------------------------------------------------------------- #
 # Verification — the AGENT VERIFICATION standard's knobs (docs/VERIFICATION.md).
 #
 # Tests prove the code; verification proves the PRODUCT, by using it the way a
@@ -657,7 +716,7 @@ decisions:
 # (verify/scenarios/*.yml) both verify/runner.mjs and a Claude Code pass can
 # execute, and evidence bundles (test/evidence/<slug>/) linked back to the
 # feature. The hub aggregates coverage into _data/features_index.yml
-# (`dash features fleet --write`, refreshed by fleet-pulse) → /features/.
+# (`dash features fleet --write`, refreshed weekly by fleet-snapshots.yml) → /features/.
 # Kit: templates/verify/ · reusable gate: fleet-verify.yml · spec: UPS-QA-50..53
 # --------------------------------------------------------------------------- #
 verification:
@@ -914,8 +973,9 @@ harness:
     # nothing said so). This wire makes that class of failure loud within days.
     # token_rotation gets 10 days of slack in the generator — it is weekly.
     stale_data_days: 3
-    # _data/conformance.yml (tools/conformance.py fleet --write) has no scheduled
-    # writer, so it gets a longer leash: older than this trips stale-data.
+    # _data/conformance.yml (tools/conformance.py fleet --write) is written
+    # weekly by fleet-snapshots.yml, so it gets a longer leash: one missed run
+    # is fine, two trip stale-data.
     conformance_stale_days: 14
     pass_rate_floor_pct: 75       # fleet-wide quality regression
     waste_ceiling_pct: 30         # non-success minutes / total minutes
@@ -928,6 +988,26 @@ harness:
     cost_spike_min_avg_min: 5.0   # …and anything cheaper than this on average
     standing_failures_max: 30     # red-workflow backlog beyond what the doctor's caps can drain
     credential_grace_days: 15     # past max_age_days + this, a credential is an alarm, not a chore
+
+  # The agentic layer (constitution § 29, epic #773 phase E2, #776): wires on
+  # the agents' own inputs, published as `agentic:` in _data/harness_health.yml.
+  # Each reads true, false or unknown (an input it needs is absent: never green,
+  # never an alarm). Source freshness reads each harness.sources entry's own
+  # slo_days below, so it has no threshold here. PROVISIONAL starting values,
+  # set from the 2026-11-15 snapshots; the wires run in shadow first, and a
+  # change to any of them is a gated change (§ 29.8).
+  agentic:
+    # A new wire is published but never counts in tripped_count until this
+    # many days after its first_seen (carried forward in harness_health.yml).
+    shadow_days: 14
+    # A parity block (actions_usage parity.actions_minutes against the billing
+    # meter, ai_usage parity.ai_ci_cost against the claude-cost result lines)
+    # further than this from its source is a measurement gap. E1 (#775) holds
+    # both to 5%; a missing block or a null gap is unknown.
+    parity_tolerance_pct: 5.0
+    # Of the CI agent runs that spent, the share whose cost could not be read
+    # from the run (ai_usage cost_source: estimated). 19.1% on 2026-11-15.
+    unknown_cost_max_pct: 25.0
 
   # ------------------------------------------------------------------------- #
   # The agentic efficacy contract (amendment `agentic-efficacy-contract`,
@@ -1081,11 +1161,18 @@ harness:
       slo: on-change
     conformance:
       path: _data/conformance.yml
-      # No scheduled writer: `tools/dash spec fleet --write` runs by hand, and
-      # scorecard-sweep.yml writes only its `security:` block. It was 17 days
-      # old on 2026-11-07 (#763). The defect rule 4 names, left visible.
-      writer: null
+      # It had no scheduled writer until #775 (17 days old on 2026-11-07, #763).
+      # fleet-snapshots.yml regenerates it from real submodule checkouts behind
+      # a shrink guard; scorecard-sweep.yml writes only its `security:` block.
+      writer: fleet-snapshots.yml (dash spec fleet --write, weekly)
       slo_days: 14                # harness.trip_wires.conformance_stale_days
+    features-index:
+      path: _data/features_index.yml
+      # fleet-pulse wrote it daily from a checkout with no submodules, so it
+      # graded the hub alone (`repos_scanned: 1`); fleet-snapshots.yml is its
+      # only writer since #775.
+      writer: fleet-snapshots.yml (dash features fleet --write, weekly)
+      slo_days: 14
     token-rotation:
       path: _data/token_rotation.yml
       writer: token-rotation.yml
@@ -1175,6 +1262,20 @@ harness:
       switch: {config: weekly.enabled, uninstall: tools/install-weekly.sh --uninstall}
       run_record: ai-ledger
       local_entry: tools/dash weekly close
+    local:pr-queue-agent:
+      # The PR queue's `agent` bulk action (docs/PR-QUEUE.md): one capped session per
+      # pull request the maintainer selected and confirmed; no schedule, no installer.
+      declare:
+        kind: local-job
+        where: tools/console/pr_queue.py
+        trigger: "on demand: the maintainer's confirm of an agent plan on the console's /prs (the prs-agent operation)"
+        runs: ["tools/dash prs apply --plan-id <id> --apply"]
+      reads: [github-live, registry]
+      model_from: pr_queue.agent.model
+      budget_from: {per_run_usd: pr_queue.agent.usd, monthly_usd: budget.loops.monthly_usd}
+      switch: {config: pr_queue.agent.enabled}
+      run_record: ai-ledger
+      local_entry: tools/dash prs apply --plan-id <id> --apply
 
 # --------------------------------------------------------------------------- #
 # Harness refinement — JEV capability three: recursive harness refinement after
@@ -1403,6 +1504,14 @@ harnesses:
         title: declares top-level permissions, never write-all
         rule: "bamr87/bamr87#514"
         applies: [mention-handler, scheduled-agent, event-agent]
+      no-wildcard-bots:
+        title: "never lets every bot start the run (allowed_bots '*')"
+        rule: "bamr87/bamr87#514"
+        applies: [mention-handler, scheduled-agent, event-agent]
+      safe-pr-target:
+        title: "never checks out a PR's head on pull_request_target"
+        rule: "bamr87/bamr87#514"
+        applies: [mention-handler, scheduled-agent, event-agent]
       timeout:
         title: bounds wall-clock time (timeout-minutes)
         rule: "docs/HARNESS.md layer 3"
@@ -1497,7 +1606,12 @@ observability:
       # Elasticsearch to ~2 GiB RSS and an exit-137 OOM kill on the first
       # start. 512m indexes the fleet's log volume comfortably; raise it
       # (ES_HEAP in .env) before widening `dash observe ship --days`.
-      heap: { elasticsearch: 512m, logstash: 256m }
+      # Logstash had 256m while nothing but Claude Code's events reached it.
+      # Once Filebeat shipped container logs (2026-11-17) that heap ran out
+      # twice in an hour, the second time with its workers already cut to
+      # five, and between the two it collected its old generation every few
+      # seconds. 512m is what four pipelines and the Elasticsearch output hold.
+      heap: { elasticsearch: 512m, logstash: 512m }
 
   # ---- Metrics: Grafana over Elasticsearch AND Prometheus (FF-0003) -------- #
   metrics:
@@ -1657,6 +1771,8 @@ observability:
 # A site entry names a registry project (repo/live_url/branch come from
 # _data/projects.yml) or, for a site outside the registry, carries `repo:`.
 # `roots:` overrides the scan root (default: the Jekyll collections_dir);
+# `exclude:` skips paths that are structure rather than content (a directory
+# prefix, or a glob matched against the repo-relative path);
 # `quality:` overrides the hygiene rules for a site whose schema differs;
 # `dates: git` dates publication by first commit, for knowledge bases whose
 # front-matter `date` is the subject's date rather than the publish date.
@@ -1690,8 +1806,20 @@ content:
       quality: { require: [title, description, date, author, tags] }
     - name: it-journey
       quality: { require: [title, description, date, author, categories, tags], description: [120, 160] }
+    # bash-365.com's own contract (zer0.json, and scripts/content_lint.py POST_REQUIRED_FIELDS, which its
+    # CI enforces) asks for `date` and `tags` on dated posts only, so the atlas requires only a title and a
+    # description and stops asking the evergreen services, toolkit, about and case-study pages for a date
+    # or tags. `exclude:` drops the pages that are structure, not content: the admin and site pages under
+    # pages/_about, the search page, the case-study listing, and the section indexes under pages/_posts,
+    # whose front matter zer0.json says to leave alone (content_lint exempts them).
     - name: bash-365.com
-      quality: { description: [120, 155] }
+      quality: { description: [120, 155], require: [title, description] }
+      exclude:
+        - pages/_about/settings # layout: admin — the theme's configuration pages
+        - pages/_about/site # the site config page and the sitemap
+        - pages/search.md
+        - pages/_case-studies/index.md # a Liquid listing of the case studies
+        - 'pages/_posts/*-index.md' # the section indexes (2000-01-01-index.md), any depth
     # irony-works, wargames and 2005 live in the zer0-CMS monorepo now (sites/<name>/, imported with
     # their history); the original repos were deleted or archived on 2026-10-20. `registry:` points the
     # atlas at the zer0-CMS checkout and `roots:` at the site's sub-path inside it, so each site keeps
@@ -2095,7 +2223,12 @@ ai_auth:
   methods:
     oauth: CLAUDE_CODE_OAUTH_TOKEN     # subscription — `claude setup-token`
     api_key: ANTHROPIC_API_KEY         # metered — console.anthropic.com
-  default: oauth,api_key               # the house convention since 2026-07
+  # Claude auth: OAuth only (CLAUDE_CODE_OAUTH_TOKEN). ANTHROPIC_API_KEY disabled
+  # for now (2026-11-15) — the key was being rejected and, listed second, hid a
+  # working OAuth token on some paths. To restore, set this back to
+  # `oauth,api_key` (the house convention from 2026-07) and re-add the
+  # secrets.ANTHROPIC_API_KEY references the same change removed.
+  default: oauth
   groups: {}
     # metered-lanes:                   # example: content sites billed to the API key
     #   order: api_key,oauth
@@ -2127,6 +2260,8 @@ ai_auth:
 # `workspaces:` keys are Console WORKSPACE names. A workspace claims repos by
 # registry name, by owner/repo (which may be outside the registry), or by
 # GitHub owner; every fleet repo nobody claims gets the Default Workspace's key.
+# Claim a registry repo by its name, never its owner/repo: the registry follows a
+# transfer and a pasted slug does not (test_fleet_config.py holds this).
 # A repo whose ai_auth order leaves api_key out is never sent one.
 # --------------------------------------------------------------------------- #
 api_keys:
@@ -2139,7 +2274,7 @@ api_keys:
     bamr87: { repos: [bamr87] }                      # the hub
     year-of-ai: { owners: [year-of-ai], repos: [year-of-ai/year-of-ai.github.io] }
     zer0-mistakes: { repos: [zer0-mistakes] }
-    bash-365.com: { repos: [amr-bash/bash-365.com] }  # a content site outside the registry
+    bash-365.com: { repos: [bash-365.com] }          # bash-365/bash-365.com, by registry name (#337)
     bashcrawl: { repos: [bashcrawl] }
   verify:                              # the cheap test — one call per key, a fraction of a cent
     model: claude-opus-5-5
@@ -2503,6 +2638,22 @@ switches:
       flip: 'gh variable set SCORECARD_SWEEP_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
       cron: 17 6 * * 0
       dispatch_bypasses: true
+    hub/fleet-snapshots:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/fleet-snapshots.yml
+      group: hub-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: FLEET_SNAPSHOTS_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set FLEET_SNAPSHOTS_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
+      cron: 17 4 * * 1
+      dispatch_bypasses: true
     hub/token-rotation:
       repo: bamr87/bamr87
       workflow: .github/workflows/token-rotation.yml
@@ -2617,6 +2768,21 @@ switches:
       verified: false
       note: the fleet's one PR comment (constitution § 19); summarizes CI failures, no AI and no cron
       flip: 'gh variable set PR_REVIEW_ENABLED -R bamr87/bamr87 --body false  # disable; record the flip here in the same PR'
+    hub/pr-readiness:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/pr-review.yml
+      group: hub-maintenance
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: PR_READINESS_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      note: merge readiness in the one PR comment (ADR 0012); what is left before a pull request merges, and one review when nothing is; no AI and no cron
+      flip: 'gh variable set PR_READINESS_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
     hub/reconcile-registry:
       repo: bamr87/bamr87
       workflow: .github/workflows/reconcile-registry.yml

@@ -43,27 +43,27 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 
 | Kit | Version | Updated | Seeded by | Files |
 | --- | --- | --- | --- | --- |
-| [`agent-context/`](templates/agent-context/) | 0.6.0 | 2026-11-11 | .github/workflows/fanout.yml (kit standardize or harness; artifacts agent-context, claude… | `CLAUDE.template.md`, `agent-auditor.template.md`, `claude.yml`, `quarantine.template.md`, `settings.template.json` |
-| [`ai-ready/`](templates/ai-ready/) | 0.0.0 | 2026-10-30 | not yet; fan-out follows ratification of constitution § 16 (amendment ai-ready-foundation) | `README.md` |
-| [`ai-runner/`](templates/ai-runner/) | 0.3.0 | 2026-11-13 | consumed BY REFERENCE (uses: bamr87/bamr87/.github/actions/claude-run@main, or the reusab… | `README.md`, `ai-lane.template.yml`, `tests/contract.sh` |
+| [`agent-context/`](templates/agent-context/) | 0.7.0 | 2026-11-15 | .github/workflows/fanout.yml (kit standardize or harness; artifacts agent-context, claude… | `CLAUDE.template.md`, `agent-auditor.template.md`, `claude.yml`, `quarantine.template.md`, `settings.template.json` |
+| [`ai-ready/`](templates/ai-ready/) | 0.1.0 | 2026-11-15 | not yet; no fan-out is wired for this kit. | `README.md`, `agent-card.template.json`, `test_ai_ready_kit.py` |
+| [`ai-runner/`](templates/ai-runner/) | 0.4.0 | 2026-11-14 | consumed BY REFERENCE (uses: bamr87/bamr87/.github/actions/claude-run@v2, or the reusable… | `README.md`, `ai-lane.template.yml`, `tests/contract.sh` |
 | [`community/`](templates/community/) | 0.1.0 | 2026-10-03 | Distribution is by INHERITANCE first: the PR template, the issue forms, CONTRIBUTING.md,… | `.github/CODEOWNERS`, `.github/ISSUE_TEMPLATE/bug_report.yml`, `.github/ISSUE_TEMPLATE/config.yml`, `.github/ISSUE_TEMPLATE/documentation.yml`, `.github/ISSUE_TEMPLATE/feature_request.yml`, `.github/… |
-| [`conformance/`](templates/conformance/) | 0.1.0 | 2026-09-01 | tools/fanout.sh --kit standardize --artifacts conformance (fanout.yml, kit standardize) | `README.md`, `conformance.yml` |
+| [`conformance/`](templates/conformance/) | 0.2.0 | 2026-11-14 | tools/fanout.sh --kit standardize --artifacts conformance (fanout.yml, kit standardize) | `README.md`, `conformance.yml` |
 | [`elk/`](templates/elk/) | 0.2.0 | 2026-11-10 | tools/fanout.sh --kit elk --target <name> [--apply] | `README.md`, `SCHEMA.md`, `adapters/django-logging.py`, `adapters/node-pino.mjs`, `adapters/python-logging.py`, `adapters/rails-lograge.rb`, `compose.elk.yml`, `compose.labels.yml`, `filebeat.fleet.y… |
 | [`feedback/`](templates/feedback/) | 0.2.0 | 2026-09-07 | tools/fanout.sh --kit feedback --target <name> [--apply] | `README.md`, `adapters/FeedbackButton.tsx`, `adapters/django.html`, `adapters/jekyll.html`, `adapters/nextjs.tsx`, `capture.js`, `feedback_types.yml`, `fleet-feedback.js`, `package.json`, `page_feedb… |
 | [`fleet-engines/`](templates/fleet-engines/) | 0.1.0 | 2026-09-08 | consumed BY DEPENDENCY — npm install @bamr87/fleet-engines (publish-kits.yml publishes on… | `.gitignore`, `README.md`, `package.json`, `src/fleet/audit.test.ts`, `src/fleet/audit.ts`, `src/fleet/facts.test.ts`, `src/fleet/facts.ts`, `src/fleet/fixtures/README.md`, `src/fleet/fixtures/cv--ma… |
 | [`governance/`](templates/governance/) | 0.1.1 | 2026-10-26 | tools/fanout.sh --kit governance (branch docs/feature-catalog); validated by tools/govern… | `README.md`, `constitution.template.md`, `docs/amendments/0000-template.md`, `docs/amendments/0001-ratify-constitution.template.md`, `docs/amendments/README.template.md` |
 | [`issue-autopilot/`](templates/issue-autopilot/) | 0.1.0 | 2026-09-10 | .github/workflows/fanout.yml (kit standardize, artifact `issue-autopilot`, OPT-IN) via to… | `README.md`, `SKILL.template.md`, `dispatch.py`, `issue-resolver.template.md`, `issue-triager.template.md`, `issue-verifier.template.md`, `test_triage_engine.py`, `test_verify_close.py`, `triage.py`,… |
-| [`pr-review/`](templates/pr-review/) | 0.1.0 | 2026-11-06 | tools/fanout.sh --kit pr-review (fanout.yml, kit pr-review) | `README.md`, `pr-review.yml` |
+| [`pr-review/`](templates/pr-review/) | 0.2.0 | 2026-11-15 | tools/fanout.sh --kit pr-review (fanout.yml, kit pr-review) | `README.md`, `pr-review.yml` |
 | [`projects/`](templates/projects/) | unversioned | — | — | `auto-add.yml`, `framework.yml` |
-| [`prose/`](templates/prose/) | 0.4.0 | 2026-10-22 | tools/fanout.sh --kit prose | `markdown-oneline.yml` |
-| [`release-pipeline/`](templates/release-pipeline/) | unversioned | — | tools/adopt-release.sh | `RELEASING.md`, `ci.yml`, `release.yml` |
+| [`prose/`](templates/prose/) | 0.5.0 | 2026-11-15 | tools/fanout.sh --kit prose | `markdown-oneline.yml`, `test_prose_kit.py` |
+| [`release-pipeline/`](templates/release-pipeline/) | 0.2.0 | 2026-11-15 | tools/adopt-release.sh (adopts a repo; --upgrade refreshes an untouched release.yml) | `RELEASING.md`, `ci.yml`, `release.yml` |
 | [`schema/`](templates/schema/) | spec 0.1 | 2026-08-18 | tools/seed-schema.sh / fanout.yml (kit: schema) | `CLAUDE.snippet.md`, `README.md`, `SCHEMA.md`, `SCHEMA.template.md`, `schema-check.yml` |
 | [`sdlc/`](templates/sdlc/) | 0.2.0 | 2026-10-22 | Copied per repo (not inherited). | `AGENTS.template.md`, `CHANGELOG.template.md`, `CLAUDE.template.md`, `README.md`, `content-queue/backlog.yml`, `docs/README.template.md`, `docs/adr/0000-template.md`, `docs/adr/0001-record-architectu… |
 | [`site-quality/`](templates/site-quality/) | 0.1.0 | 2026-10-04 | tools/fanout.sh --kit site-quality (Jekyll repos only; needs a root _config.yml) | `README.md`, `fixtures/configs/invalid/bad-date-format.yml`, `fixtures/configs/invalid/bad-level.yml`, `fixtures/configs/invalid/bad-on-expired.yml`, `fixtures/configs/invalid/bad-schema.yml`, `fixtu… |
 | [`spec-driven/`](templates/spec-driven/) | 0.2.0 | 2026-10-25 | tools/fanout.sh --kit spec-driven (resolver + spec-gate caller + vendored tools; plugin e… | `.claude-plugin/plugin.json`, `BACKLOG.template.md`, `README.md`, `agents/backlog-triager.md`, `constitution.template.md`, `fleet-kit.sh`, `hooks/gate-check.sh`, `hooks/hooks.json`, `review-questions… |
 | [`standard-ci/`](templates/standard-ci/) | 0.1.0 | 2026-08-09 | .github/workflows/fanout.yml (kit standardize, artifact `ci`) via tools/fanout.sh | `ci.yml` |
 | [`ux-audit/`](templates/ux-audit/) | 0.1.0 | 2026-09-18 | tools/fanout.sh --kit ux-audit (OPT-IN; never in the default artifact set) | `AGENT_PROMPT.md`, `README.md`, `prompts/a11y.md`, `prompts/design-system.md`, `prompts/interaction.md`, `prompts/microcopy.md`, `prompts/synthesizer.md`, `scripts/collect_evidence.mjs`, `scripts/ux_… |
-| [`verify/`](templates/verify/) | 0.2.0 | 2026-11-07 | tools/fanout.sh --kit verify (fanout.yml, kit verify); `dash verify deploy` | `EVIDENCE-README.template.md`, `README.md`, `SKILL.template.md`, `features.template.yml`, `mcp.json`, `runner.mjs`, `scenario.template.yml`, `verifier.template.md`, `verify.template.yml`, `verify.yml` |
+| [`verify/`](templates/verify/) | 0.3.0 | 2026-11-14 | tools/fanout.sh --kit verify (fanout.yml, kit verify); `dash verify deploy` | `EVIDENCE-README.template.md`, `README.md`, `SKILL.template.md`, `features.template.yml`, `mcp.json`, `runner.mjs`, `scenario.template.yml`, `verifier.template.md`, `verify.template.yml`, `verify.yml` |
 
 ## 3. Reference implementations
 
@@ -149,6 +149,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`audit-standards.sh`](tools/audit-standards.sh) | Standardization conformance matrix across the submodule fleet (wrapped by `dash audit`) |
 | [`backlog_fanout.py`](tools/backlog_fanout.py) | Purpose: the BACKLOG FAN-OUT routine (HUB-027, PRD FR22/FR23). |
 | [`check-drift.sh`](tools/check-drift.sh) | **Hard drift gate** — registry/`.gitmodules` parity, README freshness, schema pyramid, and advisory GitHub-reality checks (CI + `dash status`) |
+| [`check_rollup.py`](tools/check_rollup.py) | One rule for reading a commit's checks, shared by `weekly/closeout.py` (`checks_green`), `console/decision_index.py` and `pm_review.py`: a CANCELLED check run is set asi… |
 | [`claude_code_executes_lint.py`](tools/claude_code_executes_lint.py) | Warn-then-fail lint for constitution § 26 (Claude Code executes; |
 | [`conformance.py`](tools/conformance.py) | **Executable Universal Project Standard checker** (`dash spec`): `check [path]` runs the machine-checkable rows of `_data/specs.yml` against one repo (kinds detected fro… |
 | [`dash`](tools/dash) | Unified dash CLI (`status`, `monitor`, `dev`, `serve`, `sync`, `ai`, `gen`, `harnesses`, `console`, `lake`, …) — see [docs/DASH.md](../docs/DASH.md); `dash lake sync |
@@ -197,9 +198,13 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`seed-schema.sh`](tools/seed-schema.sh) | Seeds the schema kit into one repo (dry-run default) — see [docs/SCHEMA-FRAMEWORK.md](../docs/SCHEMA-FRAMEWORK.md) |
 | [`setup-terminal.sh`](tools/setup-terminal.sh) | macOS-only: bootstraps the [bashOS `chui/`](https://github.com/bamr87/bashos/tree/main/chui) terminal (Oh My Zsh, Powerlevel10k, MesloLGS Nerd Font), registers the font… |
 | [`setup.sh`](tools/setup.sh) | **Primary entrypoint** — cross-platform dev environment setup; on macOS its last step is `setup-terminal.sh` (`--skip-terminal` to opt out) |
+| [`test_adopt_release.py`](tools/test_adopt_release.py) | Tests for the release-pipeline kit (templates/release-pipeline/) and the tool that seeds it, tools/adopt-release.sh. |
 | [`test_backlog_fanout.py`](tools/test_backlog_fanout.py) | Fixture tests for tools/backlog_fanout.py + tools/fleet_activity.py. |
+| [`test_check_rollup.py`](tools/test_check_rollup.py) | Offline tests for `check_rollup.py`: both rollup shapes (`gh pr view` and GraphQL), same-second ordering, a run not yet started, unreadable times, only a cancellation se… |
 | [`test_claude_code_executes_lint.py`](tools/test_claude_code_executes_lint.py) | Fixture tests for tools/claude_code_executes_lint.py (constitution § 26).""" from __future__ import annotations |
+| [`test_conformance_backend.py`](tools/test_conformance_backend.py) | Fixture tests for the UPS-BE-10/11 rows in tools/conformance.py (/healthz and /version): they bind to `api, app (server-rendered)`, so a repo with no server side is N/A,… |
 | [`test_conformance_frontend.py`](tools/test_conformance_frontend.py) | Fixture tests for the § 18 frontend-platform rows in tools/conformance.py (UPS-FE-70..73): N/A for tier none, tokens/shell per tier, warn-only until `frontend.enforce: t… |
+| [`test_conformance_instance.py`](tools/test_conformance_instance.py) | **The two roots of the checker** ([ADR 0011](../docs/adr/0011-one-framework-many-instances.md), phase P0): `conformance.py --instance DIR` (default `$FLEET_HOME`, else `… |
 | [`test_conformance_work.py`](tools/test_conformance_work.py) | Fixture tests for the contract-keyed rows in tools/conformance.py: UPS-WORK-01..13 (planning & delivery), UPS-AGENT-07/08/09 (decision D4: AGENTS.md canonical, CLAUDE.md… |
 | [`test_deep_dive.py`](tools/test_deep_dive.py) | Fixture tests for tools/deep_dive.py — the daily repo deep-dive tracker. |
 | [`test_docker_harmonize.py`](tools/test_docker_harmonize.py) | Fixture tests for tools/docker_harmonize.py — every rule, the |
@@ -216,6 +221,8 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_fleetcore_learn.py`](tools/test_fleetcore_learn.py) | Tests for tools/fleetcore/learn.py — outcome learning in shadow: how an output is sorted into an outcome, the estimate and its decay, the Thompson plan, the replay skill… |
 | [`test_fleetcore_mcp.py`](tools/test_fleetcore_mcp.py) | Fixture tests for tools/fleetcore/mcp_server.py — the fleet console as an MCP server, the agent's write path into the console's job API. |
 | [`test_fleetcore_nodes.py`](tools/test_fleetcore_nodes.py) | Fixture tests for tools/fleetcore/nodes.py — where each hub workload runs (ADR 0003, docs/PLATFORM.md). |
+| [`test_fleetcore_prqueue.py`](tools/test_fleetcore_prqueue.py) | Tests for tools/fleetcore/prqueue.py — the PR queue's model: collapsing superseded check runs, the review gate as tools/weekly/closeout.py encodes it, who moves each pul… |
+| [`test_fleetcore_yamlio.py`](tools/test_fleetcore_yamlio.py) | Tests for tools/fleetcore/yamlio.py — the one YAML reader the surfaces share: the same objects `yaml.safe_load` builds, one parse per version of a file, a private copy p… |
 | [`test_frontend_registry.py`](tools/test_frontend_registry.py) | Tests for tools/frontend_registry.py — the § 18 frontend: block lint and the launcher projection. |
 | [`test_governance_lint.py`](tools/test_governance_lint.py) | Tests for tools/governance_lint.py (stdlib + PyYAML). |
 | [`test_governance_trace_lint.py`](tools/test_governance_trace_lint.py) | Fixture tests for governance_trace_lint.py.""" import sys from pathlib import Path |
@@ -248,6 +255,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_projects_lint.py`](tools/test_projects_lint.py) | — |
 | [`test_quality_contract.py`](tools/test_quality_contract.py) | Tests specs/QUALITY.contract.yml against _data/specs.yml and every tool that reads it. |
 | [`test_scorecard_snapshot.py`](tools/test_scorecard_snapshot.py) | Offline fixture tests for tools/scorecard_snapshot.py (bamr87/bamr87#513): the OpenSSF Scorecard results → `security:` block of _data/conformance.yml, its --check gate,… |
+| [`test_template_pins.py`](tools/test_template_pins.py) | **Pins resolve** (#457): every `bamr87/bamr87` or `bamr87/.github` workflow or action that a caller pins at a tag or a full SHA exists at that ref. |
 | [`test_tui_fleet.py`](tools/test_tui_fleet.py) | Fixture tests for tools/fleetcore/fleet.py + host.py — the data layer the terminal dash and the console share. |
 | [`test_unwrap_prose.py`](tools/test_unwrap_prose.py) | Fixture tests for `unwrap-prose.py` — structure untouched, list items joined without leaving their list, idempotence (run by `run-all-tests.sh`) |
 | [`test_vscode_launch.py`](tools/test_vscode_launch.py) | The editor-is-a-front-door gate (constitution § 20, [`.vscode/README.md`](../.vscode/README.md)): the four `.vscode/` files parse, every `preLaunchTask`, `dependsOn`, co… |
@@ -467,9 +475,11 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`MACHINE-API.md`](docs/MACHINE-API.md) | The agent-facing JSON the site publishes (`/api/v1/*.json`, `llms.txt`) and how to start from it. |
 | [`MCP-SERVERS.md`](docs/MCP-SERVERS.md) | Status: **proposed** (constitution § 25, amendment `mcp-lifecycle`; epic [#683](https://github.com/bamr87/bamr87/issues/683), backlog [#684](https://github.com/bamr87/ba… |
 | [`OBSERVABILITY.md`](docs/OBSERVABILITY.md) | The local log, metrics and trace planes joined on one `trace.id`: retention, redaction, the console's Observe portal and the code index. |
+| [`ONPREM-COMPUTE.md`](docs/ONPREM-COMPUTE.md) | A plan to enrol Amr's new on-premise machine as a fleet node that serves local LLMs, hosts Claude Code sessions, takes over the local housekeeping a GitHub-hosted runner… |
 | [`PLATFORM.md`](docs/PLATFORM.md) | How the fleet's development platform spreads its workloads across the Mac and forge, which layer owns what, and how the same definitions scale out to any cloud or on-pre… |
 | [`PM.md`](docs/PM.md) | A daily, read-only review that keeps three records in line with what GitHub actually holds: the Fleet project, the roadmap and each repo's release train. |
 | [`PORTFOLIO.md`](docs/PORTFOLIO.md) | The portfolio standard: repository descriptions, the topic taxonomy, the homepage rule, the README skeleton and the profile index. |
+| [`PR-QUEUE.md`](docs/PR-QUEUE.md) | Every open pull request of the hub and the registry repos in one queue: its checks with superseded runs set aside, the review gate and its reason, the merge method its r… |
 | [`PROJECTS-FRAMEWORK.md`](docs/PROJECTS-FRAMEWORK.md) | Status: **ratified** (amendment 0003, 2026-10-30; § 10 by 0005, § 11 by 0006) — [amendment 0003](amendments/0003-github-projects-work-tracking.md), features `github-proj… |
 | [`RELEASES.md`](docs/RELEASES.md) | Release and versioning methodology across the fleet. |
 | [`SCHEMA-FRAMEWORK.md`](docs/SCHEMA-FRAMEWORK.md) | The Pyramid Schema — `SCHEMA.md` structural contracts across the fleet, and how to follow, propagate and verify them. |
@@ -517,6 +527,7 @@ The pages of the public site — the Harness Console built static ([`docs/CONSOL
 | Fleet | Desktop | `/desktop` | the bashOS desktop: an icon per app, each in a window with the same controls |
 | Fleet | Apps | `/apps` | every fleet frontend, opened here: the live site or a local stack |
 | Fleet | Inbox | `/inbox` | flagged issues, PRs and failing workflows |
+| Fleet | PR queue | `/prs` | every open pull request, who moves it next, and bulk actions an agent carries out once you confirm |
 | Fleet | Roadmap | `/roadmap` | feature specs across the fleet |
 | Fleet | Features | `/features` | what each repo does and what proves it |
 | Fleet | Engagements | `/engagements` | projects as clients: estimates and actuals |

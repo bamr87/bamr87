@@ -239,11 +239,13 @@ STUB
 chmod +x "$authstub/claude"
 
 # auth_case <name> <want-rc> <want-stdout> <want-stderr|""> <not-in-stderr|""> VAR=value…
+# These cases pin the credential order, one call per method, so they run with
+# the in-run transient retry off (AI_TRANSIENT_RETRIES=0); cases 17-21 cover it.
 auth_case() {
   local name="$1" want_rc="$2" want_out="$3" want_err="$4" not_err="$5"; shift 5
   local outf errf rc why=""
   outf="$(mktemp)"; errf="$(mktemp)"
-  env -i PATH="${authstub}:/usr/local/bin:/usr/bin:/bin" HOME="${HOME:-/root}" AI_USAGE_DIR="$(mktemp -d)" \
+  env -i PATH="${authstub}:/usr/local/bin:/usr/bin:/bin" HOME="${HOME:-/root}" AI_USAGE_DIR="$(mktemp -d)" AI_TRANSIENT_RETRIES=0 \
     "$@" bash "$SUT" --prompt "hello" >"$outf" 2>"$errf"; rc=$?
   [[ "$rc" != "$want_rc" ]] && why="exit $rc, wanted $want_rc"
   [[ -z "$why" && -n "$want_out" ]] && ! grep -qF -- "$want_out" "$outf" && why="stdout missing '$want_out'"
@@ -254,33 +256,38 @@ auth_case() {
   rm -f "$outf" "$errf"
 }
 
-auth_case "default order: OAuth first, the key hidden from the CLI" 0 "SAW oauth+" "" "" \
+# Claude auth is OAuth only for now (2026-11-15): run.sh unsets ANTHROPIC_API_KEY
+# and drops `api_key` from the order, so every case below asserts the key is
+# NEVER shown to the CLI, whatever the order says. To restore, revert these
+# cases with the run.sh OAuth-only block (git history has the key-first ones).
+auth_case "default order: OAuth, the key hidden from the CLI" 0 "SAW oauth+" "" "" \
   CLAUDE_CODE_OAUTH_TOKEN=o ANTHROPIC_API_KEY=k
-auth_case "api_key,oauth: the key first, the OAuth token hidden" 0 "SAW +key" "" "" \
+auth_case "api_key,oauth: OAuth only for now, the key never shown" 0 "SAW oauth+" "ANTHROPIC_API_KEY is disabled" "" \
   AI_AUTH_ORDER=api_key,oauth CLAUDE_CODE_OAUTH_TOKEN=o ANTHROPIC_API_KEY=k
-auth_case "CLAUDE_AUTH_ORDER is read when AI_AUTH_ORDER is unset" 0 "SAW +key" "" "" \
-  CLAUDE_AUTH_ORDER=api_key,oauth CLAUDE_CODE_OAUTH_TOKEN=o ANTHROPIC_API_KEY=k
-auth_case "a REFUSED first method hands over to the next" 0 "SAW oauth+" "retrying with oauth" "" \
+auth_case "CLAUDE_AUTH_ORDER is read when AI_AUTH_ORDER is unset" 0 "SAW +" "ignoring unknown auth method 'bogus'" "" \
+  CLAUDE_AUTH_ORDER=bogus CLAUDE_CODE_OAUTH_TOKEN=o
+auth_case "a key that would be REFUSED is never tried" 0 "SAW oauth+" "" "retrying with" \
   AI_AUTH_ORDER=api_key,oauth REFUSE_KEY=1 CLAUDE_CODE_OAUTH_TOKEN=o ANTHROPIC_API_KEY=k
-auth_case "a refused key's hint names the key, not the OAuth token" 1 "" "ANTHROPIC_API_KEY was rejected" "" \
+auth_case "an api_key-only order still runs on OAuth" 0 "SAW oauth+" "" "" \
   AI_AUTH_ORDER=api_key REFUSE_KEY=1 CLAUDE_CODE_OAUTH_TOKEN=o ANTHROPIC_API_KEY=k
 auth_case "a non-credential failure does NOT re-run the task" 1 "" "overloaded" "retrying with" \
   AI_AUTH_ORDER=api_key,oauth OVERLOAD=1 CLAUDE_CODE_OAUTH_TOKEN=o ANTHROPIC_API_KEY=k
 
 # The single-shot API fallback is billed to the key, so an order without
-# api_key must never reach it. Needs a consumer tree with an api_call script.
+# api_key must never reach it — and, OAuth only for now, neither may an order
+# WITH api_key. Needs a consumer tree with an api_call script.
 kit="$(mktemp -d)"; mkdir -p "$kit/scripts/ai"
 cp "$SUT" "$kit/scripts/ai/run.sh"
 printf 'print "API FALLBACK"\n' > "$kit/scripts/ai/api_call.rb"
 for order in oauth oauth,api_key; do
   outf="$(mktemp)"
-  env -i PATH="${authstub}:/usr/local/bin:/usr/bin:/bin" HOME="${HOME:-/root}" AI_USAGE_DIR="$(mktemp -d)" \
+  env -i PATH="${authstub}:/usr/local/bin:/usr/bin:/bin" HOME="${HOME:-/root}" AI_USAGE_DIR="$(mktemp -d)" AI_TRANSIENT_RETRIES=0 \
     AI_AUTH_ORDER="$order" OVERLOAD=1 CLAUDE_CODE_OAUTH_TOKEN=o ANTHROPIC_API_KEY=k \
     bash "$kit/scripts/ai/run.sh" --prompt "hello" >"$outf" 2>/dev/null; rc=$?
   if [ "$order" = oauth ] && [ "$rc" = 1 ] && ! grep -qF "API FALLBACK" "$outf"; then
     echo "PASS: order without api_key never spends the key on the API fallback"; pass=$((pass + 1))
-  elif [ "$order" = oauth,api_key ] && grep -qF "API FALLBACK" "$outf"; then
-    echo "PASS: order with api_key still reaches the API fallback"; pass=$((pass + 1))
+  elif [ "$order" = oauth,api_key ] && [ "$rc" = 1 ] && ! grep -qF "API FALLBACK" "$outf"; then
+    echo "PASS: order with api_key never reaches the API fallback either (OAuth only)"; pass=$((pass + 1))
   else
     echo "FAIL: API fallback under AI_AUTH_ORDER=$order: exit $rc, stdout=$(head -c 120 "$outf")"; fail=$((fail + 1))
   fi
@@ -379,6 +386,98 @@ model_case 'ai.yml names the model' 'model: claude-sonnet-5-5' "" "claude-sonnet
 model_case 'AI_MODEL wins over ai.yml' 'model: claude-sonnet-5-5' "claude-haiku-5-5" "claude-haiku-5-5"
 model_case 'AI_MODEL wins over an empty ai.yml' 'model: ""' "claude-haiku-5-5" "claude-haiku-5-5"
 rm -rf "$argstub"
+
+# 17-21. A TRANSIENT failure (529, 503, overloaded) whose payload shows NOTHING
+#    BILLED is re-run on the same credential, at most AI_TRANSIENT_RETRIES times
+#    (default 2) after the AI_TRANSIENT_BACKOFF waits (default "30 90", "0 0"
+#    here). A failed call that billed anything is never re-run, and a transient
+#    failure never hands over to the next credential. Until kit 0.4.1 a
+#    transient payload produced exactly one call.
+retrystub="$(mktemp -d)"
+cat > "$retrystub/claude" <<'STUB'
+#!/usr/bin/env bash
+# One line per call in $CLAUDE_CALLS, naming the credential the CLI could see.
+# The first $FAIL_CALLS calls print $FAIL_PAYLOAD and exit 1; later calls succeed.
+echo "${CLAUDE_CODE_OAUTH_TOKEN:+oauth}+${ANTHROPIC_API_KEY:+key}" >> "$CLAUDE_CALLS"
+n="$(wc -l < "$CLAUDE_CALLS" | tr -d ' ')"
+if [ "$n" -le "${FAIL_CALLS:-99}" ]; then
+  printf '%s' "$FAIL_PAYLOAD"
+  exit 1
+fi
+printf '{"type":"result","subtype":"success","is_error":false,"num_turns":3,"total_cost_usd":0.02,"usage":{"input_tokens":5,"output_tokens":5},"result":"RECOVERED on call %s"}' "$n"
+STUB
+chmod +x "$retrystub/claude"
+# A call the API refused before any work: the CLI gave up after its own retries
+# ("Repeated 529 Overloaded errors"), one turn, no cost, no tokens.
+T529_JSON='{"type":"result","subtype":"success","is_error":true,"duration_ms":41000,"num_turns":1,"session_id":"s6","total_cost_usd":0,"usage":{"input_tokens":0,"output_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0},"result":"API Error: Repeated 529 Overloaded errors"}'
+# An overload that hit mid-task: seven turns and real tokens already spent.
+TBILLED_JSON='{"type":"result","subtype":"error_during_execution","is_error":true,"num_turns":7,"total_cost_usd":0.84,"usage":{"input_tokens":5200,"output_tokens":900},"result":"overloaded_error: Overloaded"}'
+retry_root="$(mktemp -d)"   # a consumer tree with no companions: nothing spooled, nothing normalized
+
+# retry_case <name> <want-calls> <want-rc> <want-stdout|""> <want-stderr, |-separated|""> <not-in-stderr|""> VAR=value…
+# Leaves the distinct credentials the CLI saw in $retry_seen.
+retry_case() {
+  local name="$1" want_calls="$2" want_rc="$3" want_out="$4" want_err="$5" not_err="$6"; shift 6
+  local calls outf errf rc n pat pats why=""
+  calls="$(mktemp)"; outf="$(mktemp)"; errf="$(mktemp)"; : > "$calls"
+  env -i PATH="${retrystub}:/usr/local/bin:/usr/bin:/bin" HOME="${HOME:-/root}" AI_USAGE_DIR="$(mktemp -d)" \
+    AI_REPO_ROOT="$retry_root" CLAUDE_CALLS="$calls" AI_TRANSIENT_BACKOFF="0 0" CLAUDE_CODE_OAUTH_TOKEN=o \
+    "$@" bash "$SUT" --prompt "hello" >"$outf" 2>"$errf"; rc=$?
+  n="$(wc -l < "$calls" | tr -d ' ')"
+  [[ "$n" != "$want_calls" ]] && why="$n call(s), wanted $want_calls"
+  [[ -z "$why" && "$rc" != "$want_rc" ]] && why="exit $rc, wanted $want_rc"
+  [[ -z "$why" && -n "$want_out" ]] && ! grep -qF -- "$want_out" "$outf" && why="stdout missing '$want_out'"
+  if [[ -z "$why" && -n "$want_err" ]]; then
+    IFS='|' read -r -a pats <<<"$want_err"
+    for pat in "${pats[@]}"; do grep -qF -- "$pat" "$errf" || { why="stderr missing '$pat'"; break; }; done
+  fi
+  [[ -z "$why" && -n "$not_err" ]] && grep -qF -- "$not_err" "$errf" && why="stderr should not contain '$not_err'"
+  if [[ -z "$why" ]]; then echo "PASS: transient retry: $name"; pass=$((pass + 1))
+  else echo "FAIL: transient retry: $name — $why"; echo "  stdout: $(head -c 200 "$outf")"; echo "  stderr: $(head -c 400 "$errf")"; fail=$((fail + 1)); fi
+  retry_seen="$(sort -u "$calls" | tr '\n' ' ')"
+  rm -f "$calls" "$outf" "$errf"
+}
+
+retry_case "a 529 with nothing billed is retried twice, then fails with the transient hint" 3 1 "" \
+  "attempt 2/3|attempt 3/3|the API was overloaded|still failing after 2 transient retries" "retrying with" \
+  FAIL_PAYLOAD="$T529_JSON" AI_AUTH_ORDER=oauth,api_key ANTHROPIC_API_KEY=k
+if [[ "$retry_seen" == "oauth+ " ]]; then
+  echo "PASS: transient retry: every retry used the same credential, never the next one"; pass=$((pass + 1))
+else
+  echo "FAIL: transient retry: the retries saw '$retry_seen', wanted only 'oauth+'"; fail=$((fail + 1))
+fi
+summary="$(mktemp)"
+retry_case "a 529 twice, then success: exit 0 on the third call" 3 0 "RECOVERED on call 3" "attempt 3/3" "" \
+  FAIL_PAYLOAD="$T529_JSON" FAIL_CALLS=2 GITHUB_STEP_SUMMARY="$summary"
+if grep -qF "2 transient API retries" "$summary"; then
+  echo "PASS: transient retry: the step summary counts the retries"; pass=$((pass + 1))
+else
+  echo "FAIL: transient retry: step summary = '$(head -c 200 "$summary")'"; fail=$((fail + 1))
+fi
+rm -f "$summary"
+retry_case "an overload that billed usage is never re-run" 1 1 "" "billed usage|not retried" "attempt 2/" \
+  FAIL_PAYLOAD="$TBILLED_JSON"
+retry_case "AI_TRANSIENT_RETRIES=0 turns the retry off" 1 1 "" "the API was overloaded" "attempt 2/" \
+  FAIL_PAYLOAD="$T529_JSON" AI_TRANSIENT_RETRIES=0
+
+# The retry event reaches the fleet activity log's spool when the consumer tree
+# carries tools/fleet_activity.py (the hub does; most consumers do not).
+activity_py="$(cd "$HERE/../../.." && pwd)/tools/fleet_activity.py"
+if [[ -f "$activity_py" ]] && env -i PATH="/usr/local/bin:/usr/bin:/bin" sh -c 'command -v python3' >/dev/null 2>&1; then
+  mkdir -p "$retry_root/tools"; cp "$activity_py" "$retry_root/tools/"
+  queue="$(mktemp)"
+  retry_case "a retry with tools/fleet_activity.py present still recovers" 3 0 "RECOVERED on call 3" "" "" \
+    FAIL_PAYLOAD="$T529_JSON" FAIL_CALLS=2 FLEET_ACTIVITY_QUEUE="$queue"
+  if [[ "$(grep -c '"event_type": "retry"' "$queue")" == "2" ]] && grep -qF '"attempt": 3' "$queue" && grep -qF '"max_attempts": 3' "$queue"; then
+    echo "PASS: transient retry: each retry is spooled as a fleet activity retry event"; pass=$((pass + 1))
+  else
+    echo "FAIL: transient retry: activity spool = '$(head -c 300 "$queue")'"; fail=$((fail + 1))
+  fi
+  rm -rf "$queue" "$retry_root/tools"
+else
+  echo "SKIP: transient retry: activity event (no tools/fleet_activity.py beside the hub runner, or no python3 on the minimal PATH)"
+fi
+rm -rf "$retrystub" "$retry_root"
 
 echo
 echo "ai runner contract: $pass passed, $fail failed"
