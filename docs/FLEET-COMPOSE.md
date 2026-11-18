@@ -81,7 +81,7 @@ The submodule's file is never modified and still runs standalone.
 
 ## The registry
 
-[`_data/ports.yml`](../_data/ports.yml) is the single source of truth — the same role `projects.yml` plays for repos. It defines **bands** (4010–4039 Jekyll, 5000–5199 frontends, 8100–8149 APIs, 5700–5749 debuggers, 35730–35759 livereload, 5430–5469 per-project databases, 6380–6399 per-project caches), the **shared** services, and every project's allocation.
+[`_data/ports.yml`](../_data/ports.yml) is the single source of truth — the same role `projects.yml` plays for repos. It defines **bands** (4010–4039 Jekyll, 5020–5199 frontends, 8100–8149 APIs, 5700–5749 debuggers, 35730–35759 livereload, 5430–5469 per-project databases, 6380–6399 per-project caches, and the **workspace** block for `host: devenv` projects: 4040–4069 Jekyll, 35760–35789 their livereload, 5000–5019 Vite, which is `_data/fleet.yml` `containers.ports.workspace*` and what devenv publishes), the **shared** services, and every project's allocation. A devenv-hosted project also carries `start:`, the command its `.vscode/launch.json` entry runs, and the app portal offers its workspace port as its local address (`tools/dash apps`).
 
 ```bash
 tools/fleet-compose.py show            # the table
@@ -89,7 +89,7 @@ tools/fleet-compose.py check --audit   # gate + what is still hardcoded upstream
 tools/fleet-compose.py sync            # regenerate compose/fleet.env + overrides + compose/fleet.yml
 ```
 
-`sync` writes `compose/fleet.env` (committed), `compose/overrides/*.yml`, `compose/overrides/hub.yml` (devenv's fleet-mode port map) and `compose/fleet.yml`. **Drift check (m)** fails the build if the allocation has a collision, is out of band, or the generated files have drifted from it.
+`sync` writes `compose/fleet.env` (committed), `compose/overrides/*.yml`, `compose/overrides/hub.yml` (devenv's fleet-mode port map) and `compose/fleet.yml`. **Drift check (m)** fails the build if the allocation has a collision, is out of band, puts a devenv-hosted project off the workspace bands or anything else on them, has two bands that overlap, or the generated files have drifted from it.
 
 Variables are namespaced (`DJANGOERP_DB_PORT`, not `POSTGRES_PORT`) because the submodules' own names collide: djangoerp and barodybroject both read `POSTGRES_PORT`; zer0-cms and zer0-image-generator both read `PORT`.
 
@@ -117,7 +117,7 @@ barodybroject deliberately has **no** attach target: its `web-prod` runs no debu
 
 ## Adding a project
 
-1. Add a `projects:` entry to `_data/ports.yml` (`host: compose` or `devenv`), picking ports inside the right bands.
+1. Add a `projects:` entry to `_data/ports.yml` (`host: compose` or `devenv`), picking ports inside the right bands. A `devenv` project takes a workspace band, a port `docker-compose.yml`'s devenv service publishes, and a `start:` equal to its `.vscode/launch.json` entry's command (`tools/test_vscode_launch.py` holds both).
 2. `tools/fleet-compose.py sync`
 3. Commit the registry **and** the generated files. Drift check (m) gates both.
 

@@ -653,8 +653,12 @@ features:
     description: Reads Projects (v2) of bamr87, year-of-ai, ai-world-view, bash-365 and EissaLab, links
       project items, issues, PRs, commits, repos and FEAT/FR refs into one graph, and plans write-back (projects,
       items, issue and PR fields) as a dry run that applies only behind HARNESS_PROJECTS_WRITES plus confirm,
-      with an audit log (constitution § 11).
-    implemented: false
+      with an audit log (constitution § 11). The read half is served (#470) by GET /api/gh-projects (every owner,
+      each with its projects or the reason it cannot be read) and /api/gh-projects/{id}/items (paged, capped
+      at 500), the MCP's read-only gh_projects and gh_project_items, and the console's GitHub Projects page
+      (a table, or a board by Status), under a TTL cache, a GraphQL call budget and a wall clock, never in
+      the public snapshot.
+    implemented: true
     status: partial
     surface: infra
     link: tools/console/gh_projects.py
@@ -667,6 +671,13 @@ features:
     tests:
     - tools/console/test_gh_projects.py
     - tools/test_projects_backfill.py
+    - tools/console/test_console.py
+    - tools/console/test_mcp_layer.py
+    - tools/console/test_pages.py
+    scenarios:
+    - verify/scenarios/gh-projects.yml
+    evidence:
+    - test/evidence/gh-projects
     prd:
     - FR32
     - FR33
@@ -1197,19 +1208,22 @@ features:
     description: A reusable hub workflow (.github/workflows/pr-review.yml) and per-repo stub that run every
       PR check, post one sticky summary updated in place (silent when clean), severity-tagged deduplicated
       inline findings and a fleet signature footer, as github-actions or the fleet app, never Amr's token;
-      proposed by amendment fleet-pr-review.
-    implemented: false
-    status: planned
+      proposed by amendment fleet-pr-review. Shipped so far are the CI-failure sticky (amendment
+      ci-failure-summary) and inline findings from each check's fleet-findings artifact; AI review (§ 19.7)
+      and the fleet-app identity (bamr87/bamr87#565) are still to come.
+    implemented: true
+    status: partial
     surface: infra
-    link: docs/amendments/0017-fleet-pr-review.md
-    docs: docs/amendments/0017-fleet-pr-review.md
+    link: .github/workflows/pr-review.yml
+    docs: templates/pr-review/README.md
     tags:
     - ci
     - governance
     - review
     date: 2026-11-01
     tests:
-    - na: planned; tests land with the implementation issue
+    - .github/scripts/dash-gen/test_pr_review.py
+    - .github/scripts/dash-gen/test_workflow_atlas.py
     prd:
     - FR61
   - id: HUB-066

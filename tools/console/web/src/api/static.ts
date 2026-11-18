@@ -59,6 +59,8 @@ export async function staticGet<T>(path: string): Promise<T> {
     return { ...view, rows, inbox, repo, query: { q: qs.get('q') ?? '', sort: view.query?.sort ?? 'featured', health: health || null } } as T;
   }
   if (p === 'auth') localOnly('Credential management');
+  // Read with the operator's token, and a private project's title must not reach Pages.
+  if (p === 'gh-projects' || p.startsWith('gh-projects/')) localOnly('GitHub Projects');
   // A repo's README is read from a checkout on the operator's machine; the
   // public build carries none (a private repo's must never be published).
   if (/^project\/[^/]+\/readme$/.test(p)) return { present: false, reason: 'the public page carries no README — read it in the repository' } as T;

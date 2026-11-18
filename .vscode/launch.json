@@ -1072,7 +1072,7 @@
       "name": "🧪 Console: tests (test_console, test_pages, mcp layer, gh projects)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "for t in test_console test_pages test_mcp_layer test_gh_projects test_subscription test_claude_telemetry test_tui_bridge test_health_autostart; do .venv-console/bin/python tools/console/$t.py || { echo FAILED: tools/console/$t.py; break; }; done",
+      "command": "for t in test_console test_pages test_mcp_layer test_gh_projects test_subscription test_claude_telemetry test_telemetry_query test_tui_bridge test_health_autostart; do .venv-console/bin/python tools/console/$t.py || { echo FAILED: tools/console/$t.py; break; }; done",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Console: bootstrap venv",
       "presentation": { "group": "6-verify", "order": 8 }
@@ -1718,7 +1718,7 @@
       "id": "verifyScenario",
       "description": "Scenario id (verify/scenarios/)",
       "type": "pickString",
-      "options": ["home", "dashboard", "connect", "engagements", "features", "harnesses", "schedules", "monitor", "roadmap", "triage", "work", "workflows", "loop-run", "refine", "apps", "desktop", "repo-app", "desktop-pages", "console-shell", "console-nav", "desktop-context-menu", "pr-queue"],
+      "options": ["home", "dashboard", "connect", "engagements", "features", "harnesses", "schedules", "monitor", "roadmap", "triage", "work", "workflows", "loop-run", "refine", "apps", "desktop", "repo-app", "desktop-pages", "console-shell", "console-nav", "desktop-context-menu", "gh-projects", "pr-queue"],
       "default": "home"
     },
     {

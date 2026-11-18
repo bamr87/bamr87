@@ -321,6 +321,59 @@ def test_no_project_dev_port_lands_in_the_workspace_block():
 
 
 # --------------------------------------------------------------------------- #
+# the dev-stack registry: _data/ports.yml, gated by tools/fleet-compose.py
+# --------------------------------------------------------------------------- #
+PORTS_REGISTRY = yaml.safe_load((REPO_ROOT / "_data" / "ports.yml").read_text())
+
+
+def _dev_stack_gate():
+    """tools/fleet-compose.py (drift check (m)), loaded by path: its name has a dash."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("fleet_compose_gate", REPO_ROOT / "tools" / "fleet-compose.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_the_port_registry_workspace_bands_are_the_contracts():
+    """_data/ports.yml's `host: devenv` projects live on its workspace bands,
+    and the app portal frames those ports. Bands wider or other than the block
+    the contract reserves for devenv would offer an address devenv never
+    publishes, which is how bamr87.github.io sat on an unreachable 4012 (#702)."""
+    bands = PORTS_REGISTRY["bands"]
+    ws = {k: v for k, v in CONTRACT["ports"].items() if k.startswith("workspace")}
+    assert {k for k in bands if k.startswith("workspace")} == set(ws), (sorted(bands), sorted(ws))
+    for k, rng in ws.items():
+        assert list(bands[k]["range"]) == list(rng), \
+            f"_data/ports.yml {k} {bands[k]['range']} is not containers.ports.{k} {rng}"
+
+
+def test_the_dev_stack_gate_keeps_devenv_on_the_workspace_block():
+    """Drift check (m): a devenv-hosted allocation outside the workspace block
+    is unreachable, a compose one inside it collides with devenv, a workspace
+    site's livereload has its own band, and bands never overlap."""
+    gate = _dev_stack_gate()
+    assert gate.validate(PORTS_REGISTRY) == [], gate.validate(PORTS_REGISTRY)
+    bands = {"jekyll": {"range": [4010, 4039]}, "livereload": {"range": [35730, 35759]},
+             "workspace": {"range": [4040, 4069]}, "workspace_livereload": {"range": [35760, 35789]}}
+
+    def problems(host, band, port, lr=None, bands=bands):
+        alloc = {"port": port, "band": band, "var": "X_PORT", **({"livereload": lr} if lr else {})}
+        # a compose file that is not on disk: the gate skips its service check
+        proj = {"host": host, "compose": "projects/absent/docker-compose.yml", "services": {"web": alloc}}
+        return gate.validate({"bands": bands, "projects": {"p": proj}})
+
+    assert problems("devenv", "workspace", 4040, lr=35760) == []
+    assert problems("compose", "jekyll", 4010, lr=35730) == []
+    assert any("must be a workspace band" in p for p in problems("devenv", "jekyll", 4012, lr=35732))
+    assert any("for host=devenv projects only" in p for p in problems("compose", "workspace", 4040))
+    assert any("livereload 35732 outside band 'workspace_livereload'" in p
+               for p in problems("devenv", "workspace", 4040, lr=35732))
+    overlapping = {**bands, "frontend": {"range": [5000, 5199]}, "workspace_node": {"range": [5000, 5019]}}
+    assert any("overlap" in p for p in problems("compose", "jekyll", 4010, bands=overlapping))
+
+
+# --------------------------------------------------------------------------- #
 def main() -> int:
     failures = 0
     for name, fn in sorted(globals().items()):

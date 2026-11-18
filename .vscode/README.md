@@ -68,9 +68,15 @@ Pickers are generated from the registries by hand and must follow them: `fleetPr
 
 `settings.json` is machine-neutral: the raised `git.detectSubmodulesLimit` the ~40 submodules need, the interpreter the debug entries use (`.venv-console`), Docker Compose v2, file associations for the fleet's stacks, soft wrap for the one-paragraph-per-line Markdown, and the ignores that keep watching and search off the venvs, the lake, the compose overrides, the built site and page, and the evidence bundles. Personal preferences (font, line height, minimap, auto-save) belong in [`home.code-workspace`](../home.code-workspace) or user settings. `extensions.json` is the union of what the dev container installs and what the launch and task entries rely on, so the host and the container agree.
 
+## The fleet workspace
+
+[`fleet.code-workspace`](../fleet.code-workspace) is the window for running the fleet (`code fleet.code-workspace`): the hub first, then the submodules the fleet is built and run with, each as its own root — the agent SDLC tooling, the context and structure layer, the content layer, and the fleet's operations repos; the list is the file's `folders`. Everything in this directory still applies there. The launch configurations and tasks appear under the `bamr87` folder, Source Control lists every submodule, and an agent session started in the window loads the hub's `.claude/` and `.mcp.json`, because the hub is the first root.
+
+The file is thin on purpose. It has no `launch` or `tasks` block, so an entry is never listed twice; it holds no personal preferences; and every root is a path `.gitmodules` declares. Its settings are only what a folder's file cannot give a multi-root window: the window-level settings the hub relies on, one root-relative `search.exclude` key per root so a hit under `projects/<repo>` is listed once and not twice, and watcher excludes for the stacks those roots add. To add a root, add its folder and its `search.exclude` key together.
+
 ## Governance
 
-Constitution § 20 (proposed amendment `editor-front-door`) makes this directory a front door: entries call `tools/dash` or a tool's own entry point, pickers and ports follow the registries, and a new surface adds its entry in the same PR. [`tools/test_vscode_launch.py`](../tools/test_vscode_launch.py) is the gate (run by `tools/run-all-tests.sh`): the four files parse, every task and input resolves, each picker equals its registry, every named port is one its plane publishes, and nothing calls `fleet-dev.sh` directly or starts `fleet-hub`. Fleet repos are held to the same idea by UPS-REPO-40 ([specs/REPOSITORY.md](../specs/REPOSITORY.md), audited by `tools/conformance.py`) and surfaced by `dash audit` as the `vscode` artifact; this directory is the reference until a `templates/vscode/` kit exists. [`SCHEMA.md`](SCHEMA.md) lists the files and the placement rules.
+Constitution § 20 (proposed amendment `editor-front-door`) makes this directory a front door: entries call `tools/dash` or a tool's own entry point, pickers and ports follow the registries, and a new surface adds its entry in the same PR. [`tools/test_vscode_launch.py`](../tools/test_vscode_launch.py) is the gate (run by `tools/run-all-tests.sh`): the four files parse, every task and input resolves, each picker equals its registry, every named port is one its plane publishes, nothing calls `fleet-dev.sh` directly or starts `fleet-hub`, and `fleet.code-workspace` opens the hub first and declared submodules only, with no entries of its own. Fleet repos are held to the same idea by UPS-REPO-40 ([specs/REPOSITORY.md](../specs/REPOSITORY.md), audited by `tools/conformance.py`) and surfaced by `dash audit` as the `vscode` artifact; this directory is the reference until a `templates/vscode/` kit exists. [`SCHEMA.md`](SCHEMA.md) lists the files and the placement rules.
 
 ## Notes
 
@@ -78,4 +84,4 @@ Constitution § 20 (proposed amendment `editor-front-door`) makes this directory
 - `tools/dash dev up` projects join `fleet-net`; the shared core is on `fleet`. A project whose compose points at the hub's Phoenix by alias (law-ai, bashos) reaches it only through the `fleet-hub` layer, which these entries do not start; the project still runs, without traces.
 - The pre-2026 configurations that targeted repositories this one no longer contains (barodybroject, PostHog, lawmode, books, gitnexus as a top-level submodule) are gone; recover them from git history if ever wanted.
 
-Last modified: 2026-11-10
+Last modified: 2026-11-17
