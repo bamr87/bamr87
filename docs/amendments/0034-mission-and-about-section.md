@@ -1,11 +1,11 @@
 <!-- kit: governance v0.1.0 -->
 # 0034 — Fleet mission statements and the repository about section
 
-- **Status:** proposed
+- **Status:** ratified
 - **Number:** 0034
 - **Date:** 2026-11-16
 - **Proposed by:** Grok Bot, at Amr's request on 2026-11-16 (voice): write the fleet-wide mission-statement standard into the hub, add organization structure and per-repo about context, and design each repo's about section as a consistent public site map
-- **Ratified by:** (leave blank until merged)
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/907 (merged 2026-11-18 by @bamr87)
 - **Affects:** constitution § 1 (rewritten to the fleet mission format); constitution new § 31 (follows § 29 `agentic-efficacy-contract`; [bamr87/bamr87#858](https://github.com/bamr87/bamr87/pull/858) already proposes § 30, so this section is numbered § 31 to avoid a collision, and may be renumbered if merge order changes); § 14 by reference; PRD § 1; features `HUB-122` and `HUB-118`; requirements `FR138` and `FR136`; roadmap `FF-0057` and `FF-0056`; UPS-DOC-11; [docs/ABOUT-SECTION.md](../ABOUT-SECTION.md); [docs/FLEET.md](../FLEET.md); [docs/PORTFOLIO.md](../PORTFOLIO.md)
 - **Supersedes:** none
 - **Related:** [fredgar-ai#153](https://github.com/bamr87/fredgar-ai/pull/153) (amendment 0002, first three-mission statement); [law-ai#262](https://github.com/bamr87/law-ai/pull/262) (amendment 0003, same format, plus matching README and AGENTS.md one-liners); the read-only scan of 2026-11-16; portfolio skeleton [docs/PORTFOLIO.md](../PORTFOLIO.md) § 4 and UPS-DOC-10

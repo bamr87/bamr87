@@ -1,11 +1,11 @@
 <!-- kit: governance v0.1.0 -->
 # 0035 — A merge or close the maintainer confirms in the console PR queue is his own action
 
-- **Status:** proposed
+- **Status:** ratified
 - **Number:** 0035
 - **Date:** 2026-11-16
 - **Proposed by:** Platform Architect (Grok Bot), from [bamr87/bamr87#863](https://github.com/bamr87/bamr87/issues/863) (direction-setting work under § 26.2 and § 28.5)
-- **Ratified by:** (leave blank until merged)
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/905 (merged 2026-11-18 by @bamr87)
 - **Affects:** constitution § 11.1, § 11.2, § 12.2, § 12.4, § 12.5, § 19.5; the PR-queue feature and its bulk-actions requirement and roadmap entry, which #864 proposes as fragments (`features/features.d/pr-queue.yml`); they are cited here by name, not by `NEW` slug reference, so this record numbers cleanly whichever of the two pull requests lands first
 - **Supersedes:** none (adds a maintainer-confirm exception; does not let an agent merge or close on its own initiative)
 - **Related:** [bamr87/bamr87#863](https://github.com/bamr87/bamr87/issues/863), [bamr87/bamr87#864](https://github.com/bamr87/bamr87/pull/864), § 11.8 OPS remote-write path, amendment `ops-remote-write-path` (0020), `projects-write-back` (0006), `agent-merge-review-gate` (0009), `fleet-pr-review` (0017)
