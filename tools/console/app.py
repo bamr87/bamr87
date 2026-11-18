@@ -1092,7 +1092,7 @@ def gh_project_items(project_id: str, limit: int = Query(default=gp.ITEMS_LIMIT,
 def prs(repo: str = Query(default="", max_length=140), kind: str = Query(default="", pattern=r"^[a-z_]{0,20}$"),
         who: str = Query(default="", pattern=r"^[a-z]{0,10}$"), gate: str = Query(default="", pattern=r"^(|gated|ungated)$"),
         batch: str = Query(default="", max_length=200), check: str = Query(default="", pattern=r"^[a-z_]{0,20}$"),
-        flag: str = Query(default="", pattern=r"^[a-z-]{0,24}$"),
+        flag: str = Query(default="", pattern=r"^[a-z-]{0,24}$"), verdict: str = Query(default="", pattern=r"^[a-z-]{0,12}$"),
         refresh: str = Query(default="auto", pattern=r"^[a-z]{1,10}$"), budget: float = Query(default=0, ge=0, le=60),
         limit: int = Query(default=500, ge=0, le=1000)) -> dict:
     """The PR queue (pr_queue.py over fleetcore.prqueue; docs/PR-QUEUE.md): every open pull request of the
@@ -1105,7 +1105,7 @@ def prs(repo: str = Query(default="", max_length=140), kind: str = Query(default
         return pr_queue.queue(core.REPO_ROOT, refresh=refresh, budget_s=budget or None, limit=limit,
                               token=lambda: ghl.token_source()[1],
                               filters={"repo": repo, "kind": kind, "who": who, "gate": gate, "batch": batch, "check": check,
-                                       "flag": flag})
+                                       "flag": flag, "verdict": verdict})
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 

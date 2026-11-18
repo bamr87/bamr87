@@ -25,13 +25,27 @@ name: PR review
 # checks out the hub's tooling only, and the log text and findings artifacts it
 # reads are untrusted data, validated in memory and never executed or extracted.
 #
+# MERGE READINESS (ADR 0012). With `vars.PR_READINESS_ENABLED` set to 'true' the same comment
+# also lists what is left before the pull request merges: the PR queue's reading of that
+# one pull request (checks, base, draft state, the review gate and its label, the
+# governance trace, the task list, review threads). The comment stays while anything is
+# left; when nothing is, it goes (§ 19.2) and one review per head commit says the pull
+# request is ready and who merges it. That review comments and never approves (§ 19.5).
+# Marking a pull request ready, labelling it or editing it starts no workflow, so nothing
+# would fire a workflow_run: those events come in through pull_request_target, which
+# runs this file from the default branch with the same rule as above. It never checks
+# out the pull request, and it reads the pull request through the API alone.
+#
 # It runs only from the default branch, so a change here takes effect at merge.
 # Off switch: `vars.PR_REVIEW_ENABLED` set to 'false'. Default on.
+# Readiness switch: `vars.PR_READINESS_ENABLED` set to 'true'. Default off.
 
 on:
   workflow_run:
     workflows: ["**", "!PR review"]
     types: [completed]
+  pull_request_target:
+    types: [opened, reopened, ready_for_review, converted_to_draft, synchronize, labeled, unlabeled, edited]
   workflow_call:
     inputs:
       hub-ref:
@@ -43,7 +57,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: pr-review-${{ github.event.workflow_run.head_sha || github.run_id }}
+  group: pr-review-${{ github.event.workflow_run.head_sha || github.event.pull_request.head.sha || github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -73,7 +87,11 @@ jobs:
           repository: bamr87/bamr87
           ref: ${{ inputs.hub-ref || 'main' }}
           path: .fleet-hub
-          sparse-checkout: .github/scripts/dash-gen
+          # The script, and what merge readiness reads beside it: the PR queue's model and the fleet's settings.
+          sparse-checkout: |
+            .github/scripts/dash-gen
+            tools
+            _data
           persist-credentials: false
 
       - uses: actions/setup-python@v7
@@ -87,4 +105,47 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.event.workflow_run.id }}
-        run: python .fleet-hub/.github/scripts/dash-gen/pr_review.py ci --repo "$GITHUB_REPOSITORY" --run "$RUN_ID"
+          READINESS: ${{ vars.PR_READINESS_ENABLED }}
+        run: |
+          # pr_readiness.py is pr_review.py's comment with what is left before the merge under it.
+          script=pr_review.py
+          if [ "$READINESS" = "true" ]; then script=pr_readiness.py; fi
+          python ".fleet-hub/.github/scripts/dash-gen/$script" ci --repo "$GITHUB_REPOSITORY" --run "$RUN_ID"
+
+  readiness:
+    # The pull-request events that start no workflow of their own: marked ready, converted
+    # to a draft, labelled, edited, opened. A push starts CI, and ci-failure reports when
+    # that finishes; it also lands here at once, so the comment is current before CI is.
+    if: ${{ github.event_name == 'pull_request_target' && vars.PR_READINESS_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Check out the hub's tooling, never the pull request
+        uses: actions/checkout@v7
+        with:
+          repository: bamr87/bamr87
+          ref: ${{ inputs.hub-ref || 'main' }}
+          path: .fleet-hub
+          sparse-checkout: |
+            .github/scripts/dash-gen
+            tools
+            _data
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install the tooling's one dependency
+        run: python -m pip install --quiet pyyaml
+
+      - name: Say what is left before the pull request merges
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: python .fleet-hub/.github/scripts/dash-gen/pr_readiness.py ready --repo "$GITHUB_REPOSITORY" --pr "$PR"
