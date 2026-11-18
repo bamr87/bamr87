@@ -49,12 +49,14 @@ from pydantic import BaseModel, Field
 
 import core
 import decision_index
+import gh_projects as gp
 import github_link as ghl
 import pr_queue
 import site_docs
 import tui_bridge
 import live
 import claude_telemetry
+import telemetry_query
 
 # The core both surfaces share (tools/fleetcore): the fleet views the TUI
 # renders, the keys v1 table, and the bashOS palette.
@@ -422,6 +424,52 @@ def claude_telemetry_doc(window: str = Query(default="24h", pattern="^(1h|24h|7d
         return claude_telemetry.snapshot(window, session, limit)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
+
+
+def _telemetry_query(fn, **kw) -> dict:
+    """A telemetry_query.py call: a refused query is the caller's 422, an unreachable store a 502."""
+    try:
+        return fn(**kw)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except telemetry_query.UpstreamError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.get("/api/telemetry/prom", dependencies=[Depends(require_token)])
+def telemetry_prom(query: str = Query(..., min_length=1, max_length=telemetry_query.MAX_QUERY_CHARS),
+                   start: str | None = Query(default=None, max_length=40),
+                   end: str | None = Query(default=None, max_length=40),
+                   step: str | None = Query(default=None, max_length=16)) -> dict:
+    """PromQL over claude_code_* metrics only (telemetry_query.py): ≤ 200 series, ≤ 30-day window, 10 s."""
+    return _telemetry_query(telemetry_query.prom_query, query=query, start=start, end=end, step=step)
+
+
+@app.get("/api/telemetry/logs", dependencies=[Depends(require_token)])
+def telemetry_logs(repo: str | None = Query(default=None, max_length=201),
+                   run: str | None = Query(default=None, max_length=20),
+                   trace: str | None = Query(default=None, max_length=64),
+                   session: str | None = Query(default=None, max_length=64),
+                   event: str | None = Query(default=None, max_length=64),
+                   level: str | None = Query(default=None, max_length=10),
+                   since: str | None = Query(default=None, max_length=40),
+                   until: str | None = Query(default=None, max_length=40),
+                   text: str | None = Query(default=None, max_length=telemetry_query.MAX_TEXT_CHARS),
+                   limit: int = Query(default=20, ge=1, le=telemetry_query.MAX_HITS)) -> dict:
+    """Log hits from Elasticsearch logs-fleet.* (telemetry_query.py): ≤ 100, allowlisted fields, redacted."""
+    return _telemetry_query(telemetry_query.logs_search, repo=repo, run=run, trace=trace, session=session,
+                            event=event, level=level, since=since, until=until, text=text, limit=limit)
+
+
+@app.get("/api/telemetry/traces", dependencies=[Depends(require_token)])
+def telemetry_traces(session: str | None = Query(default=None, max_length=128),
+                     trace_id: str | None = Query(default=None, max_length=32),
+                     slowest: bool = Query(default=False),
+                     since: str | None = Query(default=None, max_length=40),
+                     limit: int = Query(default=10, ge=1, le=telemetry_query.MAX_SPANS)) -> dict:
+    """Spans or traces of Phoenix project claude-code-otel (telemetry_query.py): ≤ 50, 10 s."""
+    return _telemetry_query(telemetry_query.traces_query, session=session, trace_id=trace_id, slowest=slowest,
+                            since=since, limit=limit)
 
 
 @app.get("/api/lake", dependencies=[Depends(require_token)])
@@ -999,11 +1047,52 @@ def decisions(kind: str = Query(default="", pattern=r"^[a-z_]{0,20}$"),
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+# GitHub Projects (v2), read-only (gh_projects.py; docs/PROJECTS-FRAMEWORK.md § 3a,
+# epic #468 P1). PROJECTS_TOKEN when it is set, else the console's own GitHub
+# identity; the token's NAME is in the answer, never its value. GET only: the
+# write half (gh_projects_write.py, constitution § 11) is not imported here.
+def _projects_token() -> tuple[str | None, str | None]:
+    return gp.resolve_token(ghl.token_source)
+
+
+@app.get("/api/gh-projects", dependencies=[Depends(require_token)])
+def gh_projects(owner: str = Query(default="", max_length=40), closed: bool = True, refresh: bool = False,
+                budget: float = Query(default=0, ge=0, le=gp.BUDGET_MAX_S)) -> dict:
+    """Every Projects (v2) board of every fleet owner (gp.OWNERS) in one document: each owner `ok` with
+    its projects, or `scope_missing` / `error` / `skipped` with the reason. `status` is fresh · partial ·
+    scope_missing · unavailable; `owner` narrows it, `closed=false` drops closed projects, `refresh`
+    skips the TTL cache, `budget` is the wall clock in seconds (0 = 15). Never part of the public
+    snapshot: a private project's title must not reach Pages. The MCP's gh_projects returns it."""
+    try:
+        return gp.projects_view(owner=owner, include_closed=closed, refresh=refresh, budget_s=budget or None,
+                                token=_projects_token)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/api/gh-projects/{project_id}/items", dependencies=[Depends(require_token)])
+def gh_project_items(project_id: str, limit: int = Query(default=gp.ITEMS_LIMIT, ge=0, le=gp.MAX_ITEMS),
+                     offset: int = Query(default=0, ge=0, le=gp.MAX_ITEMS),
+                     status: str = Query(default="", max_length=80),
+                     kind: str = Query(default="", pattern=r"^(issue|pr|draft)?$"),
+                     q: str = Query(default="", max_length=120), refresh: bool = False,
+                     budget: float = Query(default=0, ge=0, le=gp.BUDGET_MAX_S)) -> dict:
+    """One project's items, normalised (kind, repo#number, title, state, field values, FEAT/FR refs,
+    closing issues, commits) and paged: the read stops at MAX_ITEMS and says so (`capped`); `limit`
+    and `offset` page it, `status` / `kind` / `q` filter it, `counts` cover every item read. 404 when
+    no such project is readable with the console's token. The MCP's gh_project_items returns it."""
+    try:
+        return gp.items_view(project_id, limit=limit, offset=offset, status=status, kind=kind, q=q,
+                             refresh=refresh, budget_s=budget or None, token=_projects_token)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except gp.NotReadable as exc:
+        raise HTTPException(status_code=404, detail=gp.redact(str(exc)))
 @app.get("/api/prs", dependencies=[Depends(require_token)])
 def prs(repo: str = Query(default="", max_length=140), kind: str = Query(default="", pattern=r"^[a-z_]{0,20}$"),
         who: str = Query(default="", pattern=r"^[a-z]{0,10}$"), gate: str = Query(default="", pattern=r"^(|gated|ungated)$"),
         batch: str = Query(default="", max_length=200), check: str = Query(default="", pattern=r"^[a-z_]{0,20}$"),
-        flag: str = Query(default="", pattern=r"^[a-z-]{0,24}$"),
+        flag: str = Query(default="", pattern=r"^[a-z-]{0,24}$"), verdict: str = Query(default="", pattern=r"^[a-z-]{0,12}$"),
         refresh: str = Query(default="auto", pattern=r"^[a-z]{1,10}$"), budget: float = Query(default=0, ge=0, le=60),
         limit: int = Query(default=500, ge=0, le=1000)) -> dict:
     """The PR queue (pr_queue.py over fleetcore.prqueue; docs/PR-QUEUE.md): every open pull request of the
@@ -1016,7 +1105,7 @@ def prs(repo: str = Query(default="", max_length=140), kind: str = Query(default
         return pr_queue.queue(core.REPO_ROOT, refresh=refresh, budget_s=budget or None, limit=limit,
                               token=lambda: ghl.token_source()[1],
                               filters={"repo": repo, "kind": kind, "who": who, "gate": gate, "batch": batch, "check": check,
-                                       "flag": flag})
+                                       "flag": flag, "verdict": verdict})
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
