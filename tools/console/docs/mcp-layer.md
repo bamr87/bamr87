@@ -168,6 +168,7 @@ Read tools are annotated `readOnlyHint: true`. Lists come back as `{count, items
 | `live_snapshot` | `/api/live` | Sessions, Claude live usage, jobs, spend, health, deep dive (needs bamr87/bamr87#432) |
 | `sessions` | `/api/live` `sessions` | Active and idle local agent sessions (needs #432) |
 | `agent_activity` | `/api/lake/review` | Local sessions + CI agent runs, analysed (`days`, `repo`, `limit`) |
+| `lake_recall` | `/api/lake/recall` | Past local Claude Code sessions by keyword (`query` cut to 300 characters, `days` up to 3650, `repo`, `limit` up to 50): every word must match the redacted text of the session's first prompt or one assistant turn, one result per session, best match first, each with a redacted excerpt of at most 300 characters; the lake is opened read-only ([docs/HARNESS-OPS.md](../../../docs/HARNESS-OPS.md#the-local-stack)) |
 | `ops_list` | `/api/ops` | The allowlisted operations and their params |
 | `jobs_list` | `/api/jobs` | Recent jobs (`status`, `limit`) |
 | `job_log` | `/api/jobs/{id}` | A job's status and log tail (`offset`, `tail_chars`) |

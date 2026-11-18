@@ -67,9 +67,11 @@ Subcommands:
   lake     The LOCAL data lake of the local stack: `sync` extracts what GitHub
            holds (runs → jobs → steps, run logs, claude-code-action facts,
            issues, workflow files, .factory/** blueprints) into
-           .dash-lake/fleet.sqlite; `status` reports it; `export` turns agent
-           runs and local Claude Code sessions into OpenInference traces for
-           Phoenix. Gitignored, never committed. Implemented in fleet_lake.py.
+           .dash-lake/fleet.sqlite; `status` reports it; `recall` searches the
+           stored Claude Code sessions by keyword (read-only, redacted
+           excerpts); `export` turns agent runs and local Claude Code sessions
+           into OpenInference traces for Phoenix. Gitignored, never committed.
+           Implemented in fleet_lake.py.
 
   context  The planes behind JEV's loop context pack: for ONE repo, the lake's
            closed issues/PRs, CI per workflow and agent history, the code
@@ -639,8 +641,8 @@ def main(argv: list[str] | None = None) -> int:
     p_lake = sub.add_parser(
         "lake",
         help="the local data lake: `sync` extracts GitHub runs/jobs/steps/logs/issues/workflows/"
-             ".factory into .dash-lake/fleet.sqlite, `status` reports it, `export` ships "
-             "OpenInference traces to Phoenix (local-only; never committed)",
+             ".factory into .dash-lake/fleet.sqlite, `status` reports it, `recall` searches the stored "
+             "sessions by keyword, `export` ships OpenInference traces to Phoenix (local-only; never committed)",
     )
     fleet_lake.add_arguments(p_lake)
 
