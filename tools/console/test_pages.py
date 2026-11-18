@@ -19,6 +19,7 @@ tools/console/test_pages.py`. The FastAPI checks skip without fastapi.
 """
 from __future__ import annotations
 
+import contextlib
 import html
 import json
 import os
@@ -62,6 +63,9 @@ def test_the_snapshot_publishes_nothing_local():
     assert "auth" not in docs(), "the auth document must not be published"
     # The decision index is read with the operator's token and can hold a private repo's titles.
     assert "decisions" not in docs(), "the decision queue must not be published"
+    # So are GitHub Projects (gh_projects.py): the page has a route, the snapshot no document.
+    assert not [k for k in docs() if k.startswith("gh-projects")], "GitHub Projects must not be published"
+    assert "gh-projects" in snapshot.STATIC_ROUTES and "localOnly('GitHub Projects')" in (WEB / "api" / "static.ts").read_text()
     assert docs()["capabilities"]["env_tokens"] == {} and docs()["capabilities"]["mode"] == "snapshot"
 
 
@@ -96,6 +100,99 @@ def test_drafts_stay_out_of_the_public_build():
             assert p["slug"] in public, p["slug"]
 
 
+def _post(title: str, day: str, *, draft: bool = False, **front: str) -> str:
+    """A post the way the weekly routine writes one: description, no excerpt (§ 23.2)."""
+    lines = [f"title: '{title}'", f"date: {day}", *(f"{k}: {v}" for k, v in front.items()), "categories: [chronicle]"]
+    return "---\n" + "\n".join(lines + (["draft: true"] if draft else [])) + "\n---\n\nThe body of " + title + ".\n"
+
+
+# Two days of the § 23 chronicle series, a draft third, the week's retro, a
+# one-off post, and a bare slug two one-off posts share.
+SERIES_FIXTURE = {
+    "2026-11-05-chronicle.md": _post("Fleet chronicle: 2026-11-05", "2026-11-05", description="4 commits across 2 repos."),
+    "2026-11-06-chronicle.md": _post("Fleet chronicle: 2026-11-06", "2026-11-06", description="9 commits across 3 repos."),
+    "2026-11-07-chronicle.md": _post("Fleet chronicle: 2026-11-07", "2026-11-07", draft=True, description="1 commit."),
+    "2026-11-08-weekly-retro.md": _post("Weekly retro", "2026-11-08", description="14 commits across 3 repos."),
+    "2026-06-05-welcome.md": _post("Welcome", "2026-06-05", excerpt="The excerpt wins.", description="Not this."),
+    "2026-01-02-notes.md": _post("Notes, January", "2026-01-02"),
+    "2026-02-03-notes.md": _post("Notes, February", "2026-02-03"),
+}
+
+
+@contextlib.contextmanager
+def posts_dir(files: dict[str, str]):
+    """site_docs reading a scratch pages/ tree instead of the hub's."""
+    saved = site_docs.PAGES
+    with tempfile.TemporaryDirectory() as tmp:
+        (Path(tmp) / "posts").mkdir()
+        for name, text in files.items():
+            (Path(tmp) / "posts" / name).write_text(text, encoding="utf-8")
+        site_docs.PAGES = Path(tmp)
+        try:
+            yield
+        finally:
+            site_docs.PAGES = saved
+
+
+def test_every_post_has_an_address_of_its_own():
+    """A series repeats one slug every day, so it is addressed by its dated
+    stem; a one-off post keeps its bare slug, unless another file shares it."""
+    with posts_dir(SERIES_FIXTURE):
+        every = site_docs.posts(include_drafts=True)
+        slugs = [p["slug"] for p in every]
+        assert len(slugs) == len(set(slugs)) == len(SERIES_FIXTURE), f"two posts share an address: {slugs}"
+        assert set(slugs) == {"2026-11-05-chronicle", "2026-11-06-chronicle", "2026-11-07-chronicle",
+                              "2026-11-08-weekly-retro", "welcome", "2026-01-02-notes", "2026-02-03-notes"}, slugs
+        for meta in every:
+            one = site_docs.post(meta["slug"], include_drafts=True)
+            assert one["slug"] == meta["slug"] and one["title"] == meta["title"], meta["slug"]
+            assert one["markdown"].startswith(f"The body of {meta['title']}."), meta["slug"]
+        by = {p["slug"]: p for p in every}
+        assert by["2026-11-06-chronicle"]["excerpt"] == "9 commits across 3 repos.", "description is the excerpt"
+        assert by["welcome"]["excerpt"] == "The excerpt wins."
+        assert by["2026-01-02-notes"]["excerpt"] == "The body of Notes, January.", "no front matter: the first paragraph"
+        for gone in ("chronicle", "weekly-retro", "notes"):
+            try:
+                site_docs.post(gone, include_drafts=True)
+            except KeyError:
+                continue
+            raise AssertionError(f"the bare slug {gone!r} still resolves to one of several posts")
+        try:
+            site_docs.post("2026-11-07-chronicle")
+        except KeyError:
+            pass
+        else:
+            raise AssertionError("a draft resolved without include_drafts")
+
+
+def test_a_published_series_entry_is_built_once():
+    """Each published entry: one snapshot document, one /blog/<slug> page,
+    one feed entry. Under one shared slug they overwrote each other."""
+    with posts_dir(SERIES_FIXTURE):
+        site = snapshot.site_documents()
+    public = [p["slug"] for p in site["site"]["posts"]]
+    assert "2026-11-07-chronicle" not in public and "site/post/2026-11-07-chronicle" not in site, "a draft was built"
+    assert sorted(k for k in site if k.startswith("site/post/")) == sorted(f"site/post/{s}" for s in public)
+    assert len(public) == len(SERIES_FIXTURE) - 1
+    base = {k: v for k, v in docs().items() if k != "site" and not k.startswith(("site/post/", "site/page/"))}
+    routes = snapshot.routes(base | site)
+    blog = sorted(k.removeprefix("blog/") for k in routes if k.startswith("blog/"))
+    assert blog == sorted(public), f"routes {blog} ≠ published posts {public}"
+    assert routes["blog/2026-11-06-chronicle"] == ("Fleet chronicle: 2026-11-06", "9 commits across 3 repos.")
+    feed = snapshot._feed(site["site"]["posts"], {"title": "t", "url": "https://example.test", "feed": "f"}, "now")
+    for slug in public:
+        assert feed.count(f"<id>https://example.test/blog/{slug}</id>") == 1, f"{slug} is not in feed.xml exactly once"
+    assert feed.count("<entry>") == len(public)
+
+
+def test_the_hub_posts_have_one_address_each():
+    every = site_docs.posts(include_drafts=True)
+    slugs = [p["slug"] for p in every]
+    assert len(slugs) == len(set(slugs)), f"two posts in pages/posts/ share an address: {slugs}"
+    for meta in every:
+        assert site_docs.post(meta["slug"], include_drafts=True)["slug"] == meta["slug"], meta["slug"]
+
+
 def test_one_fleet_view_per_sort_each_row_searchable():
     from fleetcore import fleet as fl
     for sort in fl.SORTS:
@@ -112,7 +209,9 @@ def test_the_launcher_is_published_as_addresses_with_a_page_per_app():
     doc = docs()["apps"]
     assert doc["schema"] == "fleet-launcher/v1" and doc["apps"], "no launcher in the snapshot"
     keys = {k for a in doc["apps"] for t in a["targets"] for k in t}
-    assert keys <= {"id", "kind", "label", "url", "service", "port", "band", "start", "project"}, f"unexpected target fields: {sorted(keys)}"
+    # `host` is the registry's `compose` or `devenv`, not anything observed here
+    assert keys <= {"id", "kind", "label", "url", "service", "port", "band", "start", "project", "host"}, f"unexpected target fields: {sorted(keys)}"
+    assert {t["host"] for a in doc["apps"] for t in a["targets"] if t["kind"] == "local"} <= {"compose", "devenv"}
     routes = snapshot.routes(docs())
     for a in doc["apps"]:
         assert f"apps/{a['id']}" in routes, f"/apps/{a['id']} would 404 on Pages"
@@ -270,6 +369,12 @@ def test_the_console_serves_the_site_documents_with_drafts():
         drafts = [p for p in site_docs.posts(include_drafts=True) if p["draft"]]
         if drafts:
             assert client.get(f"/api/site/post/{drafts[0]['slug']}").status_code == 200, "drafts show on a console"
+        with posts_dir(SERIES_FIXTURE):
+            listed = [p["slug"] for p in client.get("/api/site").json()["posts"]]
+            assert "2026-11-07-chronicle" in listed and "chronicle" not in listed, listed
+            r = client.get("/api/site/post/2026-11-07-chronicle")
+            assert r.status_code == 200 and r.json()["draft"] is True, "a series draft shows on a console at its dated address"
+            assert client.get("/api/site/post/chronicle").status_code == 404
         fleet = client.get("/api/github/fleet").json()
         assert fleet["dispatchable"] == console_app.core.dispatchable()
         assert set(fleet["dispatchable"]) == set(console_app.core.DISPATCH_WORKFLOWS)

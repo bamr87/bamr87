@@ -20,7 +20,12 @@ Description: JEV capability two's runner — `python3 -m tools.jev loop`, the
              exact issue bodies — and with `--apply`, typed by the maintainer,
              the filing in the same run; `--rehearse` stops before the model
              call at $0); `publish` (files a reviewed earlier dry run,
-             idempotently); `show`; `budget`. Before each attempt the HOST
+             idempotently); `show`; `budget`. Every verb that could spend or
+             file (`run`, `run --apply`, `publish --apply`, `doctor --live`),
+             manual or scheduled, first honours the fleet-wide pause
+             (`vars.FLEET_AGENTS_PAUSED`) and `_data/fleet.yml` `switches:`
+             (§ 17, most restrictive level wins) and exits 5 when paused;
+             `plan` and `--rehearse` still run. Before each attempt the HOST
              builds the item's context pack (tools/jev/context.py: the lake,
              the code index, the telemetry, this loop's earlier attempts) and
              places it beside the brief in the clone, with a pointer in the
@@ -66,6 +71,7 @@ from types import SimpleNamespace
 
 from . import adapters, headless
 from . import context as cpack
+from . import sprints as sp
 from . import workspace as wsp
 from .adapters import REUSE_DAYS, Adapter, Item, PlanResult, PublishPlan, Verdict
 from .common import HUB, JevError, Run, dotenv_values, gh, git, hub_repo, is_bare_name, load_config, run
@@ -79,7 +85,12 @@ RUN_SCHEMA = "jev-loop-run/v1"
 ATTEMPT_SCHEMA = "jev-loop-attempt/v1"
 KEEP_RUNS = 30
 TIER = "t1"   # P1 has one tier, built from the spec's resolved values; P3 adds `local.tiers`
-EXIT = {"ok": 0, "attention": 1, "usage": 2, "credential": 3, "host_unsafe": 4, "no_cli": 127, "interrupted": 130}
+EXIT = {"ok": 0, "attention": 1, "usage": 2, "credential": 3, "host_unsafe": 4, "paused": 5, "no_cli": 127,
+        "interrupted": 130}
+#: § 17's fleet-wide agent pause (bamr87/bamr87#511): any case of 'true' pauses
+#: every agent step, as a workflow's `vars.FLEET_AGENTS_PAUSED != 'true'` reads it.
+#: The engine only reads it (`gh variable get`), never sets it.
+PAUSE_VARIABLE = "FLEET_AGENTS_PAUSED"
 PUBLISH_PLAN_SCHEMA = "jev-loop-publish-plan/v1"
 PUBLISH_RESULT_SCHEMA = "jev-loop-publish-result/v1"
 #: § 10.7: every AI dollar figure the engine prints carries this
@@ -397,8 +408,9 @@ def unledgered_path(ledger: Path | None = None) -> Path:
 def record_unledgered(ctx: RunContext, row: dict, attempt_id: str, cost: float, source: str) -> None:
     """Make an unledgered charge durable (under budget_lock, which the attempt
     holds); kept in this run's memory as well only if the file cannot take it."""
+    # `repo` (the item's owner/repo, as ai-run's rows carry it) lets an expedite sprint count the charge
     line = {"timestamp": iso(), "origin": "local", "loop": ctx.spec.loop, "step": ctx.spec.step,
-            "run_id": ctx.run.run_id, "attempt_id": attempt_id, "item": row.get("item"),
+            "run_id": ctx.run.run_id, "attempt_id": attempt_id, "item": row.get("item"), "repo": row.get("nwo"),
             "cost_usd": round(cost, 6), "cost_source": source}
     try:
         fd = os.open(unledgered_path(), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
@@ -420,6 +432,18 @@ def budget_position(fleet: dict, *, scheduled: bool, path: Path | None = None,
     not an empty month, and ai_activity's writers refuse to overwrite one."""
     cap, pct = loops_budget(fleet)
     m = month or now_utc().strftime("%Y-%m")
+    spent, estimated = local_spend(lambda rec: _utc_month(str(rec.get("timestamp") or "")) == m, path)
+    return BudgetState(month=m, spent_usd=round(spent, 4), estimated_usd=round(estimated, 4), cap_usd=cap,
+                       stop_usd=round(cap * pct / 100.0, 4), scheduled=scheduled)
+
+
+def local_spend(keep, path: Path | None = None) -> tuple[float, float]:
+    """(spent, estimated) over the AI ledger's local loop rows (`origin:
+    local` with a `loop` field) that `keep(row)` accepts, plus the engine's
+    unledgered charges it accepts that the ledger has no row for. The monthly
+    ceiling keeps one UTC month; an expedite sprint keeps its repositories
+    inside its time box (tools/jev/sprints.py). A row's cost is read only once
+    `keep` accepts it, and an unreadable ledger refuses."""
     p = path or ledger_path()
     rows: dict = {}
     if p.exists():
@@ -440,7 +464,7 @@ def budget_position(fleet: dict, *, scheduled: bool, path: Path | None = None,
     for rec in rows.values():
         if not isinstance(rec, dict) or rec.get("origin") != "local" or not rec.get("loop"):
             continue
-        if _utc_month(str(rec.get("timestamp") or "")) != m:
+        if not keep(rec):
             continue
         cost = _ledger_cost(rec, p)
         spent += cost
@@ -448,13 +472,12 @@ def budget_position(fleet: dict, *, scheduled: bool, path: Path | None = None,
             estimated += cost
     ledgered = {str(r.get("attempt_id")) for r in rows.values() if isinstance(r, dict) and r.get("attempt_id")}
     for rec in _unledgered_rows(unledgered_path(p)):
-        if str(rec.get("attempt_id")) in ledgered or _utc_month(str(rec.get("timestamp") or "")) != m:
+        if str(rec.get("attempt_id")) in ledgered or not keep(rec):
             continue
         spent += rec["cost_usd"]
         if rec.get("cost_source") == "estimated":
             estimated += rec["cost_usd"]
-    return BudgetState(month=m, spent_usd=round(spent, 4), estimated_usd=round(estimated, 4), cap_usd=cap,
-                       stop_usd=round(cap * pct / 100.0, 4), scheduled=scheduled)
+    return round(spent, 4), round(estimated, 4)
 
 
 def _spend(value) -> float | None:
@@ -777,6 +800,12 @@ class RunContext:
     unledgered: list[tuple[float, str]] = field(default_factory=list)
     #: the item being worked on, so an interrupt still records it (and its spend) in run.json
     inflight: dict | None = None
+    #: _data/fleet.yml budget.sprints (tools/jev/sprints.py), loaded by the first attempt that asks
+    sprints: list | None = None
+    #: the sprint-scope switch, read at most once a run, and only for a sprint item
+    sprint_switch: object | None = None
+    #: what an expedite sprint's circuit breaker did in this run (run.json `events`)
+    events: list[dict] = field(default_factory=list)
 
     def item_dir(self, item: Item) -> Path:
         base = self.run.path if self.run else self.plan_dir.parent
@@ -851,6 +880,83 @@ def gates(ctx: RunContext) -> tuple[int, str] | None:
     if not armed:
         return EXIT["ok"], f"switched off: vars.{sw.variable} is {value!r} (default {sw.default})"
     return None
+
+
+def _is_off(level: object) -> bool:
+    """A `switches:` level that is off. An unquoted YAML `off` loads as False: off too."""
+    state = level.get("state") if isinstance(level, dict) else None
+    return state is False or (isinstance(state, str) and state.strip().lower() == "off")
+
+
+def _map(fleet: dict, key: str) -> dict:
+    sw = fleet.get("switches")
+    level = sw.get(key) if isinstance(sw, dict) else None
+    return level if isinstance(level, dict) else {}
+
+
+def switch_entries(fleet: dict, spec: StepSpec) -> list[tuple[str, dict]]:
+    """The step's `switches.loops` entries: the hub's own, for the step's
+    workflow (`hub/repo-scout` for repo-scout.yml). [] for a workflow the map
+    does not list (fanout.yml is dispatch-only)."""
+    hub, wf = hub_repo(fleet), f".github/workflows/{spec.workflow_file}"
+    return [(k, e) for k, e in _map(fleet, "loops").items()
+            if isinstance(e, dict) and e.get("repo") == hub and e.get("workflow") == wf]
+
+
+def repo_paused(fleet: dict, nwo: str) -> str | None:
+    """Why `switches.repos[<nwo>]` pauses agent work on that repository, or None."""
+    level = _map(fleet, "repos").get(nwo)
+    if not _is_off(level):
+        return None
+    return f"switches.repos[{nwo}] is off" + (f": {level['reason']}" if level.get("reason") else "")
+
+
+def map_paused(fleet: dict, spec: StepSpec) -> str | None:
+    """Why `_data/fleet.yml` `switches:` pauses this step, or None (§ 17.2:
+    the most restrictive level wins): the global level, the group and the
+    loop entry of the step's workflow, then the hub's own repo level. A step
+    with no entry (fanout) answers to the global and repo levels only. An
+    `expires` date does not resume anything by itself; the drift check
+    reports it."""
+    levels = [("switches.global", _map(fleet, "global"))]
+    for key, entry in switch_entries(fleet, spec):
+        group = entry.get("group")
+        levels += [(f"switches.groups.{group}", _map(fleet, "groups").get(group)), (f"switches.loops[{key}]", entry)]
+    for name, level in levels:
+        if _is_off(level):
+            return f"{name} is off" + (f": {level['reason']}" if level.get("reason") else "")
+    return repo_paused(fleet, hub_repo(fleet))
+
+
+def pause_gate(fleet: dict, spec: StepSpec, *, repos: tuple[str, ...] = ()) -> tuple[int, str] | None:
+    """The fleet-wide pause and the central switch map, honoured by every run
+    that could spend or file — `run`, `run --apply`, `publish --apply` and the
+    `doctor --live` canary, manual and scheduled alike (bamr87/bamr87#550,
+    § 17). `plan`, `run --rehearse` and `doctor` without `--live` never call
+    it. The map first (a file read), then `vars.FLEET_AGENTS_PAUSED` on the
+    hub, read the way CI reads it; an unreadable variable refuses rather than
+    guess. `repos` are the items' own repositories (`switches.repos`).
+    (exit code, why) to stop: exit 5 paused, exit 2 unreadable."""
+    why = map_paused(fleet, spec) or next(filter(None, (repo_paused(fleet, r) for r in repos)), None)
+    if why is None:
+        hub = hub_repo(fleet)
+        res = gh(["variable", "get", PAUSE_VARIABLE, "-R", hub])
+        if res.ok:
+            value = res.out.strip()
+            if value.lower() != "true":
+                return None
+            why = f"vars.{PAUSE_VARIABLE} is {value!r} on {hub}"
+        elif "not found" not in (res.err or "").lower():
+            return EXIT["usage"], (f"cannot read vars.{PAUSE_VARIABLE} ({(res.err or res.out).strip()[-200:]}) — "
+                                   "refusing rather than guess the fleet-wide pause")
+        elif gh(["api", f"repos/{hub}", "--jq", ".full_name"]).ok:
+            return None   # unset: not paused
+        else:
+            # gh says "not found" for a repository this auth cannot see too
+            return EXIT["usage"], (f"vars.{PAUSE_VARIABLE} reads as not found, but {hub} is not readable with this "
+                                   "gh auth — refusing rather than guess the fleet-wide pause")
+    return EXIT["paused"], (f"paused: {why} — nothing runs that could spend or file (§ 17); `loop plan` and "
+                            "`run --rehearse` still do")
 
 
 def sandbox_available() -> bool:
@@ -1407,12 +1513,13 @@ def usage_block(ctx: RunContext) -> tuple[str, str] | None:
     return None
 
 
-def budget_block(ctx: RunContext, held: bool) -> tuple[str, str] | None:
-    """(decision, why) when the month cannot absorb this attempt's full cap.
-    Asked just before the model call — after tier 0, so a $0 reuse is never
-    blocked — under `budget_lock`, against a FRESH read of the ledger and the
-    engine's unledgered charges (plus any this run could not write down), so
-    another run's spend is seen."""
+def budget_block(ctx: RunContext, held: bool, item: Item | None = None) -> tuple[str, str] | None:
+    """(decision, why) when the month cannot absorb this attempt's full cap,
+    or (for `item`) an expedite sprint holds it (`sprint_block`). Asked just
+    before the model call — after tier 0, so a $0 reuse is never blocked —
+    under `budget_lock`, against a FRESH read of the ledger and the engine's
+    unledgered charges (plus any this run could not write down), so another
+    run's spend is seen."""
     cap = ctx.spec.resolved.max_budget_usd
     if not held:
         return "budget-locked", ("another local loop attempt (or the canary) holds the budget lock — the month "
@@ -1427,7 +1534,60 @@ def budget_block(ctx: RunContext, held: bool) -> tuple[str, str] | None:
     if not state.affords(cap):
         return "budget-skip", (f"monthly ceiling: {state.summary()}; this attempt may cost up to ${cap:g} "
                                f"({COST_LABEL})")
-    return None
+    return sprint_block(ctx, item, cap) if item is not None else None
+
+
+def sprint_block(ctx: RunContext, item: Item, cap: float) -> tuple[str, str] | None:
+    """(decision, why) when an expedite sprint holds this attempt
+    (tools/jev/sprints.py): the item is in the active sprint's repositories and
+    its switch is off on a --scheduled run (`sprint-off`), or the sprint's
+    spend in every ledger plus this attempt's full cap crosses its ceiling
+    (`budget-skip`). Inside the monthly ceiling, never instead of it. A tripped
+    breaker is recorded once a run as an event in run.json; a sprint
+    declaration that cannot be read stops the attempt (`budget-unreadable`)."""
+    now = now_utc()
+    try:
+        if not _sprints_declared(ctx):
+            return None
+        verdict = sp.gate(ctx.sprints, repo=item.nwo, now=now, cost_usd=cap, switch=ctx.sprint_switch,
+                          spend_of=lambda s: sp.spend(s, ai_ledger=ledger_path(), jev=Ledger.load(), ci=sp.ci_rows(),
+                                                      pipeline=sp.pipeline_rows(), hub=hub_repo(ctx.fleet),
+                                                      extra=ctx.unledgered))
+    except (JevError, StepSpecError) as exc:
+        return "budget-unreadable", f"sprint ceiling: {exc}"
+    return _sprint_verdict(ctx, verdict, now)
+
+
+def sprint_off(ctx: RunContext, item: Item) -> tuple[str, str] | None:
+    """(`sprint-off`, why) for an item of the active sprint while its switch is
+    off: asked before tier 0, so a stopped sprint's item is not even previewed."""
+    now = now_utc()
+    try:
+        if not _sprints_declared(ctx):
+            return None
+        verdict = sp.switched_off(ctx.sprints, repo=item.nwo, now=now, switch=ctx.sprint_switch)
+    except (JevError, StepSpecError) as exc:
+        return "budget-unreadable", f"sprint switch: {exc}"
+    return _sprint_verdict(ctx, verdict, now)
+
+
+def _sprints_declared(ctx: RunContext) -> bool:
+    """Load budget.sprints once a run (JevError when it cannot be read) and arm
+    the once-a-run switch reader; False when no sprint is declared."""
+    if ctx.sprints is None:
+        ctx.sprints = sp.load_sprints(ctx.fleet)
+    if ctx.sprints and ctx.sprint_switch is None:
+        hub = hub_repo(ctx.fleet)
+        ctx.sprint_switch = sp.once(lambda: sp.read_switch(scheduled=ctx.opts.scheduled, reader=sp.gh_reader(hub)))
+    return bool(ctx.sprints)
+
+
+def _sprint_verdict(ctx: RunContext, verdict, now: dt.datetime) -> tuple[str, str] | None:
+    if verdict is None:
+        return None
+    if not any(e.get("sprint") == verdict.sprint.slug and e.get("decision") == verdict.decision for e in ctx.events):
+        ctx.events.append(verdict.event(now))
+    return verdict.decision, verdict.reason
 
 
 def run_item(ctx: RunContext, item: Item, host: HostReport, posture: headless.Posture) -> dict:
@@ -1443,6 +1603,13 @@ def run_item(ctx: RunContext, item: Item, host: HostReport, posture: headless.Po
            "item": item.key, "dir": dirname, "nwo": item.nwo, "tier": TIER, "model": ctx.spec.resolved.model,
            "cost_usd": 0.0, "cost_source": "no-spend"}
     ctx.inflight = report
+    if live:
+        # an expedite sprint's kill switch stops its loops outright, the $0 tier 0 included (§ 27.6)
+        off = sprint_off(ctx, item)
+        if off:
+            report.update(status="skipped", decision=off[0], reason=off[1])
+            ctx.run.append_attempt({**row, "decision": off[0], "reason": off[1]})
+            return report
     sha, why = (None, "offline: no HEAD read") if ctx.opts.offline else head_sha(item.nwo, item.branch)
     if why:
         print(f"jev loop: {why}", file=sys.stderr)
@@ -1527,7 +1694,7 @@ def run_item(ctx: RunContext, item: Item, host: HostReport, posture: headless.Po
         write_json(d / "argv.json", planned)
         if live:
             with budget_lock() as held:
-                blocked = budget_block(ctx, held)
+                blocked = budget_block(ctx, held, item)
                 if blocked:
                     report.update(status="skipped", decision=blocked[0], reason=blocked[1])
                     ctx.run.append_attempt({**row, "decision": blocked[0], "attempt_id": attempt_id,
@@ -2125,6 +2292,10 @@ def _finish(ctx: RunContext, record: dict, code: int, status: str) -> int:
                   totals=_totals(record))
     if ctx.budget is not None:
         record.setdefault("budget", {})["after"] = _budget_dict(ctx.budget)
+    if ctx.events:
+        # the circuit breaker's record (§ 27.3): what stopped, why, and the sprint's spend against its cap
+        record["events"] = list(ctx.events)
+        record["notes"] += [f"{e['event']} ({e['sprint']}): {e['reason']}" for e in ctx.events]
     ctx.run.write_json("run.json", record)
     (ctx.run.path / "summary.md").write_text(_summary(record), encoding="utf-8")
     (runs_dir() / "LATEST").write_text(ctx.run.run_id + "\n", encoding="utf-8")
@@ -2271,10 +2442,14 @@ def refresh_context(ctx: RunContext, record: dict) -> None:
 
 
 def _run(ctx: RunContext, record: dict, posture: headless.Posture) -> int:
-    """The run, in order: gates, the --apply refusals, the ceiling, the host,
-    the publish token (all $0 and before anything spends), the plan, then the
-    items one by one."""
+    """The run, in order: the pause (a live run only), gates, the --apply
+    refusals, the ceiling, the host, the publish token (all $0 and before
+    anything spends), the plan, then the items one by one."""
     live = not ctx.opts.rehearse
+    stop = pause_gate(ctx.fleet, ctx.spec) if live else None
+    if stop:
+        record["notes"].append(stop[1])
+        return _finish(ctx, record, stop[0], "paused" if stop[0] == EXIT["paused"] else "refused")
     stop = gates(ctx)
     if stop:
         record["notes"].append(stop[1])
@@ -2319,13 +2494,26 @@ def _run(ctx: RunContext, record: dict, posture: headless.Posture) -> int:
         return _finish(ctx, record, stop[0], "refused")
     result = ctx.adapter.items(ctx, plan)
     check_items(result)
+    # switches.repos: an item whose own repository is paused is held back at $0, before its clone
+    held = [{"key": i.key, "name": i.name, "reason": f"paused: {why}"}
+            for i in result.items if live and (why := repo_paused(ctx.fleet, i.nwo))]
+    result.items = [i for i in result.items if i.key not in {h["key"] for h in held}]
     record["plan"] = {**result.meta, "count": len(result.items), "skipped": result.skipped, "dropped": result.dropped}
-    for r in [*result.skipped, *result.dropped]:
+    if held:
+        record["plan"]["paused"] = held
+    rows = [*((r, "planned-skip") for r in [*result.skipped, *result.dropped]), *((h, "paused-skip") for h in held)]
+    for r, decision in rows:
         # `item` is the item key where the adapter knows it (scout: the nwo), as on every other row
         ctx.run.append_attempt({"run_id": ctx.run.run_id, "loop": ctx.spec.loop, "step": ctx.spec.step,
                                 "item": r.get("key") or r.get("name"), "name": r.get("name"),
-                                "decision": "planned-skip", "reason": r.get("reason"),
+                                "decision": decision, "reason": r.get("reason"),
                                 "cost_usd": 0.0, "cost_source": "no-spend"})
+    if held:
+        reasons = "; ".join(sorted({h["reason"] for h in held}))
+        if not result.items:
+            record["notes"].append(f"every planned item's repository is paused ({reasons}) — nothing ran (§ 17)")
+            return _finish(ctx, record, EXIT["paused"], "paused")
+        record["notes"].append(f"{len(held)} item(s) held back ({reasons})")
     if not result.items:
         explicit = ctx.opts.target != "all" or ctx.opts.item
         record["notes"].append(explain_empty(ctx, result) if explicit else "nothing planned today")
@@ -2376,6 +2564,9 @@ def cmd_plan(args: argparse.Namespace) -> int:
         if stop:
             out["notes"].append(stop[1])
             return _print_plan(out, opts, stop[0])
+        paused = map_paused(fleet, spec)   # a plan runs while paused; it says a live run would not (no gh read)
+        if paused:
+            out["notes"].append(f"paused: {paused} — a live run or an --apply exits {EXIT['paused']} (§ 17)")
         host = host_check(spec, posture, fleet, opts.claude_bin, None, live=False, preflight=False, report=True)
         out["host"] = host.as_dict()
         try:
@@ -2462,7 +2653,7 @@ def _print_plan(out: dict, opts: Options, code: int) -> int:
 # --------------------------------------------------------------------------- #
 # `loop doctor`, `loop list`, `loop show`
 # --------------------------------------------------------------------------- #
-SEVERITY = (EXIT["no_cli"], EXIT["host_unsafe"], EXIT["credential"], EXIT["usage"], EXIT["attention"])
+SEVERITY = (EXIT["no_cli"], EXIT["host_unsafe"], EXIT["credential"], EXIT["usage"], EXIT["paused"], EXIT["attention"])
 
 
 def severest(codes: list[int]) -> int:
@@ -2672,7 +2863,10 @@ def cmd_doctor(args: argparse.Namespace) -> int:
                 host.probe = "not run (a check above failed)"
             canary_problems: list[str] = []
             if args.live and host.probe == "ok" and not host.problems:
-                if host.auth is None:
+                paused = pause_gate(fleet, spec)   # the canary is a model call: it honours the pause too
+                if paused:
+                    host.problems.append((paused[0], f"canary not run: {paused[1]}"))
+                elif host.auth is None:
                     host.problems.append((EXIT["credential"], "the canary needs a Claude credential"))
                 else:
                     with budget_lock() as held:
@@ -2856,6 +3050,11 @@ def cmd_publish(args: argparse.Namespace) -> int:
     if args.plan_id and args.plan_id != doc["plan_id"]:
         print(f"jev loop: --plan-id {args.plan_id} is not this preview's ({doc['plan_id']})", file=sys.stderr)
         return EXIT["usage"]
+    if args.apply:
+        stop = pause_gate(fleet, spec, repos=(item.nwo,))
+        if stop:
+            print(f"jev loop: --apply refused: {stop[1]}", file=sys.stderr)
+            return stop[0]
     adapter = adapters.get(spec.local.adapter)
     opts = Options(target=item.name, apply=args.apply, allow_dirty=args.allow_dirty, json=args.json)
     with step_lock(spec):
@@ -2908,14 +3107,37 @@ def cmd_publish(args: argparse.Namespace) -> int:
     return int(result["code"])
 
 
+def _sprint_budget(fleet: dict) -> dict:
+    """The active expedite sprint against its ceiling (tools/jev/sprints.py),
+    for `loop budget`; `error` when budget.sprints or a ledger cannot be read."""
+    try:
+        sprints = sp.load_sprints(fleet)
+        s = sp.active(sprints, now_utc())
+        if s is None:
+            return {"active": None, "declared": len(sprints),
+                    "line": f"no active expedite sprint ({len(sprints)} declared)"}
+        spent = sp.spend(s, ai_ledger=ledger_path(), jev=Ledger.load(), ci=sp.ci_rows(), pipeline=sp.pipeline_rows(),
+                         hub=hub_repo(fleet))
+        return {"active": s.as_dict(), "declared": len(sprints), **spent.as_dict(),
+                "line": f"{s.slug}: {spent.summary(s)}; its time box ends {sp.iso(s.ends)}"}
+    except JevError as exc:
+        return {"error": str(exc), "line": f"cannot be judged: {exc}"}
+
+
 def cmd_budget(args: argparse.Namespace) -> int:
-    """The month against budget.loops, beside JEV conflicts' budget.jev, and
-    whether the two caps together fit inside harnesses.budget.monthly_ai_usd:
-    exit 1 (attention) when they do not, or when that ceiling is not a finite
-    number above 0 and so cannot be judged."""
+    """The month against budget.loops, beside JEV conflicts' budget.jev and
+    the active expedite sprint's ceiling (budget.sprints), and whether the two
+    monthly caps together fit inside harnesses.budget.monthly_ai_usd: exit 1
+    (attention) when they do not, when that ceiling is not a finite number
+    above 0 and so cannot be judged, or when the sprint cannot be."""
     fleet = load_fleet()
     loops = budget_position(fleet, scheduled=args.scheduled)
-    conflicts = budget_state(load_config(fleet), Ledger.load(), scheduled=args.scheduled, month=loops.month)
+    sprint = _sprint_budget(fleet)
+    # load_config refuses a sprint declaration that bounds nothing; budget.jev's month does not depend on it,
+    # so that declaration is reported on the sprint line (exit 1) rather than ending the whole readout
+    jev_fleet = fleet if "error" not in sprint else {
+        **fleet, "budget": {k: v for k, v in (fleet.get("budget") or {}).items() if k != "sprints"}}
+    conflicts = budget_state(load_config(jev_fleet), Ledger.load(), scheduled=args.scheduled, month=loops.month)
     ceiling = (((fleet.get("harnesses") or {}).get("budget") or {}).get("monthly_ai_usd"))
     limit = (float(ceiling) if isinstance(ceiling, (int, float)) and not isinstance(ceiling, bool)
              and math.isfinite(ceiling) and ceiling > 0 else None)
@@ -2924,14 +3146,16 @@ def cmd_budget(args: argparse.Namespace) -> int:
     out = {"label": f"{COST_LABEL} — a throughput ceiling under OAuth, not an invoice",
            "loops": {**_budget_dict(loops), "ledger": str(ledger_path())},
            "jev_conflicts": _budget_dict(conflicts),
+           "sprint": sprint,
            "monthly_ai_usd": limit if limit is not None or ceiling is None else str(ceiling),
            "caps_usd": together, "inside_monthly_ai_usd": inside}
-    code = EXIT["ok"] if inside else EXIT["attention"]
+    code = EXIT["ok"] if inside and "error" not in sprint else EXIT["attention"]
     if args.json:
         print(json.dumps(out, indent=2, sort_keys=True))
         return code
     print(f"loops (budget.loops)        {loops.summary()}")
     print(f"jev conflicts (budget.jev)  {conflicts.summary()}")
+    print(f"sprint (budget.sprints)     {sprint['line']}")
     if inside:
         print(f"both inside harnesses.budget.monthly_ai_usd ${limit:g} (${together:g} together)")
     elif limit is None:

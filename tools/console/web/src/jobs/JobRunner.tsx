@@ -16,7 +16,7 @@ import { post } from '../api/client';
 import { useCaps, useOps } from '../api/hooks';
 import type { Job, Op } from '../api/types';
 import { to } from '../lib/links';
-import { JobStatus } from './JobStatus';
+import { JobDiagnostics, JobStatus } from './JobStatus';
 import { LogView, expectJob, useJobTail } from './JobLog';
 import u from '../styles/utils.module.css';
 
@@ -159,12 +159,13 @@ function JobDrawer({ jobId, onClose }: { jobId: string | null; onClose: () => vo
       {job ? (
         <Stack gap="sm">
           <Group gap="xs" wrap="wrap">
-            <JobStatus status={job.status} />
+            <JobStatus status={job.status} state={job.state} />
             {job.remote_write ? <Badge color="yellow" variant="light">writes to GitHub</Badge> : null}
             <Anchor component={Link} to={to.job(job.id)} size="sm" onClick={onClose}>Open the job page</Anchor>
             <Anchor component={Link} to={to.op(job.op)} size="sm" onClick={onClose}>About {job.op}</Anchor>
           </Group>
           <Code block className={u.preWrap}>{job.argv.map((a) => a.replace(/^.*\/tools\//, 'tools/')).join(' ')}</Code>
+          <JobDiagnostics items={job.diagnostics} />
         </Stack>
       ) : null}
       {error ? <Text c="red" size="sm" mt="sm">{error}</Text> : null}

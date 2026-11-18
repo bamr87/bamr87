@@ -1,0 +1,181 @@
+name: "📸 Fleet snapshots"
+
+# The weekly writer of the two fleet snapshots that are graded from every
+# submodule's files (bamr87/bamr87#775, phase E1 of epic #773; constitution
+# § 29, rule 4: every source an agent reads has a scheduled writer):
+#
+#   _data/conformance.yml     `tools/dash spec fleet --write`: each submodule
+#                             against the Universal Project Standard. Read by the
+#                             repo-evolution brief, the harness scorecard's
+#                             stale-data wire and the dash.
+#   _data/features_index.yml  `tools/dash features fleet --write`: each repo's
+#                             feature index and verification coverage. Read by
+#                             /features/ and the verify fan-out's `gaps` target.
+#
+# Both read files on disk, so both need the submodules checked out. Until this
+# workflow, conformance.yml had no scheduled writer (17 days old on 2026-11-07,
+# #763), and fleet-pulse wrote the features index from a checkout with no
+# submodules, so it graded the hub alone (`repos_scanned: 1`). This is now the
+# only scheduled writer of both; scorecard-sweep.yml still writes the
+# `security:` block of conformance.yml, which `spec fleet --write` carries over
+# byte for byte.
+#
+#   1. Check the hub out with no persisted credential, probe FLEET_TOKEN
+#      (resolve-fleet-token) and hand the winner to git (configure-git), so the
+#      private submodules clone with a token proven to work.
+#   2. Init every submodule at its recorded pointer. blob:none keeps the full
+#      history the commit-date checks read and fetches file contents only for
+#      the checkout; LFS content is skipped. An unreadable submodule is a
+#      warning here and a loss the guard judges.
+#   3. Copy the committed snapshots aside and regenerate both in place.
+#   4. The shrink guard (tools/fleet_snapshots.py): a scan that lost more repos
+#      than the tolerance against the committed snapshot, or that read no
+#      submodule at all, fails the job and publishes nothing. The job summary
+#      lists every submodule that could not be checked out.
+#   5. Publish both through utilities/publish-data: a direct push, or the
+#      stable branch chore/fleet-snapshots as a PR with auto-merge off.
+#
+# Monday 04:17 UTC, declared in _data/fleet.yml `schedule.fleet_snapshots`:
+# after update-submodules (03:07) bumps the pointers, before fleet-pulse
+# (05:37) grades the snapshot's age, build-dash (08:37) republishes /features/
+# and repo-evolution (10:37) reads the conformance gaps. No model is called.
+# New loop: the cron runs only while vars.FLEET_SNAPSHOTS_ENABLED is 'true'; a
+# manual dispatch always runs, and publishes unless `dry_run` is set.
+
+on:
+  schedule:
+    - cron: '17 4 * * 1'   # _data/fleet.yml schedule.fleet_snapshots
+  workflow_dispatch:
+    inputs:
+      tolerance:
+        description: "Repos a snapshot may lose against the committed one before the guard refuses it (empty = the guard's default, 2)"
+        type: string
+        default: ''
+      dry_run:
+        description: "Scan and guard, upload the snapshots as an artifact, publish nothing"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fleet-snapshots
+  cancel-in-progress: false
+
+jobs:
+  snapshots:
+    name: Scan the fleet and publish the snapshots
+    if: ${{ github.event_name != 'schedule' || vars.FLEET_SNAPSHOTS_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write         # publish the two snapshots
+      pull-requests: write    # ...via a PR when a direct push is refused
+    steps:
+      # No persisted credential: the checkout's job-token header would win over
+      # the probed token below for every submodule fetch.
+      - uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup/dash-gen
+
+      # Probe, never presence-check: FLEET_TOKEN is tried against `GET /user`.
+      # The job token is the unprobed last resort; it reads only the public
+      # submodules, and the guard refuses what that loses.
+      - name: Resolve a working fleet token
+        id: token
+        uses: ./.github/actions/resolve-fleet-token
+        with:
+          fleet-token: ${{ secrets.FLEET_TOKEN }}
+          default-token: ${{ github.token }}
+
+      - name: Configure Git
+        uses: ./.github/actions/setup/configure-git
+        with:
+          github-token: ${{ steps.token.outputs.token }}
+
+      - name: Check out every submodule at its recorded pointer
+        env:
+          GIT_LFS_SKIP_SMUDGE: '1'
+          TOKEN_SOURCE: ${{ steps.token.outputs.source }}
+        run: |
+          set -uo pipefail
+          ok=0
+          failed=0
+          while IFS= read -r p; do
+            if out="$(git submodule update --init --filter=blob:none -- "$p" 2>&1)"; then
+              ok=$((ok + 1))
+            else
+              failed=$((failed + 1))
+              echo "::warning::could not check out ${p}: $(printf '%s' "$out" | tail -n 1)"
+            fi
+          done < <(git config --file .gitmodules --get-regexp path | awk '{ print $2 }')
+          echo "checked out ${ok} submodule(s); ${failed} failed (token: ${TOKEN_SOURCE})"
+          {
+            echo "### Fleet snapshots: checkout"
+            echo ""
+            echo "Token: \`${TOKEN_SOURCE}\`. Submodules checked out: ${ok}; failed: ${failed}."
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Regenerate both snapshots
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/committed"
+          for f in conformance.yml features_index.yml; do
+            if [ -f "_data/$f" ]; then cp "_data/$f" "$RUNNER_TEMP/committed/$f"; fi
+          done
+          tools/dash spec fleet --write > "$RUNNER_TEMP/conformance.log"
+          tail -n 3 "$RUNNER_TEMP/conformance.log"
+          tools/dash features fleet --write
+
+      # Always runs once the scan has; a refusal fails the job, so the publish
+      # step below (default `success()`) never sees a shrunken snapshot.
+      - name: Shrink guard
+        env:
+          TOLERANCE: ${{ inputs.tolerance }}
+        run: |
+          set -euo pipefail
+          args=(--before "$RUNNER_TEMP/committed" --summary "$GITHUB_STEP_SUMMARY")
+          if [ -n "${TOLERANCE:-}" ]; then args+=(--tolerance "$TOLERANCE"); fi
+          python3 tools/fleet_snapshots.py "${args[@]}"
+
+      - name: Upload the snapshots
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: fleet-snapshots-${{ github.run_id }}
+          path: |
+            _data/conformance.yml
+            _data/features_index.yml
+            ${{ runner.temp }}/conformance.log
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Publish the snapshots
+        if: ${{ github.event_name == 'schedule' || !inputs.dry_run }}
+        uses: ./.github/actions/utilities/publish-data
+        with:
+          paths: "_data/conformance.yml _data/features_index.yml"
+          # `[skip ci]`: generated data needs none of the PR gates, and
+          # build-dash.yml republishes /features/ on its own cron at 08:37.
+          message: "chore(data): weekly fleet snapshots, conformance and features index [skip ci]"
+          branch: chore/fleet-snapshots
+          title: "chore(data): weekly fleet snapshots"
+          auto-merge: 'false'
+          body: |
+            Automated weekly refresh of the two snapshots graded from every
+            checked-out submodule (fleet-snapshots.yml, bamr87/bamr87#775):
+
+            - `_data/conformance.yml`: Universal Project Standard conformance (`tools/dash spec fleet --write`)
+            - `_data/features_index.yml`: the fleet features index (`tools/dash features fleet --write`)
+
+            The shrink guard passed: the scan read at least as many repos as
+            the committed snapshots, within its tolerance; the run summary
+            lists any submodule it could not check out. Delivered as a pull
+            request because a direct push was refused. Auto-merge is off:
+            review the diff, then merge.
+          token: ${{ steps.token.outputs.token }}

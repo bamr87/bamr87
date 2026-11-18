@@ -9,7 +9,7 @@
 # Rendered at /features/ on the dash. Kit: templates/verify/ · doc: docs/VERIFICATION.md
 # =============================================================================
 schema: features-index/v1
-generated_at: '2026-11-17T06:21:25Z'
+generated_at: '2026-11-18T06:23:14Z'
 kit_version: 0.3.0
 totals:
   repos_scanned: 1
@@ -26,7 +26,7 @@ totals:
   ui_covered: 27
   ui_verified: 8
   scenarios: 22
-  screenshots: 129
+  screenshots: 141
   dangling: 5
 pct:
   coverage: 161
@@ -214,15 +214,28 @@ repos:
     date: null
     provenance: null
     tests:
+    - .github/scripts/dash-gen/test_fleet_triage.py
     - .github/scripts/dash-gen/test_remediation.py
+    - tools/test_fleetcore.py
     waived: []
     scenarios:
     - verify/scenarios/triage.yml
     evidence:
     - test/evidence/triage
+    - test/evidence/merge-fix-pr
     screenshots:
-    - test/evidence/triage/desktop-triage.png
-    - test/evidence/triage/mobile-triage.png
+    - test/evidence/merge-fix-pr/desktop-after-inbox-fleet.png
+    - test/evidence/merge-fix-pr/desktop-after-inbox.png
+    - test/evidence/merge-fix-pr/desktop-after-work-drawer.png
+    - test/evidence/merge-fix-pr/desktop-after-work-hints.png
+    - test/evidence/merge-fix-pr/desktop-after-work.png
+    - test/evidence/merge-fix-pr/desktop-before-inbox.png
+    - test/evidence/merge-fix-pr/desktop-before-work-drawer.png
+    - test/evidence/merge-fix-pr/desktop-before-work.png
+    - test/evidence/merge-fix-pr/mobile-after-inbox-fleet.png
+    - test/evidence/merge-fix-pr/mobile-after-inbox.png
+    - test/evidence/merge-fix-pr/mobile-after-work-drawer.png
+    - test/evidence/merge-fix-pr/mobile-after-work-hints.png
     verified:
       date: '2026-10-12'
       by: agent
@@ -230,20 +243,33 @@ repos:
     covered: true
     evidenced: true
     dangling: []
-    summary: Daily snapshot of every open issue, PR (with CI status), and failing workflow across the fleet, scored and rendered
-      as one prioritized inbox at /inbox (formerly /triage/).
+    summary: 'Daily snapshot of every open issue, PR (with CI status), and failing workflow across the fleet, scored and rendered
+      as one prioritized inbox at /inbox (formerly /triage/). A failing workflow is linked to the open PRs that fix it (verified, '
     urls:
       link: https://bamr87.github.io/bamr87/inbox
       docs: https://github.com/bamr87/bamr87/blob/main/docs/DAILY-ANALYSIS.md
       evidence:
       - https://github.com/bamr87/bamr87/tree/main/test/evidence/triage
+      - https://github.com/bamr87/bamr87/tree/main/test/evidence/merge-fix-pr
       tests:
+      - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_fleet_triage.py
       - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_remediation.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_fleetcore.py
       scenarios:
       - https://github.com/bamr87/bamr87/blob/main/verify/scenarios/triage.yml
       screenshots:
-      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/triage/desktop-triage.png
-      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/triage/mobile-triage.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/merge-fix-pr/desktop-after-inbox-fleet.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/merge-fix-pr/desktop-after-inbox.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/merge-fix-pr/desktop-after-work-drawer.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/merge-fix-pr/desktop-after-work-hints.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/merge-fix-pr/desktop-after-work.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/merge-fix-pr/desktop-before-inbox.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/merge-fix-pr/desktop-before-work-drawer.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/merge-fix-pr/desktop-before-work.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/merge-fix-pr/mobile-after-inbox-fleet.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/merge-fix-pr/mobile-after-inbox.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/merge-fix-pr/mobile-after-work-drawer.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/merge-fix-pr/mobile-after-work-hints.png
   - id: HUB-004
     title: Issue pipeline board
     surface: ui
@@ -1128,17 +1154,20 @@ repos:
     - verify/scenarios/work.yml
     evidence:
     - test/evidence/work
+    - test/evidence/merge-fix-pr
     screenshots:
-    - test/evidence/work/console-applied-diff.png
-    - test/evidence/work/console-apply-confirm.png
-    - test/evidence/work/console-pr-specs.png
-    - test/evidence/work/console-priorities.png
-    - test/evidence/work/console-spec.png
-    - test/evidence/work/console-staged-pin.png
-    - test/evidence/work/desktop-work-board.png
-    - test/evidence/work/desktop-work-throughput.png
-    - test/evidence/work/mobile-work-board.png
-    - test/evidence/work/mobile-work-throughput.png
+    - test/evidence/merge-fix-pr/desktop-after-inbox-fleet.png
+    - test/evidence/merge-fix-pr/desktop-after-inbox.png
+    - test/evidence/merge-fix-pr/desktop-after-work-drawer.png
+    - test/evidence/merge-fix-pr/desktop-after-work-hints.png
+    - test/evidence/merge-fix-pr/desktop-after-work.png
+    - test/evidence/merge-fix-pr/desktop-before-inbox.png
+    - test/evidence/merge-fix-pr/desktop-before-work-drawer.png
+    - test/evidence/merge-fix-pr/desktop-before-work.png
+    - test/evidence/merge-fix-pr/mobile-after-inbox-fleet.png
+    - test/evidence/merge-fix-pr/mobile-after-inbox.png
+    - test/evidence/merge-fix-pr/mobile-after-work-drawer.png
+    - test/evidence/merge-fix-pr/mobile-after-work-hints.png
     verified: null
     covered: true
     evidenced: true
@@ -1151,6 +1180,7 @@ repos:
       docs: https://github.com/bamr87/bamr87/blob/main/docs/WORK-BOARD.md
       evidence:
       - https://github.com/bamr87/bamr87/tree/main/test/evidence/work
+      - https://github.com/bamr87/bamr87/tree/main/test/evidence/merge-fix-pr
       tests:
       - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_work_board.py
       - https://github.com/bamr87/bamr87/blob/main/tools/console/test_console.py
@@ -1158,16 +1188,18 @@ repos:
       scenarios:
       - https://github.com/bamr87/bamr87/blob/main/verify/scenarios/work.yml
       screenshots:
-      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/work/console-applied-diff.png
-      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/work/console-apply-confirm.png
-      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/work/console-pr-specs.png
-      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/work/console-priorities.png
-      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/work/console-spec.png
-      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/work/console-staged-pin.png
-      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/work/desktop-work-board.png
-      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/work/desktop-work-throughput.png
-      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/work/mobile-work-board.png
-      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/work/mobile-work-throughput.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/merge-fix-pr/desktop-after-inbox-fleet.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/merge-fix-pr/desktop-after-inbox.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/merge-fix-pr/desktop-after-work-drawer.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/merge-fix-pr/desktop-after-work-hints.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/merge-fix-pr/desktop-after-work.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/merge-fix-pr/desktop-before-inbox.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/merge-fix-pr/desktop-before-work-drawer.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/merge-fix-pr/desktop-before-work.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/merge-fix-pr/mobile-after-inbox-fleet.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/merge-fix-pr/mobile-after-inbox.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/merge-fix-pr/mobile-after-work-drawer.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/merge-fix-pr/mobile-after-work-hints.png
   - id: HUB-029
     title: 'Daily repo deep dive: one repo a day, every repo once per cycle'
     surface: ui

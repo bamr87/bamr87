@@ -228,6 +228,17 @@ class Rendering(unittest.TestCase):
         self.assertEqual(row["verdict"], "on-demand")
         self.assertEqual(row["url"], "http://127.0.0.1:4015/")
 
+    def test_a_workspace_site_is_a_page_and_its_livereload_counts_in_its_own_band(self):
+        # devenv-hosted sites sit on the workspace bands (_data/ports.yml, #702):
+        # still pages to open, and their livereload is not the jekyll band's.
+        row = dv.service_row("blog", "jekyll", {"port": 4040, "band": "workspace", "livereload": 35760},
+                             None, {}, on_demand=True)
+        self.assertEqual((row["kind"], row["url"]), ("web", "http://127.0.0.1:4040/"))
+        ports = {"bands": {"livereload": {"range": [35730, 35759]},
+                           "workspace_livereload": {"range": [35760, 35789]}}}
+        used = {r["band"]: r["used"] for r in dv.band_rows(ports, [{"services": [row], "debug": []}])}
+        self.assertEqual(used, {"livereload": 0, "workspace_livereload": 1})
+
     def test_a_missing_recording_with_no_excuse_stays_unknown(self):
         row = dv.service_row("p", "api", {"port": 8100, "band": "api"}, None, {})
         self.assertEqual(row["verdict"], "unknown")

@@ -10,7 +10,8 @@
 # Version:       1.0.0
 # Usage:
 #   tools/fleet-smoke record [--project P]   # probe everything, write the baseline
-#   tools/fleet-smoke check  [--project P]   # probe, diff against the baseline, exit 1 on regression
+#   tools/fleet-smoke check  [--project P]   # probe what is up, diff against the baseline, exit 1 on regression
+#   tools/fleet-smoke check  --all           # ...and hold the projects that are not up as well
 #   tools/fleet-smoke show   [--project P]   # print the recorded baseline
 #   tools/dash dev smoke {record|check|show} # the friendly form
 # ============================================================================
@@ -62,8 +63,37 @@ HTTP_BANDS = {"jekyll", "frontend", "api", "docs", "hub"}
 HTTP_TIMEOUT = 20
 TCP_TIMEOUT = 4
 
-# `hub` is a pseudo-project: its compose project is `fleet-hub`.
-PROJECT_LABEL = {"bamr87": "fleet-hub"}
+# `bamr87` is a pseudo-project: the hub's services run under one of two compose
+# projects. `fleet-hub` is what `dash dev up hub` starts; the pinned core
+# (`tools/dash up`, the `name:` in docker-compose.yml) is what docs/CONTAINERS.md
+# documents and what normally runs. Looking under `fleet-hub` alone recorded a
+# healthy console as absent whenever the core was the one running.
+HUB_PROJECT = "bamr87"
+HUB_LABELS = ("fleet-hub", os.environ.get("COMPOSE_PROJECT_NAME") or "fleet")
+HUB_COMPOSE = "docker-compose.yml"
+
+
+def project_label(pname, live):
+    """The compose project a registry project's containers carry."""
+    if pname != HUB_PROJECT:
+        return pname
+    for label in HUB_LABELS:
+        if any(f["state"] == "running" for f in (live.get(label) or {}).values()):
+            return label
+    for label in HUB_LABELS:
+        if live.get(label):
+            return label
+    return HUB_LABELS[0]
+
+
+def projects_up(reg, live):
+    """Registry projects with at least one running container: what is deployed."""
+    up = set()
+    for pname in (reg.get("projects") or {}):
+        facts = (live.get(project_label(pname, live)) or {}).values()
+        if any(f["state"] == "running" for f in facts):
+            up.add(pname)
+    return up
 
 
 # ---------------------------------------------------------------------------
@@ -145,11 +175,22 @@ def containers():
         m = re.search(r"\((healthy|unhealthy|health: starting)\)", status)
         if m:
             health = m.group(1)
-        found.setdefault(proj, {})[svc] = {
+        facts = {
             "container": name, "state": state, "health": health, "image": image,
             "status": status,
         }
+        # Two containers can carry one project/service pair: a `docker run` copy
+        # made from a compose image inherits its labels (a review console on a
+        # second port did, and its missing healthcheck replaced the real one's
+        # `healthy`). Keep the running one, then the one compose itself named.
+        held = found.setdefault(proj, {}).get(svc)
+        if held is None or _rank(proj, svc, facts) > _rank(proj, svc, held):
+            found[proj][svc] = facts
     return found
+
+
+def _rank(proj, svc, facts):
+    return (facts["state"] == "running", facts["container"].startswith(f"{proj}-{svc}-"))
 
 
 def inspect_all(names):
@@ -302,9 +343,13 @@ def service_profiles(reg, project, service):
     djangoerp's worker, nothing else does. Recording it as plainly "absent" would
     make 7 of the fleet's 8 stopped services look like defects, when only one
     (zer0-image-generator/web, unprofiled and failing to build) actually is.
+
+    A profile the registry lists under the project's `profiles:` is one `dash
+    dev up` always activates, so a service behind it is expected, not optional.
+    The hub's own services are read from the root compose file.
     """
     pspec = (reg.get("projects") or {}).get(project) or {}
-    rel = pspec.get("compose")
+    rel = pspec.get("compose") or (HUB_COMPOSE if pspec.get("host") == "hub" else None)
     if not rel:
         return []
     full = os.path.join(HUB, rel)
@@ -317,7 +362,9 @@ def service_profiles(reg, project, service):
         return []
     svc = (doc.get("services") or {}).get(service) or {}
     prof = svc.get("profiles") or []
-    return [str(x) for x in prof] if isinstance(prof, list) else [str(prof)]
+    prof = [str(x) for x in prof] if isinstance(prof, list) else [str(prof)]
+    always = {str(x) for x in (pspec.get("profiles") or [])}
+    return [] if always & set(prof) else prof
 
 
 def probe_service(project, service, alloc, facts, profiles=None, info=None):
@@ -377,16 +424,19 @@ def probe_service(project, service, alloc, facts, profiles=None, info=None):
     return rec
 
 
-def build(reg, only=None):
+def build(reg, only=None, live=None, include=None):
     """Probe every allocated service, concurrently — 40+ services serially would
-    be minutes of mostly-waiting."""
-    live = containers()
+    be minutes of mostly-waiting. `include` limits it to a set of projects."""
+    if live is None:
+        live = containers()
     jobs = []
     for pname, pspec in (reg.get("projects") or {}).items():
         pspec = pspec or {}
         if only and pname != only:
             continue
-        label = PROJECT_LABEL.get(pname, pname)
+        if include is not None and pname not in include:
+            continue
+        label = project_label(pname, live)
         pf = live.get(label, {})
         allocs = dict((pspec.get("services") or {}))
         for dname, d in (pspec.get("debug") or {}).items():
@@ -419,7 +469,9 @@ def build(reg, only=None):
     for pname, pspec in (reg.get("projects") or {}).items():
         if only and pname != only:
             continue
-        label = PROJECT_LABEL.get(pname, pname)
+        if include is not None and pname not in include:
+            continue
+        label = project_label(pname, live)
         known = set((pspec or {}).get("services") or {}) | set((pspec or {}).get("debug") or {})
         for svc, f in (live.get(label) or {}).items():
             if svc not in known:
@@ -497,6 +549,10 @@ def cmd_record(reg, args):
             doc["services"] = sorted(keep + results, key=lambda r: (r["project"], r["service"]))
             doc["expectations"] = {key(r): expectation(r) for r in doc["services"]}
             doc["summary"] = summarize(doc["services"])
+        # The other projects' unallocated containers are part of what is kept:
+        # replacing the list with this project's alone dropped every one of them.
+        others = [c for c in base.get("unallocated_containers") or [] if c.get("project") != args.project]
+        doc["unallocated_containers"] = sorted(others + extra, key=lambda r: (r["project"], r["service"]))
     with open(SMOKE_YML, "w") as fh:
         fh.write("---\n")
         yaml.safe_dump(doc, fh, sort_keys=False, default_flow_style=False, width=100)
@@ -528,13 +584,34 @@ def cmd_check(reg, args):
     if not base:
         print("  no baseline — run: tools/dash dev smoke record")
         return 2
-    results, _ = build(reg, args.project)
+    # Hold what is deployed. The baseline is recorded with the whole fleet up,
+    # which the Docker VM on this bench cannot hold at once; without a scope,
+    # every project that was simply not started read as a regression and the
+    # check could only ever pass under `dash dev up --all`. `--all` (or naming
+    # a project) keeps the strict reading: everything recorded must be there.
+    live = containers()
+    scoped = not args.project and not getattr(args, "all", False)
+    include = projects_up(reg, live) if scoped else None
+    results, _ = build(reg, args.project, live=live, include=include)
     expected = base.get("expectations") or {}
-    regressions, unknown, fixed = [], [], []
+    regressions, unknown, fixed, not_started = [], [], [], []
+    if scoped:
+        down = sorted(p for p, s in (reg.get("projects") or {}).items()
+                      if p not in include and (s or {}).get("host") != "devenv")
+        if not include:
+            print("  nothing from the registry is running — nothing to check"
+                  " (tools/dash up, tools/dash dev up <project>)")
+            return 0
+        if down:
+            print(f"  not up, not checked ({len(down)}): {', '.join(down)}  (--all holds them too)")
     for r in results:
         k = key(r)
         got = expectation(r)
         want = expected.get(k)
+        if scoped and r.get("verdict") == "optional":
+            # Behind a compose profile nobody started: not deployed, not broken.
+            not_started.append(f"{k}[{','.join(r.get('profiles') or [])}]")
+            continue
         if want is None:
             unknown.append(k)
             continue
@@ -561,8 +638,11 @@ def cmd_check(reg, args):
         print(f"  ~ {k}: now healthy but the baseline says it was not — re-record")
     for k in unknown:
         print(f"  ~ {k}: not in the baseline — re-record")
+    if not_started:
+        print(f"  optional, profile not started ({len(not_started)}): {', '.join(not_started)}")
+    checked = len(results) - len(not_started)
     if not regressions:
-        print(f"  ✓ {len(results)} services match the recorded baseline"
+        print(f"  ✓ {checked} services match the recorded baseline"
               f"{' (' + str(len(fixed) + len(unknown)) + ' improved/new)' if fixed or unknown else ''}")
     return 1 if regressions else 0
 
@@ -604,6 +684,9 @@ def main():
     for name in ("record", "check", "show"):
         p = sub.add_parser(name)
         p.add_argument("--project", help="limit to one project")
+        if name == "check":
+            p.add_argument("--all", action="store_true",
+                           help="hold every recorded service, including projects that are not up")
     args = ap.parse_args()
     if not args.cmd:
         ap.print_help()

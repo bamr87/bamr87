@@ -25,6 +25,8 @@ tools/dash prs                                   # the queue; reads GitHub only 
 tools/dash prs --who amr --limit 200             # what waits on Amr
 tools/dash prs --kind batch --batch chore/agent-context-kit
 tools/dash prs --flag unlabelled --limit 300      # gated pull requests that carry no needs-amr label
+tools/dash prs --verdict not-ready --who agent    # pull requests with work left that an agent moves
+tools/dash prs ready --pr bamr87/bamr87#873       # one pull request, read live: what is left before it merges
 tools/dash prs refresh                           # read everything again under pr_queue.refresh_budget_s
 tools/dash prs actions                           # the bulk actions, what each writes, what governs it, its switch
 tools/dash prs plan rerun --pr bamr87/zer0-mistakes#625 --pr bamr87/fredgar-ai#140
@@ -45,6 +47,30 @@ The queue starts from the decision index ([DECISION-INDEX.md](DECISION-INDEX.md)
 | `next` | Who moves it next (`amr`, `agent`, `loop`, `author`), what they do, why, and the bulk action that does it. The first rule that holds wins: an unread pull request, a draft, a conflict (JEV), failing checks (an agent), a held run (Amr approves it), cancelled checks (a re-run), a bot pull request opened with `GITHUB_TOKEN` that never ran CI (Amr pushes with `FLEET_TOKEN` or closes and reopens it), behind its base (update the branch), changes requested, checks still running, gated (Amr reviews and merges), blocked by protection, no check that proves it green, and finally an ungated green pull request an agent may merge under § 12.2. |
 | `kinds` | security, dependabot, release, batch (a head branch open in `batch_min_repos` repos or more, never `dependabot/` or `release-please--`), harness (it changes `.claude/`, `CLAUDE.md`, `AGENTS.md`, `.mcp.json`, an agent workflow or a JEV step spec), ratification, draft. |
 | `triage` | The triage comment's next action, question and commands, shown as a hint for the person. Nothing in it is run, and it never changes the row's own verdict. |
+
+## Merge readiness
+
+Every row carries `readiness` ([ADR 0012](adr/0012-merge-readiness.md)): what is left before the pull request merges, as one verdict and an ordered list of items. `tools/dash prs ready --pr owner/repo#number` reads one pull request live with a single query and prints the same thing; the `--verdict` filter and `counts.readiness` work on the queue.
+
+| Verdict | It means |
+| --- | --- |
+| `ready` | Nothing is left. `merge` says who merges it: `agent` (§ 12.2), or `maintainer` when the review gate, a hold label (`needs-human`, `human-review`, `do-not-merge`) or a squash-only repo keeps it with a person |
+| `waiting` | Nothing is left to do, and something is still running or being computed |
+| `not-ready` | At least one item is `todo`; `left` counts them |
+
+| Item | `done` when | Otherwise |
+| --- | --- | --- |
+| `ci` | every check on the head commit passes, superseded runs set aside | `wait` while one runs; `todo` for a failure (an agent), a cancelled run (a re-run), a held run or no run at all (the maintainer) |
+| `base` | it merges into its base without a conflict | `todo` for a conflict (JEV, or the update-branch action); `wait` until GitHub has computed it |
+| `state` | it is marked ready for review | `todo` for a draft |
+| `gate`, `label` | no gate holds it; or it is gated and labelled | the gate is `held`, never `todo`; a gated pull request with no `needs-amr` label is a `todo` for the label action |
+| `hold`, `method` | (absent) | `held` for a hold label or a repo that allows no merge commit |
+| `trace` | the description names what governs it (§ 28.4, by `tools/governance_trace_lint.py`'s rule), or is trace-exempt | `note`, because § 28.4 is warn-only until adoption; left out for Dependabot, release and bot pull requests |
+| `tasks` | every task in the description is ticked, template options aside | `todo`, with the first unticked items |
+| `threads` | (absent) | `todo` for unresolved review threads |
+| `review` | a reviewer approved | `todo` for requested changes, `wait` for a required review, `note` when none is recorded |
+
+The pull request's own comment says the same thing: with `vars.PR_READINESS_ENABLED` set to `true`, `pr-review.yml` puts the items that are not done under the failed runs, and posts one review per head commit when nothing is left ([templates/pr-review/README.md](../templates/pr-review/README.md#merge-readiness)).
 
 ## Where the page disagrees with the queue
 

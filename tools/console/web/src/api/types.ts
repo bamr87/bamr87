@@ -287,6 +287,24 @@ export interface Job {
   confirm?: 'write' | 'spend' | null;
   /** The key it holds while queued or running (`lake`, `loop:<loop>`), or null. */
   exclusive?: string | null;
+  // Derived each time the console reads the job (HUB-064, tools/console/docs/job-status.md);
+  // absent on the published page, whose jobs are workflow runs read from GitHub.
+  /** queued, running, stalled (running, its log quiet past stall_s), done or failed (the exact outcome stays in status). */
+  state?: 'queued' | 'running' | 'stalled' | 'done' | 'failed' | string;
+  /** Seconds since the job was sent. */
+  age_s?: number | null;
+  /** Seconds since its log last grew; null once it finished. */
+  idle_s?: number | null;
+  /** Seconds without log growth before a running job of this op reads as stalled. */
+  stall_s?: number | null;
+  /** Why it may be slow, each a code and a sentence. */
+  diagnostics?: JobDiagnostic[];
+}
+
+/** One reason a job may be slow: queue_wait, collector_lag, long_step or no_heartbeat. */
+export interface JobDiagnostic {
+  code: 'queue_wait' | 'collector_lag' | 'long_step' | 'no_heartbeat' | string;
+  detail: string;
 }
 
 /** One item of a loop-run job (tools/fleetcore/loopjob.py). */
@@ -365,10 +383,12 @@ export interface AppTarget {
   service?: string;
   port?: number;
   band?: string;
-  /** The command that starts a local target's stack. */
+  /** The command that starts a local target's stack (a devenv-hosted site: the `docker compose exec` that serves it). */
   start?: string | null;
-  /** The project a local target belongs to: what `dev-up` and `dev-down` take. */
+  /** The project a local target belongs to: what `dev-up` and `dev-down` take, for a compose-hosted one. */
   project?: string;
+  /** Where a local target runs: its own compose stack (the console can start it), or inside the hub's devenv container (it cannot). */
+  host?: 'compose' | 'devenv';
 }
 
 /** A registry frontend as the launcher lists it (fleetcore.apps, fleet-launcher/v1). */
@@ -1109,6 +1129,93 @@ export interface AssistDoc {
   local: boolean;
 }
 
+// --- GitHub Projects (v2), read-only (gh_projects.py; /api/gh-projects*) ----
+export type GhProjectsStatus = 'fresh' | 'partial' | 'scope_missing' | 'unavailable';
+export interface GhProjectField {
+  id: string | null;
+  name: string | null;
+  type: string | null;
+  options: string[];
+}
+export interface GhProject {
+  owner: string;
+  id: string;
+  number: number;
+  title: string;
+  url: string;
+  closed: boolean;
+  fields: GhProjectField[];
+}
+export interface GhProjectOwner {
+  login: string;
+  kind: 'user' | 'organization';
+  status: 'ok' | 'scope_missing' | 'error' | 'skipped';
+  projects?: number;
+  error?: string;
+}
+export interface GhProjectsBudget {
+  limit: number;
+  window_s: number;
+  used: number;
+  left: number;
+  budget_s: number;
+  elapsed_s: number;
+}
+export interface GhProjectsDoc {
+  schema: string;
+  generated_at: string;
+  status: GhProjectsStatus;
+  complete: boolean;
+  source: 'live' | 'cache' | 'none';
+  age_s: number;
+  ttl_s: number;
+  token_source: string | null;
+  scope_missing: boolean;
+  read_only: boolean;
+  owners: GhProjectOwner[];
+  projects: GhProject[];
+  counts: { owners: number; read: number; projects: number; open: number };
+  budget: GhProjectsBudget;
+  hint: string | null;
+}
+export interface GhProjectItem {
+  item_id: string;
+  archived: boolean;
+  kind: 'issue' | 'pr' | 'draft' | 'unknown';
+  content_id: string | null;
+  repo: string | null;
+  number: number | null;
+  title: string;
+  state: string | null;
+  url: string | null;
+  fields: Dict<string | number | null>;
+  refs: string[];
+  closes: string[];
+  commits: { sha: string; headline: string; refs: string[] }[];
+}
+export interface GhProjectItemsDoc {
+  schema: string;
+  project_id: string;
+  generated_at: string;
+  status: GhProjectsStatus;
+  complete: boolean;
+  source: 'live' | 'cache' | 'none';
+  age_s: number;
+  token_source: string | null;
+  total: number;
+  matched: number;
+  limit: number;
+  offset: number;
+  next_offset: number | null;
+  capped: boolean;
+  max_items: number;
+  statuses: string[];
+  counts: { by_status: Dict<number>; by_kind: Dict<number> };
+  items: GhProjectItem[];
+  errors: string[];
+  budget: GhProjectsBudget;
+  hint: string | null;
+}
 // The PR queue (/api/prs; tools/fleetcore/prqueue.py, docs/PR-QUEUE.md).
 export type PrWho = 'amr' | 'agent' | 'loop' | 'author';
 export type PrCheckState = 'failing' | 'action_required' | 'cancelled' | 'pending' | 'green' | 'skipped' | 'none';

@@ -58,7 +58,7 @@ The console's **Desktop** page (`/desktop`) is the bashOS desktop in the browser
 | Get a window back | its button on the taskbar; `⌘\` cycles |
 | Open a page of the console in a window | the **bashOS** button on the taskbar lists every page; the **Console** icon opens Overview; the palette (`⌘K`) opens what you pick |
 | Arrange everything | the tile and cascade buttons on the taskbar |
-| Send someone this desktop | the link button: a `?windows=` address of ids and geometry, never of URLs |
+| Send someone this desktop | the link button: a `?windows=` address of ids and geometry, never of URLs; each app window keeps its target, device and path, so Live beside Local reopens on both targets, and anything the registry does not declare falls back to the app's default |
 | See every repo, with or without a frontend | the **Fleet** icon; a repo without one opens as the generated repo app |
 
 A console page in a window is the same page without its header and sidebar: the window is its frame, links inside it stay inside it, and the window's title and the shared layout follow where it goes. On a phone the desktop is a home screen: the icons, then one app at a time; there the **Console** icon leaves for the classic console, which has its own way around.
@@ -93,7 +93,7 @@ Until a repo's own component is in the shell it opens as the **generated repo ap
 | .github | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
 | SCHEMA | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
 | outbox | generated | generated app for now | a component of its own in place of the generated repo app (F4) |
-| cv-pro | own (react-vite-tailwind) | generated app for now | an address: a public build or a dev-stack port (F2) |
+| cv-pro | own (react-vite-tailwind) | in the shell, local only | a public build with an address (F2) |
 | godotgo | own (godot) | generated app for now | an address: a public build or a dev-stack port (F2) |
 | bash-365-apex | own (static-html) | in the shell | the bridge and the public and private modes (P3, P4) |
 | year-of-ai.github.io | own (jekyll-zer0) | in the shell | the bridge and the public and private modes (P3, P4) |
@@ -123,12 +123,13 @@ The console's **Apps** page (`/apps`) is the launcher rendered: every frontend i
 | Open one inside the console | click it, or `tools/dash apps open <app> [--target local]` |
 | Switch between the deployed site and your machine | the **Live / Local** switch |
 | Start or stop a local stack | **Start the stack**, then **Logs** and **Stop the stack**, from a native console (`tools/dash console`); the core console's container has no Docker access and shows `tools/dash dev up <project>` instead |
+| Start a devenv-hosted site (bamr87.github.io, lifehacker.dev, cv-pro, rewind-arcade) | with the core up (`tools/dash up`), copy the `docker compose exec … devenv …` command its Local target shows into a terminal at the hub root, or press F5 on its `8-workspace` entry; the console has no Start button for these, because `tools/dash dev up` does not apply |
 | See it at a phone or tablet size | the device presets, which are `verify/verify.yml` `viewports:` |
 | Move inside the app | the path box (a path, never another address) |
 | Check that each address answers and can be framed | `tools/dash apps check [app …] [--target live|local|all] [--strict]` |
 | Open a repo that has no frontend | it is in the same list (filter **No interface**) and opens at `/apps/<id>` as the generated repo app |
 
-**Targets.** `live` is `frontend.entry_url` (else `live_url`): give the address the site is served from, not one that forwards to it, because the shell frames only origins the registry declares. `local` is each browser-facing service of a compose-hosted stack at its `_data/ports.yml` port, the `frontend` band before `jekyll`, `docs` and `api`. A devenv-hosted project has no local target yet: its port is picked at launch.
+**Targets.** `live` is `frontend.entry_url` (else `live_url`): give the address the site is served from, not one that forwards to it, because the shell frames only origins the registry declares. `local` is each browser-facing service of a compose-hosted stack at its `_data/ports.yml` port, the `frontend` band before `jekyll`, `docs` and `api`, started by `tools/dash dev up <project>`. A devenv-hosted project (`host: devenv`) is served from inside the hub's devenv container, so its `_data/ports.yml` port lies in a workspace band (`workspace`, `workspace_node`: the block `docker-compose.yml`'s devenv service publishes, mirroring `_data/fleet.yml` `containers.ports.workspace*`), and its target's `start` is the registry's `start:`, the same command as its `.vscode/launch.json` entry. A devenv allocation outside those bands gets no local target, because nothing could answer on it.
 
 **What a frontend owes the portal.** Nothing to be listed. To be framed it must not refuse the shell: no `X-Frame-Options`, and a `frame-ancestors` policy only if it names the shell's origins (`https://bamr87.github.io`, `http://127.0.0.1:4001`). To work on the public page when it shares the page's origin it must tolerate a frame without storage access, so guard `localStorage` and `sessionStorage` reads.
 

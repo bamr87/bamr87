@@ -1,9 +1,17 @@
 kit: ai-ready
-version: 0.0.0
+version: 0.1.0
 source: bamr87/bamr87 templates/ai-ready/
-seeded-by: not yet; fan-out follows ratification of constitution § 16 (amendment ai-ready-foundation)
-files: README.md (spec only; the files it lists land in follow-up PRs)
-spec: docs/constitution.md § 16; checker tools/conformance.py check ai-ready, calling the in-hub AIEO (tools/aieo/)
-updated: 2026-10-30
+seeded-by: not yet; no fan-out is wired for this kit. Seed agent-card.template.json by hand, only into a repo that runs an agent, and fill its tokens (README.md § Agent Card template).
+files: agent-card.template.json
+targets: agent-card.template.json -> /.well-known/agent-card.json on the agent's public origin (only for repos that run an agent)
+planned: every other row of the README Files table, each with its issue link
+spec: docs/constitution.md § 16 (§ 16.4 for the Agent Card, A2A v1.0); checker tools/conformance.py check ai-ready, calling the in-hub AIEO (tools/aieo/)
+tests: templates/ai-ready/test_ai_ready_kit.py (stdlib + PyYAML; run `python3 templates/ai-ready/test_ai_ready_kit.py`)
+updated: 2026-11-15
 changelog: |
+  0.1.0 — first kit file: agent-card.template.json, an A2A v1.0 AgentCard with
+  fill-in tokens, one JSON-RPC interface and a bearer scheme example that holds
+  no values (bamr87/bamr87#542). The README Files table gains a Status column:
+  each row is present or planned with its issue link, and the new kit tests fail
+  when the table and the tree disagree or the card leaves the AgentCard shape.
   0.0.0 — spec only, proposed with amendment ai-ready-foundation.
