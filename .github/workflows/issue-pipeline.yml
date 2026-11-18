@@ -165,6 +165,13 @@ jobs:
       handoff_checked: ${{ steps.queues.outputs.handoff_checked }}
       handoff_rejected: ${{ steps.queues.outputs.handoff_rejected }}
       publish_mode: ${{ steps.publish.outputs.mode }}
+      # What this run reserved against an expedite sprint (USD, "0" when nothing),
+      # and the attempt whose record of it landed (see "Gate sprint work on its record").
+      sprint_reserved_usd: ${{ steps.queues.outputs.sprint_reserved_usd }}
+      sprint_t1_usd: ${{ steps.queues.outputs.sprint_t1_usd }}
+      sprint_t2_usd: ${{ steps.queues.outputs.sprint_t2_usd }}
+      sprint_t3_usd: ${{ steps.queues.outputs.sprint_t3_usd }}
+      sprint_record: ${{ steps.sprint.outputs.record }}
     steps:
       - uses: actions/checkout@v7
 
@@ -209,8 +216,16 @@ jobs:
 
       - name: Build tier queues
         id: queues
+        env:
+          # The expedite sprint's switch (constitution § 27.6, tools/jev/sprints.py): on a
+          # schedule, 'false' holds every item of the active sprint out of the queues; a
+          # dispatch bypasses it. It matters only while _data/fleet.yml budget.sprints declares one.
+          EXPEDITE_SPRINT_ENABLED: ${{ vars.EXPEDITE_SPRINT_ENABLED }}
+          # The tier jobs this run starts on these queues (none on a dry run): only they reserve
+          # against an active sprint, for the whole run, and the snapshot records it under this attempt.
+          RUN_TIERS: ${{ inputs.dry_run != true && steps.plan.outputs.tiers || '' }}
         run: |
-          args=(issues --print)
+          args=(issues --print --run-tiers "$RUN_TIERS" --record-run "${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}")
           [ -n "${{ inputs.repos }}" ] && args+=(--repos "${{ inputs.repos }}")
           [ -n "${{ inputs.max_intake }}" ] && args+=(--max-intake "${{ inputs.max_intake }}")
           [ -n "${{ inputs.max_implement }}" ] && args+=(--max-implement "${{ inputs.max_implement }}")
@@ -274,16 +289,41 @@ jobs:
           labels: automation,data
           token: ${{ steps.token.outputs.token }}
 
+      # A run spends on sprint items only once its reservations are on record:
+      # the next run, the loop runner and JEV count them from the published
+      # snapshot (constitution § 27.3, tools/jev/sprints.py). A tier job that
+      # holds a sprint item runs only in the attempt whose record landed, so a
+      # re-run of a failed tier job does not spend a second time under the same
+      # reservation, and tier 2's re-scan gets its room only then.
+      - name: Gate sprint work on its record
+        id: sprint
+        if: ${{ !cancelled() }}
+        env:
+          RESERVED: ${{ steps.queues.outputs.sprint_reserved_usd }}
+          MODE: ${{ steps.publish.outputs.mode }}
+        run: |
+          if [ "$RESERVED" = "0" ]; then
+            echo "record=free" >> "$GITHUB_OUTPUT"
+          elif [ "$MODE" = "push" ] || [ "$MODE" = "pr" ]; then
+            echo "record=$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+            echo "Expedite sprint: this run reserved \$${RESERVED}, API-equivalent (estimate); its record landed by ${MODE}."
+          else
+            echo "record=lost" >> "$GITHUB_OUTPUT"
+            echo "::warning::This run reserved \$${RESERVED:-?} against the expedite sprint, but its snapshot did not publish (mode '${MODE:-none}'), so no tier job runs a sprint item in it."
+          fi
+
   # ========================================================================= #
   # 1. INTAKE — evidence, enrichment, labels, priority, owner
   # ========================================================================= #
   tier1:
     name: Tier 1 · intake & evidence
     needs: scan
+    # A queue with an expedite-sprint item runs only in the attempt whose reservation is on record.
     if: >-
       ${{ !cancelled() && inputs.dry_run != true
           && contains(needs.scan.outputs.tiers, '1')
-          && needs.scan.outputs.has_intake == 'true' }}
+          && needs.scan.outputs.has_intake == 'true'
+          && (needs.scan.outputs.sprint_t1_usd == '0' || needs.scan.outputs.sprint_record == github.run_attempt) }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
@@ -671,10 +711,16 @@ jobs:
       # Re-scan rather than reuse the start-of-run queue: tier 1 has just marked
       # issues `agent:ready`, and the point of a pipeline is that they flow
       # through in the SAME run instead of waiting a day for the next sweep.
+      # An expedite sprint's items run here only inside the room the scan reserved
+      # for tier 2 and recorded (a new process forgets nothing that way): "0" when
+      # it reserved none, or when its record did not land in this attempt.
       - name: Refresh the tier-2 queue
         id: queue
+        env:
+          EXPEDITE_SPRINT_ENABLED: ${{ vars.EXPEDITE_SPRINT_ENABLED }}   # the sprint's switch, as in the scan
+          SPRINT_GRANT: ${{ needs.scan.outputs.sprint_record == github.run_attempt && needs.scan.outputs.sprint_t2_usd || '0' }}
         run: |
-          args=(issues --no-snapshot)
+          args=(issues --no-snapshot --sprint-grant "$SPRINT_GRANT")
           [ -n "${{ inputs.repos }}" ] && args+=(--repos "${{ inputs.repos }}")
           [ -n "${{ inputs.max_implement }}" ] && args+=(--max-implement "${{ inputs.max_implement }}")
           tools/dash-gen "${args[@]}"
@@ -882,6 +928,7 @@ jobs:
       ${{ !cancelled() && inputs.dry_run != true
           && contains(needs.scan.outputs.tiers, '3')
           && needs.scan.outputs.has_complete == 'true'
+          && (needs.scan.outputs.sprint_t3_usd == '0' || needs.scan.outputs.sprint_record == github.run_attempt)
           && needs.tier1.outputs.usage_limit != 'true'
           && needs.tier2.outputs.usage_limit != 'true' }}
     runs-on: ubuntu-latest

@@ -21,7 +21,7 @@ The 2026-10-27 overhaul ([#422](https://github.com/bamr87/bamr87/pull/422), [WOR
 - its dispatch inputs and call inputs, with type, default and options;
 - its top-level and per-job permissions, its concurrency group, and each job's timeout, needs, condition and runner;
 - every action and reusable workflow it uses, whether local, from the `.fleet-hub` checkout, remote `bamr87/bamr87/...@vN` or external;
-- the secrets and variables it reads, and its `vars.*_ENABLED` kill switch;
+- the secrets and variables it reads, and its `vars.*_ENABLED` kill switch (the first it reads: a loop that also hands its script the sprint-scope `vars.EXPEDITE_SPRINT_ENABLED` still shows its own);
 - each Claude call site, with its model, turns, dollar cap, the cap `budget.call_sites` declares, `continue-on-error` and the paired `claude-cost` step's `usage-limit` mode;
 - the paths it publishes through `utilities/publish-data`.
 

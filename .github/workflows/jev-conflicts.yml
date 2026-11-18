@@ -142,6 +142,9 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
           DRY: ${{ (github.event_name == 'workflow_dispatch' && inputs.dry-run) && '--dry-run' || '' }}
           SCHEDULED: ${{ (github.event_name == 'schedule' || github.event_name == 'push') && '--scheduled' || '' }}
+          # The expedite sprint's switch (constitution § 27.6, tools/jev/sprints.py): on a --scheduled
+          # run, 'false' leaves the active sprint's PRs alone, tier 0 included; a dispatch bypasses it.
+          EXPEDITE_SPRINT_ENABLED: ${{ vars.EXPEDITE_SPRINT_ENABLED }}
         run: |
           # One pull request at a time, and a failure on one never stops the
           # rest: an unreachable repo is not a reason to leave the other

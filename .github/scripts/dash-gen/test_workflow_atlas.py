@@ -129,6 +129,19 @@ def test_claude_sites_carry_budget_declared_cap_and_usage_limit_mode():
     assert wf["switch"] == "AGENT_ENABLED"
 
 
+def test_a_loop_that_hands_on_a_sprint_switch_keeps_its_own_kill_switch():
+    """The issue pipeline and jev-conflicts hand vars.EXPEDITE_SPRINT_ENABLED to their scripts
+    (constitution § 27.6); their own switch is still the one they gate on, the first they read."""
+    text = AGENT.replace("          usage-limit: skip\n", "          usage-limit: skip\n"
+                         "        env:\n          EXPEDITE_SPRINT_ENABLED: ${{ vars.EXPEDITE_SPRINT_ENABLED }}\n")
+    wf = wa.lint_text(text, FLEET, ".github/workflows/agent.yml")["workflow"]
+    assert wf["switches"] == ["AGENT_ENABLED", "EXPEDITE_SPRINT_ENABLED"], wf["switches"]
+    assert wf["switch"] == "AGENT_ENABLED", wf["switch"]
+    zed = text.replace("AGENT_ENABLED", "ZED_ENABLED")
+    assert wa.lint_text(zed, FLEET, ".github/workflows/agent.yml")["workflow"]["switch"] == "ZED_ENABLED", \
+        "document order, not the alphabet"
+
+
 def test_readme_rows_group_and_retired_table():
     text = """# Workflows
 ## Daily and weekly loops
