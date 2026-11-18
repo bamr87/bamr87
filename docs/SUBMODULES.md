@@ -21,7 +21,7 @@ tools/dash status                 # registry + drift summary
 
 ### Naming convention
 
-Every `.gitmodules` section is named by its path — `[submodule "projects/<name>"]` — and the file is kept sorted by path. A repo whose registry row has `submodule_path: null` (archived or external: `zer0-mistakes`, `amrchy`, `ai-seed`, `csv-vscoode`) is shown on the dash but never checked out here. If a clone predates a rename, run `git submodule sync` once; the checked-out trees keep pointing at their existing gitdirs.
+Every `.gitmodules` section is named by its path — `[submodule "projects/<name>"]` — and the file is kept sorted by path. A repo whose registry row has `submodule_path: null` (archived, external or a personal fork: `ai-seed`, `csv-vscoode`, `archify`, `amrchy`) is shown on the dash but never checked out here. A path may differ from the repo's name: `bamr87/.github` is mounted at `projects/dot-github`, its registry slug, because shell globs skip a hidden directory under `projects/`. If a clone predates a rename, run `git submodule sync` once; the checked-out trees keep pointing at their existing gitdirs.
 
 ### Branch conventions
 

@@ -226,6 +226,48 @@ async def t_drill_and_open(root: Path) -> None:
             assert app.repo_filter is None and inbox.row_count == 2
 
 
+async def t_merge_item_leads_the_inbox(root: Path) -> None:
+    """FF-0036: a green, clean fix PR is a `merge` row at 95, ahead of the red it
+    clears, in the repo's drill-down and in the fleet inbox; the narrow why
+    column counts what it clears, and the items it covers say `fix: #7`."""
+    ci = ".github/workflows/ci.yml"
+    path = root / "_data" / "fleet_triage.yml"
+    tri = yaml.safe_load(path.read_text(encoding="utf-8"))
+    url = "https://github.com/bamr87/beta/pull/7"
+    fix = {"number": 7, "title": "fix(ci): pin the linter", "url": url, "age_days": 2, "evidence": "verified",
+           "mergeable_state": "clean", "ready": True, "clears": ["#5"]}
+    beta = tri["by_repo"][0]
+    beta["workflows"]["failing"][0].update(branch="main", failed_jobs=["lint"], fix_prs=[fix])
+    beta["prs"] = {"open": 2, "items": [
+        {"number": 7, "title": fix["title"], "ci": "pass", "draft": False, "dependabot": False, "age_days": 2,
+         "idle_days": 1, "url": url, "clears": [ci, "#5"], "merge_ready": True},
+        {"number": 5, "title": "feat: x", "ci": "fail", "draft": False, "dependabot": False, "age_days": 4,
+         "idle_days": 1, "url": "https://github.com/bamr87/beta/pull/5"}]}
+    tri["inbox"].insert(0, {"kind": "merge", "repo": "beta", "ref": "#7", "title": fix["title"],
+                            "why": "Merge #7: clears CI [/x] on main and #5 once its branch is updated",
+                            "age_days": 2, "url": url, "priority": 95, "clears": [ci, "#5"],
+                            "evidence": "verified"})
+    path.write_text(yaml.safe_dump(tri), encoding="utf-8")
+    app = A.DashTui(root=root, hosts=[])
+    with Browser():
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            await pilot.press("down", "enter")  # beta's drill-down: fleetcore.repo_items
+            await pilot.pause()
+            assert app.repo_filter == "beta"
+            rows = [[cell(app, "inbox", r, c) for c in (0, 1, 3, 4)] for r in range(4)]
+            assert rows == [
+                ["95", "merge", "#7 fix(ci): pin the linter", "clears 1 red workflow + 1 PR"],
+                ["90", "workflow", "CI [/x]", "latest run failure · fix: #7"],
+                ["70", "pr", "#5 feat: x", "PR checks failing · fix: #7"],
+                ["60", "issue", "#3 [bug] beta breaks", "bug label"],
+            ], rows
+            await pilot.press("x")  # the fleet inbox: fleet_triage.yml's own list
+            await pilot.pause()
+            assert app.repo_filter is None
+            assert [cell(app, "inbox", 0, c) for c in (0, 1, 4)] == ["95", "merge", "clears 1 red workflow + 1 PR"]
+
+
 async def t_no_browser_shows_the_link(root: Path) -> None:
     """In a container webbrowser.open finds nothing and returns False: o and l
     must then show the URL rather than do nothing."""
@@ -495,6 +537,7 @@ CASES = [
     t_query_not_shadowed,
     t_markup_is_literal,
     t_drill_and_open,
+    t_merge_item_leads_the_inbox,
     t_no_browser_shows_the_link,
     t_keys_v1,
     t_jobs_through_the_console,

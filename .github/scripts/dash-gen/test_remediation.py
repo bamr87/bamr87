@@ -36,6 +36,8 @@ import datetime as dt
 import sys
 from pathlib import Path
 
+import yaml
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import actions_analytics  # noqa: E402
@@ -934,6 +936,87 @@ def main() -> int:
           len(pr_slow) == 1 and pr_slow[0]["signals"] == {"slow"})
     check("pr-red gets no de-flake advice",
           "non-deterministic" not in remediation.fix_angle({"pr-red"}))
+
+    # --- a verified fix PR is already tracked (FF-0036, bamr87/bamr87#609) ---- #
+    print("verified fix PRs:")
+    ci = ".github/workflows/ci.yml"
+
+    def linked(nwo, evidence, number=133, state="clean"):
+        rec = repo_rec(nwo, failing=[("CI", ci)])
+        rec["workflows"]["failing"][0]["fix_prs"] = [{
+            "number": number, "title": "fix(ci): exclude CHANGELOG.md", "evidence": evidence,
+            "mergeable_state": state if evidence != "weak" else None, "ready": state == "clean",
+            "url": f"https://github.com/{nwo}/pull/{number}", "age_days": 3, "clears": ["#127"]}]
+        return rec
+
+    tri_fix = triage(linked(f"{OWNER}/bashcrawl", "verified"), linked(f"{OWNER}/doc", "doctor", 9),
+                     linked(f"{OWNER}/weak", "weak", 4), repo_rec(f"{OWNER}/plain", failing=[("CI", ci)]))
+    by = {c["nwo"]: c for c in build(tri_fix, usage())}
+    check("the triage snapshot's fix links ride on the candidate",
+          [p["number"] for p in by[f"{OWNER}/bashcrawl"]["fix_prs"]] == [133])
+    check("only `verified` evidence makes a failure tracked",
+          (remediation.verified_fix(by[f"{OWNER}/bashcrawl"]) or {}).get("number") == 133
+          and remediation.verified_fix(by[f"{OWNER}/doc"]) is None
+          and remediation.verified_fix(by[f"{OWNER}/weak"]) is None
+          and remediation.verified_fix(by[f"{OWNER}/plain"]) is None)
+
+    fix_plan, fix_briefs = remediation.build_plan(
+        argparse.Namespace(hub=HUB, target="all", hub_branch="main", max_repo_lookups=25),
+        {**plan_cfg, "max_candidates": 6, "max_cross_repo": 6}, usage(), tri_fix, offline=True)
+    queued = {r["repo"] for r in fix_plan["include"]}
+    skip = {s_["repo"]: s_["reason"] for s_ in fix_plan["skipped"]}
+    check("plan mode: a failure with a verified fix PR is not queued, even offline (the link is in the snapshot)",
+          f"{OWNER}/bashcrawl" not in queued and {f"{OWNER}/doc", f"{OWNER}/weak", f"{OWNER}/plain"} <= queued)
+    check("…and its skipped row names the PR and its state",
+          skip.get(f"{OWNER}/bashcrawl", "").startswith("already fixed by open PR #133 (clean)")
+          and "merge it" in skip[f"{OWNER}/bashcrawl"])
+    brief = next(iter(fix_briefs.values()), "")
+    check("every brief names the fix PR under 'Already fixed', so the agent never writes a second one",
+          "## Already fixed by an open pull request (not queued)" in brief
+          and f"{OWNER}/bashcrawl · `{ci}` · merge #133 (clean)" in brief and "Do NOT open another PR" in brief)
+
+    import contextlib
+    import io
+    import os
+    import tempfile
+
+    def ci_run(tmp: Path, **over) -> tuple[str, str]:
+        """remediation.run() as fleet-pulse calls it, offline: no markers open, no gh."""
+        (tmp / "triage.yml").write_text(yaml.safe_dump(tri_fix), encoding="utf-8")
+        a = argparse.Namespace(config=str(tmp / "fleet.yml"), usage=str(tmp / "none.yml"),
+                               triage=str(tmp / "triage.yml"), out=str(tmp / "workorder.md"), limit=None,
+                               max_cross_repo=6, hub=HUB, max_repo_lookups=25, no_dedupe=False,
+                               no_existence_check=True, no_billing_check=True)
+        for k, v in over.items():
+            setattr(a, k, v)
+        real = (remediation.open_markers, remediation.cross_repo_open_markers, os.environ.pop("GITHUB_OUTPUT", None))
+        remediation.open_markers = lambda hub: set()
+        remediation.cross_repo_open_markers = lambda nwos: set()
+        err = io.StringIO()
+        try:
+            with contextlib.redirect_stderr(err):
+                remediation.run(a)
+        finally:
+            remediation.open_markers, remediation.cross_repo_open_markers = real[:2]
+            if real[2] is not None:
+                os.environ["GITHUB_OUTPUT"] = real[2]
+        return (tmp / "workorder.md").read_text(encoding="utf-8"), err.getvalue()
+
+    with tempfile.TemporaryDirectory() as tmp:
+        order, log = ci_run(Path(tmp))
+    queued_heads = [ln for ln in order.splitlines() if ln.startswith("## ") and ". " in ln]
+    check("CI mode: the verified fix is not queued; the doctor still gets the other three",
+          not any("bashcrawl/CI" in h for h in queued_heads) and len(queued_heads) == 3)
+    check("CI mode: the work order names the PR and says it is tracked",
+          f"{OWNER}/bashcrawl · `{ci}` · merge #133 (clean)" in order
+          and "(1 a verified fix PR, listed below)" in order)
+    check("CI mode: the run log says which PR clears it",
+          "(1 by a verified fix PR)" in log and "already fixed by open PR #133" in log)
+    with tempfile.TemporaryDirectory() as tmp:
+        raw, _ = ci_run(Path(tmp), no_dedupe=True)
+    check("--no-dedupe (debugging) queues the fixed failure again",
+          "## Already fixed" not in raw and any("bashcrawl/CI" in ln for ln in raw.splitlines()
+                                                 if ln.startswith("## ")))
 
     # --- report ------------------------------------------------------------ #
     failed = [label for label, ok in CHECKS if not ok]

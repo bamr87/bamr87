@@ -8,6 +8,14 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ### Added
 
+- `tools/conformance.py`: `--instance DIR` (default `$FLEET_HOME`, else `--hub`) on `check`, `fleet` and `kinds`. `--hub` stays the framework checkout the spec, contracts, kits and tools are read from; the instance is the control plane whose `_data/projects.yml` lists the repos and whose `projects/` holds them, so one checkout of the framework can grade another owner's fleet. `standards.yml` and the issue-type labels are the instance's when it has them, else the framework's. `fleet --write` with no path writes the instance's `_data/conformance.yml`. With no instance named nothing changes (ADR 0011, phase P0).
+
+## [2.2.0] - 2026-11-16
+
+Minor release: the floating `v2` moves to it. It brings the tag level with `main` on Claude authentication. `v2.1.0` was cut before the OAuth-only change of 2026-11-15 (#859) landed, so a caller pinned to `@v2` still ran the earlier `claude-auth`, `claude-run`, `ai-lane.yml` and `fleet-verify.yml`, which read `ANTHROPIC_API_KEY` and follow the caller's `CLAUDE_AUTH_ORDER`, while a caller on `@main` ran the OAuth-only ones. With this release both refs behave the same: those four use `CLAUDE_CODE_OAUTH_TOKEN` alone, name `api_key` in an order only to report that it is ignored, and keep their key inputs declared and unread so that no caller breaks. A caller with no OAuth token skips its agent step as before; none turns red. It also carries the `ai-runner` kit 0.4.0 pins (lanes and the runner called at `@v2`, d58f335c) and the entries below. The four files ride along on the tags and are not yet under the compatibility promise ([`docs/WORKFLOW-VERSIONING.md`](docs/WORKFLOW-VERSIONING.md)); this is the release that makes pinning them to `@v2` safe, which bamr87/bamr87#458 (UPS-WORK-10, UPS-QA-40) needs before it moves the fleet's callers off `@main`.
+
+### Added
+
 - Proposed constitution § 30 / amendment `onprem-compute` and the plan [docs/ONPREM-COMPUTE.md](../docs/ONPREM-COMPUTE.md): Amr's new on-premise machine enrolled as a fleet node for local LLMs and Claude Code sessions, local models as an eval-gated tier, honest on-premise cost, node-local housekeeping for the weekend routine, and a self-hosted runner allowed only behind fences. Nothing is deployed.
 
 ### Fixed
