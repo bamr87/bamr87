@@ -2,15 +2,15 @@
   "schema": "deep-dive/v1",
   "owner": "bamr87",
   "label": "deep-dive",
-  "refreshed_at": "2026-11-17T12:26:11Z",
+  "refreshed_at": "2026-11-18T12:26:00Z",
   "summary": {
-    "as_of": "2026-11-17",
+    "as_of": "2026-11-18",
     "cycle": 1,
     "cycle_start": "2026-10-30",
     "cycle_end": "2026-12-10",
     "cycle_days": 42,
     "total": 38,
-    "day": 19,
+    "day": 20,
     "processed": 8,
     "counts": {
       "pending": 30,
@@ -20,14 +20,6 @@
     },
     "progress": 0.2105,
     "today": {
-      "date": "2026-11-17",
-      "cycle": 1,
-      "day": 19,
-      "cycle_days": 42,
-      "kind": "scheduled",
-      "repo": "bashos"
-    },
-    "next": {
       "date": "2026-11-18",
       "cycle": 1,
       "day": 20,
@@ -35,10 +27,18 @@
       "kind": "scheduled",
       "repo": "ocrmd"
     },
+    "next": {
+      "date": "2026-11-19",
+      "cycle": 1,
+      "day": 21,
+      "cycle_days": 42,
+      "kind": "scheduled",
+      "repo": "rewind-arcade"
+    },
     "last": ".github",
     "last_date": "2026-11-13",
     "avg_score": 45.0,
-    "open_issues": 67,
+    "open_issues": 66,
     "open_prs": 7
   },
   "repos": [
@@ -372,7 +372,7 @@
         "https://github.com/bamr87/law-ai/pull/234",
         "https://github.com/bamr87/law-ai/pull/233"
       ],
-      "open_issues": 17,
+      "open_issues": 16,
       "open_prs": 3,
       "findings": "Cycle 1 day 14 (owner pass by Law AI Lead). UPS conformance 53/71 automated checks pass, 9 MUST failing (most already tracked: /version #208, README link #212, SECURITY.md/issue forms #213, spec-gate #217, fleet-dod/lockfiles BL-20261026-04); governance_lint ok. New: prod accepts default SECRET_KEY (signs JWTs and the LSAT shuffle HMAC) and ALLOWED_HOSTS=* (#221); lsat-static WCAG 2.5.3 nav label-in-name and other axe findings (#222, nav fixed in draft #235); views not in the URL so #article permalinks open Overview (#223); question card shows section twice because type==section for all 211 items (#224); Makefile Playwright 1.63 vs lock 1.64.1 (#225); lawmode defaults to OpenAI gpt-4o against constitution section 1 and has no CI (#226, needs Amr); no code scanning on a public repo (#227); catalog misses shipped surfaces, PRD section 5 has no requirement ids (#228). Feature requests #229-#232 planned as LAWAI-018..021 in draft #234; docs drift and BACKLOG mirror in draft #233. Dependabot: 2 medium (minimatch).",
       "score": 66.0,
