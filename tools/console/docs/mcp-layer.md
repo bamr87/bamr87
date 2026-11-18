@@ -240,6 +240,24 @@ Neither scope writes to GitHub, so neither is a write-back path under constituti
 
 The MCP sidecar and the console run in containers, and the `_data/fleet.yml` URLs are the **browser's** (loopback — they are also the links the console renders). Every server-side probe therefore goes through `fleet_observe.probe_url`, which prefers `ES_URL`, `KIBANA_URL`, `GRAFANA_URL`, `QDRANT_URL`, `OLLAMA_URL`, `PROMETHEUS_URL` — set on `console` and `devenv` in `docker-compose.yml` to the service-DNS form. The code index missed this and asked the container's own `127.0.0.1:6333`, so `index_coverage` and `code_search` reported "Qdrant has no collection" against a store holding 17,341 points. Kilo's collection name is a hash of the workspace **root path**, which differs between the host (`/Users/bamr87/bamr87`) and a container (`/workspace`), so it is never recomputed: the store is listed and a `ws-` collection chosen (the fullest, when there are several). `QDRANT_COLLECTION` overrides that choice and wins even when the store cannot be listed. `index_coverage` returns `qdrant`, `collection`, `collections` and `collection_source` so a wrong pick is visible rather than looking like an index that covers nothing.
 
+## MCP Registry manifest (`server.json`)
+
+[`../server.json`](../server.json) describes this server in the MCP Registry's `server.json` format (schema `2025-12-11`), as constitution § 16.4 asks of every fleet MCP server. It is a description only: nothing publishes it, and publishing to the public registry, with the namespace sign-in that needs, is the maintainer's decision.
+
+- **name** `io.github.bamr87/fleet`: the registry's GitHub namespace for the owner, then `fleet`, the server's stable id under § 25.4 and in `_data/mcp_servers.yml`. The repository name (`bamr87`) would name the hub, not this server, and the hub registers more than one.
+- **version** equals `VERSION` in `mcp_layer/server.py` (0.2.0). Bump both together: `tools/mcp_servers_lint.py` and `tools/test_mcp_servers_lint.py` fail when they differ.
+- **repository** points at `tools/console` in `bamr87/bamr87`.
+- **No `packages` or `remotes`.** The schema requires a package to name a registry (npm, PyPI, OCI, NuGet or MCPB), and this server is not published to any of them; a checkout runs it. A remote needs a URL, and the only HTTP endpoints are loopback or a quick tunnel whose hostname changes, which § 25.6 keeps out of git. How a checkout starts it is therefore recorded under `_meta` → `io.modelcontextprotocol.registry/publisher-provided`: transport `stdio`, the launch `tools/console/mcp.sh --fleet-compat` (what `.mcp.json` runs) from the repository root, and the environment variables it reads, by name only.
+
+`python3 tools/mcp_servers_lint.py check .` lints every committed `server.json` in the hub: the shape, the name, a specific version, a transport, no secret literal and no machine-local endpoint. It does not check the full JSON Schema, because `jsonschema` is not a hub dependency. To validate against the official schema, use a scratch virtualenv:
+
+```bash
+python3 -m venv /tmp/mcp-schema && /tmp/mcp-schema/bin/pip install -q jsonschema
+curl -fsS -o /tmp/mcp-schema/server.schema.json https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json
+/tmp/mcp-schema/bin/python -c 'import json,sys,jsonschema; jsonschema.validate(json.load(open(sys.argv[2])), json.load(open(sys.argv[1]))); print("valid")' \
+  /tmp/mcp-schema/server.schema.json tools/console/server.json
+```
+
 ## Tests
 
 ```bash
@@ -247,6 +265,7 @@ tools/console/mcp.sh --list-tools >/dev/null   # bootstrap .venv-mcp once
 .venv-mcp/bin/python tools/console/test_mcp_layer.py      # unit: mocked HTTP, the protocol, HTTP auth, scopes
 .venv-mcp/bin/python tools/console/smoke_mcp_layer.py     # live: stdio against the running console
 .venv-mcp/bin/python tools/console/smoke_mcp_layer.py --url http://127.0.0.1:4002/mcp   # live: the HTTP sidecar
+python3 tools/test_mcp_servers_lint.py                    # server.json: the lint, and its version equal to VERSION
 ```
 
 `test_mcp_layer.py` skips cleanly where `mcp` is not installed. It covers the scoped tools too: which tools each scope registers, the refusals (no confirm, an op off the allowlist, an undeclared parameter, a stale `plan_id`, a `stage` move), the running and hourly caps, the watchdog's cancel, the round trip of a plan and its `undo_plan`, and the audit's scrubbing. The smoke test lists tools and resources and calls a few read tools, printing sizes and top-level keys only. With `--url` it runs the remote handshake against a running HTTP server, reading the bearer token in-process, and fails when no tools are listed.
