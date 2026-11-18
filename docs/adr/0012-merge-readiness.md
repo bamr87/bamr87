@@ -1,6 +1,7 @@
 # ADR 0012 — Merge readiness: every pull request is checked, reviewed and adjusted before it merges, and says so in one place
 
-- **Status**: proposed
+- **Status**: accepted
+- **Accepted in**: https://github.com/bamr87/bamr87/pull/917 (merged 2026-11-18 by @bamr87)
 - **Date**: 2026-11-17
 - **Deciders**: proposed by an agent at the maintainer's request (2026-11-17: redesign the commenting, analysis and review of each pull request after it is marked ready and after its CI results, so that every check, review and adjustment is done before a merge)
 - **Related**: constitution § 12 (merge authority and the review gate), § 15 (evidence and the completeness review), § 19 (fleet PR review and comments), § 28.3 (direction review); HUB-117 (the PR queue); bamr87/bamr87#863 and #905 (who merges from the console), #880 (inline findings), #492 (QA Lead), #565 (bot identity)
