@@ -1064,6 +1064,247 @@ def test_lake_writers_run_one_at_a_time():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def _staged(jm, op, status, now, *, created_ago=0.0, started_ago=None, finished_ago=None, log_ago=None,
+            remote=False):
+    """A job placed in the manager's index as if it had run, its clock and its
+    log's last growth set back by the given seconds — no process behind it."""
+    import datetime as dt
+    job = core.Job(op, ["true"], remote, {})
+    job.log_path = jm.job_dir / f"{job.id}.log"
+    job.status = status
+    job.created = now - dt.timedelta(seconds=created_ago)
+    job.started = None if started_ago is None else now - dt.timedelta(seconds=started_ago)
+    job.finished = None if finished_ago is None else now - dt.timedelta(seconds=finished_ago)
+    if log_ago is not None:
+        job.log_path.write_text("$ true\n")
+        os.utime(job.log_path, (now.timestamp() - log_ago, now.timestamp() - log_ago))
+    jm.jobs[job.id] = job
+    jm.order.append(job.id)
+    return job
+
+
+def _codes(row):
+    return [d["code"] for d in row["diagnostics"]]
+
+
+def test_job_status_derives_state_ages_and_diagnostics():
+    """HUB-064 (FR60, #556): an agent holding a job's receipt reads what the job
+    is doing — a derived state, the seconds since it was sent and since its log
+    last grew, and why it may be slow — from GET /api/jobs/{id}/status, the
+    /api/jobs rows and job_status, instead of a bare `running` that says
+    nothing about a job that went quiet ten minutes ago."""
+    import datetime as dt
+    import live
+    tmp = Path(tempfile.mkdtemp())
+    now = dt.datetime.now(dt.timezone.utc)
+    try:
+        # no collector on this host: no collector_lag, wherever the tests run
+        with mock.patch.object(live, "SESSIONS", tmp / "no-collector" / "sessions.json"):
+            jm = core.JobManager(job_dir=tmp)
+            fresh = _staged(jm, "gaps", "running", now, created_ago=12, started_ago=10, log_ago=2)
+            quiet = _staged(jm, "gaps", "running", now, created_ago=600, started_ago=590, log_ago=300)
+            ok = _staged(jm, "gaps", "succeeded", now, created_ago=900, started_ago=890, finished_ago=880)
+            bad = {s: _staged(jm, "gaps", s, now, created_ago=50, started_ago=40, finished_ago=30)
+                   for s in ("failed", "cancelled", "interrupted")}
+
+            s = jm.status(fresh.id, now=now)
+            assert (s["state"], s["age_s"], s["idle_s"], s["stall_s"], s["diagnostics"]) == \
+                ("running", 12.0, 2.0, core.STALL_S, []), s
+            assert s["status"] == "running" and s["op"] == "gaps" and "argv" not in s, s
+
+            s = jm.status(quiet.id, now=now)
+            assert s["state"] == "stalled" and s["idle_s"] == 300.0 and _codes(s) == ["no_heartbeat"], s
+            assert "300 s" in s["diagnostics"][0]["detail"] and f"{core.STALL_S} s" in s["diagnostics"][0]["detail"]
+
+            s = jm.status(ok.id, now=now)
+            assert (s["state"], s["idle_s"], s["diagnostics"]) == ("done", None, []), s
+            for status, job in bad.items():
+                s = jm.status(job.id, now=now)
+                assert s["state"] == "failed" and s["status"] == status, s
+
+            # a log that has not grown since the job started still counts from the start
+            silent = _staged(jm, "gaps", "running", now, created_ago=200, started_ago=150)
+            assert jm.status(silent.id, now=now)["state"] == "stalled"
+
+            try:
+                jm.status("nope", now=now)
+            except KeyError:
+                pass
+            else:
+                raise AssertionError("an unknown job id answered")
+
+            # the /api/jobs rows carry the same fields; the index on disk does not
+            rows = {r["id"]: r for r in jm.list(now=now)}
+            assert rows[quiet.id]["state"] == "stalled" and rows[fresh.id]["idle_s"] == 2.0, rows[quiet.id]
+            assert {"state", "age_s", "idle_s", "stall_s", "diagnostics"} <= set(rows[ok.id]), rows[ok.id]
+            jm._save()
+            saved = json.loads((tmp / "jobs.json").read_text())
+            assert saved and not any("state" in r or "diagnostics" in r for r in saved), "derived fields persisted"
+            # the job page's tail carries them too
+            assert jm.tail(fresh.id)["job"]["state"] in ("running", "stalled")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_job_status_stall_threshold_is_per_op():
+    """A model session's stream can be quiet for minutes while one tool call
+    runs, so an op may raise its own threshold (OPS[op]["stall_s"])."""
+    import datetime as dt
+    import live
+    assert core.stall_threshold("loop-run") == 600 and core.stall_threshold("conflicts-resolve") == 600
+    assert core.stall_threshold("gaps") == core.STALL_S and core.stall_threshold("no-such-op") == core.STALL_S
+    tmp = Path(tempfile.mkdtemp())
+    now = dt.datetime.now(dt.timezone.utc)
+    core.OPS["_test-quiet"] = dict(title="test: quiet", group="observe", argv=lambda p: ["true"],
+                                   needs_token=False, stall_s=400)
+    try:
+        with mock.patch.object(live, "SESSIONS", tmp / "absent.json"):
+            jm = core.JobManager(job_dir=tmp)
+            job = _staged(jm, "_test-quiet", "running", now, created_ago=330, started_ago=320, log_ago=300)
+            s = jm.status(job.id, now=now)
+            assert (s["state"], s["stall_s"], s["diagnostics"]) == ("running", 400, []), s
+            s = jm.status(job.id, now=now + dt.timedelta(seconds=200))
+            assert s["state"] == "stalled" and _codes(s) == ["no_heartbeat"], s
+    finally:
+        core.OPS.pop("_test-quiet", None)
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_job_status_names_the_job_a_queued_one_waits_on():
+    """A queued job behind a live job holding the same key (a lake writer, one
+    loop's run) or the one GitHub-write slot says which job it waits on."""
+    import datetime as dt
+    import live
+    tmp = Path(tempfile.mkdtemp())
+    now = dt.datetime.now(dt.timezone.utc)
+    try:
+        with mock.patch.object(live, "SESSIONS", tmp / "absent.json"):
+            jm = core.JobManager(job_dir=tmp)
+            holder = _staged(jm, "lake-sync", "running", now, created_ago=60, started_ago=59, log_ago=1)
+            waiting = _staged(jm, "lake-sessions", "queued", now, created_ago=20)
+            s = jm.status(waiting.id, now=now)
+            assert (s["state"], s["idle_s"], _codes(s)) == ("queued", 20.0, ["queue_wait"]), s
+            assert holder.id in s["diagnostics"][0]["detail"] and "lake" in s["diagnostics"][0]["detail"], s
+
+            writer = _staged(jm, "dispatch", "running", now, created_ago=30, started_ago=29, log_ago=1, remote=True)
+            behind = _staged(jm, "deploy-gaps", "queued", now, created_ago=5, remote=True)
+            s = jm.status(behind.id, now=now)
+            assert _codes(s) == ["queue_wait"] and writer.id in s["diagnostics"][0]["detail"], s
+            assert "GitHub-write" in s["diagnostics"][0]["detail"], s
+
+            # nothing ahead of it: queued, no reason to give
+            alone = _staged(jm, "gaps", "queued", now, created_ago=1)
+            assert jm.status(alone.id, now=now)["diagnostics"] == []
+            holder.status = "succeeded"
+            assert jm.status(waiting.id, now=now)["diagnostics"] == [], "a finished holder still blamed"
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_job_status_flags_a_run_past_its_ops_typical_duration():
+    """long_step: running past the p90 of the op's recent successful runs (and
+    past a floor, so a 2-second op running 5 seconds is not news)."""
+    import datetime as dt
+    import live
+    tmp = Path(tempfile.mkdtemp())
+    now = dt.datetime.now(dt.timezone.utc)
+    try:
+        with mock.patch.object(live, "SESSIONS", tmp / "absent.json"):
+            jm = core.JobManager(job_dir=tmp)
+            for took in (35, 40, 45):
+                _staged(jm, "health", "succeeded", now, created_ago=3000, started_ago=2000, finished_ago=2000 - took)
+            _staged(jm, "health", "failed", now, created_ago=1000, started_ago=900, finished_ago=1)   # not typical
+            long = _staged(jm, "health", "running", now, created_ago=101, started_ago=100, log_ago=1)
+            s = jm.status(long.id, now=now)
+            assert (s["state"], _codes(s)) == ("running", ["long_step"]), s
+            assert "100 s" in s["diagnostics"][0]["detail"] and "45 s p90" in s["diagnostics"][0]["detail"], s
+            short = _staged(jm, "health", "running", now, created_ago=41, started_ago=40, log_ago=1)
+            assert jm.status(short.id, now=now)["diagnostics"] == [], "flagged inside the op's p90"
+
+            # under three successful runs there is no "typical" to be past
+            for _ in range(2):
+                _staged(jm, "gaps", "succeeded", now, created_ago=500, started_ago=500, finished_ago=495)
+            young = _staged(jm, "gaps", "running", now, created_ago=60, started_ago=60, log_ago=1)
+            assert jm.status(young.id, now=now)["diagnostics"] == [], "two runs called typical"
+            # a quick op is held to the floor
+            _staged(jm, "gaps", "succeeded", now, created_ago=500, started_ago=500, finished_ago=498)
+            soon = _staged(jm, "gaps", "running", now, created_ago=20, started_ago=20, log_ago=1)
+            assert jm.status(soon.id, now=now)["diagnostics"] == [], "a 20 s run called long"
+            assert _codes(jm.status(young.id, now=now)) == ["long_step"]
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_job_status_reports_a_lagging_live_collector():
+    """collector_lag: the live collector's sessions.json is older than live.py
+    calls stale, so a session lookup a live job makes reads old data. A fresh
+    file, a missing one, or a finished job says nothing."""
+    import datetime as dt
+    import live
+    tmp = Path(tempfile.mkdtemp())
+    now = dt.datetime.now(dt.timezone.utc)
+    sessions = tmp / "sessions.json"
+    sessions.write_text('{"sessions": []}')
+    try:
+        with mock.patch.object(live, "SESSIONS", sessions):
+            jm = core.JobManager(job_dir=tmp)
+            running = _staged(jm, "gaps", "running", now, created_ago=10, started_ago=10, log_ago=1)
+            queued = _staged(jm, "gaps", "queued", now, created_ago=3)
+            done = _staged(jm, "gaps", "succeeded", now, created_ago=10, started_ago=10, finished_ago=5)
+            os.utime(sessions, (now.timestamp() - 180, now.timestamp() - 180))
+            s = jm.status(running.id, now=now)
+            assert _codes(s) == ["collector_lag"] and "180 s" in s["diagnostics"][0]["detail"], s
+            assert _codes(jm.status(queued.id, now=now)) == ["collector_lag"]
+            assert jm.status(done.id, now=now)["diagnostics"] == [], "a finished job blamed on the collector"
+            assert live.sessions()["collector"] == "stale", "live.py and the job status disagree on stale"
+            os.utime(sessions, (now.timestamp() - 2, now.timestamp() - 2))
+            assert jm.status(running.id, now=now)["diagnostics"] == []
+            sessions.unlink()
+            assert jm.status(running.id, now=now)["diagnostics"] == [], "no collector read as a lagging one"
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_job_status_route_answers_and_unknown_ids_404():
+    """Over HTTP: GET /api/jobs/{id}/status is the job's status document,
+    /api/jobs rows carry the same fields, and an unknown id is a 404."""
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    import datetime as dt
+    import live
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+
+    token = os.environ.get("DASH_CONSOLE_TOKEN")
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001",
+                        headers={"Authorization": f"Bearer {token}"} if token else {})
+    jm = console_app.jobs
+    now = dt.datetime.now(dt.timezone.utc)
+    tmp = Path(tempfile.mkdtemp())
+    job = _staged(jm, "gaps", "running", now, created_ago=700, started_ago=650, log_ago=400)
+    try:
+        with mock.patch.object(live, "SESSIONS", tmp / "absent.json"):
+            r = client.get(f"/api/jobs/{job.id}/status")
+            assert r.status_code == 200, r.text
+            doc = r.json()
+            assert doc["id"] == job.id and doc["state"] == "stalled" and _codes(doc) == ["no_heartbeat"], doc
+            assert doc["age_s"] >= 700 and doc["idle_s"] >= 400 and doc["stall_s"] == core.STALL_S, doc
+            r = client.get("/api/jobs/0123456789ab/status")
+            assert r.status_code == 404 and r.json()["detail"] == "no such job", r.text
+            row = next(j for j in client.get("/api/jobs").json() if j["id"] == job.id)
+            assert row["state"] == "stalled" and _codes(row) == ["no_heartbeat"], row
+            assert client.get(f"/api/jobs/{job.id}").json()["job"]["state"] == "stalled"
+    finally:
+        jm.jobs.pop(job.id, None)
+        if job.id in jm.order:
+            jm.order.remove(job.id)
+        job.log_path.unlink(missing_ok=True)
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_docker_ops_say_why_they_cannot_run_instead_of_failing():
     """In the console's own container there is no compose plugin and no
     socket, so observe-up failed every time with "unknown flag: --profile".

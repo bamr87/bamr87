@@ -174,6 +174,50 @@ class ReadTools(unittest.TestCase):
         self.assertTrue(p["log"].endswith("END"))
         self.assertEqual(len(p["log"]), 10)
 
+    # HUB-064 (FR60, #556): an agent holding a job's receipt reads its state, ages and diagnostics.
+    STATUS = {"id": "j1", "op": "health", "status": "running", "state": "stalled", "age_s": 700.0,
+              "idle_s": 400.0, "stall_s": 120,
+              "diagnostics": [{"code": "no_heartbeat", "detail": "no log output for 400 s (stalled past 120 s)"}]}
+
+    def test_job_status_reads_the_status_route(self):
+        fc = FakeConsole({"/api/jobs/j1/status": self.STATUS})
+        res, text = call(srv.build_server(fc), "job_status", {"job_id": "j1"})
+        self.assertFalse(res.is_error if hasattr(res, "is_error") else res.isError)
+        self.assertEqual(payload(res, text), self.STATUS)
+        self.assertEqual(fc.calls[-1][:2], ("GET", "/api/jobs/j1/status"))
+
+    def test_job_status_unknown_job_and_an_older_console_are_tool_errors(self):
+        gone = ConsoleError("console GET /api/jobs/zz/status -> 404: no such job", 404)
+        res, text = call(srv.build_server(FakeConsole({"/api/jobs/zz/status": gone})), "job_status", {"job_id": "zz"})
+        self.assertTrue(res.is_error if hasattr(res, "is_error") else res.isError)
+        self.assertIn("no such job", text)
+        res, text = call(srv.build_server(FakeConsole()), "job_status", {"job_id": "j1"})   # route absent
+        self.assertTrue(res.is_error if hasattr(res, "is_error") else res.isError)
+        self.assertIn("#556", text)
+        self.assertIn("job_log", text)
+
+    def test_jobs_list_filters_by_derived_state_beside_raw_status(self):
+        rows = [{"id": "a", "status": "running", "state": "stalled"},
+                {"id": "b", "status": "running", "state": "running"},
+                {"id": "c", "status": "cancelled", "state": "failed"},
+                {"id": "d", "status": "succeeded", "state": "done"}]
+        fc = FakeConsole({"/api/jobs": rows})
+        s = srv.build_server(fc)
+        self.assertEqual([j["id"] for j in payload(*call(s, "jobs_list", {"state": "stalled"}))["items"]], ["a"])
+        self.assertEqual([j["id"] for j in payload(*call(s, "jobs_list", {"state": "failed"}))["items"]], ["c"])
+        self.assertEqual([j["id"] for j in payload(*call(s, "jobs_list", {"status": "running"}))["items"]], ["a", "b"])
+        both = payload(*call(s, "jobs_list", {"status": "running", "state": "running"}))
+        self.assertEqual([j["id"] for j in both["items"]], ["b"])
+        self.assertEqual(payload(*call(s, "jobs_list"))["count"], 4)
+        res, _ = call(s, "jobs_list", {"state": "sleeping"})
+        self.assertTrue(res.is_error if hasattr(res, "is_error") else res.isError)
+
+    def test_job_status_is_a_read_tool(self):
+        tools = {t.name: t for t in anyio.run(srv.build_server(FakeConsole(), allow_writes=False, scopes="").list_tools)}
+        self.assertIn("job_status", tools)
+        self.assertTrue(tools["job_status"].annotations.read_only_hint)
+        self.assertIn("job_status", srv.INSTRUCTIONS)
+
     def test_live_snapshot_404_explains_dependency(self):
         res, text = call(srv.build_server(FakeConsole()), "live_snapshot")
         self.assertTrue(res.is_error if hasattr(res, "is_error") else res.isError)

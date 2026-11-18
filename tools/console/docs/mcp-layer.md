@@ -170,7 +170,8 @@ Read tools are annotated `readOnlyHint: true`. Lists come back as `{count, items
 | `agent_activity` | `/api/lake/review` | Local sessions + CI agent runs, analysed (`days`, `repo`, `limit`) |
 | `lake_recall` | `/api/lake/recall` | Past local Claude Code sessions by keyword (`query` cut to 300 characters, `days` up to 3650, `repo`, `limit` up to 50): every word must match the redacted text of the session's first prompt or one assistant turn, one result per session, best match first, each with a redacted excerpt of at most 300 characters; the lake is opened read-only ([docs/HARNESS-OPS.md](../../../docs/HARNESS-OPS.md#the-local-stack)) |
 | `ops_list` | `/api/ops` | The allowlisted operations and their params |
-| `jobs_list` | `/api/jobs` | Recent jobs (`status`, `limit`) |
+| `jobs_list` | `/api/jobs` | Recent jobs, each with its derived `state`, `age_s`, `idle_s`, `stall_s` and `diagnostics` (`status` filters the raw status, `state` the derived one: queued, running, stalled, done, failed; `limit`) |
+| `job_status` | `/api/jobs/{id}/status` | What one job is doing now, without its log: `state` (a running job whose log has not grown for `stall_s` is `stalled`), `age_s`, `idle_s` and `diagnostics` (`queue_wait`, `collector_lag`, `long_step`, `no_heartbeat`) — [job-status.md](job-status.md) |
 | `job_log` | `/api/jobs/{id}` | A job's status and log tail (`offset`, `tail_chars`) |
 | `spend_vs_budget` | `/api/state` `usage` + `contract` | Claude spend and Actions minutes vs the `_data/fleet.yml` budgets |
 | `lake_status` | `/api/lake` | The data lake (traces plane) |

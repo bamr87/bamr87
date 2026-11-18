@@ -87,7 +87,7 @@ function Thread({ job }: { job: Job }) {
   return (
     <Paper p="sm">
       <Group justify="space-between" mb={4} wrap="wrap" gap="xs">
-        <Group gap="xs"><JobStatus status={job.status} /><Text size="xs" c="dimmed">{when(job.created)}</Text></Group>
+        <Group gap="xs"><JobStatus status={job.status} state={job.state} /><Text size="xs" c="dimmed">{when(job.created)}</Text></Group>
         <Anchor component={Link} to={to.job(job.id)} size="xs">the session's log</Anchor>
       </Group>
       {tail.data?.assist

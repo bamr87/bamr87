@@ -37,6 +37,15 @@ export function duration(ms: number | null | undefined): string {
   return s < 90 ? `${s}s` : `${(s / 60).toFixed(1)}m`;
 }
 
+/** A span in seconds, read at a glance → "45s" / "12m" / "3.4h" / "2d". */
+export function seconds(s: number | null | undefined): string {
+  if (s == null || !Number.isFinite(s)) return dash;
+  if (s < 90) return `${Math.round(s)}s`;
+  if (s < 90 * 60) return `${Math.round(s / 60)}m`;
+  if (s < 48 * 3600) return `${(s / 3600).toFixed(1)}h`;
+  return `${Math.round(s / 86400)}d`;
+}
+
 /** The UTC hours a 5-field cron fires in; hourly-ish crons count in every hour. */
 export function cronHours(cron: string | null | undefined): number[] {
   const f = String(cron ?? '').trim().split(/\s+/);

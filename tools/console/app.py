@@ -350,6 +350,8 @@ def ops() -> list[dict]:
 
 @app.get("/api/jobs", dependencies=[Depends(require_token)])
 def list_jobs() -> list[dict]:
+    """Every job, newest first, each with its derived state, age_s, idle_s,
+    stall_s and diagnostics (docs/job-status.md)."""
     return jobs.list()
 
 
@@ -381,6 +383,18 @@ def clear_jobs(status: str = Query(default="finished", max_length=64)) -> dict:
 def job_log(job_id: str, offset: int = Query(default=0, ge=0)) -> dict:
     try:
         return jobs.tail(job_id, offset)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="no such job")
+
+
+@app.get("/api/jobs/{job_id}/status", dependencies=[Depends(require_token)])
+def job_status(job_id: str) -> dict:
+    """What one job is doing now, without its log: the raw status, then state
+    (queued, running, stalled, done, failed), age_s, idle_s, stall_s and
+    diagnostics (queue_wait, collector_lag, long_step, no_heartbeat) —
+    docs/job-status.md. The MCP's job_status reads this."""
+    try:
+        return jobs.status(job_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="no such job")
 
