@@ -51,18 +51,21 @@ if [[ "${CONSOLE_SKIP_INSTALL:-0}" != "1" ]]; then
 fi
 
 # The page (web/, React + Mantine) is built into web/dist, which is gitignored.
-# Rebuild whenever a source file is newer than the last build — always-latest
-# like the venv (no lockfile: web/.npmrc sets package-lock=false). Without npm
+# Rebuild whenever a source file is newer than the last build or a dependency
+# moved — always-latest like the venv (no lockfile: web/.npmrc sets
+# package-lock=false; web-deps.sh upgrades an install that exists). Without npm
 # the API still serves, and / explains how to build the page.
 WEB="$HERE/web"
 if [[ "${CONSOLE_SKIP_WEB:-0}" != "1" ]]; then
   if command -v npm >/dev/null 2>&1; then
     stamp="$WEB/dist/index.html"
-    if [[ ! -f "$stamp" ]] || [[ -n "$(find "$WEB/src" "$WEB/index.html" "$WEB/package.json" "$WEB/vite.config.ts" -newer "$stamp" -print -quit 2>/dev/null)" ]]; then
+    # Latest on every start, like the venv above: an install that exists is
+    # upgraded in place, and a page built on older releases is rebuilt.
+    # shellcheck source=tools/console/web-deps.sh
+    source "$HERE/web-deps.sh"
+    web_deps "$WEB" || true
+    if [[ ! -f "$stamp" ]] || [[ "${WEB_DEPS_CHANGED:-0}" == "1" ]] || [[ -n "$(find "$WEB/src" "$WEB/index.html" "$WEB/package.json" "$WEB/vite.config.ts" -newer "$stamp" -print -quit 2>/dev/null)" ]]; then
       echo "console: building the page (web/ → web/dist)"
-      if [[ ! -d "$WEB/node_modules" || "$WEB/package.json" -nt "$WEB/node_modules" ]]; then
-        (cd "$WEB" && npm install --no-package-lock --loglevel=error) && touch "$WEB/node_modules"
-      fi
       # A build can fail on a node_modules that is present but broken — e.g.
       # TypeScript's or Vite's native binary for THIS platform missing after an
       # always-latest upgrade — so reinstall once and retry before giving up.

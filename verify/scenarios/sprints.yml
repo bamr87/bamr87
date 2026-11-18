@@ -1,0 +1,17 @@
+# The Sprints page: the live expedite-sprint records (constitution § 27.7), read-only, on the published site.
+id: sprints
+feature: HUB-085
+title: "The Sprints page renders the live expedite-sprint record, or says plainly that none is declared, and writes nothing"
+description: "/sprints reads every record in _data/sprints/ (sprint/v1, tools/sprint_record.py): the three gates with who and when, the phase, the items and pull requests, spend against the cap labelled API-equivalent (estimate), the trip wires, the DORA placeholder and the retro. While no sprint is declared it shows an empty state that says how one starts. Records change only by pull request, so the page holds no form and no input; nothing scrolls sideways. The fixture render (an active sprint and one stopped at its cap, tools/test_sprint_record_fixture.yml) is recorded in the evidence README."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_"]
+steps:
+  - goto: /sprints
+  - expect: { status: 200 }
+  - wait: { selector: "[data-testid='sprints-empty'], [data-testid='sprint-record']" }
+  - expect: { visible: "h1:has-text('Sprints')" }
+  - expect: { text: "changes only by a pull request" }
+  - expect: { text: "API-equivalent (estimate)" }
+  - expect: { count: { selector: "[data-testid='sprints-page'] form, [data-testid='sprints-page'] input, [data-testid='sprints-page'] textarea", max: 0 } }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: sprints

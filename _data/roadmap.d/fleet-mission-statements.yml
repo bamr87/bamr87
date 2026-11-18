@@ -1,0 +1,19 @@
+id: FF-NEW
+slug: fleet-mission-statements
+title: Fan the three-mission constitution § 1 format out to every governed fleet repo
+project: bamr87
+repo_url: https://github.com/bamr87/bamr87
+status: proposed
+priority: P2
+effort: M
+category: standards
+problem: >-
+  On 2026-11-16 no bamr87-owned default branch yet used one direction statement plus exactly three numbered missions in constitution § 1; most governed repos still have a single mission paragraph from amendment 0001, and only fredgar-ai#153 and law-ai#262 are open with the new format.
+proposal: >-
+  After this hub amendment is ratified, open one fan-out PR per governed repo that rewrites constitution § 1 to the standard, adds a numbered amendment in that repo, and aligns the README and AGENTS.md one-liners so they match and link to § 1. Repos that already have an open mission PR keep that PR rather than getting a second one.
+acceptance:
+  - "The hub amendment is ratified and the hub's own § 1, README and AGENTS.md one-liners match."
+  - "Every governed, non-exempt repo has either a merged or an open amendment PR in the three-mission format, and its README and AGENTS.md one-liners link to constitution § 1."
+source: manual
+created: 2026-11-16
+issue_url: null

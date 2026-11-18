@@ -145,10 +145,10 @@ The AI runner kit — the fleet's one model step and one lane shape, **consumed 
 
 | File | Purpose |
 | --- | --- |
-| `../../.github/actions/claude-run/` | The runtime: `action.yml` + `run.sh`. `uses: bamr87/bamr87/.github/actions/claude-run@v2` with `prompt`, `agent`, `tools`, `mcp`, `system`, `out`, `model`, `max-turns`, `max-budget-usd`, `permission-mode`. Claude Code first (OAuth-first), consumer-owned API fallback and metering when present, exit 1 on attempted-and-failed |
+| `../../.github/actions/claude-run/` | The runtime: `action.yml` + `run.sh`. `uses: bamr87/bamr87/.github/actions/claude-run@v2` with `prompt`, `agent`, `tools`, `mcp`, `system`, `out`, `model`, `max-turns`, `max-budget-usd`, `permission-mode`. Claude Code first (OAuth-first), a transient failure that billed nothing retried in-run on the same credential (`AI_TRANSIENT_RETRIES`, `AI_TRANSIENT_BACKOFF`), consumer-owned API fallback and metering when present, exit 1 on attempted-and-failed |
 | `../../.github/workflows/ai-lane.yml` | The reusable lane (`workflow_call`): kill switch (`vars.<SWITCH>`, dispatch bypasses), bot guard, named concurrency, probed `GH_PAT` → `GH_TOKEN`, runtimes, pre/post hooks, the model step, the result-file assertion, artifact |
 | `ai-lane.template.yml` | A caller of the lane — copy one per lane, fill `__LANE__`, `__SWITCH__`, `__AGENT__`, `__PROJECT_NAME__`, `__CRON__` (stamped `# kit: ai-runner v__KIT_VERSION__`); a filled copy passes the harness standard |
-| `tests/contract.sh` | The runner's contract tests, 33 cases (stubbed `claude`, no credential, no network); CI: `ai-runner-contract.yml`. A consumer that still vendors the runner proves parity with `AI_RUNNER_SUT=scripts/ai/run.sh bash tests/contract.sh` |
+| `tests/contract.sh` | The runner's contract tests, 41 cases (stubbed `claude`, no credential, no network); CI: `ai-runner-contract.yml`. A consumer that still vendors the runner proves parity with `AI_RUNNER_SUT=scripts/ai/run.sh bash tests/contract.sh` |
 | `archive/ai-lane-0.1.0.yml`, `archive/ai-lane-0.2.1.yml` | The caller shapes before 0.3.0 (one body, two stamps), for `--upgrade` byte-comparison |
 
 What stays in the consumer repo, by design: `_data/ai.yml` (`model:`), `.claude/agents/*.md`, `scripts/ai/usage.rb` + `usage_report.rb` (metering, optional), `scripts/ai/api_call.rb|py` (API fallback, optional), `.prose-excludes`, and the repo's own verification harness (passed as `pre-run`/`post-run`). Reference implementation: [bamr87/lifehacker.dev](https://github.com/bamr87/lifehacker.dev) (`docs/AI-USAGE.md`, `scripts/ai/README.md`).
@@ -222,4 +222,4 @@ The spec-driven (AO-SDLC) kit that bamr87/law-ai and bamr87/gitorio run (spec: [
 
 ## `ai-ready/`
 
-The AI-ready foundation kit (constitution § 16, proposed amendment `ai-ready-foundation`). Spec only for now: see [`ai-ready/README.md`](ai-ready/README.md) for the manifest, the generators, the per-service and per-content-site MCP servers, `server.json`, CLI `--json`, the AIEO score threshold, and the local stdio MCP server each content site ships.
+The AI-ready foundation kit (constitution § 16, amendment 0013 `ai-ready-foundation`). Its first file is `agent-card.template.json`, an A2A v1.0 Agent Card for repos that run an agent; the rest is still spec. See [`ai-ready/README.md`](ai-ready/README.md) for the manifest, the generators, the per-service and per-content-site MCP servers, `server.json`, CLI `--json`, the AIEO score threshold, and the local stdio MCP server each content site ships: its Files table marks each file present or planned with the issue that builds it, and `test_ai_ready_kit.py` holds that table to the tree.

@@ -40,7 +40,9 @@ export function sourceText(it: WorkItem): string {
     case 'computed': return `Computed by the issue pipeline${it.detail.score != null ? ` (score ${it.detail.score})` : ''}.`;
     case 'label': return 'From its priority label. This snapshot predates the pipeline scoring every issue.';
     case 'default': return it.kind === 'spec' ? 'Default for a spec package (in progress → P1).' : 'No priority signal; the default.';
-    case 'derived': return 'Derived from the PR: red CI → P1, dependabot → P3, otherwise P2.';
+    case 'derived': return it.detail.clears?.length
+      ? 'Derived from the PR: a fix takes the strongest priority among the PRs it clears, and sorts ahead of them.'
+      : 'Derived from the PR: red CI → P1, dependabot → P3, otherwise P2.';
     case 'roadmap': return 'From _data/roadmap.yml.';
     case 'severity': return 'From its BACKLOG.md severity (high → P1, med → P2, low → P3).';
     default: return '';
@@ -110,6 +112,7 @@ function Chips({ it, showLane, skipped, pinPos }: { it: WorkItem; showLane?: boo
     if (it.size) chips.push(<Badge key="sz" size="xs" variant="default">{it.size.replace('size:', '')}</Badge>);
   }
   if (it.kind === 'pr') {
+    if (d.clears?.length) chips.push(<Tooltip key="fix" label={`Clears ${d.clears.join(', ')}${d.merge_ready ? '' : ` once it is mergeable (${d.mergeable_state ?? 'unknown'})`}`}><Badge size="xs" color="teal" variant="light">{d.merge_ready ? 'merge to clear' : 'fix'}</Badge></Tooltip>);
     if (d.ci === 'fail') chips.push(<Badge key="ci" size="xs" color="red" variant="light">CI failing</Badge>);
     if (d.draft) chips.push(<Badge key="dr" size="xs" variant="default">draft</Badge>);
     if (d.dependabot) chips.push(<Badge key="dp" size="xs" variant="default">dependabot</Badge>);

@@ -104,6 +104,16 @@ Enrolment is the existing registration path plus two levers — nothing new to r
 
 Requires `FLEET_TOKEN` with contents + pull-requests + **workflows** write on the targets (GitHub refuses a push touching `.github/workflows/*` without it).
 
+### Hub pins that do not resolve
+
+A fleet caller that pins `bamr87/bamr87/.github/workflows/<file>@<ref>` (or an action) at a ref without that file fails at startup with no job, and the failure names nothing. law-ai's CI on `main` failed this way from 2026-10-30, with `spec-gate.yml@v2` pinned while `v2` predated the file (FF-0037, #610). Three places now resolve these pins through one module, [`hub_refs.py`](../.github/scripts/dash-gen/hub_refs.py). Each resolves a distinct target@ref once per run, to `ok`, `ref-missing`, `file-missing-at-ref` or `unverified`:
+
+- **The daily inventory.** The scan already reads every owned repo's workflow files, so each row of `_data/harness_registry.yml` also carries `hub_refs` (path, line, target, ref, status, and the computed `fix` when a pin is broken). The pins are resolved against GitHub; the hub is public, so a 404 there is authoritative. A broken pin becomes a `hub-ref-broken` attention item, severity 88, one per repo and target@ref, and its `action` is the fix: when the file is on `main`, cut the next `vX.Y.0` and move `vX`; when the ref was never cut, cut it or repin; when the file is gone from `main` too, repin to its replacement. An unverified pin is not a finding. A repo the token cannot read stays `scanned: false`. Files past `inventory.max_workflow_files`, and files the scan could not fetch, are counted in `hub_refs_unread_files`. Either way they are unread, never clean, and the totals carry `hub_refs`, `hub_refs_broken`, `hub_refs_unverified`, `hub_refs_unread_repos` and `hub_refs_unread_files`.
+- **Drift check (q).** On every pull request it resolves the pins in `templates/` against the hub's own tags, offline, and warns only. Under `--remote`/`--ci` it also lists the broken fleet callers from the committed inventory, with no API call.
+- **The fan-out pre-flight.** `tools/fanout.sh` resolves the kit's caller templates before it clones a target. The dry run names an unresolved pin; `--apply` refuses to run until it resolves.
+
+The release rules these checks serve are in [WORKFLOW-VERSIONING.md](WORKFLOW-VERSIONING.md#pins-resolve-before-they-ship).
+
 ## Control throughput
 
 Scheduled agent work is a **standing commitment** — it runs whether or not anyone asked that day — so it is the half the contract caps (`harnesses.throughput`):
@@ -160,6 +170,7 @@ GitHub  ──  runs · jobs · steps · run logs · issues · workflow files ·
 .dash-lake/fleet.sqlite  ◀──────  Harness Console :4001 reads it (/api/lake), runs every op as a job
    │                     ◀──────  tools/dash lake status
    │                     ◀──────  tools/dash lake review   (BOTH planes unified · offline · no Phoenix needed)
+   │                     ◀──────  tools/dash lake recall   (past sessions by keyword · read-only · redacted excerpts)
    │  tools/dash lake export      (OpenInference spans · OTLP/HTTP · deterministic trace ids · export ledger)
    ▼
 Phoenix :6006            traces: workflow → job → step → Claude agent (model · turns · cost) → tool calls
@@ -174,12 +185,13 @@ Pages (bamr87.github.io/bamr87) = the console's page built static, read-only unt
 | **Data lake** | `.dash-lake/fleet.sqlite` (gitignored — it holds logs): the fleet's GitHub records extracted for local management and deployment — repos, workflow files (classified: kind, auth, kill switch, GitFactory provenance), `.factory/**` + `fleet.manifest.yml`, runs → jobs → steps, run-log entries, the Claude facts parsed from them (model, session id, turns, cost, tool grants — from claude-code-action's output and the hub loops' claude-cost echo, summed over every Claude call in a run), issues/PRs — plus the export ledger | `tools/dash lake sync [--days 7] [--repo NAME] [--jobs ai\|all\|none] [--logs ai\|all\|none]` | — |
 | **Local sessions** | The same lake's `sessions` / `session_turns` / `session_tools` tables: this machine's Claude Code transcripts — one row per session (repo, branch, models, turns, tokens, cost, first prompt), per assistant turn, and per tool call (closed by its `tool_result`, so errors and durations are real). Keyed on the SAME trace key the exporter uses, so a stored session joins to its Phoenix trace | `tools/dash lake sessions [--days 30] [--repo NAME] [--force]` | — |
 | **Review** | The analysis layer over both planes — cost, turns, tool histogram with error counts, CI failures and permission denials, top sessions/runs, and ranked findings. A CI run whose Claude cost cannot be read is **unknown**, never $0; skipped and no-job runs are a real $0. Pure SQL over the lake: no network, no Phoenix, no re-read of `~/.claude` | `tools/dash lake review [--days 30] [--repo NAME] [--json]` | — |
+| **Recall** | Keyword search over the stored local sessions: every word of the query must appear in a session's first prompt or in one of its assistant turns, one result per session, best match first (FTS5 bm25; a substring match, newest first, on a sqlite built without FTS5). Each result carries the session key, id, repo, start and end, where it matched and an excerpt of at most 300 characters, redacted with the context pack's Scrubber before it is clipped (`$HOME` and any `/Users/<name>` → `~`, credential shapes masked). Only that redacted text is indexed and matched, so a query cannot probe what the redaction hides (a masked token, a home's user name, an address). The lake is attached `mode=ro` and the index lives in memory for one call, so recall never writes the lake; no network. The console serves it as `/api/lake/recall` and the MCP tool `lake_recall` | `tools/dash lake recall --query WORDS [--days 30] [--repo NAME] [--limit 10] [--json]` | — |
 | **Phoenix** | [Arize Phoenix](https://github.com/Arize-ai/phoenix), the traceability store: trace trees, latency, token and cost breakdowns per project. SQLite-backed in the `phoenix-data` volume; loopback-only ports | `docker compose up -d phoenix` | 6006 (UI + OTLP/HTTP), 4317 (OTLP/gRPC) |
 | **Log plane** | Elasticsearch + Logstash + Kibana + Filebeat: every line the fleet's CI and this machine's containers produced, replayed from the lake and autodiscovered by label. Opt-in behind `--profile elk`; loopback-only, never in CI — [`docs/OBSERVABILITY.md`](./OBSERVABILITY.md) | `tools/dash observe up` | 5601 (Kibana), 9200 (ES) |
 | **Metrics** | Grafana over the same indices — volume, error rate, agent spend by model, index growth against the disk budget. Prometheus joins it as a second datasource under FF-0003 | same profile | 3001 |
 | **Public site** | The console's page built static exactly as GitHub Pages publishes it — a snapshot of the console's documents; a visitor can connect GitHub or a running console from it ([CONSOLE-PAGES.md](CONSOLE-PAGES.md)) | `tools/dash serve` | 4000 |
 
-`dash-gen lake` ([`fleet_lake.py`](../.github/scripts/dash-gen/fleet_lake.py)) is the module behind the middle rows: `sync` and `sessions` extract (the CI plane and the local plane), `review` analyzes, `status` reports (`--json` is the console's `/api/lake` document), `export` ships. **Extract before you analyze** — `review` reads only the lake, which is what makes it reproducible, offline, and independent of whether Phoenix is up; `sessions` is separately idempotent (a transcript whose mtime has not moved is skipped, and a resumed session has its turns REPLACED rather than appended, so the rows mirror the transcript instead of accumulating it). `session_facts` and `build_session_spans` parse the same records through the same helpers, so what you review and what you trace can never disagree. The lake is **local-only by construction** — `.dash-lake/` is gitignored, the daily pulse never runs it, and nothing in it is published — which is exactly what lets it hold run logs the committed `_data/*.yml` aggregates deliberately leave out.
+`dash-gen lake` ([`fleet_lake.py`](../.github/scripts/dash-gen/fleet_lake.py)) is the module behind the middle rows: `sync` and `sessions` extract (the CI plane and the local plane), `review` analyzes, `recall` searches the stored sessions by keyword, `status` reports (`--json` is the console's `/api/lake` document), `export` ships. **Extract before you analyze** — `review` reads only the lake, which is what makes it reproducible, offline, and independent of whether Phoenix is up; `sessions` is separately idempotent (a transcript whose mtime has not moved is skipped, and a resumed session has its turns REPLACED rather than appended, so the rows mirror the transcript instead of accumulating it). `session_facts` and `build_session_spans` parse the same records through the same helpers, so what you review and what you trace can never disagree. The lake is **local-only by construction** — `.dash-lake/` is gitignored, the daily pulse never runs it, and nothing in it is published — which is exactly what lets it hold run logs the committed `_data/*.yml` aggregates deliberately leave out.
 
 ### In GitFactory's vocabulary
 
@@ -205,6 +217,7 @@ docker compose up -d phoenix console      # the trace store + the front end
 tools/dash lake sync --days 7             # extract the CI plane (gh auth login, or GH_TOKEN)
 tools/dash lake sessions                  # extract the local plane (~/.claude transcripts)
 tools/dash lake review                    # analyze both, offline — no Phoenix required
+tools/dash lake recall --query 'fts5'     # find past sessions by keyword (read-only, redacted excerpts)
 tools/dash lake export --local --dry-run  # preview: traces, span counts, ids
 tools/dash lake export --local            # ship; then open http://127.0.0.1:6006/projects
 # In the compose console, ~/.claude is mounted read-only for exactly these two commands;
@@ -222,6 +235,8 @@ The harness standard (2026-11-11) is additive too, so the marker stays `harness-
 - `totals.ai_workflows`, `mention_handlers`, `scheduled_agents` and the throughput estimate count live harnesses only. The workflows of a repo GitHub has archived are still listed, with `lever: retire`.
 - `deployable` is now also false for a repo the registry marks archived, so `--gaps` never offers one to the fan-out.
 
+Hub pins (FF-0037) are additive as well, and the marker holds. New keys: on each scanned `repos[]` row, `hub_refs` (a list of `path`, `line`, `kind`, `target`, `ref`, `uses` and `status`, plus `detail` and `fix` when they apply) and `hub_refs_unread_files`; five `totals` (`hub_refs`, `hub_refs_broken`, `hub_refs_unverified`, `hub_refs_unread_repos`, `hub_refs_unread_files`); and the `hub-ref-broken` attention kind. A row from a scan taken before this change has no `hub_refs` key, and `hub_refs.py fleet` reports that as not yet recorded, never as clean.
+
 A reader that wants only the harnesses the old scanner saw can filter on `route: claude-code-action`.
 
 The two #514 controls (2026-11-15) are additive as well: each `harnesses[]` row gains `wildcard_bots` and `pr_target_head_checkout`. Each one is `true` or `false`, or `null` when there is nothing to ask: no `claude-code-action` step, a bot list handed over as an expression, or a workflow not on `pull_request_target`. A row from a scan stored before the keys existed has neither key, and neither control is graded on it until the next live scan.
@@ -233,6 +248,7 @@ tools/dash console                        # the front end: view / manage / orche
 tools/dash lake sync                      # extract GitHub's records into .dash-lake/fleet.sqlite (local only)
 tools/dash lake sessions                  # extract this machine's Claude Code transcripts into the same lake
 tools/dash lake review                    # analyze both planes: cost, turns, tools, failures, findings
+tools/dash lake recall --query WORDS      # past local sessions by keyword (--json is /api/lake/recall)
 tools/dash lake status                    # what the lake holds + whether Phoenix answers
 tools/dash lake export --local            # OpenInference traces → Phoenix :6006 (--dry-run to preview)
 tools/dash harnesses                      # rebuild the inventory (offline degrade without a token)

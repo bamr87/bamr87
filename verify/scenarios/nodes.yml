@@ -1,0 +1,25 @@
+id: nodes
+feature: [HUB-068]
+title: "The Nodes page shows where hub workloads run, and the published page says it probed nothing"
+description: "/nodes has a card per node from _data/fleet.yml nodes: (the Mac as the edge, forge as a workload node that is off), each with its role, on/off state, reachability, capacity and the hub services placed on it, then the placement table. The public build reads no machine, so it says so in a banner, shows each node as off or not probed with its declared capacity, and reports drift as not read rather than as a zero. The Overview carries the same line. Nothing scrolls sideways."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_"]
+steps:
+  - goto: /nodes
+  - expect: { status: 200 }
+  - wait: { selector: "main table" }
+  - expect: { text: "The committed model, nothing probed" }
+  - expect: { text: "forge" }
+  - expect: { text: "placed here once it is enabled" }
+  - expect: { text: "declared in fleet.yml" }
+  - expect: { text: "Placement drift: not read" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: nodes
+  - screenshot: nodes-full
+    full_page: true
+  - goto: /overview
+  - wait: { selector: "main a[href$='/nodes']" }
+  - expect: { text: "placement drift: read on a console" }
+  - expect: { no_horizontal_scroll: true }
+  - hover: "main a[href$='/nodes']"
+  - screenshot: overview-nodes

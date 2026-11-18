@@ -10,7 +10,7 @@
 - [ ] `tools/console/web/README.md` — Web app overview; no UI capture
 - [ ] `tools/console/docs/mcp-layer.md` — Agent integration guide; no console/MCP surface shot
 - [ ] `tools/console/docs/realtime-bot-dashboard-spec.md` — Live dashboard spec; no rendered view
-- [ ] `tools/console/docs/job-status.md` — Jobs page diagnostics; no Jobs UI shot
+- [x] `tools/console/docs/job-status.md` — Jobs page diagnostics; shot in [`test/evidence/console-job-status/`](../test/evidence/console-job-status/README.md) (#556)
 - [ ] `tools/console/design-system/README.md` — Design-system usage; no token/component gallery shot
 
 ## Setup / platform / ops guides

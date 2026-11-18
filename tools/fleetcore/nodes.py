@@ -17,12 +17,20 @@ implementation the CLI, the console and the MCP server share:
                     durable volume on a node without a backup target, and a
                     link port that collides
   plan_rows()       the resolution joined with the containers running now
+  status_doc()      THE status document: every node's role, on/off state,
+                    reachability, capacity and hub services, the placement
+                    rows and the drift — what `dash node status --json`, the
+                    console's GET /api/nodes and the MCP's fleet_nodes return
+  host_nodes()      Docker host label -> node, for the TUI's Docker tab
   overlay_text() /  what `gen` writes per node: a compose overlay that parks
   tfvars() /        every service placed elsewhere, OpenTofu's inputs, and
   inventory()       the Ansible inventory of the workload nodes
 
 Read-only by default (constitution § 10.6): status and plan probe with fixed
-argv and time limits, `gen` writes only .fleet/nodes/ (gitignored), and
+argv and time limits, a node that is not enabled is never probed by status
+(not by SSH, not by `docker -H`) unless --assume-enabled asks for it, an
+unreachable node is `unknown` rather than an error, `gen` writes only
+.fleet/nodes/ (gitignored), and
 `infra apply` refuses without --yes and a saved plan made from the current
 inputs. Nothing here ever starts, stops or deletes a container.
 
@@ -32,6 +40,7 @@ inputs. Nothing here ever starts, stops or deletes a container.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import os
 import re
@@ -473,20 +482,29 @@ def capacity(h: Host, timeout: int = 10) -> dict | None:
         return None
 
 
+def _last_line(text: str, default: str) -> str:
+    return text.strip().splitlines()[-1][:200] if text.strip() else default
+
+
+def _hub_services(model: Model, boxes) -> set[str]:
+    """The compose services of THIS hub's project among a node's running containers."""
+    return {b.labels["com.docker.compose.service"] for b in boxes
+            if b.running and b.labels.get("com.docker.compose.project") == model.project
+            and b.labels.get("com.docker.compose.service")}
+
+
 def running(model: Model, timeout: int = 8) -> tuple[dict[str, set[str]], dict[str, str]]:
     """Where each hub service has a running container now, by node, and an
-    error per node that could not be read."""
+    error per node that could not be read (`dash node plan`; status reads its
+    nodes through probe_node, which skips a node that is off)."""
     where: dict[str, set[str]] = {}
     errors: dict[str, str] = {}
     for h in model.hosts.values():
         boxes, err = dockerhost.list_containers(h.docker, timeout=timeout)
         if err:
-            errors[h.name] = err.strip().splitlines()[-1][:200] if err.strip() else "unreachable"
-        for b in boxes:
-            if b.running and b.labels.get("com.docker.compose.project") == model.project:
-                svc = b.labels.get("com.docker.compose.service")
-                if svc:
-                    where.setdefault(svc, set()).add(h.name)
+            errors[h.name] = _last_line(err, "unreachable")
+        for svc in _hub_services(model, boxes):
+            where.setdefault(svc, set()).add(h.name)
     return where, errors
 
 
@@ -512,6 +530,109 @@ def plan_rows(res: Resolution, now: dict[str, set[str]]) -> list[dict]:
 
 
 # --------------------------------------------------------------------------- #
+# The status document — one function, every surface (CLI, console, MCP)
+# --------------------------------------------------------------------------- #
+SCHEMA = "fleet-nodes/v1"
+# A node's `status`: reached (up), probed and not answering within the time
+# limit (unknown), not enabled and so never probed (off), or not probed at all
+# because the caller asked for none — the public snapshot (unprobed).
+STATES = ("up", "unknown", "off", "unprobed")
+OFF_DETAIL = "not enabled (_data/fleet.yml) — never probed"
+UNPROBED_DETAIL = "not probed: reachability, capacity and containers are read on the operator's machine"
+
+
+def probe_node(h: Host, model: Model, timeout: int = 8) -> tuple[dict, set[str]]:
+    """One node's reachability, capacity and running hub services, each probe
+    time-limited. A node that does not answer is `unknown` and the probes after
+    the failed one are skipped: an SSH timeout is never followed by a `docker -H`
+    that would wait the same time again."""
+    ok, detail = reach(h, timeout)
+    out = {"probed": True, "status": "up" if ok else "unknown", "reachable": ok, "detail": detail,
+           "docker_error": None, "capacity": None, "containers": None}
+    if not ok:
+        return out, set()
+    boxes, err = dockerhost.list_containers(h.docker, timeout=timeout)
+    services: set[str] = set()
+    if err:
+        out["docker_error"] = _last_line(err, "unreachable")
+    else:
+        services = _hub_services(model, boxes)
+        out["containers"] = len(services)
+    if h.ssh:
+        cap = capacity(h, timeout)
+        out["capacity"] = {"via": "ssh", **cap} if cap else None
+    else:
+        out["capacity"], _ = dockerhost.engine_info(h.docker, timeout=timeout)
+    return out, services
+
+
+def status_doc(*, assume_enabled: bool = False, probe: bool = True, timeout: int = 8,
+               fleet: dict | None = None, compose: dict | None = None, root: Path | None = None) -> dict:
+    """Every node's role, on/off state, reachability, capacity and hub services,
+    the placement rows, the drift between placement and what runs, and the
+    model's problems — the ONE document `dash node status --json`, GET
+    /api/nodes and the MCP's fleet_nodes return.
+
+    A node that is not enabled is never probed (no `ssh`, no `docker -H`) unless
+    `assume_enabled`; `probe=False` probes nothing at all (the public build).
+    Nothing raises past here: an unreadable model is a problem in the document,
+    an unreachable node is `unknown`.
+
+    Drift is measured only on the nodes whose containers were read:
+    `drift_read` names them, and `drift` is None (never `[]`) when it names
+    none — a node that answers but whose Docker engine cannot be listed (the
+    default compose console has no Docker socket) leaves drift unread, not
+    zero."""
+    doc: dict = {"schema": SCHEMA, "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+                 "edge": "", "probed": probe, "nodes": [], "services": [], "drift": None, "drift_read": [],
+                 "problems": []}
+    try:
+        model = load_model(fleet)
+        facts = compose_facts(compose, root=root)
+    except (OSError, yaml.YAMLError, AttributeError, TypeError, ValueError) as exc:
+        doc["problems"] = [f"the node model cannot be read: {type(exc).__name__}: {exc}"[:400]]
+        return doc
+    res = resolve(model, facts, assume_enabled=assume_enabled)
+    now: dict[str, set[str]] = {}
+    for h in model.hosts.values():
+        on = h.enabled or h.name == model.edge
+        declared = h.raw.get("capacity")
+        entry = {"name": h.name, "role": h.role, "runtime": h.runtime, "docker": h.docker, "enabled": on,
+                 "probed": False, "status": "unprobed" if on else "off", "reachable": None,
+                 "detail": UNPROBED_DETAIL if on else OFF_DETAIL, "docker_error": None, "capacity": None,
+                 "declared": declared if isinstance(declared, dict) else None, "containers": None,
+                 "placed": sorted(s for s, p in res.placements.items() if h.name in p.nodes),
+                 "deferred": sorted(s for s, p in res.placements.items() if p.deferred and p.wants == h.name)}
+        if probe and (on or assume_enabled):
+            found, services = probe_node(h, model, timeout)
+            entry.update(found)
+            for svc in services:
+                now.setdefault(svc, set()).add(h.name)
+        doc["nodes"].append(entry)
+    rows = plan_rows(res, now)
+    read = [x["name"] for x in doc["nodes"] if x["containers"] is not None]
+    doc.update(edge=model.edge, services=rows, problems=res.errors, drift_read=read,
+               drift=[{"service": r["service"], "now": r["now"], "runs_on": r["runs_on"]}
+                      for r in rows if r["now"] and set(r["now"]) != set(r["runs_on"])] if read else None)
+    return doc
+
+
+def host_nodes(root: Path | None = None) -> dict[str, dict]:
+    """Docker host label (fleetcore.host.host_label of a node's `docker:`) ->
+    {node, role, enabled}: which node a container on that host runs on, for
+    the TUI's Docker tab. A pure read of fleet.yml that probes nothing; {} when
+    there is no model to read (a fixture root, a broken file), so the tab
+    shows `—` rather than failing — it never prints, because it draws."""
+    path = (root / "_data" / "fleet.yml") if root else FLEET_YML
+    try:
+        model = load_model(yaml.safe_load(path.read_text(encoding="utf-8")) or {})
+    except (OSError, yaml.YAMLError, AttributeError, TypeError):
+        return {}
+    return {dockerhost.host_label(h.docker): {"node": h.name, "role": h.role, "enabled": h.enabled or h.name == model.edge}
+            for h in model.hosts.values() if h.docker}
+
+
+# --------------------------------------------------------------------------- #
 # CLI
 # --------------------------------------------------------------------------- #
 def _gib(n: int | None) -> str:
@@ -524,35 +645,40 @@ def _context(assume_enabled: bool) -> tuple[Model, dict[str, Service], Resolutio
     return model, facts, resolve(model, facts, assume_enabled=assume_enabled)
 
 
+def capacity_text(cap: dict | None) -> str:
+    """One line for a node's measured capacity: the SSH probe's free memory and
+    disk on a workload node, the Docker engine's CPUs and memory on the edge."""
+    if not cap:
+        return ""
+    if cap.get("via") == "engine":
+        return f"{cap['cpus']} CPUs, {_gib(cap['mem_total'])} in the Docker engine, {cap['containers_running']} running"
+    return (f"{cap['cpus']} CPUs, {_gib(cap.get('mem_available'))} of {_gib(cap.get('mem_total'))} RAM free, "
+            f"{_gib(cap.get('disk_free'))} disk free")
+
+
 def cmd_status(args) -> int:
-    model, facts, res = _context(args.assume_enabled)
-    now, docker_errors = running(model)
-    doc = {"edge": model.edge, "nodes": [], "services": plan_rows(res, now), "problems": res.errors}
-    for h in model.hosts.values():
-        ok, detail = reach(h)
-        entry = {"name": h.name, "role": h.role, "docker": h.docker, "enabled": h.enabled or h.name == model.edge,
-                 "reachable": ok, "detail": detail, "docker_error": docker_errors.get(h.name),
-                 "containers": sum(1 for s in now.values() if h.name in s)}
-        if ok and h.ssh:
-            entry["capacity"] = capacity(h)
-        doc["nodes"].append(entry)
+    doc = status_doc(assume_enabled=args.assume_enabled)
     if args.json:
         print(json.dumps(doc, indent=2, default=list))
         return 0
     print("Fleet nodes — status")
     for n in doc["nodes"]:
-        state = n["detail"] if n["reachable"] else f"UNREACHABLE: {n['detail']}"
-        cap = n.get("capacity")
-        extra = (f" · {cap['cpus']} CPUs, {_gib(cap['mem_available'])} of {_gib(cap['mem_total'])} RAM free, "
-                 f"{_gib(cap['disk_free'])} disk free") if cap else ""
+        state = {"up": n["detail"], "unknown": f"UNKNOWN: {n['detail']}"}.get(n["status"], n["detail"])
+        held = f" · {n['containers']} hub services" if n["containers"] is not None else ""
+        docker = f" · docker: {n['docker_error']}" if n["docker_error"] else ""
+        cap = capacity_text(n["capacity"])
         print(f"  {n['name']:<7} {n['role']:<9} {'on ' if n['enabled'] else 'off'}  {n['docker']:<14} {state}"
-              f" · {n['containers']} hub services{extra}")
-    drift = [r for r in doc["services"] if r["now"] and set(r["now"]) != set(r["runs_on"])]
-    print(f"  placement drift: {len(drift)} service(s)" + "".join(
-        f"\n    {r['service']}: runs on {', '.join(r['now'])}, placed on {', '.join(r['runs_on'])}" for r in drift))
-    for p in res.errors:
+              f"{held}{docker}" + (f" · {cap}" if cap else ""))
+    drift = doc["drift"]
+    if drift is None:
+        print("  placement drift: not read (no node's containers could be read)")
+    else:
+        print(f"  placement drift: {len(drift)} service(s), read on {', '.join(doc['drift_read'])}" + "".join(
+            f"\n    {r['service']}: runs on {', '.join(r['now'])}, placed on {', '.join(r['runs_on'])}"
+            for r in drift))
+    for p in doc["problems"]:
         print(f"  ✗ {p}")
-    return 1 if res.errors else 0
+    return 1 if doc["problems"] else 0
 
 
 def cmd_plan(args) -> int:
@@ -709,7 +835,8 @@ def main(argv: list[str] | None = None) -> int:
                           ("gen", cmd_gen, "write .fleet/nodes/<node>.yml + <node>.tfvars.json"),
                           ("key", cmd_key, "print the forwarding-only authorized_keys line for the link key")):
         sp = sub.add_parser(name, help=hlp)
-        sp.add_argument("--assume-enabled", action="store_true", help="resolve as if every workload node were on")
+        sp.add_argument("--assume-enabled", action="store_true",
+                        help="resolve as if every workload node were on (status: and probe the ones that are off)")
         sp.add_argument("--json", action="store_true")
         sp.set_defaults(fn=fn)
         if name == "plan":

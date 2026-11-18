@@ -1,0 +1,21 @@
+# The Voices page on the published site: the fleet voice model read-only; editing and filing stay on a console.
+id: voices
+feature: HUB-NEW:voices-editor
+title: "The Voices page shows the fleet voice model and keeps editing on a console"
+description: "/voices renders _data/voices/voices.yml with its tools/voices.py check badge: the Defaults and lifehacker.dev layers, the eight personas, the site profile and the assignment rules, read-only, under the Runs on a console banner; nothing scrolls sideways. On a running console the same page edits a persona, previews the exact diff with its plan id (writing nothing) and offers the dry run and the draft PR behind the confirm — recorded by hand in the evidence README."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_"]
+steps:
+  - goto: /voices
+  - expect: { status: 200 }
+  - wait: { selector: "text=Margo Backlog" }
+  - expect: { text: "check passes" }
+  - expect: { text: "Runs on a console" }
+  - expect: { text: "Kit Commitson" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: voices-personas
+  - click: "role=tab[name=/Assignment/]"
+  - wait: { selector: "text=everything else" }
+  - expect: { text: "The first rule that matches wins" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: voices-assignment

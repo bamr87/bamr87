@@ -1,0 +1,24 @@
+{
+  "schema": "fleet-activity/1",
+  "event_id": "3f0c2a1e-8b7d-4c6e-9a51-2d4f6b8e0c13",
+  "ts": "2026-11-15T14:04:12-07:00",
+  "source": "hook",
+  "kind": "hook.pre_tool_use",
+  "seq": 4182,
+  "node": "mac",
+  "project": "bamr87",
+  "repo": "bamr87/bamr87",
+  "actor": "claude-code",
+  "run_id": "9b1d2e44-5f60-4a7b-8c9d-0e1f2a3b4c5d",
+  "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "span_id": "00f067aa0ba902b7",
+  "payload": {
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_use_id": "toolu_01FixtureOnly",
+    "command": "gh pr list --limit 5",
+    "env_hint": "GH_TOKEN=[REDACTED]",
+    "permission_mode": "default",
+    "duration_ms": 3
+  }
+}

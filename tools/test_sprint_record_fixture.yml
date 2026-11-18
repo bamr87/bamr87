@@ -1,0 +1,118 @@
+# Fixture records for tools/test_sprint_record.py and the /sprints page's evidence
+# (test/evidence/sprints/). NOT a live sprint: the live records are _data/sprints/<slug>.yml.
+# Two `sprint/v1` documents in one stream; the tests write each to <slug>.yml in a
+# scratch directory. The repository, issues and pull requests are fictional.
+---
+schema: sprint/v1
+slug: fixture-inquiry-form
+title: "Fixture: consultation inquiry form behind the static site"
+item: example-org/example-site#12
+target_repo: example-org/example-site
+state: active
+phase: 3
+updated_at: 2026-11-14T16:30:00Z
+appetite:
+  hours: 16
+  usd: 25
+  label: API-equivalent (estimate)
+  ends_at: 2026-11-18T17:00:00Z
+gates:
+  declaration:
+    by: bamr87
+    at: 2026-11-12T09:05:00Z
+    ref: "_data/work_queue.yml order: issue:example-org/example-site#12"
+  spec:
+    by: bamr87
+    at: 2026-11-13T11:40:00Z
+    ref: "https://github.com/example-org/example-site/issues/14"
+  merge: null
+items:
+  - ref: example-org/example-site#12
+    kind: issue
+    title: Consultation inquiry form on the contact page
+    state: open
+    phase: 0
+  - ref: example-org/example-site#14
+    kind: issue
+    title: "Spec: user stories, Design-for-Failure table, privacy review"
+    state: closed
+    phase: 1
+  - ref: example-org/example-site#15
+    kind: pr
+    title: "feat(contact): inquiry form and its function"
+    state: draft
+    phase: 2
+spend:
+  usd: 9.4
+  cap_usd: 25
+  label: API-equivalent (estimate)
+  updated_at: 2026-11-14T16:30:00Z
+  source: the lake's agent runs for the sprint's items
+trip_wires:
+  - id: spend-80
+    rule: Spend reaches 80% of the cap
+    state: armed
+  - id: required-check-red
+    rule: A required check fails twice in a row on the sprint pull request
+    state: tripped
+    at: 2026-11-14T15:10:00Z
+  - id: preview-down
+    rule: The pull request's preview environment stops answering
+    state: cleared
+    at: 2026-11-14T12:00:00Z
+dora: null
+retro: null
+stop: null
+---
+schema: sprint/v1
+slug: fixture-quote-calculator
+title: "Fixture: a quote calculator that stopped at its cap"
+item: example-org/example-site#7
+target_repo: example-org/example-site
+state: stopped
+phase: 3
+updated_at: 2026-10-30T18:00:00Z
+appetite:
+  hours: 8
+  usd: 12
+  label: API-equivalent (estimate)
+  ends_at: 2026-10-31T17:00:00Z
+gates:
+  declaration:
+    by: bamr87
+    at: 2026-10-28T08:00:00Z
+    ref: "_data/work_queue.yml order: issue:example-org/example-site#7"
+  spec:
+    by: bamr87
+    at: 2026-10-28T15:30:00Z
+    ref: "https://github.com/example-org/example-site/issues/8"
+  merge: null
+items:
+  - ref: example-org/example-site#9
+    kind: pr
+    title: "feat(pricing): quote calculator (filed as a draft at the stop)"
+    state: draft
+    phase: 3
+spend:
+  usd: 12
+  cap_usd: 12
+  label: API-equivalent (estimate)
+  updated_at: 2026-10-30T18:00:00Z
+trip_wires:
+  - id: spend-80
+    rule: Spend reaches 80% of the cap
+    state: tripped
+    at: 2026-10-30T11:20:00Z
+dora: null
+retro:
+  lessons:
+    - The pricing rules were not settled at the spec gate, so the build re-scoped twice.
+    - The circuit breaker stopped the sprint on time and filed the draft; nothing was extended.
+  debt:
+    - example-org/example-site#10
+stop:
+  at: 2026-10-30T18:00:00Z
+  reason: cap
+  by: circuit breaker
+  filed:
+    - example-org/example-site#9

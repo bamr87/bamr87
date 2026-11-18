@@ -542,7 +542,7 @@ services:
   logstash:
     image: logstash:${ELASTIC_VERSION:-9.5.3}
     environment:
-      - LS_JAVA_OPTS=-Xms${LS_HEAP:-256m} -Xmx${LS_HEAP:-256m}
+      - LS_JAVA_OPTS=-Xms${LS_HEAP:-512m} -Xmx${LS_HEAP:-512m}
       - ELASTIC_HOSTS=http://elasticsearch:9200
       - xpack.monitoring.enabled=false
     ports:

@@ -1,0 +1,32 @@
+{
+  "schema": "fleet-activity/1",
+  "event_id": "f0e5d4b6-5a7c-4d9e-8f0a-3b4c5d6e7f80",
+  "ts": "2026-11-13T07:43:56+00:00",
+  "source": "fleet_event",
+  "kind": "fleet_event.declined",
+  "seq": 9,
+  "node": "ci",
+  "repo": "bamr87/zer0-mistakes",
+  "actor": "backlog-fanout",
+  "run_id": "43387493844",
+  "payload": {
+    "task_ref": "bamr87/bamr87#409",
+    "decision": "skip: repo opted out of the backlog fan-out",
+    "outcome": "skipped",
+    "standard_version": "sdlc v0.1.0",
+    "standard_source": "AGENTS.md@4e4a8f1",
+    "detail": {
+      "reason": "policy",
+      "reason_text": "opt-out in .github/sdlc.yml",
+      "rule_ref": "0002",
+      "dry_run": true
+    },
+    "amendments": [
+      {
+        "amendment": "0002",
+        "repo": "bamr87/bamr87",
+        "relation": "cited_for_decline"
+      }
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema": "fleet-activity/1",
+  "event_id": "e9d4c3a5-4f6b-4c8d-9e0f-2a3b4c5d6e7f",
+  "ts": "2026-11-15T21:10:00Z",
+  "source": "job",
+  "kind": "job.stalled",
+  "seq": 301,
+  "node": "mac",
+  "project": "bamr87",
+  "actor": "console",
+  "run_id": "5c2e9a71f04b",
+  "payload": {
+    "op": "observe-status",
+    "since_sent_s": 412,
+    "since_progress_s": 300,
+    "diagnostic": "no output for 300s"
+  }
+}

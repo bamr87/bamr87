@@ -28,6 +28,7 @@ import { Blog, Post, ProfilePage } from './pages/Profile';
 import { Portfolio } from './pages/Portfolio';
 import { Engagements, Features, Roadmap, Toolbox } from './pages/Registries';
 import { Work } from './pages/Work';
+import { Sprints } from './pages/Sprints';
 import { DeepDive } from './pages/DeepDive';
 import { Connect } from './pages/Connect';
 import { Overview } from './pages/Overview';
@@ -38,6 +39,7 @@ import { Desktop } from './pages/Desktop';
 import { Inbox } from './pages/Inbox';
 import { PrQueue } from './pages/PrQueue';
 import { Containers } from './pages/Containers';
+import { Nodes } from './pages/Nodes';
 import { Inventory } from './pages/Inventory';
 import { HealthPage } from './pages/HealthPage';
 import { Schedules } from './pages/Schedules';
@@ -60,8 +62,10 @@ import { Operations, OperationPage } from './pages/Operations';
 // xterm.js is the heaviest dependency and only the Terminal page needs it.
 const TerminalPage = lazy(() => import('./pages/TerminalPage').then((m) => ({ default: m.TerminalPage })));
 import { ConfigPage } from './pages/ConfigPage';
+import { Voices } from './pages/Voices';
 import { AuthPage } from './pages/AuthPage';
 import { GithubPage, GithubRepoPage } from './pages/GithubPage';
+import { GhProjects } from './pages/GhProjects';
 import { NotFound } from './pages/NotFound';
 
 const queryClient = new QueryClient({
@@ -104,8 +108,10 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="inbox" element={<Inbox />} />
                   <Route path="prs" element={<PrQueue />} />
                   <Route path="containers" element={<Containers />} />
+                  <Route path="nodes" element={<Nodes />} />
                   <Route path="github" element={<GithubPage />} />
                   <Route path="github/:owner/:repo" element={<GithubRepoPage />} />
+                  <Route path="gh-projects" element={<GhProjects />} />
                   <Route path="harnesses" element={<Inventory />} />
                   <Route path="harnesses/health" element={<HealthPage />} />
                   <Route path="schedules" element={<Schedules />} />
@@ -115,6 +121,7 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="workflows/actions/*" element={<ActionPage />} />
                   <Route path="workflows/:id" element={<WorkflowPage />} />
                   <Route path="work" element={<Work />} />
+                  <Route path="sprints" element={<Sprints />} />
                   <Route path="refine" element={<Refine />} />
                   <Route path="assist" element={<Assist />} />
                   <Route path="deep-dive" element={<DeepDive />} />
@@ -128,6 +135,7 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="observe/index" element={<CodeIndex />} />
                   <Route path="content" element={<ContentSites />} />
                   <Route path="content/:site" element={<ContentSite />} />
+                  <Route path="voices" element={<Voices />} />
                   <Route path="jobs" element={<Jobs />} />
                   <Route path="jobs/:id" element={<JobPage />} />
                   <Route path="ops" element={<Operations />} />

@@ -22,6 +22,7 @@ export const to = {
     const s = qs.toString();
     return `/work${s ? `?${s}` : ''}`;
   },
+  sprints: (slug?: string) => `/sprints${slug ? `?sprint=${enc(slug)}` : ''}`,
   features: () => '/features',
   engagements: () => '/engagements',
   toolbox: () => '/toolbox',
@@ -40,6 +41,14 @@ export const to = {
   },
   inbox: (kind?: string) => `/inbox${kind ? `?kind=${enc(kind)}` : ''}`,
   containers: () => '/containers',
+  nodes: () => '/nodes',
+  ghProjects: (f: { project?: string; view?: 'table' | 'board' } = {}) => {
+    const qs = new URLSearchParams();
+    if (f.project) qs.set('project', f.project);
+    if (f.view && f.view !== 'table') qs.set('view', f.view);
+    const s = qs.toString();
+    return `/gh-projects${s ? `?${s}` : ''}`;
+  },
   harnesses: (filter?: 'gaps') => `/harnesses${filter ? `?view=${filter}` : ''}`,
   health: () => '/harnesses/health',
   schedules: (repo?: string) => `/schedules${repo ? `?q=${enc(repo)}` : ''}`,
@@ -66,6 +75,7 @@ export const to = {
   observe: (pane: 'logs' | 'metrics' | 'traces' | 'lines' | 'index') => `/observe/${pane}`,
   content: () => '/content',
   site: (name: string) => `/content/${enc(name)}`,
+  voices: () => '/voices',
   jobs: () => '/jobs',
   job: (id: string) => `/jobs/${enc(id)}`,
   ops: () => '/ops',

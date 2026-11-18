@@ -90,8 +90,8 @@ def test_argv_shapes_are_exact_and_never_shell():
     # loop-run needs a loop with a local: spec, and its step named when the loop has several (fanout's kits)
     first = (core.agent_steps() or [{"loop": "", "step": ""}])[0]
     for op_id in core.OPS:
-        if op_id in ("tests", "refine-evidence", "assist", "evidence"):   # need an item / a question / an issue
-            # (their own tests: below, and test_ops_cli.py for evidence)
+        if op_id in ("tests", "refine-evidence", "assist", "evidence", "voices-pr"):   # need an item / a question / an
+            # issue / a staged plan (their own tests: below, and test_ops_cli.py for evidence)
             continue
         # a dev-stack op takes a project from the port registry, not any name
         argv, _ = core.build_argv(op_id, {"target": "gitorio" if op_id.startswith("dev-") else "alpha", "workflow": "fleet-pulse", "fields": {},
@@ -305,6 +305,132 @@ def test_decisions_route_serves_the_queue_and_never_the_token():
     assert argv == [core.DASH, "decisions", "refresh"] and remote is False
 
 
+def test_nodes_route_is_the_shared_status_document_and_never_probes_an_off_node():
+    """Over HTTP: /api/nodes is fleetcore.nodes.status_doc — the same keys
+    `tools/dash node status --json` prints and the MCP's fleet_nodes returns.
+    The committed model ships forge disabled, so no argv may name it (no ssh,
+    no docker -H); a node that does not answer is `unknown` with a 200, never a
+    5xx; polls inside the TTL share one answer; the snapshot probes nothing."""
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    import subprocess as sp
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+    nodes = core._fleet_nodes()
+
+    calls: list[list[str]] = []
+
+    def run(argv, **kw):  # every probe nodes.py and fleetcore.host make goes through here
+        calls.append(list(argv))
+        if argv[:2] == ["docker", "info"]:
+            return sp.CompletedProcess(argv, 0, json.dumps({"NCPU": 4, "MemTotal": 2**33}), "")
+        raise sp.TimeoutExpired(argv, kw.get("timeout") or 0)  # nothing else answers in time
+
+    model = nodes.load_model()
+    off = [h for h in model.workload() if not h.enabled]
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    core._NODES.clear()
+    with mock.patch.object(sp, "run", run):
+        r = client.get("/api/nodes")
+        again = client.get("/api/nodes")
+        direct = nodes.status_doc(timeout=1)
+    core._NODES.clear()
+    assert r.status_code == 200, r.text
+    doc = r.json()
+    assert set(doc) == set(direct) and doc["schema"] == "fleet-nodes/v1", set(doc) ^ set(direct)
+    assert [set(n) for n in doc["nodes"]] == [set(n) for n in direct["nodes"]]
+    assert again.json()["generated_at"] == doc["generated_at"], "inside the TTL the page's polls share one answer"
+    by = {n["name"]: n for n in doc["nodes"]}
+    edge = by[doc["edge"]]
+    assert edge["status"] == "up" and edge["docker_error"] and edge["capacity"]["cpus"] == 4, edge
+    assert doc["drift"] is None and doc["drift_read"] == [], "the edge's containers were not read: drift is not read"
+    for h in off:
+        assert by[h.name]["status"] == "off" and by[h.name]["probed"] is False
+        named = [a for a in calls if h.name in " ".join(a) or (h.ssh and h.ssh in a) or "-H" in a]
+        assert not named, f"{h.name} is not enabled and was probed: {named}"
+    with mock.patch.object(sp, "run", side_effect=AssertionError("the snapshot probed something")):
+        snap = core.nodes_doc(probe=False)
+    assert snap["probed"] is False and {n["status"] for n in snap["nodes"]} <= {"off", "unprobed"}
+    assert snap["drift"] is None and snap["drift_read"] == []
+
+
+def test_gh_projects_routes_read_every_owner_page_items_and_write_nothing():
+    """Over HTTP: /api/gh-projects is every owner in one document, each with its projects or an explicit
+    scope_missing; /api/gh-projects/{id}/items is paged and capped; the console's own GitHub identity is
+    used and never echoed; no route under /api/gh-projects takes anything but GET (epic #468 P1)."""
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+    import gh_projects as gp
+
+    fx = json.loads((Path(__file__).resolve().parent / "test_gh_projects_fixtures.json").read_text())
+    seen: list[str] = []
+
+    def github(query, variables, tok, timeout=20):
+        seen.append(tok)
+        assert timeout <= 20
+        if "projectsV2(first" in query:
+            if "organization(" in query:
+                return {"errors": [{"type": "INSUFFICIENT_SCOPES", "message": "needs read:project"}], "data": None}
+            return fx["projects_user.json"]
+        if variables["id"] == "PVT_gone":
+            return {"data": {"node": None}, "errors": [{"type": "NOT_FOUND", "message": "Could not resolve to a node"}]}
+        return fx["items.json"]
+
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    env = {k: v for k, v in os.environ.items() if k not in ("PROJECTS_TOKEN", "GH_TOKEN", "GITHUB_TOKEN")}
+    gp.clear_cache()
+    try:
+        with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(gp, "_http", github), \
+                mock.patch.object(gp, "BUDGET", gp.CallBudget()), \
+                mock.patch.object(console_app.ghl, "token_source", lambda: ("GH_TOKEN", "tok-from-the-console")):
+            r = client.get("/api/gh-projects")
+            doc = r.json()
+            assert r.status_code == 200 and doc["schema"] == "gh-projects/v1", r.text[:300]
+            assert [o["login"] for o in doc["owners"]] == [login for _, login in gp.OWNERS]
+            assert doc["owners"][0]["status"] == "ok" and doc["projects"][0]["number"] == 14
+            assert {o["status"] for o in doc["owners"][1:]} == {"scope_missing"} and doc["scope_missing"] is True
+            assert (doc["status"], doc["token_source"]) == ("partial", "GH_TOKEN")
+            assert set(seen) == {"tok-from-the-console"} and "tok-from-the-console" not in r.text
+            assert client.get("/api/gh-projects").json()["source"] == "cache" and len(seen) == 5, "inside the TTL"
+            assert client.get("/api/gh-projects", params={"owner": "bamr87"}).json()["status"] == "fresh"
+            items = client.get("/api/gh-projects/PVT_fleet/items", params={"limit": 1}).json()
+            assert (items["total"], len(items["items"]), items["next_offset"]) == (2, 1, 1), items
+            assert items["items"][0]["refs"] == ["FR12", "HUB-031"] and "ghp_" not in json.dumps(items)
+            assert client.get("/api/gh-projects/PVT_fleet/items", params={"kind": "pr"}).json()["matched"] == 1
+            gone = client.get("/api/gh-projects/PVT_gone/items")
+            assert gone.status_code == 404 and "Could not resolve" in gone.json()["detail"], gone.text
+            assert client.get("/api/gh-projects/not-a-project/items").status_code == 400
+            assert client.get("/api/gh-projects", params={"owner": "someone-else"}).status_code == 400
+            for path, bad in (("/api/gh-projects", {"budget": 999}), ("/api/gh-projects/PVT_fleet/items", {"limit": 501}),
+                              ("/api/gh-projects/PVT_fleet/items", {"offset": -1}),
+                              ("/api/gh-projects/PVT_fleet/items", {"kind": "epic"})):
+                assert client.get(path, params=bad).status_code == 422, (path, bad)
+            os.environ["PROJECTS_TOKEN"] = "projects-scoped"
+            assert client.get("/api/gh-projects").json()["token_source"] == "PROJECTS_TOKEN"
+            assert seen[-1] == "projects-scoped"
+            del os.environ["PROJECTS_TOKEN"]
+            gp.clear_cache()
+            n = len(seen)
+            with mock.patch.object(console_app.ghl, "token_source", lambda: (None, None)):
+                none = client.get("/api/gh-projects").json()
+                assert none["status"] == "scope_missing" and none["source"] == "none" and len(seen) == n, none
+                assert all(o["status"] == "scope_missing" for o in none["owners"]) and "PROJECTS_TOKEN" in none["hint"]
+            for method in ("post", "put", "patch", "delete"):
+                for path in ("/api/gh-projects", "/api/gh-projects/PVT_fleet/items"):
+                    assert getattr(client, method)(path).status_code in (404, 405), (method, path)
+    finally:
+        gp.clear_cache()
+    for route in console_app.app.routes:
+        if getattr(route, "path", "").startswith("/api/gh-projects"):
+            assert set(route.methods) <= {"GET", "HEAD"}, (route.path, route.methods)
 def test_pr_queue_routes_read_plan_and_never_apply():
     """Over HTTP: /api/prs is the queue (refresh=never reads no GitHub), a bad filter is refused, a plan is
     refused before any GitHub read when its targets are malformed, a stored plan and result are served by
@@ -359,12 +485,18 @@ def test_a_dev_stack_op_names_one_project_from_the_port_registry():
     assert core._exclusive_key("dev-up", {"target": "gitorio"}) == core._exclusive_key("dev-down", {"target": "gitorio"})
     assert core._exclusive_key("dev-up", {"target": "gitorio"}) != core._exclusive_key("dev-up", {"target": "law-ai"})
     assert core.OPS["dev-logs"].get("exclusive") is None, "reading logs must not wait on a start"
-    # every local target the launcher offers can be started by these operations
+    # every compose-hosted local target the launcher offers can be started by
+    # these operations; a devenv-hosted one (served inside the workspace
+    # container) is not a stack, so the page offers its terminal command instead
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from fleetcore import apps as fapps
     doc = fapps.apps_view(core.REPO_ROOT)
     local = [t for r in doc["apps"] for t in r["targets"] if t["kind"] == "local"]
-    assert local and all(t["project"] in known for t in local), "a Local target names a project dev-up refuses"
+    stacks = [t for t in local if t["host"] == "compose"]
+    assert stacks and all(t["project"] in known for t in stacks), "a Local target names a project dev-up refuses"
+    devenv = [t for t in local if t["host"] == "devenv"]
+    assert devenv and all(t["project"] not in known and t["start"].startswith("docker compose exec ") for t in devenv), devenv
+    assert {t["host"] for t in local} == {"compose", "devenv"}, "a Local target from a host no one can start"
 
 
 def test_lake_ops_argv_shapes_and_status_document():
@@ -392,6 +524,53 @@ def test_lake_ops_argv_shapes_and_status_document():
     json.dumps(core.lake_lines())
     caps = core.capabilities()
     assert isinstance(caps["otel_exporter"], bool) and caps["phoenix"]["collector"] and isinstance(caps["lake_present"], bool)
+
+
+def test_lake_recall_document_and_route():
+    """bamr87/bamr87#546: /api/lake/recall is `lake recall --json` over the lake
+    the console reads: read-only, one result per session, each excerpt redacted.
+    A query with no words is a 422, a missing lake is a document."""
+    fl = core._lake_module()
+    tmp = Path(tempfile.mkdtemp(prefix="console-recall-"))
+    at = fl.utcnow() - fl.dt.timedelta(hours=2)
+    recs = [{"type": "user", "timestamp": fl.iso(at), "sessionId": "s1", "cwd": "/w/alpha",
+             "message": {"role": "user", "content": "where are the deploy notes"}},
+            {"type": "assistant", "timestamp": fl.iso(at + fl.dt.timedelta(seconds=5)), "sessionId": "s1",
+             "uuid": "u1", "message": {"id": "m1", "model": "claude-sonnet-5", "usage": {"input_tokens": 1},
+                                       "content": [{"type": "text", "text": "The deploy notes are in "
+                                                    "/Users/alice/notes/deploy.md"}]}}]
+    try:
+        conn = fl.connect(tmp)
+        fl.store_session(conn, fl.session_facts(recs, "/x/s1.jsonl"))
+        conn.commit()
+        conn.close()
+        with mock.patch.object(core, "LAKE_DIR", tmp):
+            doc = core.lake_recall("deploy notes md")
+            assert doc["schema"] == "lake-recall/v1" and [r["key"] for r in doc["results"]] == ["session:s1"], doc
+            assert "/Users/alice" not in json.dumps(doc) and "~/notes/deploy.md" in doc["results"][0]["excerpt"], doc
+            try:
+                core.lake_recall("  ?? ")
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("a query with no words was answered")
+        with mock.patch.object(core, "LAKE_DIR", tmp / "nowhere"):
+            assert core.lake_recall("x")["present"] is False
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError:
+            print("    (skipped the route half: fastapi not installed)")
+            return
+        import app as console_app
+
+        client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+        with mock.patch.object(core, "LAKE_DIR", tmp):
+            r = client.get("/api/lake/recall", params={"q": "deploy notes", "limit": 5})
+            assert r.status_code == 200 and [x["key"] for x in r.json()["results"]] == ["session:s1"], r.text
+            for params in ({"q": "?? !!"}, {"q": ""}, {}, {"q": "x", "limit": 51}, {"q": "x", "days": 0}):
+                assert client.get("/api/lake/recall", params=params).status_code == 422, params
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def test_content_ops_argv_and_only_apply_is_remote():
@@ -937,6 +1116,247 @@ def test_lake_writers_run_one_at_a_time():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def _staged(jm, op, status, now, *, created_ago=0.0, started_ago=None, finished_ago=None, log_ago=None,
+            remote=False):
+    """A job placed in the manager's index as if it had run, its clock and its
+    log's last growth set back by the given seconds — no process behind it."""
+    import datetime as dt
+    job = core.Job(op, ["true"], remote, {})
+    job.log_path = jm.job_dir / f"{job.id}.log"
+    job.status = status
+    job.created = now - dt.timedelta(seconds=created_ago)
+    job.started = None if started_ago is None else now - dt.timedelta(seconds=started_ago)
+    job.finished = None if finished_ago is None else now - dt.timedelta(seconds=finished_ago)
+    if log_ago is not None:
+        job.log_path.write_text("$ true\n")
+        os.utime(job.log_path, (now.timestamp() - log_ago, now.timestamp() - log_ago))
+    jm.jobs[job.id] = job
+    jm.order.append(job.id)
+    return job
+
+
+def _codes(row):
+    return [d["code"] for d in row["diagnostics"]]
+
+
+def test_job_status_derives_state_ages_and_diagnostics():
+    """HUB-064 (FR60, #556): an agent holding a job's receipt reads what the job
+    is doing — a derived state, the seconds since it was sent and since its log
+    last grew, and why it may be slow — from GET /api/jobs/{id}/status, the
+    /api/jobs rows and job_status, instead of a bare `running` that says
+    nothing about a job that went quiet ten minutes ago."""
+    import datetime as dt
+    import live
+    tmp = Path(tempfile.mkdtemp())
+    now = dt.datetime.now(dt.timezone.utc)
+    try:
+        # no collector on this host: no collector_lag, wherever the tests run
+        with mock.patch.object(live, "SESSIONS", tmp / "no-collector" / "sessions.json"):
+            jm = core.JobManager(job_dir=tmp)
+            fresh = _staged(jm, "gaps", "running", now, created_ago=12, started_ago=10, log_ago=2)
+            quiet = _staged(jm, "gaps", "running", now, created_ago=600, started_ago=590, log_ago=300)
+            ok = _staged(jm, "gaps", "succeeded", now, created_ago=900, started_ago=890, finished_ago=880)
+            bad = {s: _staged(jm, "gaps", s, now, created_ago=50, started_ago=40, finished_ago=30)
+                   for s in ("failed", "cancelled", "interrupted")}
+
+            s = jm.status(fresh.id, now=now)
+            assert (s["state"], s["age_s"], s["idle_s"], s["stall_s"], s["diagnostics"]) == \
+                ("running", 12.0, 2.0, core.STALL_S, []), s
+            assert s["status"] == "running" and s["op"] == "gaps" and "argv" not in s, s
+
+            s = jm.status(quiet.id, now=now)
+            assert s["state"] == "stalled" and s["idle_s"] == 300.0 and _codes(s) == ["no_heartbeat"], s
+            assert "300 s" in s["diagnostics"][0]["detail"] and f"{core.STALL_S} s" in s["diagnostics"][0]["detail"]
+
+            s = jm.status(ok.id, now=now)
+            assert (s["state"], s["idle_s"], s["diagnostics"]) == ("done", None, []), s
+            for status, job in bad.items():
+                s = jm.status(job.id, now=now)
+                assert s["state"] == "failed" and s["status"] == status, s
+
+            # a log that has not grown since the job started still counts from the start
+            silent = _staged(jm, "gaps", "running", now, created_ago=200, started_ago=150)
+            assert jm.status(silent.id, now=now)["state"] == "stalled"
+
+            try:
+                jm.status("nope", now=now)
+            except KeyError:
+                pass
+            else:
+                raise AssertionError("an unknown job id answered")
+
+            # the /api/jobs rows carry the same fields; the index on disk does not
+            rows = {r["id"]: r for r in jm.list(now=now)}
+            assert rows[quiet.id]["state"] == "stalled" and rows[fresh.id]["idle_s"] == 2.0, rows[quiet.id]
+            assert {"state", "age_s", "idle_s", "stall_s", "diagnostics"} <= set(rows[ok.id]), rows[ok.id]
+            jm._save()
+            saved = json.loads((tmp / "jobs.json").read_text())
+            assert saved and not any("state" in r or "diagnostics" in r for r in saved), "derived fields persisted"
+            # the job page's tail carries them too
+            assert jm.tail(fresh.id)["job"]["state"] in ("running", "stalled")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_job_status_stall_threshold_is_per_op():
+    """A model session's stream can be quiet for minutes while one tool call
+    runs, so an op may raise its own threshold (OPS[op]["stall_s"])."""
+    import datetime as dt
+    import live
+    assert core.stall_threshold("loop-run") == 600 and core.stall_threshold("conflicts-resolve") == 600
+    assert core.stall_threshold("gaps") == core.STALL_S and core.stall_threshold("no-such-op") == core.STALL_S
+    tmp = Path(tempfile.mkdtemp())
+    now = dt.datetime.now(dt.timezone.utc)
+    core.OPS["_test-quiet"] = dict(title="test: quiet", group="observe", argv=lambda p: ["true"],
+                                   needs_token=False, stall_s=400)
+    try:
+        with mock.patch.object(live, "SESSIONS", tmp / "absent.json"):
+            jm = core.JobManager(job_dir=tmp)
+            job = _staged(jm, "_test-quiet", "running", now, created_ago=330, started_ago=320, log_ago=300)
+            s = jm.status(job.id, now=now)
+            assert (s["state"], s["stall_s"], s["diagnostics"]) == ("running", 400, []), s
+            s = jm.status(job.id, now=now + dt.timedelta(seconds=200))
+            assert s["state"] == "stalled" and _codes(s) == ["no_heartbeat"], s
+    finally:
+        core.OPS.pop("_test-quiet", None)
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_job_status_names_the_job_a_queued_one_waits_on():
+    """A queued job behind a live job holding the same key (a lake writer, one
+    loop's run) or the one GitHub-write slot says which job it waits on."""
+    import datetime as dt
+    import live
+    tmp = Path(tempfile.mkdtemp())
+    now = dt.datetime.now(dt.timezone.utc)
+    try:
+        with mock.patch.object(live, "SESSIONS", tmp / "absent.json"):
+            jm = core.JobManager(job_dir=tmp)
+            holder = _staged(jm, "lake-sync", "running", now, created_ago=60, started_ago=59, log_ago=1)
+            waiting = _staged(jm, "lake-sessions", "queued", now, created_ago=20)
+            s = jm.status(waiting.id, now=now)
+            assert (s["state"], s["idle_s"], _codes(s)) == ("queued", 20.0, ["queue_wait"]), s
+            assert holder.id in s["diagnostics"][0]["detail"] and "lake" in s["diagnostics"][0]["detail"], s
+
+            writer = _staged(jm, "dispatch", "running", now, created_ago=30, started_ago=29, log_ago=1, remote=True)
+            behind = _staged(jm, "deploy-gaps", "queued", now, created_ago=5, remote=True)
+            s = jm.status(behind.id, now=now)
+            assert _codes(s) == ["queue_wait"] and writer.id in s["diagnostics"][0]["detail"], s
+            assert "GitHub-write" in s["diagnostics"][0]["detail"], s
+
+            # nothing ahead of it: queued, no reason to give
+            alone = _staged(jm, "gaps", "queued", now, created_ago=1)
+            assert jm.status(alone.id, now=now)["diagnostics"] == []
+            holder.status = "succeeded"
+            assert jm.status(waiting.id, now=now)["diagnostics"] == [], "a finished holder still blamed"
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_job_status_flags_a_run_past_its_ops_typical_duration():
+    """long_step: running past the p90 of the op's recent successful runs (and
+    past a floor, so a 2-second op running 5 seconds is not news)."""
+    import datetime as dt
+    import live
+    tmp = Path(tempfile.mkdtemp())
+    now = dt.datetime.now(dt.timezone.utc)
+    try:
+        with mock.patch.object(live, "SESSIONS", tmp / "absent.json"):
+            jm = core.JobManager(job_dir=tmp)
+            for took in (35, 40, 45):
+                _staged(jm, "health", "succeeded", now, created_ago=3000, started_ago=2000, finished_ago=2000 - took)
+            _staged(jm, "health", "failed", now, created_ago=1000, started_ago=900, finished_ago=1)   # not typical
+            long = _staged(jm, "health", "running", now, created_ago=101, started_ago=100, log_ago=1)
+            s = jm.status(long.id, now=now)
+            assert (s["state"], _codes(s)) == ("running", ["long_step"]), s
+            assert "100 s" in s["diagnostics"][0]["detail"] and "45 s p90" in s["diagnostics"][0]["detail"], s
+            short = _staged(jm, "health", "running", now, created_ago=41, started_ago=40, log_ago=1)
+            assert jm.status(short.id, now=now)["diagnostics"] == [], "flagged inside the op's p90"
+
+            # under three successful runs there is no "typical" to be past
+            for _ in range(2):
+                _staged(jm, "gaps", "succeeded", now, created_ago=500, started_ago=500, finished_ago=495)
+            young = _staged(jm, "gaps", "running", now, created_ago=60, started_ago=60, log_ago=1)
+            assert jm.status(young.id, now=now)["diagnostics"] == [], "two runs called typical"
+            # a quick op is held to the floor
+            _staged(jm, "gaps", "succeeded", now, created_ago=500, started_ago=500, finished_ago=498)
+            soon = _staged(jm, "gaps", "running", now, created_ago=20, started_ago=20, log_ago=1)
+            assert jm.status(soon.id, now=now)["diagnostics"] == [], "a 20 s run called long"
+            assert _codes(jm.status(young.id, now=now)) == ["long_step"]
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_job_status_reports_a_lagging_live_collector():
+    """collector_lag: the live collector's sessions.json is older than live.py
+    calls stale, so a session lookup a live job makes reads old data. A fresh
+    file, a missing one, or a finished job says nothing."""
+    import datetime as dt
+    import live
+    tmp = Path(tempfile.mkdtemp())
+    now = dt.datetime.now(dt.timezone.utc)
+    sessions = tmp / "sessions.json"
+    sessions.write_text('{"sessions": []}')
+    try:
+        with mock.patch.object(live, "SESSIONS", sessions):
+            jm = core.JobManager(job_dir=tmp)
+            running = _staged(jm, "gaps", "running", now, created_ago=10, started_ago=10, log_ago=1)
+            queued = _staged(jm, "gaps", "queued", now, created_ago=3)
+            done = _staged(jm, "gaps", "succeeded", now, created_ago=10, started_ago=10, finished_ago=5)
+            os.utime(sessions, (now.timestamp() - 180, now.timestamp() - 180))
+            s = jm.status(running.id, now=now)
+            assert _codes(s) == ["collector_lag"] and "180 s" in s["diagnostics"][0]["detail"], s
+            assert _codes(jm.status(queued.id, now=now)) == ["collector_lag"]
+            assert jm.status(done.id, now=now)["diagnostics"] == [], "a finished job blamed on the collector"
+            assert live.sessions()["collector"] == "stale", "live.py and the job status disagree on stale"
+            os.utime(sessions, (now.timestamp() - 2, now.timestamp() - 2))
+            assert jm.status(running.id, now=now)["diagnostics"] == []
+            sessions.unlink()
+            assert jm.status(running.id, now=now)["diagnostics"] == [], "no collector read as a lagging one"
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_job_status_route_answers_and_unknown_ids_404():
+    """Over HTTP: GET /api/jobs/{id}/status is the job's status document,
+    /api/jobs rows carry the same fields, and an unknown id is a 404."""
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    import datetime as dt
+    import live
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+
+    token = os.environ.get("DASH_CONSOLE_TOKEN")
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001",
+                        headers={"Authorization": f"Bearer {token}"} if token else {})
+    jm = console_app.jobs
+    now = dt.datetime.now(dt.timezone.utc)
+    tmp = Path(tempfile.mkdtemp())
+    job = _staged(jm, "gaps", "running", now, created_ago=700, started_ago=650, log_ago=400)
+    try:
+        with mock.patch.object(live, "SESSIONS", tmp / "absent.json"):
+            r = client.get(f"/api/jobs/{job.id}/status")
+            assert r.status_code == 200, r.text
+            doc = r.json()
+            assert doc["id"] == job.id and doc["state"] == "stalled" and _codes(doc) == ["no_heartbeat"], doc
+            assert doc["age_s"] >= 700 and doc["idle_s"] >= 400 and doc["stall_s"] == core.STALL_S, doc
+            r = client.get("/api/jobs/0123456789ab/status")
+            assert r.status_code == 404 and r.json()["detail"] == "no such job", r.text
+            row = next(j for j in client.get("/api/jobs").json() if j["id"] == job.id)
+            assert row["state"] == "stalled" and _codes(row) == ["no_heartbeat"], row
+            assert client.get(f"/api/jobs/{job.id}").json()["job"]["state"] == "stalled"
+    finally:
+        jm.jobs.pop(job.id, None)
+        if job.id in jm.order:
+            jm.order.remove(job.id)
+        job.log_path.unlink(missing_ok=True)
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_docker_ops_say_why_they_cannot_run_instead_of_failing():
     """In the console's own container there is no compose plugin and no
     socket, so observe-up failed every time with "unknown flag: --profile".
@@ -1232,6 +1652,7 @@ def test_api_documents_are_json_serializable():
     json.dumps(core.read_config())
     json.dumps(core.auth_status())
     json.dumps(core.workflow_atlas())
+    json.dumps(core.nodes_doc(probe=False))
 
 
 def test_a_number_field_refuses_a_figure_that_is_not_finite():
@@ -2305,6 +2726,133 @@ def test_github_callback_needs_no_bearer_but_everything_else_does():
             os.environ.pop("DASH_CONSOLE_TOKEN", None)
         else:
             os.environ["DASH_CONSOLE_TOKEN"] = saved
+
+
+def test_sprints_document_reads_the_records_and_nothing_writes_them():
+    """The /sprints page's document (tools/sprint_record.py): the live records linted,
+    the fixture rendered from DASH_SPRINTS_DIR, an empty directory as the empty state —
+    and, over HTTP, one GET route and no route that writes a record."""
+    import yaml
+    fixture = core.TOOLS / "test_sprint_record_fixture.yml"
+    records = [d for d in yaml.safe_load_all(fixture.read_text(encoding="utf-8")) if d]
+    with tempfile.TemporaryDirectory() as tmp:
+        folder = Path(tmp) / "sprints"
+        folder.mkdir()
+        for r in records:
+            (folder / f"{r['slug']}.yml").write_text(yaml.safe_dump(r, sort_keys=False), encoding="utf-8")
+        queue = Path(tmp) / "work_queue.yml"
+        queue.write_text(yaml.safe_dump({"schema": "work-queue/v1", "order": ["issue:example-org/example-site#12"]}),
+                         encoding="utf-8")
+        with mock.patch.dict(os.environ, {"DASH_SPRINTS_DIR": str(folder)}), mock.patch.object(core, "WORK_QUEUE", queue):
+            doc = core.sprints_doc()
+        assert doc["schema"] == "sprint-records/v1" and doc["count"] == 2 and doc["errors"] == [], doc["errors"]
+        assert doc["active"] == "fixture-inquiry-form" and doc["sprints"][0]["phase_name"] == "test"
+        assert doc["cost_label"] == core.COST_LABEL and tmp not in json.dumps(doc), "no local path in the document"
+        with mock.patch.dict(os.environ, {"DASH_SPRINTS_DIR": str(Path(tmp) / "none")}):
+            assert core.sprints_doc()["sprints"] == []
+    live = core.sprints_doc()
+    assert live["dir"] == "_data/sprints" and live["errors"] == [], live["errors"]
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    import app as console_app
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    r = client.get("/api/sprints")
+    assert r.status_code == 200 and r.json()["schema"] == "sprint-records/v1", r.text[:300]
+    for method in ("post", "put", "patch", "delete"):
+        assert getattr(client, method)("/api/sprints").status_code in (404, 405), method
+    writers = [route.path for route in console_app.app.routes
+               if str(getattr(route, "path", "")).startswith("/api/sprints") and set(getattr(route, "methods", ()) or ()) - {"GET", "HEAD"}]
+    assert writers == [], f"a route writes sprint records: {writers}"
+
+
+def test_voices_editor_previews_writes_nothing_and_files_only_through_a_confirmed_staged_plan():
+    """The Voices editor (constitution § 23 rule 7, the write path § 11.8): the page's document carries the
+    file's check errors and its drift from main; a preview writes nothing; staging puts the previewed bytes
+    under the job dir, never the working tree, and refuses an edit that fails the check, changes nothing or no
+    longer matches its plan; `voices-pr` needs that staged plan, is a dry run without apply, needs confirm with
+    it, and never takes `scheduled`."""
+    import copy
+    doc = core.voices_doc()
+    assert doc["schema"] == "voices-editor/v1" and doc["ok"] and doc["canonical"], doc["errors"]
+    assert {"ref", "available", "differs", "diff", "changes"} <= set(doc["drift"]) and doc["enums"]["cadence"] == ["daily", "weekly"]
+    path = core.REPO_ROOT / "_data" / "voices" / "voices.yml"
+    before = path.read_bytes()
+    data = copy.deepcopy(doc["data"])
+    data["sites"]["lifehacker.dev"]["personas"]["kit"]["tone"] = "candid, caffeinated"
+    p = core.voices_preview(data)
+    assert path.read_bytes() == before, "a preview wrote the file"
+    assert p["ok"] and p["changed"] and "sites.lifehacker.dev.personas.kit.tone" in p["changes"], p
+    bad = copy.deepcopy(data)
+    bad["sites"]["lifehacker.dev"]["personas"]["kit"]["style"]["humor"] = "loud"
+    assert not core.voices_preview(bad)["ok"]
+    for args, exc in (((data, ""), ValueError), ((data, "nope"), ValueError), ((data, "0" * 16), PermissionError),
+                      ((bad, core.voices_preview(bad)["plan_id"]), ValueError)):
+        try:
+            core.voices_stage(*args)
+        except exc:
+            continue
+        raise AssertionError(f"staged {args[1]!r}")
+    plan = p["plan_id"]
+    for params in ({}, {"plan_id": "nope"}, {"plan_id": plan}):            # nothing staged yet
+        try:
+            core.build_argv("voices-pr", params)
+        except ValueError:
+            continue
+        raise AssertionError(f"voices-pr built without a staged plan: {params}")
+    staged = core.voices_stage(data, plan)
+    assert staged["staged"] and staged["plan_id"] == plan and path.read_bytes() == before
+    copy_path = core.voices_stage_dir() / f"{plan}.yml"
+    assert copy_path.read_text() == p["text"] and core.REPO_ROOT not in copy_path.parents, copy_path
+    argv, remote = core.build_argv("voices-pr", {"plan_id": plan})
+    assert remote is False and argv[1:5] == [str(core.TOOLS / "voices.py"), "pr", "--file", str(copy_path)], argv
+    assert "--apply" not in argv and argv[-2:] == ["--plan-id", plan]
+    argv, remote = core.build_argv("voices-pr", {"plan_id": plan, "apply": True})
+    assert remote is True and argv[-1] == "--apply"
+    try:
+        core.build_argv("voices-pr", {"plan_id": plan, "apply": True, "scheduled": True})
+    except ValueError as exc:
+        assert "scheduled" in str(exc)
+    else:
+        raise AssertionError("voices-pr took scheduled")
+    try:
+        core.JobManager(Path(tempfile.mkdtemp())).submit("voices-pr", {"plan_id": plan, "apply": True}, confirm=False)
+    except PermissionError:
+        pass
+    else:
+        raise AssertionError("voices-pr apply ran without confirm")
+    op = next(o for o in core.list_ops() if o["id"] == "voices-pr")
+    assert op["remote_write"] and op["confirm"] == "write" and op["params"] == ["plan_id", "apply"], op
+    copy_path.unlink()
+
+
+def test_voices_routes_serve_the_document_and_a_preview_that_writes_nothing():
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    import app as console_app
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    doc = client.get("/api/voices").json()
+    assert doc["schema"] == "voices-editor/v1" and doc["path"] == "_data/voices/voices.yml" and doc["ok"], doc.get("errors")
+    path = core.REPO_ROOT / "_data" / "voices" / "voices.yml"
+    before = path.read_bytes()
+    data = doc["data"]
+    data["sites"]["lifehacker.dev"]["personas"]["kit"]["enabled"] = "sometimes"
+    r = client.post("/api/voices/preview", json={"data": data})
+    assert r.status_code == 200 and not r.json()["ok"] and any("enabled" in e for e in r.json()["errors"]), r.text
+    assert path.read_bytes() == before, "a preview wrote the file"
+    r = client.post("/api/voices/stage", json={"data": data, "plan_id": r.json()["plan_id"]})
+    assert r.status_code == 400 and "check" in r.json()["detail"], r.text
+    data["sites"]["lifehacker.dev"]["personas"]["kit"]["enabled"] = True
+    data["sites"]["lifehacker.dev"]["personas"]["kit"]["tone"] = "candid, caffeinated"
+    r = client.post("/api/voices/stage", json={"data": data, "plan_id": "0" * 16})
+    assert r.status_code == 409 and "preview again" in r.json()["detail"], r.text
+    assert client.post("/api/voices/preview", json={"text": "x"}).status_code == 422
+    assert path.read_bytes() == before
 
 
 def main() -> int:

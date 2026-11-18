@@ -1,0 +1,17 @@
+# A job's derived state, ages and slowness diagnostics on the Jobs page (HUB-064).
+id: console-job-status
+feature: HUB-064
+title: "The Jobs page carries a job's state, ages and why it may be slow"
+description: "/jobs on the public build shows the job-status surface with no job in it (the published page has no console): the Stalled tile beside Running, a Stalled filter, and the age and idle columns, with nothing scrolling sideways. On a running console the same page shows a stalled badge, the ages, and each live job's diagnostics under its state — recorded by hand in the evidence README."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_"]
+steps:
+  - goto: /jobs
+  - expect: { status: 200 }
+  - wait: { selector: "main table" }
+  - expect: { visible: "main :text-is('Stalled')" }
+  - expect: { text: "running, log quiet past its threshold" }
+  - expect: { visible: "main th:has-text('age')" }
+  - expect: { visible: "main th:has-text('idle')" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: jobs

@@ -32,10 +32,11 @@ mkdir -p "$OUT" && OUT="$(cd "$OUT" && pwd)"
 
 case "$BASE" in /*/ | /) ;; *) echo "build-pages: CONSOLE_BASE must start and end with / (got '$BASE')" >&2; exit 2 ;; esac
 
-# Always-latest, no lockfile (web/.npmrc), like the console's own run.sh.
-if [[ ! -d "$WEB/node_modules" || "$WEB/package.json" -nt "$WEB/node_modules" ]]; then
-  (cd "$WEB" && npm install --no-package-lock --no-audit --no-fund --loglevel=error) && touch "$WEB/node_modules"
-fi
+# Always-latest, no lockfile (web/.npmrc), like the console's own run.sh: a
+# missing install is installed, an existing one is upgraded in place.
+# shellcheck source=tools/console/web-deps.sh
+source "$HERE/web-deps.sh"
+web_deps "$WEB"
 
 echo "build-pages: the page (base $BASE) → $OUT"
 (cd "$WEB" && npx tsc -b && CONSOLE_BASE="$BASE" CONSOLE_OUT="$OUT" VITE_STATIC=1 npx vite build --logLevel warn)

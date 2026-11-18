@@ -131,6 +131,30 @@ def list_containers(host: str, timeout: int = 8) -> tuple[list[Container], str |
     return boxes, None
 
 
+def engine_info(host: str, timeout: int = 8) -> tuple[dict | None, str | None]:
+    """(capacity, error) of one Docker engine from `docker info`: its CPUs,
+    memory and running containers. On the Mac this is the Docker VM, the edge's
+    real ceiling (docs/PLATFORM.md); the Nodes page and `dash node status` show
+    it. Read-only, fixed argv, time-limited, like list_containers."""
+    if not host:
+        return None, None
+    base = ["docker"] if host == LOCAL else ["docker", "-H", host]
+    try:
+        r = subprocess.run([*base, "info", "--format", "{{json .}}"], capture_output=True, text=True,
+                           timeout=timeout, stdin=subprocess.DEVNULL, start_new_session=True)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return None, str(exc)
+    if r.returncode != 0:
+        return None, (r.stderr or r.stdout or "docker info failed").strip()[-400:]
+    try:
+        info = json.loads(r.stdout.strip().splitlines()[-1])
+        return {"via": "engine", "cpus": int(info["NCPU"]), "mem_total": int(info["MemTotal"]),
+                "containers_running": int(info.get("ContainersRunning") or 0),
+                "server_version": str(info.get("ServerVersion") or "")}, None
+    except (IndexError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        return None, f"docker info: unreadable answer ({type(exc).__name__})"
+
+
 def list_all(hosts: list[str], timeout: int = 8) -> tuple[list[Container], dict[str, str]]:
     """Every host's containers, and an error per host that could not be reached."""
     boxes: list[Container] = []

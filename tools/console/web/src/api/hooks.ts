@@ -10,7 +10,8 @@ import type {
   AppsDoc, AuthDoc, Capabilities, ProjectReadme, ConfigDoc, DockerView, FleetView, Job, LakeLine, LakeRun, Op,
   ProjectDetail, StateDoc, TuiStatus, Dict, GithubStatus, GhRepo, GhRepoDetail, GhAction, GhIssue,
   SiteIndex, SitePage, SitePost, GithubFleet, PullSpecs, WorkBoard, WorkItemDetail, WorkPlan,
-  WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint, RefineDoc, EvidenceDoc, TextFile, AssistDoc, JobTail, PrQueue,
+  WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint, RefineDoc, EvidenceDoc, TextFile, AssistDoc, JobTail, PrQueue, NodesDoc, SprintsDoc, VoicesDoc,
+  GhProjectsDoc, GhProjectItemsDoc,
 } from './types';
 
 const minute = 60_000;
@@ -82,6 +83,8 @@ export const useReach = (url: string | null | undefined, enabled = true, pollMs 
   });
 
 export const useDocker = () => useQuery({ queryKey: ['docker'], queryFn: () => api<DockerView>('/api/fleet/docker'), staleTime: 15_000 });
+// The console answers from a 15 s cache (core.NODES_TTL), so polling faster only re-reads it.
+export const useNodes = () => useQuery({ queryKey: ['nodes'], queryFn: () => api<NodesDoc>('/api/nodes'), staleTime: 15_000 });
 export const useProject = (name: string) =>
   useQuery({ queryKey: ['project', name], queryFn: () => api<ProjectDetail>(`/api/project/${encodeURIComponent(name)}`), staleTime: 30_000 });
 
@@ -154,6 +157,10 @@ export const usePullSpecs = (nwo: string | null, n: number | null) =>
     retry: false,
   });
 
+// --- The live expedite-sprint records (tools/sprint_record.py) ---------------
+/** Read-only: a record changes only by a pull request, so there is no mutation here. */
+export const useSprints = () => useQuery({ queryKey: ['sprints'], queryFn: () => api<SprintsDoc>('/api/sprints'), staleTime: minute });
+
 // --- The workflow atlas (dash-gen workflow_atlas.py) ------------------------
 export const useWorkflows = () => useQuery({ queryKey: ['workflows'], queryFn: () => api<WorkflowAtlas>('/api/workflows'), staleTime: minute });
 /** Run health from the local lake; the published page carries its absent shape. */
@@ -189,6 +196,22 @@ export const useGithubIssue = (nwo: string, n: number | null) =>
   useQuery({ queryKey: ['github', 'issue', nwo, n], queryFn: () => api<{ issue: GhIssue; comments: { id: number; user: string; body: string; created_at: string; html_url: string }[] }>(`/api/github/repos/${nwo}/issues/${n}`), enabled: n != null });
 export const useGithubLog = () =>
   useQuery({ queryKey: ['github', 'log'], queryFn: () => api<GhAction[]>('/api/github/log'), refetchInterval: 15_000 });
+
+// --- GitHub Projects (v2), read-only (gh_projects.py) ----------------------
+// A console-only read with the operator's token: the public snapshot carries
+// none of it (a private project's title must not reach Pages), so on the
+// published page these answer 501 and the page says so.
+export const useGhProjects = (enabled = true) =>
+  useQuery({ queryKey: ['gh-projects'], queryFn: () => api<GhProjectsDoc>('/api/gh-projects'), enabled, staleTime: 5 * minute, retry: false });
+/** Every item a board needs in one read (the API's cap); the table pages it in the browser. */
+export const useGhProjectItems = (projectId: string | null) =>
+  useQuery({
+    queryKey: ['gh-projects', 'items', projectId],
+    queryFn: () => api<GhProjectItemsDoc>(`/api/gh-projects/${encodeURIComponent(projectId ?? '')}/items?limit=500`),
+    enabled: Boolean(projectId),
+    staleTime: 5 * minute,
+    retry: false,
+  });
 
 // --- The site: profile, pages, posts, public registries (site_docs.py) -----
 export const useSite = () => useQuery({ queryKey: ['site'], queryFn: () => api<SiteIndex>('/api/site'), staleTime: 10 * minute });
@@ -226,6 +249,8 @@ export const useReviewFile = (runId: string | null, path: string | null) =>
     enabled: Boolean(runId && path),
     retry: false,
   });
+// --- The fleet voice model (tools/voices.py; constitution § 23 rule 7) -------
+export const useVoices = () => useQuery({ queryKey: ['voices'], queryFn: () => api<VoicesDoc>('/api/voices'), staleTime: minute });
 export const useAssist = () => useQuery({ queryKey: ['assist'], queryFn: () => api<AssistDoc>('/api/assist'), staleTime: minute });
 /** One job's tail from offset 0: the Assist page reads a finished answer through it. */
 export const useJobTail = (id: string | null, live = false) =>
