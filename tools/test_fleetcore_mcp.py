@@ -152,6 +152,7 @@ def test_read_tools_over_the_committed_signals():
         assert all(r["worst_level"] == "red" for r in ov["attention"]) and len(ov["attention"]) <= 10
         inbox, err = call("fleet_inbox", {"limit": 2})
         assert not err and len(inbox["items"]) <= 2 and inbox["count"] >= len(inbox["items"])
+        assert all(isinstance(i.get("clears"), list) for i in inbox["items"]), "every item carries clears"
         apps, err = call("fleet_apps", {"query": "zzzz-no-such-project"})
         assert not err and apps["count"] == 0 and apps["rows"] == []
         docker, err = call("fleet_docker")
@@ -200,6 +201,52 @@ def test_fleet_true_serves_the_fleet_workflow_model():
             assert err
     finally:
         os.rmdir(tmp)
+
+
+def test_fleet_inbox_returns_the_merge_item_and_what_it_clears():
+    """FF-0036: a green, clean fix PR is a `merge` item at 95, and an agent
+    reading fleet_inbox gets `clears` — the red workflow and the PRs red only
+    because of it — in the fleet inbox and in that repo's drill-down alike."""
+    import yaml
+
+    ci = ".github/workflows/ci.yml"
+    clears = [ci, "#127", "#134", "#137"]
+    url = "https://github.com/bamr87/bashcrawl"
+    fix = {"number": 133, "title": "fix(ci): exclude CHANGELOG.md", "url": f"{url}/pull/133", "age_days": 3,
+           "evidence": "verified", "mergeable_state": "clean", "ready": True, "clears": clears[1:]}
+    triage = {
+        "generated_at": "2026-11-02 18:00 UTC",
+        "inbox": [
+            {"kind": "merge", "repo": "bashcrawl", "nwo": "bamr87/bashcrawl", "ref": "#133", "title": fix["title"],
+             "why": "Merge #133: clears CI on main and #127, #134, #137 once their branches are updated",
+             "age_days": 3, "url": fix["url"], "priority": 95, "clears": clears, "evidence": "verified"},
+            {"kind": "workflow", "repo": "bashcrawl", "nwo": "bamr87/bashcrawl", "ref": ci, "title": "CI",
+             "why": "latest run failure · fix: #133", "age_days": None, "url": f"{url}/actions/runs/1",
+             "priority": 90}],
+        "by_repo": [{"name": "bashcrawl", "nwo": "bamr87/bashcrawl", "repo_url": url, "external": False,
+                     "prs": {"items": []}, "issues": {"items": []},
+                     "workflows": {"failing": [{"workflow": "CI", "path": ci, "conclusion": "failure",
+                                                "run_url": f"{url}/actions/runs/1", "branch": "main",
+                                                "fix_prs": [fix]}]}}],
+    }
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "_data").mkdir()
+        (root / "_data" / "projects.yml").write_text(yaml.safe_dump([{"name": "bashcrawl", "repo_url": url}]))
+        (root / "_data" / "fleet_triage.yml").write_text(yaml.safe_dump(triage))
+        real, m.ROOT = m.ROOT, root
+        try:
+            fleet, err = call("fleet_inbox", {"limit": 5})
+            drill, err2 = call("fleet_inbox", {"repo": "bashcrawl"})
+        finally:
+            m.ROOT = real
+    assert not err and not err2
+    top = fleet["items"][0]
+    assert (top["kind"], top["ref"], top["priority"], top["clears"], top["evidence"]) == \
+        ("merge", "#133", 95, clears, "verified"), top
+    assert fleet["items"][1]["clears"] == [] and fleet["items"][1]["why"].endswith("fix: #133")
+    one = drill["items"][0]
+    assert drill["repo"] == "bashcrawl" and (one["kind"], one["clears"], one["why"]) == ("merge", clears, top["why"])
 
 
 class Env:

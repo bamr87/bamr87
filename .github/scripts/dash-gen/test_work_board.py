@@ -472,6 +472,56 @@ def test_dependency_reason_on_the_board():
           items["issue:bamr87/noisy#1"]["detail"]["open_dependents"] == 1)
 
 
+def test_fix_pr_sorts_ahead_of_what_it_clears():
+    print("\nboard: a fix PR goes ahead of the PRs it clears, and a hint names the merge (FF-0036)")
+    root = fixture_root()
+    path = root / "_data" / "fleet_triage.yml"
+    tri = yaml.safe_load(path.read_text())
+    ci = ".github/workflows/ci.yml"
+
+    def pr(n, title, ci_state, idle, **extra):
+        return {"number": n, "title": title, "draft": False, "ci": ci_state, "age_days": idle + 1,
+                "idle_days": idle, "url": f"https://github.com/{HUB}/pull/{n}", "author": "bamr87",
+                "dependabot": False, **extra}
+
+    tri["by_repo"][0]["prs"]["items"] += [
+        pr(120, "fix(ci): exclude CHANGELOG.md from markdownlint", "pass", 0,
+           clears=[ci, "#121", "#122"], fix_evidence="verified", mergeable_state="clean", merge_ready=True),
+        pr(121, "feat: inherits the red", "fail", 30),   # older and idler: it would sort first on its own
+        pr(122, "chore(main): release 1.4.0", "fail", 2),
+        pr(123, "fix: deploy key", "pass", 1, clears=[".github/workflows/deploy.yml"], fix_evidence="doctor",
+           mergeable_state="dirty", merge_ready=False),
+    ]
+    path.write_text(yaml.safe_dump(tri))
+    doc = board(root, local=False)
+    items = by_key(doc)
+    review = [it["key"] for it in doc["items"] if it["lane"] == "review"]
+    fix, cleared = f"pr:{HUB}#120", [f"pr:{HUB}#121", f"pr:{HUB}#122"]
+    check("the fix PR card sorts ahead of every PR card it clears",
+          all(review.index(fix) < review.index(k) for k in cleared), str(review))
+    check("…by taking their priority (a red PR is auto-P1, its green fix was P2)",
+          items[fix]["priority"] == "P1" and items[fix]["priority_auto"] == "P1"
+          and items[fix]["priority_source"] == "derived")
+    check("the fix PR carries clears in its detail",
+          items[fix]["detail"]["clears"] == [ci, "#121", "#122"] and items[fix]["detail"]["merge_ready"]
+          and items[fix]["detail"]["mergeable_state"] == "clean" and items[fix]["detail"]["fix_evidence"] == "verified")
+    check("a _hints line names the merge, first",
+          doc["hints"][0] == {"tone": "good", "lever": "lane:review", "text":
+                              "Merge bamr87 #120: it clears ci.yml on the tracked branch and #121, #122 once their "
+                              "branches are updated (a verified fix, green and clean)."}, str(doc["hints"][:1]))
+    check("a fix that is not clean names no merge", not any("#123" in h["text"] for h in doc["hints"]))
+    check("…and one that clears no PR card keeps its own priority",
+          items[f"pr:{HUB}#123"]["priority"] == "P2" and items[f"pr:{HUB}#123"]["detail"]["clears"])
+
+    over = wb.build(wb.load_inputs(root, local=False, now=NOW), {"priority": {cleared[0]: "P0"}})
+    o = by_key(over)
+    o_review = [it["key"] for it in over["items"] if it["lane"] == "review"]
+    check("a human P0 on a cleared PR lifts its fix to P0 too, still ahead of it",
+          o[fix]["priority"] == "P0" and o_review.index(fix) < o_review.index(cleared[0]), str(o_review[:3]))
+    mine = wb.build(wb.load_inputs(root, local=False, now=NOW), {"priority": {fix: "P3"}})
+    check("…but a human override on the fix PR itself still wins", by_key(mine)[fix]["priority"] == "P3")
+
+
 def test_plans_refuse_what_they_cannot_do():
     print("\nplans: validated, split by destination")
     root = fixture_root()
@@ -623,6 +673,7 @@ def main() -> int:
     test_board_lanes_and_sources()
     test_board_cut_line_is_the_pipelines()
     test_dependency_reason_on_the_board()
+    test_fix_pr_sorts_ahead_of_what_it_clears()
     test_plans_refuse_what_they_cannot_do()
     test_roadmap_edit()
     test_degraded_inputs()

@@ -19,6 +19,7 @@ coverage: listed
 | `README.md` | file | Projects index page | |
 | `*.code-workspace` | pattern | VS Code multi-root workspace over a group of these projects (folder paths relative to this dir) | |
 | `README/` | dir | Context engine for the bamr87 fleet: crawlers and distillers that build queryable docs for every pr… | terminal |
+| `SCHEMA/` | dir | Pyramid Schema: the SCHEMA.md protocol and linter that let AI agents look up repo structure instead… | terminal |
 | `ai-world-view.github.io/` | dir | AI World View — the root site of the self-growing country knowledge-base network; the per-country r… | terminal |
 | `bamr87.github.io/` | dir | Amr Abdel-Motaleb's personal profile, résumé and project portfolio site, built with Jekyll on GitHu… | terminal |
 | `bash-365-apex/` | dir | Client-side redirect from the bash-365.com apex domain to www, served by GitHub Pages for BASH Cons… | terminal |
@@ -27,6 +28,7 @@ coverage: listed
 | `bashos/` | dir | Terminal-first AI runtime that routes Claude slash commands through a LangGraph kernel onto the Ope… | terminal |
 | `cv-pro/` | dir | CV as code and the CV Builder Pro app in one repository: cv/ holds the data, the CVData contract an… | terminal |
 | `djangoerp/` | dir | Modular Django REST ERP: double-entry accounting, inventory, purchasing, sales, manufacturing and M… | terminal |
+| `dot-github/` | dir | Shared reusable GitHub Actions workflows, release-please setup and community health files for every… | terminal |
 | `edgar-pipeline/` | dir | Data pipeline for SEC EDGAR filings: Dagster orchestration, dbt models on DuckDB, MLflow experiment… | terminal |
 | `fleet-infra/` | dir | GitOps infrastructure for the bamr87 fleet: Terraform/HCL provisioning, a k3s cluster, and Helm cha… | terminal |
 | `fleet-mobile/` | dir | Kotlin Multiplatform app to monitor the bamr87 fleet's bots, CI and PRs from a phone. | terminal |

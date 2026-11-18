@@ -494,6 +494,10 @@ export interface InboxItem {
   url: string;
   ref?: string;
   label: string;
+  /** kind `merge` (FF-0036): the red workflow(s), then the PRs red only because of it, that merging this PR clears. */
+  clears?: string[];
+  /** kind `merge`: the fix evidence, `verified` (its own run passed the failed jobs) or `doctor`. */
+  evidence?: string;
 }
 
 export interface FleetView {

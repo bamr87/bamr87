@@ -1,5 +1,7 @@
 // The fleet inbox: every flagged issue, PR and failing workflow, highest
 // priority first (fleet_triage.yml through fleetcore — the TUI's Inbox tab).
+// A `merge` row leads it: a green, clean PR that fixes a failing workflow, with
+// what merging it clears (FF-0036); the merge itself stays a human's.
 import { useSearchParams } from 'react-router';
 import { Group, SegmentedControl, Text, TextInput } from '@mantine/core';
 import { IconSearch } from '@tabler/icons-react';
@@ -23,7 +25,7 @@ export function Inbox() {
     <>
       <PageHeader
         title="Inbox"
-        description="Flagged items across the fleet, ranked. A project's page lists every open item it carries, flagged or not. Refreshed daily by fleet-pulse; refresh it here with the triage snapshot."
+        description="Flagged items across the fleet, ranked. A merge row is a green, clean pull request that fixes a failing workflow, and says what merging it clears. A project's page lists every open item it carries, flagged or not. Refreshed daily by fleet-pulse; refresh it here with the triage snapshot."
         actions={<RunButton op="triage">Triage snapshot</RunButton>}
       />
       <Load q={fleet}>

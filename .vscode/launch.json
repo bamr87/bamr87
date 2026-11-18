@@ -1808,8 +1808,8 @@
       "description": "Submodule directory under projects/",
       "type": "pickString",
       "options": [
-        "README", "ai-world-view.github.io", "bamr87.github.io", "bash-365-apex", "bash-365.com",
-        "bashcrawl", "bashos", "cv-pro", "djangoerp", "edgar-pipeline", "fleet-infra", "fleet-mobile",
+        "README", "SCHEMA", "ai-world-view.github.io", "bamr87.github.io", "bash-365-apex", "bash-365.com",
+        "bashcrawl", "bashos", "cv-pro", "djangoerp", "dot-github", "edgar-pipeline", "fleet-infra", "fleet-mobile",
         "fleet-observe", "fredgar-ai", "githubai", "gitorio", "godotgo", "it-journey", "kvlite",
         "law-ai", "lifehacker.dev", "netprobe", "ocrmd", "outbox", "ragio-ai", "recon-engine", "rewind-arcade",
         "schema-lang", "scripts", "sec-lab", "sensor-mesh", "skills", "vs-sonic-pi",
