@@ -7,6 +7,11 @@
 // question once fifty operations have each run a few times. History survives
 // a console restart (jobs.json beside the logs); "Clear finished" forgets
 // finished jobs and deletes their logs, and never touches a running one.
+//
+// Each console job also carries what the console derives when it reads it
+// (HUB-064, tools/console/docs/job-status.md): a state that turns `stalled`
+// when a running job's log goes quiet past its threshold, its age, the time
+// since its log last grew, and the reasons it may be slow.
 import { hasConsole } from '../api/backend';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useState } from 'react';
@@ -22,26 +27,29 @@ import { DataTable } from '../components/DataTable';
 import { Load, PageHeader, StatTile } from '../components/ui';
 import { LogView, useJobTail } from '../jobs/JobLog';
 import { useRunner } from '../jobs/JobRunner';
-import { JobStatus } from '../jobs/JobStatus';
+import { JobDiagnostics, JobStatus } from '../jobs/JobStatus';
 import { LoopRunSummary } from '../jobs/LoopRunSummary';
 import { AssistAnswer } from '../jobs/AssistAnswer';
-import { duration, includesText, when } from '../lib/format';
+import { duration, includesText, seconds, when } from '../lib/format';
 import { to } from '../lib/links';
 import u from '../styles/utils.module.css';
 
 const shortArgv = (j: Job) => j.argv.map((a) => a.replace(/^.*\/tools\//, 'tools/')).join(' ');
 const stamp = (j: Job) => j.started ?? j.created ?? j.finished ?? '';
 const took = (j: Job) => (j.started && j.finished ? duration(Date.parse(j.finished) - Date.parse(j.started)) : '');
+// The console sends age_s; a workflow run on the published page has only its timestamp.
+const ageOf = (j: Job) => j.age_s ?? (j.created ? Math.max(0, (Date.now() - Date.parse(j.created)) / 1000) : null);
 const LIVE = new Set(['running', 'queued']);
 const FINISHED = new Set(['succeeded', 'failed', 'cancelled', 'interrupted']);
 
-type StatusFilter = 'all' | 'live' | 'failed' | 'succeeded';
+type StatusFilter = 'all' | 'live' | 'stalled' | 'failed' | 'succeeded';
 const STATUS_FILTERS: { label: string; value: StatusFilter }[] = [
-  { label: 'All', value: 'all' }, { label: 'Running', value: 'live' },
+  { label: 'All', value: 'all' }, { label: 'Running', value: 'live' }, { label: 'Stalled', value: 'stalled' },
   { label: 'Failed', value: 'failed' }, { label: 'Succeeded', value: 'succeeded' },
 ];
 const statusMatches = (j: Job, f: StatusFilter) =>
-  f === 'all' || (f === 'live' ? LIVE.has(j.status) : f === 'failed' ? ['failed', 'cancelled', 'interrupted'].includes(j.status) : j.status === f);
+  f === 'all' || (f === 'live' ? LIVE.has(j.status) : f === 'stalled' ? j.state === 'stalled'
+    : f === 'failed' ? ['failed', 'cancelled', 'interrupted'].includes(j.status) : j.status === f);
 
 async function cancel(id: string) {
   try {
@@ -128,12 +136,16 @@ export function Jobs() {
           const finished = list.filter((j) => FINISHED.has(j.status)).length;
           const failedish = list.filter((j) => ['failed', 'cancelled', 'interrupted'].includes(j.status)).length;
           const groups = [...new Set(list.map((j) => j.group).filter(Boolean) as string[])].sort();
+          const stalled = list.filter((j) => j.state === 'stalled').length;
           const shown = list.filter((j) => statusMatches(j, status) && (group === 'all' || j.group === group)
-            && includesText([j.title, j.op, j.group, shortArgv(j), JSON.stringify(j.params ?? {})], q));
+            && includesText([j.title, j.op, j.group, shortArgv(j), JSON.stringify(j.params ?? {}),
+              ...(j.diagnostics ?? []).map((d) => d.code)], q));
           return (
             <>
-              <SimpleGrid cols={{ base: 2, md: 5 }} spacing="md" mb="md">
+              <SimpleGrid cols={{ base: 2, md: 6 }} spacing="md" mb="md">
                 <StatTile label="Running" value={count('running') + count('queued')} />
+                <StatTile label="Stalled" value={stalled} tone={stalled ? 'warn' : undefined}
+                  sub="running, log quiet past its threshold" />
                 <StatTile label="Succeeded" value={count('succeeded')} />
                 <StatTile label="Failed" value={count('failed')} tone={count('failed') ? 'crit' : undefined} />
                 <StatTile label="Cancelled / interrupted" value={count('cancelled') + count('interrupted')} />
@@ -168,14 +180,17 @@ export function Jobs() {
                   keys
                   rowKey={(j) => j.id}
                   href={(j) => to.job(j.id)}
-                  tone={(j) => (j.status === 'failed' ? 'crit' : j.status === 'cancelled' || j.status === 'interrupted' ? 'warn' : undefined)}
+                  tone={(j) => (j.status === 'failed' ? 'crit' : j.status === 'cancelled' || j.status === 'interrupted' || j.state === 'stalled' ? 'warn' : undefined)}
                   empty={list.length ? 'No job matches these filters.' : 'No jobs yet. Every Run button in the console starts one.'}
-                  minWidth={900}
+                  minWidth={980}
                   columns={[
-                    { key: 'status', header: 'status', sort: (j) => j.status, render: (j) => <JobStatus status={j.status} /> },
+                    // the reasons a live job may be slow sit under its state, where the eye already is
+                    { key: 'status', header: 'status', sort: (j) => j.state ?? j.status, render: (j) => <Stack gap={4} align="flex-start"><JobStatus status={j.status} state={j.state} /><JobDiagnostics items={j.diagnostics} compact /></Stack> },
                     { key: 'op', header: 'operation', sort: (j) => j.title, render: (j) => <div><Text size="sm" fw={600}>{j.title}{j.remote_write ? <Badge ml={6} size="xs" color="yellow" variant="light">remote</Badge> : null}</Text><Code fz={11} className={u.anywhere}>{shortArgv(j)}</Code></div> },
                     { key: 'group', header: 'group', sort: (j) => j.group ?? '', render: (j) => (j.group ? <Badge size="xs" variant="outline">{j.group}</Badge> : null) },
                     { key: 'started', header: 'started', sort: stamp, render: (j) => <Text size="xs" c="dimmed">{when(j.started ?? j.created)}</Text> },
+                    { key: 'age', header: 'age', num: true, sort: (j) => ageOf(j) ?? 0, render: (j) => <Text span size="xs" title="since it was sent">{seconds(ageOf(j))}</Text> },
+                    { key: 'idle', header: 'idle', num: true, sort: (j) => j.idle_s ?? -1, render: (j) => (j.idle_s == null ? '' : <Text span size="xs" c={j.state === 'stalled' ? 'var(--warning)' : undefined} title={`since its log last grew; stalled past ${seconds(j.stall_s)}`}>{seconds(j.idle_s)}</Text>) },
                     { key: 'dur', header: 'took', num: true, render: took },
                     { key: 'exit', header: 'exit', num: true, render: (j) => j.exit_code ?? '' },
                     { key: 'x', header: '', render: (j) => (j.status === 'running' ? <Button size="compact-xs" color="red" variant="light" leftSection={<IconPlayerStop size={12} />} onClick={(e) => { e.stopPropagation(); void cancel(j.id); }}>Cancel</Button> : null) },
@@ -192,7 +207,7 @@ export function Jobs() {
                   minWidth={860}
                   initialSort={{ key: 'last', desc: true }}
                   columns={[
-                    { key: 'status', header: 'latest', sort: (r) => r.latest.status, render: (r) => <JobStatus status={r.latest.status} /> },
+                    { key: 'status', header: 'latest', sort: (r) => r.latest.status, render: (r) => <JobStatus status={r.latest.status} state={r.latest.state} /> },
                     { key: 'op', header: 'operation', sort: (r) => r.title, render: (r) => <div><Text size="sm" fw={600}>{r.title}</Text><Anchor component={Link} to={to.op(r.op)} size="xs" onClick={(e) => e.stopPropagation()}>{r.op}</Anchor></div> },
                     { key: 'group', header: 'group', sort: (r) => r.group, render: (r) => (r.group ? <Badge size="xs" variant="outline">{r.group}</Badge> : null) },
                     { key: 'last', header: 'last run', sort: (r) => stamp(r.latest), render: (r) => <Text size="xs" c="dimmed">{when(r.latest.started ?? r.latest.created)}</Text> },
@@ -229,7 +244,7 @@ export function JobPage() {
       <PageHeader
         crumbs={[{ label: 'Jobs', to: to.jobs() }, { label: j?.title ?? id }]}
         title={j?.title ?? 'Job'}
-        badges={j ? <><JobStatus status={j.status} />{j.remote_write ? <Badge color="yellow" variant="light">{j.confirm === 'spend' ? 'spends Claude budget' : 'writes to GitHub'}</Badge> : null}</> : null}
+        badges={j ? <><JobStatus status={j.status} state={j.state} />{j.remote_write ? <Badge color="yellow" variant="light">{j.confirm === 'spend' ? 'spends Claude budget' : 'writes to GitHub'}</Badge> : null}</> : null}
         actions={j ? (
           <>
             <Anchor component={Link} to={to.op(j.op)} size="sm">About {j.op}</Anchor>
@@ -251,8 +266,17 @@ export function JobPage() {
               <Text size="xs" c="dimmed">started {when(j.started)}</Text>
               {j.finished ? <Text size="xs" c="dimmed">finished {when(j.finished)}</Text> : null}
               {j.exit_code != null ? <Text size="xs" c="dimmed">exit {j.exit_code}</Text> : null}
+              {j.age_s != null ? <Text size="xs" c="dimmed">sent {seconds(j.age_s)} ago</Text> : null}
+              {j.idle_s != null && j.state === 'queued' ? (
+                <Text size="xs" c="dimmed" data-testid="job-idle">waiting {seconds(j.idle_s)} to start</Text>
+              ) : j.idle_s != null ? (
+                <Text size="xs" c={j.state === 'stalled' ? 'var(--warning)' : 'dimmed'} data-testid="job-idle">
+                  last output {seconds(j.idle_s)} ago (stalled past {seconds(j.stall_s)})
+                </Text>
+              ) : null}
               {j.params && Object.keys(j.params).length ? <Text size="xs" c="dimmed" miw={0}>params <Code className={u.anywhere}>{JSON.stringify(j.params)}</Code></Text> : null}
             </Group>
+            <JobDiagnostics items={j.diagnostics} />
           </Stack>
         </Paper>
       ) : null}

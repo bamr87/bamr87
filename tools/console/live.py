@@ -40,12 +40,23 @@ def _guard(fn):
         return {"error": f"{exc.__class__.__name__}: {exc}"}
 
 
+def collector_age(now: float | None = None) -> float | None:
+    """Seconds since the collector last wrote sessions.json, or None when it never
+    has. Past STALE_S it is `stale` here and `collector_lag` on a live job
+    (core.JobManager, docs/job-status.md)."""
+    try:
+        written = SESSIONS.stat().st_mtime
+    except OSError:
+        return None
+    return max(0.0, (time.time() if now is None else now) - written)
+
+
 def sessions() -> dict:
     if not SESSIONS.exists():
         return {"collector": "missing", "sessions": [],
                 "hint": "run python3 tools/console/live_collector.py on the host"}
     doc = json.loads(SESSIONS.read_text())
-    age = time.time() - SESSIONS.stat().st_mtime
+    age = collector_age() or 0.0
     doc["age_s"] = round(age, 1)
     doc["collector"] = "stale" if age > STALE_S else "ok"
     s = doc.get("sessions", [])

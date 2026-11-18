@@ -96,7 +96,9 @@ STATIC_ROUTES: dict[str, tuple[str, str]] = {
     "features": ("Features", "What each repo does and what proves it — the fleet feature index."),
     "engagements": ("Engagements", "Every project as a client: estimates, actuals and leverage."),
     "github": ("GitHub", "Manage fleet repos' issues, runs and workflows."),
+    "gh-projects": ("GitHub Projects", "GitHub Projects (v2) across every fleet owner, as a table or a board by Status — read on a console with the operator's token, never published."),
     "containers": ("Containers", "The fleet dev stack: ports, images and services."),
+    "nodes": ("Nodes", "Where hub workloads run: each node's role, on/off state, capacity and placed services."),
     "harnesses": ("Harness inventory", "Every AI workflow in the fleet, graded against the harness standard."),
     "harnesses/health": ("Harness health", "Trip wires and the six-layer harness scorecard."),
     "schedules": ("Schedules", "Crons, caps and collisions across the fleet."),
@@ -231,6 +233,10 @@ def documents() -> dict[str, object]:
         "tui/status": {"available": False, "active": 0, "max": 0, "app": "tools/tui/app.py"},
         "fleet/docker": {"hosts": [], "containers": [], "errors": {"snapshot": f"Docker {LOCAL_ONLY}."},
                          "polled_at": now},
+        # The committed placement model (_data/fleet.yml `nodes:` against
+        # docker-compose.yml), with nothing probed: no node's reachability,
+        # capacity or containers, which are one machine's state, not the fleet's.
+        "nodes": core.nodes_doc(probe=False),
         "github/status": {"connected": False, "source": None, "kind": None, "login": None, "name": None,
                           "avatar_url": None, "scopes": [], "rate": None, "error": None, "session_set": False,
                           "writes_enabled": False, "auth_writes": False, "fleet_owner": ghl._hub_owner(),
@@ -240,7 +246,6 @@ def documents() -> dict[str, object]:
         "github/fleet": {"owner": ghl._hub_owner(), "hub": ghl._hub(), "repos": ghl.fleet_repos(),
                          "dispatchable": core.dispatchable()},
         "github/log": [],
-        "site": site_docs.site_index(include_drafts=False),
         # Addresses from the two registries: nothing here was probed, so there
         # is no laptop's port state to keep out of the public build.
         "apps": fapps.apps_view(core.REPO_ROOT),
@@ -249,14 +254,22 @@ def documents() -> dict[str, object]:
         docs[f"fleet/{sort}"] = view
     for p in registry:
         docs[f"project/{p['name']}"] = project(p["name"])
-    for meta in site_docs.pages():
-        docs[f"site/page/{meta['slug']}"] = site_docs.page(meta["slug"])
-    for meta in site_docs.posts():
-        docs[f"site/post/{meta['slug']}"] = site_docs.post(meta["slug"])
+    docs.update(site_documents())
     for name in site_docs.PUBLIC_DATA:
         value = site_docs.data(name)
         if value is not None:
             docs[f"data/{name}"] = value
+    return docs
+
+
+def site_documents() -> dict[str, object]:
+    """The site's own documents, drafts left out: its index, each long-form
+    page and each published post, one document per address."""
+    docs: dict[str, object] = {"site": site_docs.site_index(include_drafts=False)}
+    for meta in docs["site"]["pages"]:
+        docs[f"site/page/{meta['slug']}"] = site_docs.page(meta["slug"])
+    for meta in docs["site"]["posts"]:
+        docs[f"site/post/{meta['slug']}"] = site_docs.post(meta["slug"])
     return docs
 
 

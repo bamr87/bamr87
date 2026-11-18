@@ -152,6 +152,7 @@ def test_read_tools_over_the_committed_signals():
         assert all(r["worst_level"] == "red" for r in ov["attention"]) and len(ov["attention"]) <= 10
         inbox, err = call("fleet_inbox", {"limit": 2})
         assert not err and len(inbox["items"]) <= 2 and inbox["count"] >= len(inbox["items"])
+        assert all(isinstance(i.get("clears"), list) for i in inbox["items"]), "every item carries clears"
         apps, err = call("fleet_apps", {"query": "zzzz-no-such-project"})
         assert not err and apps["count"] == 0 and apps["rows"] == []
         docker, err = call("fleet_docker")
@@ -181,6 +182,97 @@ def test_read_tools_over_the_committed_signals():
         learning, err = call("fleet_learning", {"loop": "repo-scout", "limit": 3})
         assert not err and learning["mode"] == "shadow" and "available" in learning
         assert all(len(lp["arms"]) <= 3 for lp in learning["loops"])
+
+
+def test_fleet_true_serves_the_fleet_workflow_model():
+    """fleet_workflows(fleet=true) is fleet-workflows/v1 (fleetcore/workflows.py), the model the CLI prints. With
+    nothing synced, every repository says it was not read and why — never a pass."""
+    tmp = tempfile.mkdtemp(prefix="fleet-wf-lake-")
+    try:
+        with Env(DASH_LAKE_DIR=tmp):
+            doc, err = call("fleet_workflows", {"fleet": True})
+            assert not err and doc["schema"] == "fleet-workflows/v1", doc
+            assert doc["summary"]["repos"] == len(doc["repos"]) > 2 and doc["summary"]["read"] == 0
+            assert all(r["read"] is False and r["reason"] for r in doc["repos"])
+            assert set(doc["states"]) == {"verified", "passed-empty", "never-ran", "quota", "real-failure", "cancelled"}
+            one, err = call("fleet_workflows", {"fleet": True, "repo": "bamr87/bamr87"})
+            assert not err and one["repo"]["nwo"] == "bamr87/bamr87" and one["workflows"] == [], one
+            _, err = call("fleet_workflows", {"fleet": True, "repo": "no-such-repo-anywhere"})
+            assert err
+    finally:
+        os.rmdir(tmp)
+
+
+def test_fleet_nodes_is_the_status_document_and_never_probes_an_off_node():
+    """fleet_nodes returns fleetcore.nodes.status_doc as it is — the keys `tools/dash node
+    status --json` prints and /api/nodes serves — and the committed model's disabled
+    node is never in an argv (no ssh, no docker -H). Every probe is stubbed to time out."""
+    import subprocess
+    from fleetcore import nodes
+    seen: list[list[str]] = []
+
+    def run(argv, **kw):
+        seen.append(list(argv))
+        raise subprocess.TimeoutExpired(argv, kw.get("timeout") or 0)
+
+    real, subprocess.run = subprocess.run, run
+    try:
+        doc, err = call("fleet_nodes")
+        direct = nodes.status_doc()
+    finally:
+        subprocess.run = real
+    assert not err and doc["schema"] == "fleet-nodes/v1" and set(doc) == set(direct), doc
+    assert [set(x) for x in doc["nodes"]] == [set(x) for x in direct["nodes"]]
+    off = {h.name for h in nodes.load_model().workload() if not h.enabled}
+    assert {x["name"] for x in doc["nodes"] if x["status"] == "off"} == off
+    assert not [a for a in seen if a[0] == "ssh" or "-H" in a], seen
+    assert doc["drift"] is None and doc["drift_read"] == [], "no container list was read: drift is not read, not zero"
+
+
+def test_fleet_inbox_returns_the_merge_item_and_what_it_clears():
+    """FF-0036: a green, clean fix PR is a `merge` item at 95, and an agent
+    reading fleet_inbox gets `clears` — the red workflow and the PRs red only
+    because of it — in the fleet inbox and in that repo's drill-down alike."""
+    import yaml
+
+    ci = ".github/workflows/ci.yml"
+    clears = [ci, "#127", "#134", "#137"]
+    url = "https://github.com/bamr87/bashcrawl"
+    fix = {"number": 133, "title": "fix(ci): exclude CHANGELOG.md", "url": f"{url}/pull/133", "age_days": 3,
+           "evidence": "verified", "mergeable_state": "clean", "ready": True, "clears": clears[1:]}
+    triage = {
+        "generated_at": "2026-11-02 18:00 UTC",
+        "inbox": [
+            {"kind": "merge", "repo": "bashcrawl", "nwo": "bamr87/bashcrawl", "ref": "#133", "title": fix["title"],
+             "why": "Merge #133: clears CI on main and #127, #134, #137 once their branches are updated",
+             "age_days": 3, "url": fix["url"], "priority": 95, "clears": clears, "evidence": "verified"},
+            {"kind": "workflow", "repo": "bashcrawl", "nwo": "bamr87/bashcrawl", "ref": ci, "title": "CI",
+             "why": "latest run failure · fix: #133", "age_days": None, "url": f"{url}/actions/runs/1",
+             "priority": 90}],
+        "by_repo": [{"name": "bashcrawl", "nwo": "bamr87/bashcrawl", "repo_url": url, "external": False,
+                     "prs": {"items": []}, "issues": {"items": []},
+                     "workflows": {"failing": [{"workflow": "CI", "path": ci, "conclusion": "failure",
+                                                "run_url": f"{url}/actions/runs/1", "branch": "main",
+                                                "fix_prs": [fix]}]}}],
+    }
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "_data").mkdir()
+        (root / "_data" / "projects.yml").write_text(yaml.safe_dump([{"name": "bashcrawl", "repo_url": url}]))
+        (root / "_data" / "fleet_triage.yml").write_text(yaml.safe_dump(triage))
+        real, m.ROOT = m.ROOT, root
+        try:
+            fleet, err = call("fleet_inbox", {"limit": 5})
+            drill, err2 = call("fleet_inbox", {"repo": "bashcrawl"})
+        finally:
+            m.ROOT = real
+    assert not err and not err2
+    top = fleet["items"][0]
+    assert (top["kind"], top["ref"], top["priority"], top["clears"], top["evidence"]) == \
+        ("merge", "#133", 95, clears, "verified"), top
+    assert fleet["items"][1]["clears"] == [] and fleet["items"][1]["why"].endswith("fix: #133")
+    one = drill["items"][0]
+    assert drill["repo"] == "bashcrawl" and (one["kind"], one["clears"], one["why"]) == ("merge", clears, top["why"])
 
 
 class Env:

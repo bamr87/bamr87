@@ -7,7 +7,8 @@ docs/FRONTEND-PLATFORM.md) to the places that frontend can be reached:
   live   the deployed site: `frontend.entry_url`, else the entry's `live_url`
   local  the dev stack on this machine: the project's browser-facing services
          in `_data/ports.yml` (what `tools/dash dev up <project>` publishes on
-         127.0.0.1), the most page-like one first
+         127.0.0.1, or for a devenv-hosted site the workspace port the hub's
+         devenv container publishes), the most page-like one first
 
 so the console's Apps page, `tools/dash apps` and every later surface (the
 VS Code extension, the mobile shell) open the same app at the same address
@@ -39,7 +40,11 @@ SCHEMA = "fleet-launcher/v1"
 EMBED_TYPES = ("app", "console", "site", "game")
 # The ports.yml bands a browser can open, most page-like first: that order
 # picks a project's primary local target (law-ai's `frontend` before `backend`).
-WEB_BANDS = ("frontend", "jekyll", "docs", "api")
+# The workspace bands are their counterparts inside the hub's devenv container.
+WEB_BANDS = ("frontend", "workspace_node", "jekyll", "workspace", "docs", "api")
+# The block devenv publishes for the servers started inside it (`host: devenv`):
+# _data/ports.yml `bands:`, mirroring _data/fleet.yml containers.ports.workspace*.
+WORKSPACE_BANDS = ("workspace_node", "workspace")
 LOCAL_HOST = "127.0.0.1"
 # The verify kit's device matrix (verify/verify.yml `viewports:`) when the
 # file is absent: the portal's presets and a scenario's viewports are one list.
@@ -71,16 +76,28 @@ def ports_entry(ports: dict | None, entry: dict) -> tuple[str | None, dict | Non
     return None, None
 
 
+def _published_by_devenv(bands: dict, band: str, port: int) -> bool:
+    """Whether devenv publishes this port: it lies in one of the workspace bands."""
+    spec = bands.get(band) if band in WORKSPACE_BANDS else None
+    rng = spec.get("range") if isinstance(spec, dict) else None
+    return isinstance(rng, list) and len(rng) == 2 and rng[0] <= port <= rng[1]
+
+
 def local_targets(ports: dict | None, entry: dict) -> list[dict]:
     """The project's local dev services a browser can open, primary first.
 
-    Only a compose-hosted project has an address here: its services publish
-    the ports `_data/ports.yml` allocates, whoever starts them. A devenv-hosted
-    project is served from the workspace container on a port picked at launch
-    (.vscode/launch.json), so it has no fixed local address to offer."""
+    A compose-hosted project's services publish the ports `_data/ports.yml`
+    allocates, whoever starts them; `tools/dash dev up <project>` starts them.
+    A devenv-hosted project is served from inside the hub's devenv container,
+    which publishes only the workspace bands, so its allocation is offered only
+    inside one of them. Its `start` is the registry's `start:` (the command its
+    .vscode/launch.json entry runs), because `tools/dash dev up` does not apply."""
     key, proj = ports_entry(ports, entry)
-    if not proj or proj.get("host") != "compose":
+    host = (proj or {}).get("host")
+    if host not in ("compose", "devenv"):
         return []
+    bands = (ports or {}).get("bands") or {}
+    bands = bands if isinstance(bands, dict) else {}
     ranked = []
     for order, (svc, spec) in enumerate((proj.get("services") or {}).items()):
         if not isinstance(spec, dict) or spec.get("band") not in WEB_BANDS:
@@ -88,14 +105,17 @@ def local_targets(ports: dict | None, entry: dict) -> list[dict]:
         port = spec.get("port")
         if isinstance(port, bool) or not isinstance(port, int):
             continue
+        if host == "devenv" and not _published_by_devenv(bands, spec["band"], port):
+            continue
         ranked.append((WEB_BANDS.index(spec["band"]), order, str(svc), spec["band"], port))
+    start = f"tools/dash dev up {key}" if host == "compose" else (str(proj["start"]) if proj.get("start") else None)
     out = []
     for i, (_, _, svc, band, port) in enumerate(sorted(ranked)):
         out.append({
             "id": "local" if i == 0 else f"local-{svc}", "kind": "local",
             "label": "Local" if i == 0 else f"Local · {svc}",
             "url": f"http://{LOCAL_HOST}:{port}/", "service": svc, "port": port, "band": band,
-            "start": f"tools/dash dev up {key}", "project": key,
+            "start": start, "project": key, "host": host,
         })
     return out
 

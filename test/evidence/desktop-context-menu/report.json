@@ -1,11 +1,11 @@
 {
   "id": "desktop-context-menu",
-  "title": "An icon and a title bar have a context menu, and one action puts Live beside Local",
+  "title": "An icon and a title bar have a context menu, and one action puts Live beside Local, which a reload and a layout link keep",
   "features": [
     "HUB-079"
   ],
   "path": "verify/scenarios/desktop-context-menu.yml",
-  "started": "2026-11-06T23:10:46.450Z",
+  "started": "2026-11-16T07:36:58.107Z",
   "viewports": [
     {
       "name": "desktop",
@@ -17,7 +17,7 @@
           "step": "goto",
           "arg": "/desktop",
           "ok": true,
-          "ms": 2929
+          "ms": 642
         },
         {
           "step": "expect",
@@ -33,7 +33,7 @@
             "selector": "nav[aria-label='Apps'] button:has-text('it-journey')"
           },
           "ok": true,
-          "ms": 21
+          "ms": 19
         },
         {
           "step": "eval",
@@ -42,13 +42,13 @@
             "script": "[...document.querySelectorAll(\"nav[aria-label='Apps'] button\")].find((b) => b.innerText.includes('it-journey')).focus()"
           },
           "ok": true,
-          "ms": 3
+          "ms": 8
         },
         {
           "step": "press",
           "arg": "Shift+F10",
           "ok": true,
-          "ms": 6
+          "ms": 11
         },
         {
           "step": "wait",
@@ -56,7 +56,7 @@
             "selector": "role=menuitem[name='Live beside Local']"
           },
           "ok": true,
-          "ms": 29
+          "ms": 28
         },
         {
           "step": "expect",
@@ -68,13 +68,13 @@
           },
           "ok": true,
           "value": 5,
-          "ms": 2
+          "ms": 1
         },
         {
           "step": "press",
           "arg": "Escape",
           "ok": true,
-          "ms": 3
+          "ms": 4
         },
         {
           "step": "expect",
@@ -92,19 +92,19 @@
           },
           "ok": true,
           "value": "it-journey",
-          "ms": 312
+          "ms": 303
         },
         {
           "step": "press",
           "arg": "Shift+F10",
           "ok": true,
-          "ms": 15
+          "ms": 5
         },
         {
           "step": "click",
           "arg": "role=menuitem[name='Live beside Local']",
           "ok": true,
-          "ms": 166
+          "ms": 78
         },
         {
           "step": "wait",
@@ -112,7 +112,7 @@
             "selector": "[data-window-id][data-snapped='right']"
           },
           "ok": true,
-          "ms": 16
+          "ms": 1
         },
         {
           "step": "eval",
@@ -122,13 +122,13 @@
           },
           "ok": true,
           "value": "it-journey · Live / it-journey · Local",
-          "ms": 8
+          "ms": 1
         },
         {
           "step": "click",
           "arg": "[data-window-id][data-snapped='right'] button[aria-label^='Window menu for']",
           "ok": true,
-          "ms": 152
+          "ms": 35
         },
         {
           "step": "wait",
@@ -136,7 +136,7 @@
             "selector": "role=menuitem[name='Copy link']"
           },
           "ok": true,
-          "ms": 15
+          "ms": 2
         },
         {
           "step": "expect",
@@ -148,20 +148,28 @@
           },
           "ok": true,
           "value": 7,
-          "ms": 78
+          "ms": 1
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "ms": 400
+          },
+          "ok": true,
+          "ms": 403
         },
         {
           "step": "screenshot",
           "arg": "live-beside-local-menu",
           "ok": true,
           "file": "test/evidence/desktop-context-menu/desktop-live-beside-local-menu.png",
-          "ms": 54
+          "ms": 45
         },
         {
           "step": "press",
           "arg": "Escape",
           "ok": true,
-          "ms": 33
+          "ms": 6
         },
         {
           "step": "expect",
@@ -173,21 +181,642 @@
             "sw": 1280,
             "cw": 1280
           },
+          "ms": 1
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "copy_layout_link",
+            "script": "(async () => {\n  const copied = new Promise((resolve) => { navigator.clipboard.writeText = async (text) => resolve(text); });\n  document.querySelector(\"button[aria-label='Copy a link that reopens this desktop']\").click();\n  const url = await copied;\n  const layout = JSON.parse(atob(new URL(url).searchParams.get('windows').replace(/-/g, '+').replace(/_/g, '/')));\n  if (!Array.isArray(layout.a)) throw new Error(`the link carries no views: ${JSON.stringify(layout)}`);\n  sessionStorage.setItem('verify_layout_link', url);\n  return layout.a;\n})()\n"
+          },
+          "ok": true,
+          "value": [
+            null,
+            {
+              "t": "live"
+            },
+            {
+              "t": "local"
+            }
+          ],
           "ms": 2
+        },
+        {
+          "step": "goto",
+          "arg": "/desktop",
+          "ok": true,
+          "ms": 546
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "[data-window-id][data-snapped='right']"
+          },
+          "ok": true,
+          "ms": 19
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "reload_targets",
+            "script": "(() => { const head = (edge) => document.querySelector(`[data-window-id][data-snapped='${edge}'] header`).innerText; const left = head('left'); const right = head('right'); if (!left.includes('Live') || !right.includes('Local')) throw new Error(`${left} / ${right}`); return `${left} / ${right}`.replace(/\\n/g, ' '); })()"
+          },
+          "ok": true,
+          "value": "it-journey · Live / it-journey · Local",
+          "ms": 1
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "open_layout_link",
+            "script": "(() => {\n  const url = sessionStorage.getItem('verify_layout_link');\n  sessionStorage.removeItem('bashos_desktop_layout');\n  setTimeout(() => location.assign(url), 0);\n  return new URL(url).search.length;\n})()\n"
+          },
+          "ok": true,
+          "value": 343,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "url": "windows="
+          },
+          "ok": true,
+          "ms": 18
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "[data-window-id][data-snapped='right']"
+          },
+          "ok": true,
+          "ms": 30
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "link_targets",
+            "script": "(() => { const head = (edge) => document.querySelector(`[data-window-id][data-snapped='${edge}'] header`).innerText; const left = head('left'); const right = head('right'); if (!left.includes('Live') || !right.includes('Local')) throw new Error(`${left} / ${right}`); return `${left} / ${right}`.replace(/\\n/g, ' '); })()"
+          },
+          "ok": true,
+          "value": "it-journey · Live / it-journey · Local",
+          "ms": 4
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "reopened-from-link",
+          "ok": true,
+          "file": "test/evidence/desktop-context-menu/desktop-reopened-from-link.png",
+          "ms": 51
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "crafted_link",
+            "script": "(() => {\n  const win = (k, x) => ({ s: 'app', r: 'it-journey', x, y: 0, cx: 50, cy: 100, k });\n  const layout = {\n    v: 1, e: 'os', f: 1, w: [win('left', 0), win('right', 50)],\n    a: [{ t: 'local', d: 'mobile', p: '/docs/' }, { t: 'https://example.com', d: 'watch', p: 'https://example.com/elsewhere' }],\n  };\n  setTimeout(() => location.assign(`/desktop?via=crafted&windows=${encodeURIComponent(btoa(JSON.stringify(layout)))}`), 0);\n  return layout.a;\n})()\n"
+          },
+          "ok": true,
+          "value": [
+            {
+              "t": "local",
+              "d": "mobile",
+              "p": "/docs/"
+            },
+            {
+              "t": "https://example.com",
+              "d": "watch",
+              "p": "https://example.com/elsewhere"
+            }
+          ],
+          "ms": 1
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "url": "via=crafted"
+          },
+          "ok": true,
+          "ms": 9
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "[data-window-id][data-snapped='right']"
+          },
+          "ok": true,
+          "ms": 27
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "crafted_falls_back",
+            "script": "(() => {\n  const pane = (edge) => {\n    const win = document.querySelector(`[data-window-id][data-snapped='${edge}']`);\n    return {\n      head: win.querySelector('header').innerText.replace(/\\n/g, ' '),\n      device: win.querySelector('[data-device]').dataset.device,\n      path: win.querySelector(\"input[aria-label='Path inside the app']\").value,\n    };\n  };\n  const left = pane('left');\n  const right = pane('right');\n  if (!left.head.includes('Local') || left.device !== 'mobile' || left.path !== '/docs/') throw new Error(`left kept nothing: ${JSON.stringify(left)}`);\n  if (!right.head.includes('Live') || right.device !== 'fit' || right.path !== '') throw new Error(`right kept what the registry does not declare: ${JSON.stringify(right)}`);\n  return { left, right };\n})()\n"
+          },
+          "ok": true,
+          "value": {
+            "left": {
+              "head": "it-journey · Local",
+              "device": "mobile",
+              "path": "/docs/"
+            },
+            "right": {
+              "head": "it-journey · Live",
+              "device": "fit",
+              "path": ""
+            }
+          },
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "crafted-link-falls-back",
+          "ok": true,
+          "file": "test/evidence/desktop-context-menu/desktop-crafted-link-falls-back.png",
+          "ms": 37
         }
       ],
-      "console_errors": [],
+      "console_errors": [
+        "Framing 'https://it-journey.dev/' violates the following Content Security Policy directive: \"frame-src 'self'\". The request has been blocked.\n",
+        "Framing 'https://it-journey.dev/' violates the following Content Security Policy directive: \"frame-src 'self'\". The request has been blocked.\n",
+        "Framing 'https://it-journey.dev/' violates the following Content Security Policy directive: \"frame-src 'self'\". The request has been blocked.\n",
+        "Framing 'https://it-journey.dev/' violates the following Content Security Policy directive: \"frame-src 'self'\". The request has been blocked.\n"
+      ],
       "screenshots": [
-        "test/evidence/desktop-context-menu/desktop-live-beside-local-menu.png"
+        "test/evidence/desktop-context-menu/desktop-live-beside-local-menu.png",
+        "test/evidence/desktop-context-menu/desktop-reopened-from-link.png",
+        "test/evidence/desktop-context-menu/desktop-crafted-link-falls-back.png"
       ],
       "evals": {
         "focus_returned": "it-journey",
-        "both_targets": "it-journey · Live / it-journey · Local"
+        "both_targets": "it-journey · Live / it-journey · Local",
+        "copy_layout_link": [
+          null,
+          {
+            "t": "live"
+          },
+          {
+            "t": "local"
+          }
+        ],
+        "reload_targets": "it-journey · Live / it-journey · Local",
+        "open_layout_link": 343,
+        "link_targets": "it-journey · Live / it-journey · Local",
+        "crafted_link": [
+          {
+            "t": "local",
+            "d": "mobile",
+            "p": "/docs/"
+          },
+          {
+            "t": "https://example.com",
+            "d": "watch",
+            "p": "https://example.com/elsewhere"
+          }
+        ],
+        "crafted_falls_back": {
+          "left": {
+            "head": "it-journey · Local",
+            "device": "mobile",
+            "path": "/docs/"
+          },
+          "right": {
+            "head": "it-journey · Live",
+            "device": "fit",
+            "path": ""
+          }
+        }
       },
-      "final_url": "http://127.0.0.1:4011/desktop"
+      "final_url": "http://127.0.0.1:4071/desktop/?via=crafted&windows=eyJ2IjoxLCJlIjoib3MiLCJmIjoxLCJ3IjpbeyJzIjoiYXBwIiwiciI6Iml0LWpvdXJuZXkiLCJ4IjowLCJ5IjowLCJjeCI6NTAsImN5IjoxMDAsImsiOiJsZWZ0In0seyJzIjoiYXBwIiwiciI6Iml0LWpvdXJuZXkiLCJ4Ijo1MCwieSI6MCwiY3giOjUwLCJjeSI6MTAwLCJrIjoicmlnaHQifV0sImEiOlt7InQiOiJsb2NhbCIsImQiOiJtb2JpbGUiLCJwIjoiL2RvY3MvIn0seyJ0IjoiaHR0cHM6Ly9leGFtcGxlLmNvbSIsImQiOiJ3YXRjaCIsInAiOiJodHRwczovL2V4YW1wbGUuY29tL2Vsc2V3aGVyZSJ9XX0%3D"
+    },
+    {
+      "name": "laptop",
+      "width": 1024,
+      "height": 768,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/desktop",
+          "ok": true,
+          "ms": 577
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "nav[aria-label='Apps'] button:has-text('it-journey')"
+          },
+          "ok": true,
+          "ms": 10
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "focus_icon",
+            "script": "[...document.querySelectorAll(\"nav[aria-label='Apps'] button\")].find((b) => b.innerText.includes('it-journey')).focus()"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "press",
+          "arg": "Shift+F10",
+          "ok": true,
+          "ms": 4
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "role=menuitem[name='Live beside Local']"
+          },
+          "ok": true,
+          "ms": 25
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "role=menuitem",
+              "min": 5
+            }
+          },
+          "ok": true,
+          "value": 5,
+          "ms": 1
+        },
+        {
+          "step": "press",
+          "arg": "Escape",
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "url": "/desktop"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "focus_returned",
+            "script": "(async () => { await new Promise((r) => setTimeout(r, 300)); const t = document.activeElement.innerText; if (!t.includes('it-journey')) throw new Error(`focus went to: ${t}`); return t; })()"
+          },
+          "ok": true,
+          "value": "it-journey",
+          "ms": 301
+        },
+        {
+          "step": "press",
+          "arg": "Shift+F10",
+          "ok": true,
+          "ms": 4
+        },
+        {
+          "step": "click",
+          "arg": "role=menuitem[name='Live beside Local']",
+          "ok": true,
+          "ms": 47
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "[data-window-id][data-snapped='right']"
+          },
+          "ok": true,
+          "ms": 32
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "both_targets",
+            "script": "(() => { const head = (edge) => document.querySelector(`[data-window-id][data-snapped='${edge}'] header`).innerText; const left = head('left'); const right = head('right'); if (!left.includes('Live') || !right.includes('Local')) throw new Error(`${left} / ${right}`); return `${left} / ${right}`.replace(/\\n/g, ' '); })()"
+          },
+          "ok": true,
+          "value": "it-journey · Live / it-journey · Local",
+          "ms": 2
+        },
+        {
+          "step": "click",
+          "arg": "[data-window-id][data-snapped='right'] button[aria-label^='Window menu for']",
+          "ok": true,
+          "ms": 40
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "role=menuitem[name='Copy link']"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "role=menuitem",
+              "min": 6
+            }
+          },
+          "ok": true,
+          "value": 7,
+          "ms": 1
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "ms": 400
+          },
+          "ok": true,
+          "ms": 401
+        },
+        {
+          "step": "screenshot",
+          "arg": "live-beside-local-menu",
+          "ok": true,
+          "file": "test/evidence/desktop-context-menu/laptop-live-beside-local-menu.png",
+          "ms": 23
+        },
+        {
+          "step": "press",
+          "arg": "Escape",
+          "ok": true,
+          "ms": 5
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1024,
+            "cw": 1024
+          },
+          "ms": 1
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "copy_layout_link",
+            "script": "(async () => {\n  const copied = new Promise((resolve) => { navigator.clipboard.writeText = async (text) => resolve(text); });\n  document.querySelector(\"button[aria-label='Copy a link that reopens this desktop']\").click();\n  const url = await copied;\n  const layout = JSON.parse(atob(new URL(url).searchParams.get('windows').replace(/-/g, '+').replace(/_/g, '/')));\n  if (!Array.isArray(layout.a)) throw new Error(`the link carries no views: ${JSON.stringify(layout)}`);\n  sessionStorage.setItem('verify_layout_link', url);\n  return layout.a;\n})()\n"
+          },
+          "ok": true,
+          "value": [
+            null,
+            {
+              "t": "live"
+            },
+            {
+              "t": "local"
+            }
+          ],
+          "ms": 1
+        },
+        {
+          "step": "goto",
+          "arg": "/desktop",
+          "ok": true,
+          "ms": 544
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "[data-window-id][data-snapped='right']"
+          },
+          "ok": true,
+          "ms": 12
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "reload_targets",
+            "script": "(() => { const head = (edge) => document.querySelector(`[data-window-id][data-snapped='${edge}'] header`).innerText; const left = head('left'); const right = head('right'); if (!left.includes('Live') || !right.includes('Local')) throw new Error(`${left} / ${right}`); return `${left} / ${right}`.replace(/\\n/g, ' '); })()"
+          },
+          "ok": true,
+          "value": "it-journey · Live / it-journey · Local",
+          "ms": 1
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "open_layout_link",
+            "script": "(() => {\n  const url = sessionStorage.getItem('verify_layout_link');\n  sessionStorage.removeItem('bashos_desktop_layout');\n  setTimeout(() => location.assign(url), 0);\n  return new URL(url).search.length;\n})()\n"
+          },
+          "ok": true,
+          "value": 343,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "url": "windows="
+          },
+          "ok": true,
+          "ms": 15
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "[data-window-id][data-snapped='right']"
+          },
+          "ok": true,
+          "ms": 28
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "link_targets",
+            "script": "(() => { const head = (edge) => document.querySelector(`[data-window-id][data-snapped='${edge}'] header`).innerText; const left = head('left'); const right = head('right'); if (!left.includes('Live') || !right.includes('Local')) throw new Error(`${left} / ${right}`); return `${left} / ${right}`.replace(/\\n/g, ' '); })()"
+          },
+          "ok": true,
+          "value": "it-journey · Live / it-journey · Local",
+          "ms": 7
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1024,
+            "cw": 1024
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "reopened-from-link",
+          "ok": true,
+          "file": "test/evidence/desktop-context-menu/laptop-reopened-from-link.png",
+          "ms": 45
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "crafted_link",
+            "script": "(() => {\n  const win = (k, x) => ({ s: 'app', r: 'it-journey', x, y: 0, cx: 50, cy: 100, k });\n  const layout = {\n    v: 1, e: 'os', f: 1, w: [win('left', 0), win('right', 50)],\n    a: [{ t: 'local', d: 'mobile', p: '/docs/' }, { t: 'https://example.com', d: 'watch', p: 'https://example.com/elsewhere' }],\n  };\n  setTimeout(() => location.assign(`/desktop?via=crafted&windows=${encodeURIComponent(btoa(JSON.stringify(layout)))}`), 0);\n  return layout.a;\n})()\n"
+          },
+          "ok": true,
+          "value": [
+            {
+              "t": "local",
+              "d": "mobile",
+              "p": "/docs/"
+            },
+            {
+              "t": "https://example.com",
+              "d": "watch",
+              "p": "https://example.com/elsewhere"
+            }
+          ],
+          "ms": 1
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "url": "via=crafted"
+          },
+          "ok": true,
+          "ms": 8
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "[data-window-id][data-snapped='right']"
+          },
+          "ok": true,
+          "ms": 27
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "crafted_falls_back",
+            "script": "(() => {\n  const pane = (edge) => {\n    const win = document.querySelector(`[data-window-id][data-snapped='${edge}']`);\n    return {\n      head: win.querySelector('header').innerText.replace(/\\n/g, ' '),\n      device: win.querySelector('[data-device]').dataset.device,\n      path: win.querySelector(\"input[aria-label='Path inside the app']\").value,\n    };\n  };\n  const left = pane('left');\n  const right = pane('right');\n  if (!left.head.includes('Local') || left.device !== 'mobile' || left.path !== '/docs/') throw new Error(`left kept nothing: ${JSON.stringify(left)}`);\n  if (!right.head.includes('Live') || right.device !== 'fit' || right.path !== '') throw new Error(`right kept what the registry does not declare: ${JSON.stringify(right)}`);\n  return { left, right };\n})()\n"
+          },
+          "ok": true,
+          "value": {
+            "left": {
+              "head": "it-journey · Local",
+              "device": "mobile",
+              "path": "/docs/"
+            },
+            "right": {
+              "head": "it-journey · Live",
+              "device": "fit",
+              "path": ""
+            }
+          },
+          "ms": 5
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1024,
+            "cw": 1024
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "crafted-link-falls-back",
+          "ok": true,
+          "file": "test/evidence/desktop-context-menu/laptop-crafted-link-falls-back.png",
+          "ms": 34
+        }
+      ],
+      "console_errors": [
+        "Framing 'https://it-journey.dev/' violates the following Content Security Policy directive: \"frame-src 'self'\". The request has been blocked.\n",
+        "Framing 'https://it-journey.dev/' violates the following Content Security Policy directive: \"frame-src 'self'\". The request has been blocked.\n",
+        "Framing 'https://it-journey.dev/' violates the following Content Security Policy directive: \"frame-src 'self'\". The request has been blocked.\n",
+        "Framing 'https://it-journey.dev/' violates the following Content Security Policy directive: \"frame-src 'self'\". The request has been blocked.\n"
+      ],
+      "screenshots": [
+        "test/evidence/desktop-context-menu/laptop-live-beside-local-menu.png",
+        "test/evidence/desktop-context-menu/laptop-reopened-from-link.png",
+        "test/evidence/desktop-context-menu/laptop-crafted-link-falls-back.png"
+      ],
+      "evals": {
+        "focus_returned": "it-journey",
+        "both_targets": "it-journey · Live / it-journey · Local",
+        "copy_layout_link": [
+          null,
+          {
+            "t": "live"
+          },
+          {
+            "t": "local"
+          }
+        ],
+        "reload_targets": "it-journey · Live / it-journey · Local",
+        "open_layout_link": 343,
+        "link_targets": "it-journey · Live / it-journey · Local",
+        "crafted_link": [
+          {
+            "t": "local",
+            "d": "mobile",
+            "p": "/docs/"
+          },
+          {
+            "t": "https://example.com",
+            "d": "watch",
+            "p": "https://example.com/elsewhere"
+          }
+        ],
+        "crafted_falls_back": {
+          "left": {
+            "head": "it-journey · Local",
+            "device": "mobile",
+            "path": "/docs/"
+          },
+          "right": {
+            "head": "it-journey · Live",
+            "device": "fit",
+            "path": ""
+          }
+        }
+      },
+      "final_url": "http://127.0.0.1:4071/desktop/?via=crafted&windows=eyJ2IjoxLCJlIjoib3MiLCJmIjoxLCJ3IjpbeyJzIjoiYXBwIiwiciI6Iml0LWpvdXJuZXkiLCJ4IjowLCJ5IjowLCJjeCI6NTAsImN5IjoxMDAsImsiOiJsZWZ0In0seyJzIjoiYXBwIiwiciI6Iml0LWpvdXJuZXkiLCJ4Ijo1MCwieSI6MCwiY3giOjUwLCJjeSI6MTAwLCJrIjoicmlnaHQifV0sImEiOlt7InQiOiJsb2NhbCIsImQiOiJtb2JpbGUiLCJwIjoiL2RvY3MvIn0seyJ0IjoiaHR0cHM6Ly9leGFtcGxlLmNvbSIsImQiOiJ3YXRjaCIsInAiOiJodHRwczovL2V4YW1wbGUuY29tL2Vsc2V3aGVyZSJ9XX0%3D"
     }
   ],
   "ok": true,
-  "finished": "2026-11-06T23:10:50.362Z",
-  "base": "http://127.0.0.1:4011"
+  "finished": "2026-11-16T07:37:02.864Z",
+  "base": "http://127.0.0.1:4071"
 }

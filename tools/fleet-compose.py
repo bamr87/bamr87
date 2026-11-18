@@ -97,12 +97,33 @@ def load_compose(path):
 # ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------
+# The band-name prefix of the block the hub's devenv container publishes for the
+# servers started inside it (`host: devenv`), mirroring _data/fleet.yml
+# `containers.ports.workspace*`.
+WORKSPACE = "workspace"
+
+
+def livereload_band(bands, band):
+    """The band a Jekyll allocation's livereload port falls in: `<band>_livereload`
+    when the registry declares one (the workspace block has its own), else
+    `livereload`."""
+    own = f"{band}_livereload"
+    return own if own in bands else "livereload"
+
+
 def validate(reg):
     """Return a list of problem strings. Empty list == the allocation is sound."""
     problems = []
     bands = reg.get("bands") or {}
     shared = reg.get("shared") or {}
     projects = reg.get("projects") or {}
+
+    # Disjoint bands, or "in band" stops meaning "cannot collide": the block
+    # devenv publishes must stay clear of every compose stack's band.
+    spans = sorted((spec["range"][0], spec["range"][1], name) for name, spec in bands.items())
+    for (alo, ahi, a), (blo, bhi, b) in zip(spans, spans[1:]):
+        if blo <= ahi:
+            problems.append(f"bands '{a}' [{alo}-{ahi}] and '{b}' [{blo}-{bhi}] overlap")
 
     seen = {}   # port -> "project/service"
 
@@ -139,6 +160,17 @@ def validate(reg):
                 if not (lo <= int(port) <= hi):
                     problems.append(
                         f"{pname}/{sname}: port {port} outside band '{band}' [{lo}-{hi}]")
+                # A server inside devenv answers only on the block devenv
+                # publishes, and nothing else may take a port from that block.
+                on_workspace = str(band).startswith(WORKSPACE)
+                if pspec.get("host") == "devenv" and not on_workspace:
+                    problems.append(
+                        f"{pname}/{sname}: host=devenv, so band '{band}' must be a "
+                        f"{WORKSPACE} band (devenv publishes only those)")
+                elif pspec.get("host") != "devenv" and on_workspace:
+                    problems.append(
+                        f"{pname}/{sname}: band '{band}' is devenv's workspace block, "
+                        f"for host=devenv projects only")
 
             if not alloc.get("var"):
                 problems.append(f"{pname}/{sname}: no env var name")
@@ -146,10 +178,11 @@ def validate(reg):
             lr = alloc.get("livereload")
             if lr is not None:
                 claim(int(lr), f"{pname}/{sname}.livereload")
-                lo, hi = bands["livereload"]["range"]
+                lr_band = livereload_band(bands, band)
+                lo, hi = bands[lr_band]["range"]
                 if not (lo <= int(lr) <= hi):
                     problems.append(
-                        f"{pname}/{sname}: livereload {lr} outside band [{lo}-{hi}]")
+                        f"{pname}/{sname}: livereload {lr} outside band '{lr_band}' [{lo}-{hi}]")
 
         # `unique:` ports are declared-as-is; still claim them so a future
         # allocation cannot land on top of neo4j or ollama.

@@ -159,7 +159,7 @@ function LoopBody({ l, s }: { l: Loop; s: StateDoc }) {
           href={(j) => to.job(j.id)}
           empty="none yet"
           columns={[
-            { key: 'status', header: 'status', render: (j) => <JobStatus status={j.status} /> },
+            { key: 'status', header: 'status', render: (j) => <JobStatus status={j.status} state={j.state} /> },
             { key: 'title', header: 'operation', render: (j) => <Text size="sm">{j.title}</Text> },
             { key: 'started', header: 'started', render: (j) => <Text size="xs" c="dimmed">{when(j.started)}</Text> },
           ]}

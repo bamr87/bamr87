@@ -187,15 +187,10 @@ jobs:
         continue-on-error: true
         run: tools/dash-gen agents
 
-      # The fleet features index: every checked-out submodule's
-      # features/features.yml + verification coverage (tests / user scenarios
-      # / evidence / verified stamps, graded from files on disk) → the
-      # /features/ page and the fan-out's verify `gaps` target. Offline: it reads
-      # the submodule checkouts this job already has (docs/VERIFICATION.md).
-      - name: Fleet features index
-        id: g_features
-        continue-on-error: true
-        run: tools/dash features fleet --write
+      # No features index here: this job checks out no submodules, so
+      # `dash features fleet --write` graded the hub alone and published
+      # `repos_scanned: 1` every day. fleet-snapshots.yml writes it weekly from
+      # real submodule checkouts, behind a shrink guard (bamr87/bamr87#775).
 
       # Runs LAST among the gather steps because it is the layer that watches
       # the others: it reads the snapshots just written (plus the committed
@@ -224,7 +219,6 @@ jobs:
             echo "| Harness inventory | ${{ steps.g_harnesses.outcome }} (${{ steps.g_harnesses.outputs.ai_workflows || '?' }} AI workflows, ${{ steps.g_harnesses.outputs.attention_count || '?' }} attention) |"
             echo "| Harness scorecard | ${{ steps.g_harness.outcome }} (${{ steps.g_harness.outputs.tripped_count || '?' }} trip wires tripped) |"
             echo "| Agent inventory | ${{ steps.g_agents.outcome }} |"
-            echo "| Fleet features index | ${{ steps.g_features.outcome }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       # --- publish --------------------------------------------------------
@@ -248,7 +242,6 @@ jobs:
             - `_data/fleet_triage.yml` — fleet open-state snapshot (the `/triage/` portal)
             - `_data/harness_registry.yml` — fleet AI-harness + schedule inventory (the `/harnesses/` portal, docs/HARNESS-OPS.md)
             - `_data/agents.yml` — the agent inventory under the efficacy contract (docs/AGENT-EFFICACY.md)
-            - `_data/features_index.yml` — fleet features index + verification coverage (the `/features/` portal, docs/VERIFICATION.md)
             - `_data/harness_health.yml` — harness scorecard + trip wires (docs/HARNESS.md)
             - `_reports/daily/` — the prior-day activity digest
 

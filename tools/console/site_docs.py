@@ -13,8 +13,12 @@ Inputs, all committed:
   _data/profile.yml        identity (name, title, links, avatar)
   pages/profile/*.md       long-form pages — front matter: title, description,
                            order, icon; the body is Markdown, rendered by the page
-  pages/posts/*.md         dated writing, YYYY-MM-DD-slug.md; `draft: true` is
-                           left out of the public build
+  pages/posts/*.md         dated writing, YYYY-MM-DD-slug.md — front matter: title,
+                           date, excerpt (or description), categories, tags,
+                           draft; `draft: true` is left out of the public build.
+                           A post is served at its bare slug, except a SERIES
+                           entry and a slug two files share: those are served at
+                           their dated stem (see _post_slugs)
   _data/<name>.yml|json    the registries named in PUBLIC_DATA, nothing else
 """
 from __future__ import annotations
@@ -35,6 +39,13 @@ PAGES = REPO_ROOT / "pages"
 
 SLUG_RX = re.compile(r"^[a-z0-9][a-z0-9-]{0,80}$")
 POST_RX = re.compile(r"^(\d{4}-\d{2}-\d{2})-([a-z0-9][a-z0-9-]{0,80})\.md$")
+# A post's slug may be its dated stem, YYYY-MM-DD-<slug>: eleven characters longer.
+POST_SLUG_RX = re.compile(r"^[a-z0-9][a-z0-9-]{0,91}$")
+# The series that repeat one slug by design: the weekly routine drafts a
+# YYYY-MM-DD-chronicle.md for every active day (constitution § 23.2) and a
+# YYYY-MM-DD-weekly-retro.md every week. Each entry is addressed by its dated
+# stem from the first one on, so no entry's address moves when the next lands.
+SERIES = frozenset({"chronicle", "weekly-retro"})
 _FRONT_RX = re.compile(r"\A---\s*\n(.*?)\n---\s*\n?(.*)\Z", re.S)
 
 # The committed registries a page may read through /api/data/<name>. A name not
@@ -113,14 +124,15 @@ def page(slug: str) -> dict:
     return _page_meta(path, front) | {"markdown": body}
 
 
-def _post_meta(path: Path, front: dict, body: str) -> dict:
+def _post_meta(path: Path, slug: str, front: dict, body: str) -> dict:
     m = POST_RX.match(path.name)
     date = str(_plain(front.get("date")) or m.group(1))[:10]
-    excerpt = str(front.get("excerpt") or "").strip()
+    # The weekly routine's posts carry `description:` (§ 23.2); `excerpt:` wins when both are set.
+    excerpt = str(front.get("excerpt") or front.get("description") or "").strip()
     if not excerpt:
         para = next((p for p in body.split("\n\n") if p.strip() and not p.lstrip().startswith(("#", "```", "<"))), "")
         excerpt = re.sub(r"\s+", " ", re.sub(r"[*_`\[\]]|\(http[^)]*\)", "", para)).strip()[:280]
-    return {"slug": m.group(2), "date": date, "title": str(front.get("title") or m.group(2)),
+    return {"slug": slug, "date": date, "title": str(front.get("title") or m.group(2)),
             "excerpt": excerpt, "categories": [str(c) for c in front.get("categories") or []],
             "tags": [str(t) for t in front.get("tags") or []], "draft": bool(front.get("draft")),
             "words": len(body.split())}
@@ -132,23 +144,37 @@ def _post_files():
             yield path
 
 
+def _post_slugs() -> list[tuple[Path, str]]:
+    """Each post file, newest first, with the slug it is served at.
+
+    A one-off post keeps its bare slug (/blog/welcome). A SERIES entry, and
+    every file of a bare slug that two files share, is served at its dated
+    stem (/blog/2026-11-06-chronicle), so no post hides another. Drafts count
+    here too, so a post has the same address on a console and on Pages."""
+    files = [(path, POST_RX.match(path.name).group(2)) for path in _post_files()]
+    shared: dict[str, int] = {}
+    for _, name in files:
+        shared[name] = shared.get(name, 0) + 1
+    return [(path, path.stem if name in SERIES or shared[name] > 1 else name) for path, name in files]
+
+
 def posts(include_drafts: bool = False) -> list[dict]:
     out = []
-    for path in _post_files():
+    for path, slug in _post_slugs():
         front, body = _split(path)
-        meta = _post_meta(path, front, body)
+        meta = _post_meta(path, slug, front, body)
         if include_drafts or not meta["draft"]:
             out.append(meta)
     return out
 
 
 def post(slug: str, include_drafts: bool = False) -> dict:
-    if not SLUG_RX.match(slug or ""):
+    if not POST_SLUG_RX.match(slug or ""):
         raise ValueError("invalid post slug")
-    for path in _post_files():
-        if POST_RX.match(path.name).group(2) == slug:
+    for path, served in _post_slugs():
+        if served == slug:
             front, body = _split(path)
-            meta = _post_meta(path, front, body)
+            meta = _post_meta(path, slug, front, body)
             if meta["draft"] and not include_drafts:
                 break
             return meta | {"markdown": body}

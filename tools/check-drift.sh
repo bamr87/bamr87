@@ -2,7 +2,7 @@
 # ============================================================================
 # tools/check-drift.sh — hard drift gate for the dash
 #
-# Checks ((a,b,d,e,h,j,m,n,o,p,q) gate the exit status unless --report; (c,f,g,i,k) warn only):
+# Checks ((a,b,d,e,h,j,m,n,o,p,q) gate the exit status unless --report; (c,f,g,i,k,q) warn only):
 #   (a) registry <-> .gitmodules parity (paths, branches, AND urls) + no
 #       stray/unregistered project dirs. The url leg is offline, so it gates on
 #       every PR; the live GitHub side (renames/deletions) is (g) + `dash reconcile`.
@@ -39,12 +39,16 @@
 #       installers) and is current against _data/fleet.yml `harness:` (§ 29).
 #       Offline, so it gates every PR; fleet-half drift and contract gaps warn
 #       (the gaps until harness.efficacy.enforce is set after the shadow period).
-#   (p) the agent inventory: _data/agents.yml registers every agent the hub's
-#       files define (AI workflows, JEV loop steps, conflict tiers, LaunchAgent
-#       installers) and is current against _data/fleet.yml `harness:` (§ 29).
-#       Offline, so it gates every PR; fleet-half drift and contract gaps warn
-#       (the gaps until harness.efficacy.enforce is set after the shadow period).
-#   (q) the live expedite-sprint records (_data/sprints/*.yml, `sprint/v1`,
+#   (q) hub pins resolve (FF-0037): every `uses:` of a hub reusable workflow or
+#       action in templates/ names a ref that carries it, read offline against
+#       this clone's v* tags (drift-check.yml fetches them; a tag still missing
+#       is unverified, never broken) — the kit would otherwise seed a caller
+#       that fails at startup with no job. Warn only: a pin waiting on a release
+#       must not turn the hub red; tools/fanout.sh refuses --apply on it
+#       instead. Under --remote / --ci it also lists the broken fleet callers
+#       the daily harness scan recorded (_data/harness_registry.yml `hub_refs`;
+#       no API call), with its unread repos and files.
+#   (r) the live expedite-sprint records (_data/sprints/*.yml, `sprint/v1`,
 #       constitution § 27.7): at most one active sprint (WIP 1), the gates in
 #       order and passed by the maintainer, the phase behind its gate, no
 #       secret-looking value, every USD figure finite and labelled
@@ -68,8 +72,9 @@
 #   (default)   run gating checks (a,b,d, + e when checked out); non-zero on failure
 #   --ci        gate + the fleet-wide checks (g, k), which read every registry repo:
 #               the daily run and dispatch only, never a PR or push. (needs gh)
+#               Also (q)'s fleet listing, read from the committed scan.
 #   --links     also run the link check (needs a locally built _site + lychee)
-#   --remote    also run the GitHub-reality check (g)
+#   --remote    also run the GitHub-reality check (g), (k) and (q)'s fleet listing
 #   --report    print a summary, never fail (used by `dash status`)
 # ============================================================================
 set -uo pipefail
@@ -948,12 +953,54 @@ else
   warn "skipped (agent_inventory.py absent)"
 fi
 
-# --- (q): the live expedite-sprint records (constitution § 27.7) -----------
+# --- (q): hub pins resolve (FF-0037) -----------------------------------------
+# A caller that pins bamr87/bamr87/.github/workflows/<file>@<ref> (or an
+# action) at a ref without <file> fails at startup with no job, and its own
+# repo says nothing about why: law-ai's CI on main was red that way from
+# 2026-10-30, and the spec-driven kit carried the same pin (spec-gate.yml@v2
+# before v2.1.0). The template half reads templates/ against this clone's v*
+# tags — offline, no API call — so it runs on every PR; a tag the clone lacks
+# is unverified, never broken. Warn only, by design: a pin waiting on a release
+# must not turn the hub red, and tools/fanout.sh is the hard stop (it refuses
+# --apply). The fleet half (--remote/--ci) reads the callers the daily harness
+# scan resolved (_data/harness_registry.yml `hub_refs`), unread ones counted.
+echo "(q) hub pins resolve (templates/ against the hub's tags)"
+if [[ -f "$ROOT/.github/scripts/dash-gen/hub_refs.py" ]]; then
+  # hub_refs.py marks each line ✓ (resolves), ✗ (broken) or ! (unverified);
+  # here every one of them is at most a warning.
+  q_report() {  # $1 = the tool's output; echoes 1 when it printed a marked line
+    local line seen=0
+    while IFS= read -r line; do
+      case "$line" in
+        "  ✓ "*) ok "${line#  ✓ }"; seen=1 ;;
+        "  ✗ "*) warn "${line#  ✗ }"; seen=1 ;;
+        "  ! "*) warn "${line#  ! }"; seen=1 ;;
+      esac
+    done <<< "$1"
+    return $((1 - seen))
+  }
+  q_out="$("$PY" "$ROOT/.github/scripts/dash-gen/hub_refs.py" check --root "$ROOT" templates 2>&1)"
+  q_rc=$?
+  q_report "$q_out" || warn "hub_refs.py check exited ${q_rc}: $(printf '%s' "$q_out" | tail -1)"
+  case $q_rc in
+    1) warn "  a broken pin fans out as a startup failure: cut the release and move the major, or repin (docs/WORKFLOW-VERSIONING.md)" ;;
+    3) warn "  unverified is not clean: git fetch --no-tags --depth=1 origin '+refs/tags/v*:refs/tags/v*'" ;;
+  esac
+  if [[ $RUN_REMOTE -eq 1 ]]; then
+    qf_out="$("$PY" "$ROOT/.github/scripts/dash-gen/hub_refs.py" fleet 2>&1)"
+    qf_rc=$?
+    q_report "$qf_out" || warn "hub_refs.py fleet exited ${qf_rc}: $(printf '%s' "$qf_out" | tail -1)"
+  fi
+else
+  warn "skipped (hub_refs.py absent)"
+fi
+
+# --- (r): the live expedite-sprint records (constitution § 27.7) -----------
 # One committed record per sprint (_data/sprints/<slug>.yml, `sprint/v1`); the
 # console's /sprints page renders them and nothing writes them but a pull
 # request, so the pull request is where they are held to the standard: WIP 1,
 # gate order, no secrets, labelled money, the circuit breaker (README there).
-echo "(q) expedite-sprint records (_data/sprints/, sprint/v1)"
+echo "(r) expedite-sprint records (_data/sprints/, sprint/v1)"
 if [[ -f "$ROOT/tools/sprint_record.py" ]]; then
   if ! "$PY" -c 'import yaml' >/dev/null 2>&1; then
     warn "skipped (PyYAML unavailable)"

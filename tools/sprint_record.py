@@ -7,7 +7,7 @@ Description: The live expedite-sprint record (constitution § 27.7, docs/EXPEDIT
              the appetite, the three gates with who passed them and when, the
              phase, the items and pull requests, spend against the cap, the
              trip wires, a DORA snapshot and the retro. `lint` holds every
-             record to the standard (drift check (q)); `show` prints the
+             record to the standard (drift check (r)); `show` prints the
              document the console's /sprints page reads (`/api/sprints`).
              Static, offline, stdlib + PyYAML, and read-only: a record changes
              only by a reviewed pull request, and nothing here writes one.
@@ -535,7 +535,7 @@ def document(directory: Path = SPRINTS_DIR, fleet_path: Path = FLEET, queue_path
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Lint and show the live expedite-sprint records (sprint/v1).")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name, text in (("lint", "hold every record to the standard (drift check (q))"),
+    for name, text in (("lint", "hold every record to the standard (drift check (r))"),
                        ("show", "print the /api/sprints document as JSON")):
         p = sub.add_parser(name, help=text)
         p.add_argument("--dir", type=Path, default=SPRINTS_DIR, help="the records (default: _data/sprints)")

@@ -56,7 +56,9 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import importlib
 import json
+import math
 import os
 import re
 import sys
@@ -1029,7 +1031,303 @@ def complete_sort_key(p: dict):
             0 if p["ci"] == "fail" else 1, 0 if p["draft"] else 1, -(p["idle_days"] or 0))
 
 
-def build_queues(repos: list[dict], cfg: dict) -> dict[str, list[dict]]:
+#: each queue's tier job and the `budget.call_sites` entry that caps it: a
+#: sprint item's tier runs only when its sprint can absorb that whole cap
+TIER_SITES = (("intake", "issue-pipeline.yml:tier1"), ("implement", "issue-pipeline.yml:tier2"),
+              ("complete", "issue-pipeline.yml:tier3"))
+#: each queue's tier, as issue-pipeline.yml's resolved `tiers` names it ("123", "12", …)
+TIER_NUMBER = {"intake": "1", "implement": "2", "complete": "3"}
+#: the snapshot's path in the hub, as a branch holds it
+SNAPSHOT = OUT_DEFAULT.relative_to(REPO_ROOT).as_posix()
+#: where the scan's snapshot, and so its sprint reservations, lands when a
+#: direct push is refused: issue-pipeline.yml's publish-data `branch:`
+#: (test_issue_pipeline.py holds the two equal)
+PUBLISH_BRANCH = "chore/issue-pipeline"
+
+
+class SprintHold:
+    """The expedite sprint's tier gate (constitution § 27; tools/jev/sprints.py).
+
+    An item in the active sprint's repositories is queued only while the
+    sprint's switch is armed and its ceiling can absorb the tier's FULL
+    call-site cap on top of what the sprint has spent and what this run's
+    earlier tiers reserved: one tier job runs all its items in one session
+    under one cap, so a tier with a sprint item reserves that cap once. The
+    item a closed sprint declared stays held until a new declaration. The
+    switch and the closed sprint are asked as an item becomes a candidate, so a
+    held item takes no slot; the ceiling is settled on the capped queues, tier
+    by tier. Every hold is listed in the snapshot's `sprint.held`, and a
+    tripped breaker in `sprint.events`.
+
+    The scan reserves for the whole run, because only its snapshot is
+    published. Tiers 1 and 3 run the scan's queues; tier 2 re-scans after tier
+    1 has moved issues to `agent:ready`, so the scan also reserves tier 2's cap
+    whenever tier 2 can meet a sprint item (one queued now, or one tier 1 is
+    about to triage). That re-scan is handed the room reserved for it
+    (`grant`): it admits sprint items only inside that room, and settles
+    nothing else. A tier this run does not start (`run_tiers`) reserves
+    nothing.
+
+    The sprint's spend counts every earlier run's reservations (`carried`, the
+    snapshot's `sprint.reservations`), and a run that reserved anything adds
+    its own row (`record_run`): a tier job batches several issues in one hub
+    session, so no ledger attributes its cost to a sprint item, and the full
+    cap it was allowed is the estimate that the next run, the loop runner and
+    JEV count.
+    """
+
+    def __init__(self, sp, sprints: list, *, caps: dict, now: dt.datetime, switch, spend_of,
+                 run_tiers: str = "123", grant: str | None = None, record_run: str = ""):
+        self.sp, self.sprints, self.caps, self.now = sp, sprints, caps, now
+        self.switch, self._spend_of = switch, spend_of
+        self.run_tiers, self.grant, self.record_run = run_tiers, grant, record_run
+        self.carried: list[dict] = []
+        self.held: list[dict] = []
+        self.events: list[dict] = []
+        self.reserved = 0.0
+        self.by_tier: dict[str, float] = {}
+        self._spent: dict = {}
+
+    @staticmethod
+    def key(item: dict, queue: str) -> str:
+        """The item's _data/work_queue.yml key (what a sprint declares)."""
+        return f"pr:{item['nwo']}#{item['number']}" if queue == "complete" else f"issue:{item['key']}"
+
+    def spent(self, sprint):
+        """The sprint's spend in every ledger, plus what earlier issue-pipeline
+        runs reserved for it (an estimate)."""
+        if sprint.slug not in self._spent:
+            total = self._spend_of(sprint)
+            carried = self.sp.pipeline_spend(sprint, self.carried)
+            if carried:
+                total.add("issue-pipeline", carried, True)
+            self._spent[sprint.slug] = total
+        return self._spent[sprint.slug]
+
+    def _mine(self, items: list[dict]) -> list[dict]:
+        return [i for i in items if self.sp.for_repo(self.sprints, i["nwo"], self.now)]
+
+    def _reserve(self, queue: str, cap: float) -> None:
+        self.by_tier[queue] = cap
+        self.reserved = round(self.reserved + cap, 4)
+
+    def _drop(self, queues: dict[str, list[dict]], queue: str, mine: list[dict], verdict) -> None:
+        for item in mine:
+            self._hold(item, queue, verdict)
+        gone = {id(i) for i in mine}
+        queues[queue] = [i for i in queues[queue] if id(i) not in gone]
+
+    def _hold(self, item: dict, queue: str, verdict) -> None:
+        self.held.append({"key": self.key(item, queue), "queue": queue, "sprint": verdict.sprint.slug,
+                          "decision": verdict.decision, "reason": verdict.reason})
+        if not any(e["sprint"] == verdict.sprint.slug and e["decision"] == verdict.decision for e in self.events):
+            self.events.append(verdict.event(self.now))
+
+    def admit(self, item: dict, queue: str) -> bool:
+        """As an item becomes a candidate: False (and recorded) when the sprint's
+        switch is off or a closed sprint declared it."""
+        verdict = self.sp.gate(self.sprints, repo=item["nwo"], key=self.key(item, queue), now=self.now,
+                               cost_usd=None, spend_of=self.spent, switch=self.switch)
+        if verdict is None:
+            return True
+        self._hold(item, queue, verdict)
+        return False
+
+    def settle(self, queues: dict[str, list[dict]]) -> None:
+        """On the capped queues, in tier order: a tier that can run a sprint
+        item reserves its full cap, or every sprint item leaves it
+        (`budget-skip`). Tier 2's same-run re-scan settles only its own queue,
+        inside the room the scan reserved for it."""
+        if self.grant is not None:
+            self._settle_regrant(queues)
+            return
+        for queue, site in TIER_SITES:
+            if TIER_NUMBER[queue] not in self.run_tiers:
+                continue   # this run starts no such tier job, so it spends nothing on its queue
+            mine = self._mine(queues[queue])
+            # tier 2 re-scans after tier 1: a sprint issue tier 1 triages now can reach it in this run
+            probe = mine or (self._mine(queues["intake"]) if queue == "implement" and "intake" in self.by_tier
+                             else [])
+            if not probe:
+                continue
+            sprint = self.sp.for_repo(self.sprints, probe[0]["nwo"], self.now)
+            cap = self.caps.get(site)
+            if cap is None:
+                # test_ai_budget.py fails a tier job with no cap; refuse rather than run it unpriced
+                verdict = self.sp.Verdict(self.sp.BUDGET_SKIP, f"{site} has no budget.call_sites cap to reserve",
+                                          sprint)
+            else:
+                try:
+                    verdict = self.sp.gate(self.sprints, repo=probe[0]["nwo"], now=self.now, spend_of=self.spent,
+                                           cost_usd=self.reserved + float(cap))
+                except RuntimeError as exc:   # a ledger that cannot be read is not an empty one
+                    verdict = self.sp.Verdict(self.sp.BUDGET_SKIP, f"the sprint ceiling cannot be judged: {exc}",
+                                              sprint)
+            if verdict is None:
+                self._reserve(queue, float(cap))
+            else:
+                self._drop(queues, queue, mine, verdict)
+
+    def _settle_regrant(self, queues: dict[str, list[dict]]) -> None:
+        """Tier 2's same-run re-scan: its sprint items run only inside the room
+        this run's scan reserved, and recorded, for tier 2 (`grant`)."""
+        mine = self._mine(queues["implement"])
+        if not mine:
+            return
+        site = TIER_SITES[1][1]
+        sprint = self.sp.for_repo(self.sprints, mine[0]["nwo"], self.now)
+        cap = self.caps.get(site)
+        try:
+            room = float(self.grant)
+        except (TypeError, ValueError):
+            room = math.nan
+        if cap is None:
+            reason = f"{site} has no budget.call_sites cap to reserve"
+        elif not math.isfinite(room) or room < 0:
+            reason = (f"sprint {sprint.slug}: this run's scan handed tier 2 no reservation ({self.grant!r}), so its "
+                      "sprint items wait for the next run")
+        elif room < float(cap):
+            reason = (f"sprint {sprint.slug}: this run's scan reserved ${room:g} of the ceiling for tier 2, below its "
+                      f"${float(cap):g} cap (the item reached agent:ready after the scan, or the ceiling had no room "
+                      "for it), so it waits for the next run")
+        else:
+            self._reserve("implement", float(cap))
+            return
+        self._drop(queues, "implement", mine, self.sp.Verdict(self.sp.BUDGET_SKIP, reason, sprint))
+
+    def records(self) -> list[dict]:
+        """`sprint.reservations`: every earlier run's row for a sprint still
+        declared (one per run), and this run's when its scan reserved anything
+        and was told to record it."""
+        rows: list[dict] = []
+        seen: set[tuple] = set()
+        for r in self.carried:
+            key = (r.get("sprint"), str(r.get("run")))
+            if key in seen or not any(self.sp.of_sprint(r, s) for s in self.sprints):
+                continue
+            seen.add(key)
+            rows.append(r)
+        s = self.sp.active(self.sprints, self.now)
+        if self.record_run and self.grant is None and self.by_tier and s is not None \
+                and (s.slug, str(self.record_run)) not in seen:
+            rows.append(self.sp.reservation(s, run=self.record_run, at=self.now, tiers=self.by_tier))
+        return sorted(rows, key=lambda r: str(r.get("at")))
+
+    def outputs(self) -> dict[str, str]:
+        """The workflow's step outputs: what this run reserved, in all and per
+        tier job ("0" for a tier with no sprint item)."""
+        return sprint_outputs(self.by_tier)
+
+    def report(self) -> dict:
+        s = self.sp.active(self.sprints, self.now)
+        try:
+            spent = self.spent(s) if s is not None else None
+        except RuntimeError:   # a ledger that cannot be read: no figure (settle() held any sprint item)
+            spent = None
+        return {
+            "active": s.as_dict() if s is not None else None,
+            "declared": len(self.sprints),
+            "spent_usd": spent.spent_usd if spent else None,
+            "estimated_usd": spent.estimated_usd if spent else None,
+            "reserved_usd": self.reserved,
+            "reserved_by_tier": dict(self.by_tier),
+            "label": self.sp.COST_LABEL,
+            "held": self.held,
+            "events": self.events,
+            "reservations": self.records(),
+            "note": ("A sprint item's tier runs only when the sprint's ceiling absorbs the tier's full cap. The scan "
+                     "reserves for the whole run; tier 2's same-run re-scan runs sprint items only inside the room "
+                     "reserved for it. Each run that reserved anything is a row in `reservations`, which every later "
+                     "run, the loop runner and JEV count as estimated sprint spend."),
+        }
+
+
+def sprint_outputs(by_tier: dict[str, float] | None = None) -> dict[str, str]:
+    """`sprint_reserved_usd` and `sprint_t1_usd`…`sprint_t3_usd`: what a scan
+    reserved against the expedite sprint, all "0" when it reserved nothing or
+    no sprint is declared (issue-pipeline.yml gates its tier jobs on them)."""
+    tiers = by_tier or {}
+    out = {"sprint_reserved_usd": f"{round(sum(tiers.values()), 4):g}"}
+    for queue, n in TIER_NUMBER.items():
+        out[f"sprint_t{n}_usd"] = f"{float(tiers.get(queue, 0.0)):g}"
+    return out
+
+
+def hub_file(token: str, hub: str, path: str, ref: str | None = None) -> str | None:
+    """One file as a hub branch holds it now (`ref` None: the default branch),
+    or None when the branch or the file does not exist. The contents API's raw
+    form, which serves a file past the JSON form's 1 MB limit."""
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+    base = os.environ.get("GITHUB_API_URL") or "https://api.github.com"
+    query = f"?ref={urllib.parse.quote(ref, safe='')}" if ref else ""
+    req = urllib.request.Request(f"{base}/repos/{hub}/contents/{path}{query}", headers={
+        "Accept": "application/vnd.github.raw+json", "Authorization": f"Bearer {token}",
+        "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "issue-pipeline"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return resp.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return None
+        raise
+
+
+def sprint_records(out: Path, *, hub: str = "", fetch=None) -> list[dict]:
+    """Every earlier run's sprint reservations, as this run must count them:
+    the snapshot in this checkout and, handed `fetch` (hub_file bound to a
+    token), the one the hub's default branch holds now, which a queued run's
+    checkout can predate, and the publish fallback branch's, where a refused
+    push leaves it. A branch or file that does not exist is no rows; anything
+    else that cannot be read raises, and the scan stops rather than spend on a
+    sprint item it cannot count or publish a record that drops a run."""
+    sp = jev_module("sprints")
+    rows = list(sp.pipeline_rows(out))
+    if fetch is None:
+        return rows
+    for ref in (None, PUBLISH_BRANCH):
+        text = fetch(hub, SNAPSHOT, ref)
+        if text is not None:
+            rows += sp.pipeline_rows(text=text, where=f"{hub}@{ref or 'default branch'}:{SNAPSHOT}")
+    return rows
+
+
+def jev_module(name: str):
+    """tools.jev.<name>, imported lazily with the hub root APPENDED to sys.path
+    (tools/ is a namespace package), so this directory's modules keep precedence."""
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.append(str(REPO_ROOT))
+    return importlib.import_module(f"tools.jev.{name}")
+
+
+def sprint_hold(fleet: dict, cfg: dict, *, now: dt.datetime, scheduled: bool, run_tiers: str = "123",
+                grant: str | None = None, record_run: str = "") -> SprintHold | None:
+    """The tier gate for `_data/fleet.yml` `budget.sprints`, or None when no
+    sprint is declared (nothing under tools/jev is imported then). Raises
+    tools.jev's JevError when the declaration bounds nothing: the scan refuses
+    rather than queue a sprint item unguarded. The switch is the workflow's
+    `EXPEDITE_SPRINT_ENABLED` on a schedule; a dispatch or a hand run bypasses
+    it. `run_tiers`, `grant` and `record_run` are SprintHold's. The issue
+    pipeline's own reservations are not read here: the caller hands them in as
+    `carried`, from every branch that can hold them (sprint_records)."""
+    if not ((fleet.get("budget") or {}).get("sprints")):
+        return None
+    sp = jev_module("sprints")
+    sprints = sp.load_sprints(fleet)
+    if not sprints:
+        return None
+    ledger = jev_module("ledger")
+    sites = (fleet.get("budget") or {}).get("call_sites") or {}
+    hub = cfg["hub"]
+    return SprintHold(sp, sprints, caps={site: sites.get(site) for _, site in TIER_SITES}, now=now,
+                      switch=sp.once(lambda: sp.read_switch(scheduled=scheduled)),
+                      spend_of=lambda s: sp.spend(s, ai_ledger=sp.ai_ledger_path(), jev=ledger.Ledger.load(),
+                                                  ci=sp.ci_rows(), hub=hub),
+                      run_tiers=run_tiers, grant=grant, record_run=record_run)
+
+
+def build_queues(repos: list[dict], cfg: dict, sprint: SprintHold | None = None) -> dict[str, list[dict]]:
     t = cfg["tiers"]
     intake: list[dict] = []
     ready: list[dict] = []
@@ -1045,14 +1343,14 @@ def build_queues(repos: list[dict], cfg: dict) -> dict[str, list[dict]]:
                          "private": r["private"],
                          "default_branch": r["default_branch"]})
             if item["stage"] == "intake" and item["autonomy"] != "blocked":
-                if per_repo < t["intake"]["max_per_repo"]:
+                if per_repo < t["intake"]["max_per_repo"] and (sprint is None or sprint.admit(item, "intake")):
                     intake.append(item)
                     per_repo += 1
             elif item["stage"] == "ready" and item["autonomy"] != "blocked":
                 # A PR for an issue whose prerequisite is still open is a
                 # wasted implement slot; it waits (with deps_reason) instead.
                 # Intake is not held back: enriching it is still useful.
-                if not item.get("open_blockers"):
+                if not item.get("open_blockers") and (sprint is None or sprint.admit(item, "implement")):
                     ready.append(item)
         for p in r["prs"]:
             if not p["pipeline"]:
@@ -1061,9 +1359,10 @@ def build_queues(repos: list[dict], cfg: dict) -> dict[str, list[dict]]:
             # merge-ready — T3's job is finished on it.
             if not p["draft"] and p["ci"] == "pass":
                 continue
-            complete.append({**p, "nwo": r["nwo"], "repo": r["name"],
-                             "repo_url": r["repo_url"],
-                             "default_branch": r["default_branch"]})
+            pitem = {**p, "nwo": r["nwo"], "repo": r["name"], "repo_url": r["repo_url"],
+                     "default_branch": r["default_branch"]}
+            if sprint is None or sprint.admit(pitem, "complete"):
+                complete.append(pitem)
 
     intake.sort(key=queue_sort_key)
     ready.sort(key=queue_sort_key)
@@ -1081,11 +1380,14 @@ def build_queues(repos: list[dict], cfg: dict) -> dict[str, list[dict]]:
         if len(capped_ready) >= t["implement"]["max_issues"]:
             break
 
-    return {
+    queues = {
         "intake": intake[: t["intake"]["max_issues"]],
         "implement": capped_ready,
         "complete": complete[: t["complete"]["max_prs"]],
     }
+    if sprint is not None:
+        sprint.settle(queues)
+    return queues
 
 
 # --------------------------------------------------------------------------- #
@@ -1514,6 +1816,15 @@ def sync_labels(nwos: list[str], taxonomy: dict, apply: bool) -> int:
 # entry point
 # --------------------------------------------------------------------------- #
 def run(args: argparse.Namespace) -> int:
+    if args.sprint_grant is not None and not args.no_snapshot:
+        # the re-scan reads no earlier reservation, so its snapshot would drop every one of them
+        sys.stderr.write("issue_pipeline: --sprint-grant is tier 2's same-run re-scan, which never rewrites the "
+                         "snapshot; pass --no-snapshot\n")
+        return 2
+    if args.run_tiers is not None and not set(args.run_tiers) <= set(TIER_NUMBER.values()):
+        sys.stderr.write(f"issue_pipeline: --run-tiers takes the tier numbers this run starts (e.g. 123), "
+                         f"not {args.run_tiers!r}\n")
+        return 2
     cfg = load_config(Path(args.config))
     if args.hub:
         cfg["hub"] = args.hub
@@ -1547,7 +1858,20 @@ def run(args: argparse.Namespace) -> int:
         for k in ("intake", "implement", "complete"):
             emit_output(f"has_{k}", "false")
             emit_output(f"{k}_count", 0)
+        for k, v in sprint_outputs().items():
+            emit_output(k, v)
         return 0
+
+    # An expedite sprint's tier gate (budget.sprints), read before any API call:
+    # a declaration that bounds nothing stops the scan rather than run unguarded.
+    try:
+        sprint = sprint_hold(load_yaml(Path(args.config)), cfg, now=now_utc(),
+                             scheduled=os.environ.get("GITHUB_EVENT_NAME") == "schedule",
+                             run_tiers="123" if args.run_tiers is None else args.run_tiers,
+                             grant=args.sprint_grant, record_run=args.record_run)
+    except RuntimeError as exc:   # tools.jev's JevError
+        sys.stderr.write(f"issue_pipeline: budget.sprints cannot be read: {exc}\n")
+        return 2
 
     try:
         from github import Github, Auth
@@ -1559,6 +1883,20 @@ def run(args: argparse.Namespace) -> int:
         sys.stderr.write("No GitHub token (set GH_TOKEN/GITHUB_TOKEN or run "
                          "`gh auth login`).\n")
         return 2
+
+    if sprint is not None and sprint.grant is None:
+        # Earlier runs' reservations count against the sprint, and this scan's snapshot carries them on.
+        # The hub's branches are read only while a sprint is active (two requests).
+        active = sprint.sp.active(sprint.sprints, sprint.now) is not None
+        try:
+            sprint.carried = sprint_records(
+                Path(args.out), hub=cfg["hub"],
+                fetch=(lambda hub, path, ref: hub_file(token, hub, path, ref)) if active else None)
+        except Exception as exc:  # noqa: BLE001 — a record that cannot be read is not an empty one
+            sys.stderr.write(f"issue_pipeline: the expedite sprint's reservation record cannot be read "
+                             f"({type(exc).__name__}: {exc}); the scan stops rather than spend on a sprint item "
+                             "it cannot count, or publish a record that drops a run\n")
+            return 2
 
     gh = Github(auth=Auth.Token(token), per_page=100)
     reds = red_repos(load_yaml(Path(args.triage)))
@@ -1601,7 +1939,10 @@ def run(args: argparse.Namespace) -> int:
                          f"{deps['lookups']} lookup(s)\n")
     for cyc in deps["cycles"]:
         sys.stderr.write(f"  ! dependency cycle: {' → '.join(cyc)}\n")
-    queues = build_queues(repos, cfg)
+    queues = build_queues(repos, cfg, sprint)
+    if sprint is not None and sprint.held:
+        sys.stderr.write(f"Expedite sprint: {len(sprint.held)} item(s) held — "
+                         + "; ".join(f"{h['key']} ({h['decision']})" for h in sprint.held) + "\n")
     # Gap analysis needs each issue's comment history; run it only over the two
     # capped issue queues so the API cost tracks the queue, not the backlog.
     enrich_candidates(gh, queues["intake"] + queues["implement"], cfg)
@@ -1629,6 +1970,9 @@ def run(args: argparse.Namespace) -> int:
 
     report = build_report(repos, queues, cfg, skipped, queue, queue_problems, deps,
                           handoff_summary(rejected, checked))
+    if sprint is not None:
+        # the circuit breaker's record for this run (constitution § 27.3), with every run's reservations
+        report["sprint"] = sprint.report()
     if not args.no_snapshot:
         out = Path(args.out)
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -1637,6 +1981,8 @@ def run(args: argparse.Namespace) -> int:
             yaml.safe_dump(report, fh, sort_keys=False, allow_unicode=True)
         sys.stderr.write(f"Wrote {out}\n")
 
+    for k, v in (sprint.outputs() if sprint is not None else sprint_outputs()).items():
+        emit_output(k, v)
     for name, key in (("intake", "intake"), ("implement", "implement"),
                       ("complete", "complete")):
         n = len(queues[key])
@@ -1901,6 +2247,16 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--max-complete", type=int, default=None, metavar="N")
     parser.add_argument("--no-snapshot", action="store_true",
                         help="build the work orders without rewriting the committed YAML")
+    parser.add_argument("--run-tiers", default=None, metavar="TIERS",
+                        help="the tier jobs this run starts on these queues (e.g. 123; empty for a dry run): only "
+                             "those reserve against an expedite sprint (default 123)")
+    parser.add_argument("--record-run", default="", metavar="ID",
+                        help="record this run's expedite-sprint reservations in the snapshot under this id "
+                             "(issue-pipeline.yml passes <run id>.<attempt>); a hand run records none")
+    parser.add_argument("--sprint-grant", default=None, metavar="USD",
+                        help="tier 2's same-run re-scan: the room this run's scan reserved for tier 2 against the "
+                             "expedite sprint (its sprint_t2_usd output); only the implement queue is settled, "
+                             "inside it (needs --no-snapshot)")
     parser.add_argument("--sync-labels", action="store_true",
                         help="create/refresh the pipeline's label taxonomy in every target repo")
     parser.add_argument("--apply", action="store_true",

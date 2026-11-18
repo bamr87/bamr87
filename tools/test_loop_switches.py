@@ -82,6 +82,29 @@ class LoopSwitchesTests(unittest.TestCase):
                 else:
                     self.assertIn(f"vars.{name}", text)
 
+    def test_the_sprint_switch_reaches_every_sprint_loop(self) -> None:
+        """Constitution § 27.6: one sprint-scope switch stops every loop an
+        expedite sprint drives. It is opt-out (a running loop's new switch
+        defaults on), and each sprint loop reads it: the issue pipeline's two
+        queue steps and jev-conflicts.yml are handed the variable, and the local
+        loop runner and conflict engine read it through tools/jev/sprints.py."""
+        sprint = [e for e in self.sw["loops"].values() if e.get("scope") == "sprint"]
+        self.assertEqual(len(sprint), 1, "exactly one sprint-scope switch")
+        (e,) = sprint
+        self.assertEqual((e["group"], e["gate"]["kind"], e["gate"]["semantics"], e["default"]),
+                         ("expedite", "repo_variable", "opt_out", "on"))
+        name = e["gate"]["name"]
+        handed = f"{name}: ${{{{ vars.{name} }}}}"
+        pipeline = (WORKFLOWS / "issue-pipeline.yml").read_text()
+        self.assertEqual(pipeline.count(handed), 2, "the scan's and tier 2's queue steps")
+        self.assertIn(handed, (WORKFLOWS / "jev-conflicts.yml").read_text())
+        engine = (ROOT / "tools" / "jev" / "sprints.py").read_text()
+        self.assertIn(f'SWITCH = "{name}"', engine)
+        for user in ("loop.py", "conflicts.py"):
+            with self.subTest(engine=user):
+                self.assertIn("sp.read_switch(", (ROOT / "tools" / "jev" / user).read_text())
+        self.assertIn("sp.read_switch(", (ROOT / ".github" / "scripts" / "dash-gen" / "issue_pipeline.py").read_text())
+
     def test_no_secret_values(self) -> None:
         blob = yaml.safe_dump(self.sw)
         self.assertNotRegex(blob, r"(sk-ant-|ghp_|github_pat_)")

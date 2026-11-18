@@ -63,7 +63,8 @@ servers:
     health: "GET /mcp → 401 without bearer"
     secret_env: [HARNESS_MCP_TOKEN, DASH_CONSOLE_TOKEN]
     write_env: HARNESS_MCP_ALLOW_WRITES
-    notes: "HUB-031; agent name fleet (--fleet-compat). Compose profiles mcp / mcp-tunnel."
+    server_json: tools/console/server.json
+    notes: "HUB-031; agent name fleet (--fleet-compat). Compose profiles mcp / mcp-tunnel. server_json: MCP Registry manifest io.github.bamr87/fleet (§ 16.4), not published."
 
   - id: fleet-legacy-stdlib
     role: hub-server

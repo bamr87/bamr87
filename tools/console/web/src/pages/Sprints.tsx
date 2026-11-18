@@ -197,7 +197,7 @@ function SprintsBody({ doc, selected }: { doc: SprintsDoc; selected: string | nu
   const shown = doc.sprints.find((s) => s.slug === selected) ?? doc.sprints[0];
   return (
     <>
-      <Findings tone="crit" title="The sprint records break the standard (drift check (q))" items={doc.errors.filter((e) => !shown || !e.startsWith(`${shown.slug}: `))} />
+      <Findings tone="crit" title="The sprint records break the standard (drift check (r))" items={doc.errors.filter((e) => !shown || !e.startsWith(`${shown.slug}: `))} />
       {doc.sprints.length === 0 ? (
         <Paper p="lg" data-testid="sprints-empty">
           <Title order={2} fz={16} mb={6}>No expedite sprint is declared</Title>

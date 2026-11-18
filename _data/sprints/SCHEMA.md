@@ -5,7 +5,7 @@ coverage: listed
 
 # SCHEMA — _data/sprints
 
-> The live expedite-sprint records: one committed state document per sprint (`sprint/v1`), the incident-style record constitution § 27.7 asks for, linted by `tools/sprint_record.py` (drift check (q)) and rendered by the console's `/sprints` page.
+> The live expedite-sprint records: one committed state document per sprint (`sprint/v1`), the incident-style record constitution § 27.7 asks for, linted by `tools/sprint_record.py` (drift check (r)) and rendered by the console's `/sprints` page.
 
 ## Conventions
 

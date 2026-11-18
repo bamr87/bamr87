@@ -260,9 +260,12 @@ export function AppPane({ app, doc, view, onView, fill = false }: {
   // A local stack answers only on the machine that runs it. The public page
   // asks the reader before their browser is sent to 127.0.0.1.
   const needsAsk = target?.kind === 'local' && !hasConsole() && asked !== target.id;
+  // A devenv-hosted site runs inside the hub's workspace container, not a
+  // stack of its own: `dev-up` does not apply, so it offers its command only.
+  const inDevenv = target?.kind === 'local' && target.host === 'devenv';
   // A console can start this target's stack: its last start says whether to
   // keep asking the address, and whether the start failed.
-  const canRun = target?.kind === 'local' && hasConsole() && Boolean(target.project);
+  const canRun = target?.kind === 'local' && hasConsole() && Boolean(target.project) && !inDevenv;
   const stackJob = lastStackJob(useJobs(canRun).data, target?.project);
   const starting = canRun && isStarting(stackJob);
   const reach = useReach(target?.url, Boolean(target) && !needsAsk, starting ? STARTING_POLL_MS : 0);
@@ -377,7 +380,13 @@ export function AppPane({ app, doc, view, onView, fill = false }: {
               </>
             ) : (
               <>
-                <Text size="sm" c="dimmed">The {target.service} service of {app.name}'s dev stack is not running on this machine.</Text>
+                {inDevenv ? (
+                  <Text size="sm" c="dimmed">
+                    {app.name} is served from inside the hub's devenv workspace container, not a stack of its own, so the console does not start it. With the core up (<Code>tools/dash up</Code>), run this from the hub's root, or its F5 entry in the editor:
+                  </Text>
+                ) : (
+                  <Text size="sm" c="dimmed">The {target.service} service of {app.name}'s dev stack is not running on this machine.</Text>
+                )}
                 {stackJob?.op === 'dev-up' && stackJob.status === 'failed' ? (
                   <Banner tone="crit" title="The last start failed">
                     <Anchor component={Link} to={to.job(stackJob.id)} size="sm" onClick={(e) => {
@@ -389,7 +398,7 @@ export function AppPane({ app, doc, view, onView, fill = false }: {
                 ) : null}
                 {canStart ? <RunButton op="dev-up" params={{ target: target.project }} variant="filled">Start the stack</RunButton> : null}
                 {canRun && noDocker ? <Text size="xs" c="dimmed">This console has no Docker access, so it cannot start a stack itself.</Text> : null}
-                <Text size="sm" c="dimmed">{canStart ? 'Or from a terminal:' : 'Start it from a terminal:'}</Text>
+                {inDevenv ? null : <Text size="sm" c="dimmed">{canStart ? 'Or from a terminal:' : 'Start it from a terminal:'}</Text>}
                 {target.start ? <CopyCommand value={target.start} /> : null}
                 <Group gap="xs">
                   <Button size="xs" variant="default" onClick={() => void reach.refetch()} loading={reach.isFetching}>Check again</Button>

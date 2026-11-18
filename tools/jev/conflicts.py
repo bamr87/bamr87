@@ -42,6 +42,7 @@ import yaml
 
 from . import classify as cls
 from . import headless
+from . import sprints as sp
 from .common import JevConfig, JevError, finite_usd, git, git_bytes, gh, gh_json, hub_repo, load_config, \
     load_fleet, registry_repos, run
 from .ledger import Ledger, Resolution, budget_state
@@ -888,9 +889,10 @@ def sweep(cfg: JevConfig, repos: list[str] | None, *, dry_run: bool = False, sch
     other conflicts sitting there."""
     led = ledger if ledger is not None else Ledger.load()
     tally: dict[str, int] = {}
+    switch = sprint_switch(scheduled)
     for pr in scan(cfg, repos):
         try:
-            res = resolve(cfg, pr, dry_run=dry_run, scheduled=scheduled, ledger=led)
+            res = resolve(cfg, pr, dry_run=dry_run, scheduled=scheduled, ledger=led, switch=switch)
             outcome, line = res.outcome, f"{res.outcome} at {res.tier} (${res.cost_usd:.2f}): {res.reason}"
         except (JevError, OSError, subprocess.SubprocessError) as exc:
             outcome, line = "error", str(exc)[:300]
@@ -900,14 +902,25 @@ def sweep(cfg: JevConfig, repos: list[str] | None, *, dry_run: bool = False, sch
     return tally
 
 
+def sprint_switch(scheduled: bool):
+    """The expedite sprint's switch for this process, read at most once and only
+    for a pull request in the active sprint's repositories (tools/jev/sprints.py)."""
+    return sp.once(lambda: sp.read_switch(scheduled=scheduled, reader=sp.gh_reader(hub_repo())))
+
+
 def resolve(cfg: JevConfig, pr: PullRequest, *, dry_run: bool = False, scheduled: bool = False,
-            ledger: Ledger | None = None, workdir: Path | None = None) -> Resolution:
+            ledger: Ledger | None = None, workdir: Path | None = None, switch=None) -> Resolution:
     """Triage one pull request and climb the tier ladder until something sticks.
 
     A tier that fails validation is DISCARDED (`git merge --abort`) rather than
     pushed and fixed later: a half-resolved merge commit on somebody's branch is
     worse than the conflict it replaced, because the conflict is at least
     honest about needing attention.
+
+    In an active expedite sprint's repositories (`budget.sprints`), the sprint's
+    switch stops JEV outright, tier 0 included, and tiers 1 and 2 run only while
+    the sprint's ceiling can absorb the tier's full cap: past it the conflict
+    goes to `jev:needs-human` (constitution § 27.3).
     """
     led = ledger if ledger is not None else Ledger.load()
     budget = budget_state(cfg, led, scheduled=scheduled)
@@ -915,6 +928,10 @@ def resolve(cfg: JevConfig, pr: PullRequest, *, dry_run: bool = False, scheduled
     if not ok:
         return Resolution(repo=pr.repo, pr=pr.number, tier="none", outcome="skipped",
                           cost_source="no-spend", reason=why)
+    off = sp.switched_off(cfg.sprints, repo=pr.repo, now=sp.now_utc(), switch=switch or sprint_switch(scheduled))
+    if off is not None:
+        return Resolution(repo=pr.repo, pr=pr.number, tier="none", outcome="skipped",
+                          cost_source="no-spend", reason=off.reason)
 
     ws = trial_merge(cfg, pr, workdir)
     try:
@@ -964,6 +981,14 @@ def resolve(cfg: JevConfig, pr: PullRequest, *, dry_run: bool = False, scheduled
                 if not budget.affords(cfg.tier(tier).max_usd):
                     notes.append(f"{tier}: skipped, ${cfg.tier(tier).max_usd:g} would cross the "
                                  f"${budget.ceiling_usd:.2f} ceiling")
+                    break
+                held = sp.gate(cfg.sprints, repo=pr.repo, key=f"pr:{pr.repo}#{pr.number}", now=sp.now_utc(),
+                               cost_usd=cfg.tier(tier).max_usd,
+                               spend_of=lambda s: sp.spend(s, ai_ledger=sp.ai_ledger_path(), jev=led, ci=sp.ci_rows(),
+                                                           pipeline=sp.pipeline_rows(), hub=hub_repo(),
+                                                           extra=[(spent, "reported")] if spent else []))
+                if held is not None:
+                    notes.append(f"{tier}: skipped, {held.reason}")
                     break
                 if dry_run:
                     notes.append(f"{tier}: would run {cfg.tier(tier).model} at "

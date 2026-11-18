@@ -38,7 +38,7 @@ Every dollar figure sits in a mapping that carries `label: API-equivalent (estim
 ## Commands
 
 ```bash
-python3 tools/sprint_record.py lint          # drift check (q): every rule above, plus WIP 1 across records
+python3 tools/sprint_record.py lint          # drift check (r): every rule above, plus WIP 1 across records
 python3 tools/sprint_record.py show          # the /api/sprints document the console page reads
 python3 tools/test_sprint_record.py          # the fixture tests (tools/test_sprint_record_fixture.yml)
 ```

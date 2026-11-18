@@ -63,3 +63,5 @@ The tiers above say which files a repo must *have*. [`specs/`](../specs/README.m
 5. CI: adopt the reusable [`standard-ci.yml`](../.github/workflows/standard-ci.yml) via a short caller workflow (what the fan-out drops in).
 
 Changes are always committed in the submodule's own repo first, then the pointer is bumped in root — see [SUBMODULES.md](SUBMODULES.md).
+
+The public-facing map of those files — what a visitor sees in the README, in a fixed order, with required and optional entries — is the about-section site map in [ABOUT-SECTION.md](ABOUT-SECTION.md) (constitution § 31). The tiers above still decide which files a repo must have; the about section decides how they are linked.
