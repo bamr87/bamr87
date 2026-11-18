@@ -11,14 +11,14 @@
     "cycle_days": 42,
     "total": 38,
     "day": 20,
-    "processed": 8,
+    "processed": 9,
     "counts": {
-      "pending": 30,
+      "pending": 29,
       "in_progress": 0,
-      "done": 8,
+      "done": 9,
       "skipped": 0
     },
-    "progress": 0.2105,
+    "progress": 0.2368,
     "today": {
       "date": "2026-11-18",
       "cycle": 1,
@@ -35,11 +35,11 @@
       "kind": "scheduled",
       "repo": "rewind-arcade"
     },
-    "last": ".github",
-    "last_date": "2026-11-13",
-    "avg_score": 45.0,
-    "open_issues": 66,
-    "open_prs": 7
+    "last": "lifehacker.dev",
+    "last_date": "2026-11-15",
+    "avg_score": 48.0,
+    "open_issues": 62,
+    "open_prs": 6
   },
   "repos": [
     {
@@ -412,23 +412,23 @@
       "day": 16,
       "repo": "lifehacker.dev",
       "scheduled": "2026-11-14",
-      "status": "pending",
-      "last_processed": null,
+      "status": "done",
+      "last_processed": "2026-11-15",
       "cycle": 1,
       "issues": [
-        "https://github.com/bamr87/lifehacker.dev/issues/819",
-        "https://github.com/bamr87/lifehacker.dev/issues/818",
+        "https://github.com/bamr87/lifehacker.dev/issues/816",
         "https://github.com/bamr87/lifehacker.dev/issues/817",
-        "https://github.com/bamr87/lifehacker.dev/issues/816"
+        "https://github.com/bamr87/lifehacker.dev/issues/818",
+        "https://github.com/bamr87/lifehacker.dev/issues/819"
       ],
       "prs": [
         "https://github.com/bamr87/lifehacker.dev/pull/820"
       ],
-      "open_issues": 4,
-      "open_prs": 1,
-      "findings": "",
-      "score": null,
-      "next_focus": ""
+      "open_issues": 0,
+      "open_prs": 0,
+      "findings": "Harness gate PASS; conformance 49/64 (10 MUST fail). Filed 4: placeholder verify scenario/no UI scenarios, missing issue+PR templates, lockfile deviations absent from sdlc.yml, fleet refs on @main. Already tracked: #803 #804 #808 #783 #801. Docs PR traces LHD-002 to NFR2.",
+      "score": 72.0,
+      "next_focus": "Triage #816-#819; land #814/#808/#803; resolve LHD-NEW id (#801) so features_index validates; bind verify scenarios to real feature ids."
     },
     {
       "day": 17,
