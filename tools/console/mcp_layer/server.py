@@ -4,7 +4,8 @@
 Read tools wrap the console's GET routes (fleet, harness health and scorecard,
 live snapshot, sessions, jobs and logs, spend, the data lake's traces and
 workflow lines, observability, semantic code search, deep dive, work board,
-one work item, a work-board plan's preview, the fleet's decision queue).
+one work item, a work-board plan's preview, the fleet's decision queue, GitHub
+Projects (v2) across every owner and one project's items).
 Write tools (run an allowlisted op, cancel a job, flip a workflow kill switch)
 are NOT registered unless HARNESS_MCP_ALLOW_WRITES=1, are annotated
 destructive, and every one also needs confirm=true per call; the console's own
@@ -59,7 +60,9 @@ INSTRUCTIONS = (
     "traces_query), jobs_list/job_log, spend_vs_budget, lake_runs, workflow_lines, "
     "code_search, deep_dive. What waits on the maintainer across every repo is ONE call: decision_queue (never a "
     "sweep of each repo); every open pull request with who moves it next is ONE call: pr_queue, and pr_queue_plan "
-    "previews a bulk action the user then confirms on the console. To reprioritize open work: work_board, work_item, then work_preview(plan) — it writes "
+    "previews a bulk action the user then confirms on the console. GitHub Projects (v2) of every owner is ONE call "
+    "too: gh_projects, then gh_project_items(project_id) for one board's items (read-only). To reprioritize open "
+    "work: work_board, work_item, then work_preview(plan) — it writes "
     "nothing and returns a plan_id — then, only after the user approves that diff, work_apply(plan, plan_id, "
     "confirm=true). job_dispatch starts one allowlisted report op after the user approves it. Write tools exist only "
     "when the operator enabled them (console_overview says which); each needs confirm=true and you must ask the user "
@@ -111,6 +114,63 @@ def decision_local(**query: Any) -> dict:
         return decision_index.queue(ROOT, **query)
     except ValueError as e:
         raise ConsoleError(str(e)) from None
+
+
+# ----------------------------------------------------------- GitHub Projects
+# /api/gh-projects answers inside its own 15 s clock and GraphQL call budget
+# (gh_projects.py). An item page is summarised by default: a project holds up to
+# 500 items, and each PR item carries up to 20 commits.
+GH_PROJECT_ID_RX = re.compile(r"PVT_[A-Za-z0-9_-]{1,100}")
+GH_ITEMS_LIMIT_MAX = 200     # summary rows per page
+GH_ITEMS_FULL_MAX = 50       # full rows (commits, content ids) per page
+GH_ITEMS_OFFSET_MAX = 500    # gh_projects.MAX_ITEMS: the read stops there
+GH_ITEM_FIELDS = ("item_id", "kind", "repo", "number", "title", "state", "url", "fields", "refs", "closes")
+
+
+def gh_projects_local(**query: Any) -> dict:
+    """The projects view read in this process, with the module the console's route calls, for when no
+    console answers. It resolves a token as the console does (PROJECTS_TOKEN, then the GitHub login)."""
+    import gh_projects as gp  # tools/console is on the path (above)
+    try:
+        return gp.projects_view(**query)
+    except ValueError as e:
+        raise ConsoleError(str(e)) from None
+
+
+def gh_items_local(project_id: str, **query: Any) -> dict:
+    import gh_projects as gp
+    try:
+        return gp.items_view(project_id, **query)
+    except (ValueError, gp.NotReadable) as e:
+        raise ConsoleError(gp.redact(str(e))) from None
+
+
+def no_console(e: ConsoleError) -> bool:
+    """No console answered, or one that predates the route answered with its page fallback's 404 — not
+    a 404 the route itself gave (a project the token cannot read), which is the answer."""
+    return e.status is None or (e.status == 404 and "no such API route" in str(e))
+
+
+def compact_project(p: dict) -> dict:
+    """A project without its field ids: the field names and the Status options a board groups by."""
+    fields = p.get("fields") or []
+    status = next((f.get("options") or [] for f in fields if f.get("name") == "Status"), [])
+    return {"owner": p.get("owner"), "number": p.get("number"), "title": p.get("title"), "url": p.get("url"),
+            "closed": p.get("closed"), "id": p.get("id"), "fields": [f.get("name") for f in fields],
+            "status_options": status}
+
+
+def compact_gh_item(item: dict, title_chars: int = BOARD_TITLE_CHARS) -> dict:
+    """One project item without its commit list or content id, empty fields dropped, title cut."""
+    row = {k: item[k] for k in GH_ITEM_FIELDS if item.get(k) not in (None, "", [], {})}
+    title = row.get("title")
+    if isinstance(title, str) and len(title) > title_chars:
+        row["title"] = title[: title_chars - 1] + "…"
+    if item.get("commits"):
+        row["commits"] = len(item["commits"])
+    if item.get("archived"):
+        row["archived"] = True
+    return row
 
 
 def truthy(v: str | None) -> bool:
@@ -1059,6 +1119,62 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
                 return {**doc, "via": f"read in the MCP process ({why})"}
         return call(run)
 
+    # ------------------------------------------------- GitHub Projects (v2)
+    @mcp.tool(annotations=READ)
+    def gh_projects(owner: str = "", include_closed: bool = False, summary: bool = True,
+                    refresh: bool = False) -> Any:
+        """GitHub Projects (v2) of EVERY fleet owner (bamr87, year-of-ai, ai-world-view, bash-365, EissaLab) in
+        ONE call (docs/PROJECTS-FRAMEWORK.md § 3a). Each owner row is `ok` with its project count, or
+        `scope_missing` / `error` / `skipped` with the reason — a token without read:project is said, never
+        hidden. Each project: owner, number, title, url, closed, its `id` (what gh_project_items takes), its
+        field names and the Status options a board groups by (`summary=false` keeps every field's id and
+        options). Read `status` (fresh · partial · scope_missing · unavailable) and `hint` before relying on
+        the list. Cached for 10 minutes; `refresh` reads GitHub again, inside a GraphQL call budget. Filter
+        with owner; closed projects are left out unless include_closed. Read-only: nothing here writes."""
+        def run():
+            q = {"owner": owner, "closed": "true" if include_closed else "false", "refresh": "true" if refresh else None}
+            try:
+                doc = c.get("/api/gh-projects", **q)
+            except ConsoleError as e:
+                if not no_console(e):
+                    raise
+                doc = gh_projects_local(owner=owner, include_closed=include_closed, refresh=refresh)
+                doc = {**doc, "via": "read in the MCP process ("
+                       + ("no console answered" if e.status is None else "this console has no /api/gh-projects yet") + ")"}
+            if summary:
+                doc = {**doc, "projects": [compact_project(p) for p in doc.get("projects") or []], "summary": True}
+            return doc
+        return call(run)
+
+    @mcp.tool(annotations=READ)
+    def gh_project_items(project_id: str, status: str = "", kind: Literal["", "issue", "pr", "draft"] = "",
+                         q: str = "", limit: int = 30, offset: int = 0, summary: bool = True,
+                         refresh: bool = False) -> Any:
+        """One GitHub project's items, paged (project_id: the PVT_… id from gh_projects). Each item: kind
+        (issue · pr · draft), repo, number, title, state, url, its field values (Status, Priority, …), the
+        FEAT/FR refs its body names and the issues a PR closes; `summary=false` adds each PR's commits and the
+        content ids, at most 50 rows a page. Filter with status (a Status value, or "No Status"), kind and q
+        (title, repo, number); `counts.by_status` / `counts.by_kind` cover the whole project whatever the
+        filter, `matched` and `next_offset` walk the rest. The read stops at 500 items and says so (`capped`).
+        Read `status` and `hint` first. Read-only: nothing here moves or edits an item."""
+        def run():
+            if not GH_PROJECT_ID_RX.fullmatch(project_id or ""):
+                raise ConsoleError("project_id must be a Projects (v2) node id (PVT_…), as gh_projects lists it")
+            cap = GH_ITEMS_LIMIT_MAX if summary else GH_ITEMS_FULL_MAX
+            page = {"limit": max(0, min(int(limit), cap)), "offset": max(0, min(int(offset), GH_ITEMS_OFFSET_MAX)),
+                    "status": status, "kind": kind, "q": q}
+            try:
+                doc = c.get(f"/api/gh-projects/{project_id}/items", **page, refresh="true" if refresh else None)
+            except ConsoleError as e:
+                if not no_console(e):
+                    raise
+                doc = gh_items_local(project_id, **page, refresh=refresh)
+                doc = {**doc, "via": "read in the MCP process ("
+                       + ("no console answered" if e.status is None else "this console has no /api/gh-projects yet") + ")"}
+            if summary:
+                doc = {**doc, "items": [compact_gh_item(i) for i in doc.get("items") or []], "summary": True}
+            return doc
+        return call(run)
     # ------------------------------------------------------------ the PR queue
     @mcp.tool(annotations=READ)
     def pr_queue(who: Literal["", "amr", "agent", "loop", "author"] = "", kind: str = "", repo: str = "",

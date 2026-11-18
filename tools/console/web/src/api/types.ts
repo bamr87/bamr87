@@ -1048,6 +1048,93 @@ export interface AssistDoc {
   local: boolean;
 }
 
+// --- GitHub Projects (v2), read-only (gh_projects.py; /api/gh-projects*) ----
+export type GhProjectsStatus = 'fresh' | 'partial' | 'scope_missing' | 'unavailable';
+export interface GhProjectField {
+  id: string | null;
+  name: string | null;
+  type: string | null;
+  options: string[];
+}
+export interface GhProject {
+  owner: string;
+  id: string;
+  number: number;
+  title: string;
+  url: string;
+  closed: boolean;
+  fields: GhProjectField[];
+}
+export interface GhProjectOwner {
+  login: string;
+  kind: 'user' | 'organization';
+  status: 'ok' | 'scope_missing' | 'error' | 'skipped';
+  projects?: number;
+  error?: string;
+}
+export interface GhProjectsBudget {
+  limit: number;
+  window_s: number;
+  used: number;
+  left: number;
+  budget_s: number;
+  elapsed_s: number;
+}
+export interface GhProjectsDoc {
+  schema: string;
+  generated_at: string;
+  status: GhProjectsStatus;
+  complete: boolean;
+  source: 'live' | 'cache' | 'none';
+  age_s: number;
+  ttl_s: number;
+  token_source: string | null;
+  scope_missing: boolean;
+  read_only: boolean;
+  owners: GhProjectOwner[];
+  projects: GhProject[];
+  counts: { owners: number; read: number; projects: number; open: number };
+  budget: GhProjectsBudget;
+  hint: string | null;
+}
+export interface GhProjectItem {
+  item_id: string;
+  archived: boolean;
+  kind: 'issue' | 'pr' | 'draft' | 'unknown';
+  content_id: string | null;
+  repo: string | null;
+  number: number | null;
+  title: string;
+  state: string | null;
+  url: string | null;
+  fields: Dict<string | number | null>;
+  refs: string[];
+  closes: string[];
+  commits: { sha: string; headline: string; refs: string[] }[];
+}
+export interface GhProjectItemsDoc {
+  schema: string;
+  project_id: string;
+  generated_at: string;
+  status: GhProjectsStatus;
+  complete: boolean;
+  source: 'live' | 'cache' | 'none';
+  age_s: number;
+  token_source: string | null;
+  total: number;
+  matched: number;
+  limit: number;
+  offset: number;
+  next_offset: number | null;
+  capped: boolean;
+  max_items: number;
+  statuses: string[];
+  counts: { by_status: Dict<number>; by_kind: Dict<number> };
+  items: GhProjectItem[];
+  errors: string[];
+  budget: GhProjectsBudget;
+  hint: string | null;
+}
 // The PR queue (/api/prs; tools/fleetcore/prqueue.py, docs/PR-QUEUE.md).
 export type PrWho = 'amr' | 'agent' | 'loop' | 'author';
 export type PrCheckState = 'failing' | 'action_required' | 'cancelled' | 'pending' | 'green' | 'skipped' | 'none';

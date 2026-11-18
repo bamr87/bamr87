@@ -62,6 +62,9 @@ def test_the_snapshot_publishes_nothing_local():
     assert "auth" not in docs(), "the auth document must not be published"
     # The decision index is read with the operator's token and can hold a private repo's titles.
     assert "decisions" not in docs(), "the decision queue must not be published"
+    # So are GitHub Projects (gh_projects.py): the page has a route, the snapshot no document.
+    assert not [k for k in docs() if k.startswith("gh-projects")], "GitHub Projects must not be published"
+    assert "gh-projects" in snapshot.STATIC_ROUTES and "localOnly('GitHub Projects')" in (WEB / "api" / "static.ts").read_text()
     assert docs()["capabilities"]["env_tokens"] == {} and docs()["capabilities"]["mode"] == "snapshot"
 
 

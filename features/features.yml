@@ -653,8 +653,12 @@ features:
     description: Reads Projects (v2) of bamr87, year-of-ai, ai-world-view, bash-365 and EissaLab, links
       project items, issues, PRs, commits, repos and FEAT/FR refs into one graph, and plans write-back (projects,
       items, issue and PR fields) as a dry run that applies only behind HARNESS_PROJECTS_WRITES plus confirm,
-      with an audit log (constitution § 11).
-    implemented: false
+      with an audit log (constitution § 11). The read half is served (#470) by GET /api/gh-projects (every owner,
+      each with its projects or the reason it cannot be read) and /api/gh-projects/{id}/items (paged, capped
+      at 500), the MCP's read-only gh_projects and gh_project_items, and the console's GitHub Projects page
+      (a table, or a board by Status), under a TTL cache, a GraphQL call budget and a wall clock, never in
+      the public snapshot.
+    implemented: true
     status: partial
     surface: infra
     link: tools/console/gh_projects.py
@@ -667,6 +671,13 @@ features:
     tests:
     - tools/console/test_gh_projects.py
     - tools/test_projects_backfill.py
+    - tools/console/test_console.py
+    - tools/console/test_mcp_layer.py
+    - tools/console/test_pages.py
+    scenarios:
+    - verify/scenarios/gh-projects.yml
+    evidence:
+    - test/evidence/gh-projects
     prd:
     - FR32
     - FR33
