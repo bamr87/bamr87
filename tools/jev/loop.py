@@ -20,7 +20,12 @@ Description: JEV capability two's runner — `python3 -m tools.jev loop`, the
              exact issue bodies — and with `--apply`, typed by the maintainer,
              the filing in the same run; `--rehearse` stops before the model
              call at $0); `publish` (files a reviewed earlier dry run,
-             idempotently); `show`; `budget`. Before each attempt the HOST
+             idempotently); `show`; `budget`. Every verb that could spend or
+             file (`run`, `run --apply`, `publish --apply`, `doctor --live`),
+             manual or scheduled, first honours the fleet-wide pause
+             (`vars.FLEET_AGENTS_PAUSED`) and `_data/fleet.yml` `switches:`
+             (§ 17, most restrictive level wins) and exits 5 when paused;
+             `plan` and `--rehearse` still run. Before each attempt the HOST
              builds the item's context pack (tools/jev/context.py: the lake,
              the code index, the telemetry, this loop's earlier attempts) and
              places it beside the brief in the clone, with a pointer in the
@@ -79,7 +84,12 @@ RUN_SCHEMA = "jev-loop-run/v1"
 ATTEMPT_SCHEMA = "jev-loop-attempt/v1"
 KEEP_RUNS = 30
 TIER = "t1"   # P1 has one tier, built from the spec's resolved values; P3 adds `local.tiers`
-EXIT = {"ok": 0, "attention": 1, "usage": 2, "credential": 3, "host_unsafe": 4, "no_cli": 127, "interrupted": 130}
+EXIT = {"ok": 0, "attention": 1, "usage": 2, "credential": 3, "host_unsafe": 4, "paused": 5, "no_cli": 127,
+        "interrupted": 130}
+#: § 17's fleet-wide agent pause (bamr87/bamr87#511): any case of 'true' pauses
+#: every agent step, as a workflow's `vars.FLEET_AGENTS_PAUSED != 'true'` reads it.
+#: The engine only reads it (`gh variable get`), never sets it.
+PAUSE_VARIABLE = "FLEET_AGENTS_PAUSED"
 PUBLISH_PLAN_SCHEMA = "jev-loop-publish-plan/v1"
 PUBLISH_RESULT_SCHEMA = "jev-loop-publish-result/v1"
 #: § 10.7: every AI dollar figure the engine prints carries this
@@ -851,6 +861,83 @@ def gates(ctx: RunContext) -> tuple[int, str] | None:
     if not armed:
         return EXIT["ok"], f"switched off: vars.{sw.variable} is {value!r} (default {sw.default})"
     return None
+
+
+def _is_off(level: object) -> bool:
+    """A `switches:` level that is off. An unquoted YAML `off` loads as False: off too."""
+    state = level.get("state") if isinstance(level, dict) else None
+    return state is False or (isinstance(state, str) and state.strip().lower() == "off")
+
+
+def _map(fleet: dict, key: str) -> dict:
+    sw = fleet.get("switches")
+    level = sw.get(key) if isinstance(sw, dict) else None
+    return level if isinstance(level, dict) else {}
+
+
+def switch_entries(fleet: dict, spec: StepSpec) -> list[tuple[str, dict]]:
+    """The step's `switches.loops` entries: the hub's own, for the step's
+    workflow (`hub/repo-scout` for repo-scout.yml). [] for a workflow the map
+    does not list (fanout.yml is dispatch-only)."""
+    hub, wf = hub_repo(fleet), f".github/workflows/{spec.workflow_file}"
+    return [(k, e) for k, e in _map(fleet, "loops").items()
+            if isinstance(e, dict) and e.get("repo") == hub and e.get("workflow") == wf]
+
+
+def repo_paused(fleet: dict, nwo: str) -> str | None:
+    """Why `switches.repos[<nwo>]` pauses agent work on that repository, or None."""
+    level = _map(fleet, "repos").get(nwo)
+    if not _is_off(level):
+        return None
+    return f"switches.repos[{nwo}] is off" + (f": {level['reason']}" if level.get("reason") else "")
+
+
+def map_paused(fleet: dict, spec: StepSpec) -> str | None:
+    """Why `_data/fleet.yml` `switches:` pauses this step, or None (§ 17.2:
+    the most restrictive level wins): the global level, the group and the
+    loop entry of the step's workflow, then the hub's own repo level. A step
+    with no entry (fanout) answers to the global and repo levels only. An
+    `expires` date does not resume anything by itself; the drift check
+    reports it."""
+    levels = [("switches.global", _map(fleet, "global"))]
+    for key, entry in switch_entries(fleet, spec):
+        group = entry.get("group")
+        levels += [(f"switches.groups.{group}", _map(fleet, "groups").get(group)), (f"switches.loops[{key}]", entry)]
+    for name, level in levels:
+        if _is_off(level):
+            return f"{name} is off" + (f": {level['reason']}" if level.get("reason") else "")
+    return repo_paused(fleet, hub_repo(fleet))
+
+
+def pause_gate(fleet: dict, spec: StepSpec, *, repos: tuple[str, ...] = ()) -> tuple[int, str] | None:
+    """The fleet-wide pause and the central switch map, honoured by every run
+    that could spend or file — `run`, `run --apply`, `publish --apply` and the
+    `doctor --live` canary, manual and scheduled alike (bamr87/bamr87#550,
+    § 17). `plan`, `run --rehearse` and `doctor` without `--live` never call
+    it. The map first (a file read), then `vars.FLEET_AGENTS_PAUSED` on the
+    hub, read the way CI reads it; an unreadable variable refuses rather than
+    guess. `repos` are the items' own repositories (`switches.repos`).
+    (exit code, why) to stop: exit 5 paused, exit 2 unreadable."""
+    why = map_paused(fleet, spec) or next(filter(None, (repo_paused(fleet, r) for r in repos)), None)
+    if why is None:
+        hub = hub_repo(fleet)
+        res = gh(["variable", "get", PAUSE_VARIABLE, "-R", hub])
+        if res.ok:
+            value = res.out.strip()
+            if value.lower() != "true":
+                return None
+            why = f"vars.{PAUSE_VARIABLE} is {value!r} on {hub}"
+        elif "not found" not in (res.err or "").lower():
+            return EXIT["usage"], (f"cannot read vars.{PAUSE_VARIABLE} ({(res.err or res.out).strip()[-200:]}) — "
+                                   "refusing rather than guess the fleet-wide pause")
+        elif gh(["api", f"repos/{hub}", "--jq", ".full_name"]).ok:
+            return None   # unset: not paused
+        else:
+            # gh says "not found" for a repository this auth cannot see too
+            return EXIT["usage"], (f"vars.{PAUSE_VARIABLE} reads as not found, but {hub} is not readable with this "
+                                   "gh auth — refusing rather than guess the fleet-wide pause")
+    return EXIT["paused"], (f"paused: {why} — nothing runs that could spend or file (§ 17); `loop plan` and "
+                            "`run --rehearse` still do")
 
 
 def sandbox_available() -> bool:
@@ -2271,10 +2358,14 @@ def refresh_context(ctx: RunContext, record: dict) -> None:
 
 
 def _run(ctx: RunContext, record: dict, posture: headless.Posture) -> int:
-    """The run, in order: gates, the --apply refusals, the ceiling, the host,
-    the publish token (all $0 and before anything spends), the plan, then the
-    items one by one."""
+    """The run, in order: the pause (a live run only), gates, the --apply
+    refusals, the ceiling, the host, the publish token (all $0 and before
+    anything spends), the plan, then the items one by one."""
     live = not ctx.opts.rehearse
+    stop = pause_gate(ctx.fleet, ctx.spec) if live else None
+    if stop:
+        record["notes"].append(stop[1])
+        return _finish(ctx, record, stop[0], "paused" if stop[0] == EXIT["paused"] else "refused")
     stop = gates(ctx)
     if stop:
         record["notes"].append(stop[1])
@@ -2319,13 +2410,26 @@ def _run(ctx: RunContext, record: dict, posture: headless.Posture) -> int:
         return _finish(ctx, record, stop[0], "refused")
     result = ctx.adapter.items(ctx, plan)
     check_items(result)
+    # switches.repos: an item whose own repository is paused is held back at $0, before its clone
+    held = [{"key": i.key, "name": i.name, "reason": f"paused: {why}"}
+            for i in result.items if live and (why := repo_paused(ctx.fleet, i.nwo))]
+    result.items = [i for i in result.items if i.key not in {h["key"] for h in held}]
     record["plan"] = {**result.meta, "count": len(result.items), "skipped": result.skipped, "dropped": result.dropped}
-    for r in [*result.skipped, *result.dropped]:
+    if held:
+        record["plan"]["paused"] = held
+    rows = [*((r, "planned-skip") for r in [*result.skipped, *result.dropped]), *((h, "paused-skip") for h in held)]
+    for r, decision in rows:
         # `item` is the item key where the adapter knows it (scout: the nwo), as on every other row
         ctx.run.append_attempt({"run_id": ctx.run.run_id, "loop": ctx.spec.loop, "step": ctx.spec.step,
                                 "item": r.get("key") or r.get("name"), "name": r.get("name"),
-                                "decision": "planned-skip", "reason": r.get("reason"),
+                                "decision": decision, "reason": r.get("reason"),
                                 "cost_usd": 0.0, "cost_source": "no-spend"})
+    if held:
+        reasons = "; ".join(sorted({h["reason"] for h in held}))
+        if not result.items:
+            record["notes"].append(f"every planned item's repository is paused ({reasons}) — nothing ran (§ 17)")
+            return _finish(ctx, record, EXIT["paused"], "paused")
+        record["notes"].append(f"{len(held)} item(s) held back ({reasons})")
     if not result.items:
         explicit = ctx.opts.target != "all" or ctx.opts.item
         record["notes"].append(explain_empty(ctx, result) if explicit else "nothing planned today")
@@ -2376,6 +2480,9 @@ def cmd_plan(args: argparse.Namespace) -> int:
         if stop:
             out["notes"].append(stop[1])
             return _print_plan(out, opts, stop[0])
+        paused = map_paused(fleet, spec)   # a plan runs while paused; it says a live run would not (no gh read)
+        if paused:
+            out["notes"].append(f"paused: {paused} — a live run or an --apply exits {EXIT['paused']} (§ 17)")
         host = host_check(spec, posture, fleet, opts.claude_bin, None, live=False, preflight=False, report=True)
         out["host"] = host.as_dict()
         try:
@@ -2462,7 +2569,7 @@ def _print_plan(out: dict, opts: Options, code: int) -> int:
 # --------------------------------------------------------------------------- #
 # `loop doctor`, `loop list`, `loop show`
 # --------------------------------------------------------------------------- #
-SEVERITY = (EXIT["no_cli"], EXIT["host_unsafe"], EXIT["credential"], EXIT["usage"], EXIT["attention"])
+SEVERITY = (EXIT["no_cli"], EXIT["host_unsafe"], EXIT["credential"], EXIT["usage"], EXIT["paused"], EXIT["attention"])
 
 
 def severest(codes: list[int]) -> int:
@@ -2672,7 +2779,10 @@ def cmd_doctor(args: argparse.Namespace) -> int:
                 host.probe = "not run (a check above failed)"
             canary_problems: list[str] = []
             if args.live and host.probe == "ok" and not host.problems:
-                if host.auth is None:
+                paused = pause_gate(fleet, spec)   # the canary is a model call: it honours the pause too
+                if paused:
+                    host.problems.append((paused[0], f"canary not run: {paused[1]}"))
+                elif host.auth is None:
                     host.problems.append((EXIT["credential"], "the canary needs a Claude credential"))
                 else:
                     with budget_lock() as held:
@@ -2856,6 +2966,11 @@ def cmd_publish(args: argparse.Namespace) -> int:
     if args.plan_id and args.plan_id != doc["plan_id"]:
         print(f"jev loop: --plan-id {args.plan_id} is not this preview's ({doc['plan_id']})", file=sys.stderr)
         return EXIT["usage"]
+    if args.apply:
+        stop = pause_gate(fleet, spec, repos=(item.nwo,))
+        if stop:
+            print(f"jev loop: --apply refused: {stop[1]}", file=sys.stderr)
+            return stop[0]
     adapter = adapters.get(spec.local.adapter)
     opts = Options(target=item.name, apply=args.apply, allow_dirty=args.allow_dirty, json=args.json)
     with step_lock(spec):

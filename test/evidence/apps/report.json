@@ -2,10 +2,10 @@
   "id": "apps",
   "title": "The Apps page lists every fleet frontend and opens one without sending a visitor's browser anywhere unasked",
   "features": [
-    "HUB-NEW:app-portal"
+    "HUB-078"
   ],
   "path": "verify/scenarios/apps.yml",
-  "started": "2026-11-05T06:34:35.900Z",
+  "started": "2026-11-16T06:56:57.223Z",
   "viewports": [
     {
       "name": "desktop",
@@ -17,7 +17,7 @@
           "step": "goto",
           "arg": "/apps",
           "ok": true,
-          "ms": 679
+          "ms": 710
         },
         {
           "step": "expect",
@@ -33,7 +33,7 @@
             "selector": "text=Open here"
           },
           "ok": true,
-          "ms": 17
+          "ms": 20
         },
         {
           "step": "expect",
@@ -41,7 +41,7 @@
             "text": "gitorio"
           },
           "ok": true,
-          "ms": 2
+          "ms": 3
         },
         {
           "step": "expect",
@@ -60,8 +60,8 @@
             }
           },
           "ok": true,
-          "value": 38,
-          "ms": 1
+          "value": 39,
+          "ms": 2
         },
         {
           "step": "eval",
@@ -71,7 +71,7 @@
           },
           "ok": true,
           "value": 0,
-          "ms": 1
+          "ms": 0
         },
         {
           "step": "expect",
@@ -83,20 +83,20 @@
             "sw": 1280,
             "cw": 1280
           },
-          "ms": 0
+          "ms": 1
         },
         {
           "step": "screenshot",
           "arg": "apps-list",
           "ok": true,
           "file": "test/evidence/apps/desktop-apps-list.png",
-          "ms": 50
+          "ms": 40
         },
         {
           "step": "click",
           "arg": "text=Other surfaces",
           "ok": true,
-          "ms": 53
+          "ms": 103
         },
         {
           "step": "wait",
@@ -104,7 +104,7 @@
             "selector": "text=zpl-viewer"
           },
           "ok": true,
-          "ms": 26
+          "ms": 2
         },
         {
           "step": "expect",
@@ -112,7 +112,7 @@
             "text": "no address yet"
           },
           "ok": true,
-          "ms": 1
+          "ms": 0
         },
         {
           "step": "expect",
@@ -130,7 +130,7 @@
           "step": "goto",
           "arg": "/apps/zpl-viewer/",
           "ok": true,
-          "ms": 552
+          "ms": 566
         },
         {
           "step": "expect",
@@ -146,7 +146,7 @@
             "selector": "text=is not in the shell yet"
           },
           "ok": true,
-          "ms": 10
+          "ms": 54
         },
         {
           "step": "expect",
@@ -154,7 +154,7 @@
             "text": "a web preview"
           },
           "ok": true,
-          "ms": 1
+          "ms": 2
         },
         {
           "step": "expect",
@@ -166,20 +166,20 @@
             "sw": 1280,
             "cw": 1280
           },
-          "ms": 0
+          "ms": 2
         },
         {
           "step": "screenshot",
           "arg": "app-without-an-address",
           "ok": true,
           "file": "test/evidence/apps/desktop-app-without-an-address.png",
-          "ms": 20
+          "ms": 38
         },
         {
           "step": "goto",
           "arg": "/apps/gitorio/?target=local",
           "ok": true,
-          "ms": 532
+          "ms": 547
         },
         {
           "step": "expect",
@@ -195,7 +195,7 @@
             "selector": "text=A local stack answers only on the machine that runs it."
           },
           "ok": true,
-          "ms": 10
+          "ms": 11
         },
         {
           "step": "expect",
@@ -203,7 +203,7 @@
             "text": "not checked"
           },
           "ok": true,
-          "ms": 2
+          "ms": 1
         },
         {
           "step": "expect",
@@ -235,26 +235,96 @@
             "sw": 1280,
             "cw": 1280
           },
-          "ms": 0
+          "ms": 1
         },
         {
           "step": "screenshot",
           "arg": "app-local-asks-first",
           "ok": true,
           "file": "test/evidence/apps/desktop-app-local-asks-first.png",
-          "ms": 27
+          "ms": 37
+        },
+        {
+          "step": "goto",
+          "arg": "/apps/bamr87.github.io/?target=local",
+          "ok": true,
+          "ms": 536
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=A local stack answers only on the machine that runs it."
+          },
+          "ok": true,
+          "ms": 15
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Check 127.0.0.1:4040"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "iframe",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "docker compose exec -w /workspace/projects/bamr87.github.io devenv"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "app-devenv-local-asks-first",
+          "ok": true,
+          "file": "test/evidence/apps/desktop-app-devenv-local-asks-first.png",
+          "ms": 42
         }
       ],
       "console_errors": [],
       "screenshots": [
         "test/evidence/apps/desktop-apps-list.png",
         "test/evidence/apps/desktop-app-without-an-address.png",
-        "test/evidence/apps/desktop-app-local-asks-first.png"
+        "test/evidence/apps/desktop-app-local-asks-first.png",
+        "test/evidence/apps/desktop-app-devenv-local-asks-first.png"
       ],
       "evals": {
         "off_site_requests": 0
       },
-      "final_url": "http://127.0.0.1:5113/apps/gitorio/?target=local"
+      "final_url": "http://127.0.0.1:4019/apps/bamr87.github.io/?target=local"
     },
     {
       "name": "mobile",
@@ -266,7 +336,7 @@
           "step": "goto",
           "arg": "/apps",
           "ok": true,
-          "ms": 622
+          "ms": 624
         },
         {
           "step": "expect",
@@ -282,7 +352,7 @@
             "selector": "text=Open here"
           },
           "ok": true,
-          "ms": 14
+          "ms": 15
         },
         {
           "step": "expect",
@@ -290,7 +360,7 @@
             "text": "gitorio"
           },
           "ok": true,
-          "ms": 2
+          "ms": 3
         },
         {
           "step": "expect",
@@ -298,7 +368,7 @@
             "text": "tools/dash apps"
           },
           "ok": true,
-          "ms": 0
+          "ms": 1
         },
         {
           "step": "expect",
@@ -309,8 +379,8 @@
             }
           },
           "ok": true,
-          "value": 38,
-          "ms": 1
+          "value": 39,
+          "ms": 2
         },
         {
           "step": "eval",
@@ -320,7 +390,7 @@
           },
           "ok": true,
           "value": 0,
-          "ms": 1
+          "ms": 0
         },
         {
           "step": "expect",
@@ -332,20 +402,20 @@
             "sw": 390,
             "cw": 390
           },
-          "ms": 0
+          "ms": 1
         },
         {
           "step": "screenshot",
           "arg": "apps-list",
           "ok": true,
           "file": "test/evidence/apps/mobile-apps-list.png",
-          "ms": 24
+          "ms": 22
         },
         {
           "step": "click",
           "arg": "text=Other surfaces",
           "ok": true,
-          "ms": 29
+          "ms": 28
         },
         {
           "step": "wait",
@@ -353,7 +423,7 @@
             "selector": "text=zpl-viewer"
           },
           "ok": true,
-          "ms": 2
+          "ms": 3
         },
         {
           "step": "expect",
@@ -361,7 +431,7 @@
             "text": "no address yet"
           },
           "ok": true,
-          "ms": 1
+          "ms": 0
         },
         {
           "step": "expect",
@@ -373,13 +443,13 @@
             "sw": 390,
             "cw": 390
           },
-          "ms": 0
+          "ms": 1
         },
         {
           "step": "goto",
           "arg": "/apps/zpl-viewer/",
           "ok": true,
-          "ms": 552
+          "ms": 574
         },
         {
           "step": "expect",
@@ -395,7 +465,7 @@
             "selector": "text=is not in the shell yet"
           },
           "ok": true,
-          "ms": 9
+          "ms": 22
         },
         {
           "step": "expect",
@@ -403,7 +473,7 @@
             "text": "a web preview"
           },
           "ok": true,
-          "ms": 1
+          "ms": 3
         },
         {
           "step": "expect",
@@ -422,13 +492,13 @@
           "arg": "app-without-an-address",
           "ok": true,
           "file": "test/evidence/apps/mobile-app-without-an-address.png",
-          "ms": 10
+          "ms": 18
         },
         {
           "step": "goto",
           "arg": "/apps/gitorio/?target=local",
           "ok": true,
-          "ms": 532
+          "ms": 544
         },
         {
           "step": "expect",
@@ -444,7 +514,7 @@
             "selector": "text=A local stack answers only on the machine that runs it."
           },
           "ok": true,
-          "ms": 10
+          "ms": 824
         },
         {
           "step": "expect",
@@ -464,7 +534,7 @@
           },
           "ok": true,
           "value": 0,
-          "ms": 1
+          "ms": 2
         },
         {
           "step": "expect",
@@ -472,7 +542,7 @@
             "text": "tools/dash dev up gitorio"
           },
           "ok": true,
-          "ms": 0
+          "ms": 1
         },
         {
           "step": "expect",
@@ -491,22 +561,92 @@
           "arg": "app-local-asks-first",
           "ok": true,
           "file": "test/evidence/apps/mobile-app-local-asks-first.png",
-          "ms": 18
+          "ms": 30
+        },
+        {
+          "step": "goto",
+          "arg": "/apps/bamr87.github.io/?target=local",
+          "ok": true,
+          "ms": 545
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=A local stack answers only on the machine that runs it."
+          },
+          "ok": true,
+          "ms": 12
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Check 127.0.0.1:4040"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "iframe",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "docker compose exec -w /workspace/projects/bamr87.github.io devenv"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "app-devenv-local-asks-first",
+          "ok": true,
+          "file": "test/evidence/apps/mobile-app-devenv-local-asks-first.png",
+          "ms": 24
         }
       ],
       "console_errors": [],
       "screenshots": [
         "test/evidence/apps/mobile-apps-list.png",
         "test/evidence/apps/mobile-app-without-an-address.png",
-        "test/evidence/apps/mobile-app-local-asks-first.png"
+        "test/evidence/apps/mobile-app-local-asks-first.png",
+        "test/evidence/apps/mobile-app-devenv-local-asks-first.png"
       ],
       "evals": {
         "off_site_requests": 0
       },
-      "final_url": "http://127.0.0.1:5113/apps/gitorio/?target=local"
+      "final_url": "http://127.0.0.1:4019/apps/bamr87.github.io/?target=local"
     }
   ],
   "ok": true,
-  "finished": "2026-11-05T06:34:39.935Z",
-  "base": "http://127.0.0.1:5113"
+  "finished": "2026-11-16T06:57:03.465Z",
+  "base": "http://127.0.0.1:4019"
 }

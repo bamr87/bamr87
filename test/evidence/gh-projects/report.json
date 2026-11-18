@@ -1,0 +1,216 @@
+{
+  "id": "gh-projects",
+  "title": "The GitHub Projects page keeps every project on a console and says so on the published site",
+  "features": [
+    "HUB-041"
+  ],
+  "path": "verify/scenarios/gh-projects.yml",
+  "mode": "scripted (playwright-core, headless Chromium) against a console on recorded fixtures (127.0.0.1:4187) and the public build served statically (127.0.0.1:4188)",
+  "base": {
+    "console": "http://127.0.0.1:4187",
+    "public": "http://127.0.0.1:4188"
+  },
+  "started": "2026-11-16T05:51:36.125Z",
+  "browser": "Chromium (playwright-core 1.65.1)",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/gh-projects?project=PVT_fleet",
+          "status": 200,
+          "ok": true,
+          "ready_ms": 4171
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "missing_text": []
+          },
+          "ok": true
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "overflow_px": 0,
+          "ok": true
+        },
+        {
+          "step": "screenshot",
+          "arg": "gh-projects-table-desktop.png",
+          "console_errors": [],
+          "ok": true
+        },
+        {
+          "step": "goto",
+          "arg": "/gh-projects?project=PVT_fleet&view=board",
+          "status": 200,
+          "ok": true,
+          "ready_ms": 3664
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "missing_text": []
+          },
+          "ok": true
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "overflow_px": 0,
+          "ok": true
+        },
+        {
+          "step": "count",
+          "arg": "[data-testid='gh-board-column'] / [data-testid='gh-board-card']",
+          "columns": 6,
+          "cards": 12,
+          "ok": true
+        },
+        {
+          "step": "screenshot",
+          "arg": "gh-projects-board-desktop.png",
+          "console_errors": [],
+          "ok": true
+        },
+        {
+          "step": "goto",
+          "arg": "/gh-projects",
+          "status": 200,
+          "ok": true,
+          "ready_ms": 652
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "missing_text": []
+          },
+          "ok": true
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "overflow_px": 0,
+          "ok": true
+        },
+        {
+          "step": "screenshot",
+          "arg": "gh-projects-public-desktop.png",
+          "console_errors": [],
+          "ok": true
+        }
+      ]
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/gh-projects?project=PVT_fleet",
+          "status": 200,
+          "ok": true,
+          "ready_ms": 3897
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "missing_text": []
+          },
+          "ok": true
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "overflow_px": 0,
+          "ok": true
+        },
+        {
+          "step": "screenshot",
+          "arg": "gh-projects-table-mobile.png",
+          "console_errors": [],
+          "ok": true
+        },
+        {
+          "step": "goto",
+          "arg": "/gh-projects?project=PVT_fleet&view=board",
+          "status": 200,
+          "ok": true,
+          "ready_ms": 3686
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "missing_text": []
+          },
+          "ok": true
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "overflow_px": 0,
+          "ok": true
+        },
+        {
+          "step": "count",
+          "arg": "[data-testid='gh-board-column'] / [data-testid='gh-board-card']",
+          "columns": 6,
+          "cards": 12,
+          "ok": true
+        },
+        {
+          "step": "screenshot",
+          "arg": "gh-projects-board-mobile.png",
+          "console_errors": [],
+          "ok": true
+        },
+        {
+          "step": "goto",
+          "arg": "/gh-projects",
+          "status": 200,
+          "ok": true,
+          "ready_ms": 638
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "missing_text": []
+          },
+          "ok": true
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "overflow_px": 0,
+          "ok": true
+        },
+        {
+          "step": "screenshot",
+          "arg": "gh-projects-public-mobile.png",
+          "console_errors": [],
+          "ok": true
+        }
+      ]
+    }
+  ],
+  "ok": true
+}

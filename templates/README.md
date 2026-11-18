@@ -222,4 +222,4 @@ The spec-driven (AO-SDLC) kit that bamr87/law-ai and bamr87/gitorio run (spec: [
 
 ## `ai-ready/`
 
-The AI-ready foundation kit (constitution § 16, proposed amendment `ai-ready-foundation`). Spec only for now: see [`ai-ready/README.md`](ai-ready/README.md) for the manifest, the generators, the per-service and per-content-site MCP servers, `server.json`, CLI `--json`, the AIEO score threshold, and the local stdio MCP server each content site ships.
+The AI-ready foundation kit (constitution § 16, amendment 0013 `ai-ready-foundation`). Its first file is `agent-card.template.json`, an A2A v1.0 Agent Card for repos that run an agent; the rest is still spec. See [`ai-ready/README.md`](ai-ready/README.md) for the manifest, the generators, the per-service and per-content-site MCP servers, `server.json`, CLI `--json`, the AIEO score threshold, and the local stdio MCP server each content site ships: its Files table marks each file present or planned with the issue that builds it, and `test_ai_ready_kit.py` holds that table to the tree.

@@ -52,11 +52,14 @@ Each rule names the incident behind it. Where another gate already enforces a ru
 | `workflow-run` | warn | no `workflow_run` trigger (prefer `needs:`), unless it watches every workflow (`workflows: ["**"]`), which couples to no display name | atlas |
 | `pr-token` | warn | `gh pr create` (through `GH_TOKEN` or `GITHUB_TOKEN`) or `peter-evans/create-pull-request` does not run with the job token alone (its CI would never fire; a probed token with the job token as fallback passes) | atlas |
 | `bare-push` | warn | no `git push` whose refspec names `main` or `master`, and none that names no branch or only `HEAD` (on a run that checked out the default branch, both land on it); called workflows are exempt | atlas |
+| `pr-comment` | warn | no step posts on a pull request by itself (`gh pr comment` or `gh pr review`; a `gh api` or `curl` write to a PR's comments or reviews, or to an issue's comments when the workflow runs on a PR event or the number is named for a PR; a sticky-comment action; `github-script` creating a review or a PR comment): § 19 routes PR comments through `pr-review.yml`, and findings through its `fleet-findings` artifact. Warn-only until each repo's fan-out PR lands (§ 19.9) | atlas |
 | `undocumented` | warn | every workflow and action has a README row, and every README row has a file | atlas |
 | `action-description-expr` | error | no `${{` in an action's description, or in any input's or output's | check-drift (l) |
 | `action-unused` | warn | every composite action has a caller | atlas |
 
 Run against `main` before #422, the rules report what that pass found by hand: `null-input` on `schema-vendor.yml`, `usage-limit` on all five scheduled agent sites, `pr-token` on the retired `unified-evolution.yml`, and nine workflows missing from the README.
+
+`pr-comment` landed with two warnings on the hub's own tree, `fleet-verify.yml`'s verify sticky and `jev-number.yml`'s ratify note; both are on the pr-review fan-out plan ([templates/pr-review/](../templates/pr-review/README.md#moving-the-comment-bots-onto-it)). Run with `--root projects/<repo>` it lists the same sites in a fleet repo.
 
 **Known limits.** `kill-switch` checks that a scheduled Claude loop reads a `vars.*_ENABLED` variable somewhere, not that the variable gates every agent job. A scheduled workflow that reaches Claude only through a called workflow (a job with `uses: …/ai-lane.yml`) is not followed into it, so neither `kill-switch` nor `ai-budget` sees that call. The lane carries its own switch and cap inputs. `test_schedule.py` and `test_ai_budget.py` remain the authority for what they cover.
 
