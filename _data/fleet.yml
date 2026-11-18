@@ -267,6 +267,13 @@ remediation:
   # is `failing`/`flaky`. Set 0 to switch it off.
   min_cost_waste_min: 15          # wasted job-min in the window below which
                                   # high-cost-low-value / cancel-heavy can't queue
+  # The priority fallback queues an UNFLAGGED workflow on volume alone, so it
+  # took slots for healthy gates: markdown-oneline on 12.4 wasted job-min
+  # (bamr87/bamr87#920), drift-check on minutes its own cancel-in-progress
+  # superseded (#831), githubai and bashcrawl CI on PR-only reds (#886). The
+  # fallback now needs its waste, less cancelled (superseded) minutes, to clear
+  # min_cost_waste_min AND this share of its job-minutes. Set 0 to drop the share.
+  fallback_max_waste_pct: 5
   # Signals ranked highest-first. A workflow matching several is ranked by its
   # strongest and reported with all of them.
   severity:
