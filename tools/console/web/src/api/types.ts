@@ -365,10 +365,12 @@ export interface AppTarget {
   service?: string;
   port?: number;
   band?: string;
-  /** The command that starts a local target's stack. */
+  /** The command that starts a local target's stack (a devenv-hosted site: the `docker compose exec` that serves it). */
   start?: string | null;
-  /** The project a local target belongs to: what `dev-up` and `dev-down` take. */
+  /** The project a local target belongs to: what `dev-up` and `dev-down` take, for a compose-hosted one. */
   project?: string;
+  /** Where a local target runs: its own compose stack (the console can start it), or inside the hub's devenv container (it cannot). */
+  host?: 'compose' | 'devenv';
 }
 
 /** A registry frontend as the launcher lists it (fleetcore.apps, fleet-launcher/v1). */
@@ -494,6 +496,10 @@ export interface InboxItem {
   url: string;
   ref?: string;
   label: string;
+  /** kind `merge` (FF-0036): the red workflow(s), then the PRs red only because of it, that merging this PR clears. */
+  clears?: string[];
+  /** kind `merge`: the fix evidence, `verified` (its own run passed the failed jobs) or `doctor`. */
+  evidence?: string;
 }
 
 export interface FleetView {
@@ -1044,6 +1050,93 @@ export interface AssistDoc {
   local: boolean;
 }
 
+// --- GitHub Projects (v2), read-only (gh_projects.py; /api/gh-projects*) ----
+export type GhProjectsStatus = 'fresh' | 'partial' | 'scope_missing' | 'unavailable';
+export interface GhProjectField {
+  id: string | null;
+  name: string | null;
+  type: string | null;
+  options: string[];
+}
+export interface GhProject {
+  owner: string;
+  id: string;
+  number: number;
+  title: string;
+  url: string;
+  closed: boolean;
+  fields: GhProjectField[];
+}
+export interface GhProjectOwner {
+  login: string;
+  kind: 'user' | 'organization';
+  status: 'ok' | 'scope_missing' | 'error' | 'skipped';
+  projects?: number;
+  error?: string;
+}
+export interface GhProjectsBudget {
+  limit: number;
+  window_s: number;
+  used: number;
+  left: number;
+  budget_s: number;
+  elapsed_s: number;
+}
+export interface GhProjectsDoc {
+  schema: string;
+  generated_at: string;
+  status: GhProjectsStatus;
+  complete: boolean;
+  source: 'live' | 'cache' | 'none';
+  age_s: number;
+  ttl_s: number;
+  token_source: string | null;
+  scope_missing: boolean;
+  read_only: boolean;
+  owners: GhProjectOwner[];
+  projects: GhProject[];
+  counts: { owners: number; read: number; projects: number; open: number };
+  budget: GhProjectsBudget;
+  hint: string | null;
+}
+export interface GhProjectItem {
+  item_id: string;
+  archived: boolean;
+  kind: 'issue' | 'pr' | 'draft' | 'unknown';
+  content_id: string | null;
+  repo: string | null;
+  number: number | null;
+  title: string;
+  state: string | null;
+  url: string | null;
+  fields: Dict<string | number | null>;
+  refs: string[];
+  closes: string[];
+  commits: { sha: string; headline: string; refs: string[] }[];
+}
+export interface GhProjectItemsDoc {
+  schema: string;
+  project_id: string;
+  generated_at: string;
+  status: GhProjectsStatus;
+  complete: boolean;
+  source: 'live' | 'cache' | 'none';
+  age_s: number;
+  token_source: string | null;
+  total: number;
+  matched: number;
+  limit: number;
+  offset: number;
+  next_offset: number | null;
+  capped: boolean;
+  max_items: number;
+  statuses: string[];
+  counts: { by_status: Dict<number>; by_kind: Dict<number> };
+  items: GhProjectItem[];
+  errors: string[];
+  budget: GhProjectsBudget;
+  hint: string | null;
+}
 // The PR queue (/api/prs; tools/fleetcore/prqueue.py, docs/PR-QUEUE.md).
 export type PrWho = 'amr' | 'agent' | 'loop' | 'author';
 export type PrCheckState = 'failing' | 'action_required' | 'cancelled' | 'pending' | 'green' | 'skipped' | 'none';

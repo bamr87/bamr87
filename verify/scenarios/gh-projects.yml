@@ -1,0 +1,16 @@
+# The GitHub Projects page on the published site: it has a page, and it says the data stays on a console.
+id: gh-projects
+feature: HUB-041
+title: "The GitHub Projects page keeps every project on a console and says so on the published site"
+description: "/gh-projects on the public build answers 200, renders the page header and the 'Runs on a console' banner, publishes no project, owner state or item (the snapshot has no gh-projects document: a private project's title must not reach Pages), and does not scroll sideways. On a running console the page lists every owner with its read state, a project picker, and the items as a table or as a board grouped by the project's Status options — recorded by hand in the evidence README from a console on a spare port with recorded fixture data."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_"]
+steps:
+  - goto: /gh-projects
+  - expect: { status: 200 }
+  - wait: { selector: "text=Runs on a console" }
+  - expect: { text: "GitHub Projects" }
+  - expect: { text: "Runs on a console" }
+  - expect: { count: { selector: "[data-testid='gh-board-card']", max: 0 } }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: gh-projects-public

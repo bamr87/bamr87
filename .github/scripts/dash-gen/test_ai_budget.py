@@ -46,6 +46,10 @@ Guarded here:
   * `budget.sprints` is declared, and every expedite sprint's ceiling and
     appetite are finite numbers above 0 inside harnesses.budget.monthly_ai_usd
     (constitution § 27.4: a sprint never raises a cap).
+  * every fleet-ceiling dollar figure the PRD and the feature index state
+    ("$N fleet ceiling", "monthly_ai_usd $N") equals
+    harnesses.budget.monthly_ai_usd, so the records cannot drift from the
+    control plane again (bamr87#502).
 
 Deliberately dependency-light — no network, no gh, no pytest. Needs only PyYAML:
 
@@ -656,6 +660,72 @@ def check_loops_budget_gate(fleet: dict) -> None:
         check(f"the loops ceiling gate fails a fleet with {label}", any(not ok for _, ok in verdicts))
 
 
+# --------------------------------------------------------------------------- #
+# the fleet ceiling as the governance records state it
+# --------------------------------------------------------------------------- #
+# The PRD and the feature index restate harnesses.budget.monthly_ai_usd in
+# prose, and agents read both. The key rose from $75 to $200 (bamr87#441, ADR
+# 0002) while NFR11 and two feature descriptions kept saying "$75 fleet
+# ceiling" (bamr87#502). A figure is held only where the text says it is THE
+# fleet-wide AI ceiling — "$N fleet ceiling", "fleet ceiling of $N",
+# "monthly_ai_usd $N" — so per-engine caps such as "$10/month (budget.jev)"
+# are never read as the fleet's.
+CEILING_DOCS = ("PRD.md", "features/features.yml", "features/features.d/*.yml")
+_USD = r"\$(?P<{0}>\d+(?:,\d{{3}})*(?:\.\d+)?)"
+CEILING_FIGURE = re.compile(
+    _USD.format("before") + r"(?:/month| a month)? (?:monthly )?(?:fleet|AI) (?:ceiling|budget)\b"
+    r"|\b(?:fleet|AI) (?:ceiling|budget) (?:of |is |at )?\(?" + _USD.format("after")
+    + r"|monthly_ai_usd`?\)?(?:,|:| =| is| of)? \(?" + _USD.format("key"))
+
+
+def ceiling_figures(text: str) -> list[tuple[int, float, str]]:
+    """Every fleet-ceiling dollar figure in `text`: (line, value, matched text)."""
+    found = []
+    for m in CEILING_FIGURE.finditer(text):
+        raw = m.group("before") or m.group("after") or m.group("key")
+        found.append((text.count("\n", 0, m.start()) + 1, float(raw.replace(",", "")), m.group(0)))
+    return found
+
+
+def check_ceiling_in_records(fleet: dict, root: Path = REPO_ROOT) -> None:
+    """Each fleet-ceiling figure in the PRD and the feature index equals
+    harnesses.budget.monthly_ai_usd; a record may also cite the key alone."""
+    ceiling = ((fleet.get("harnesses") or {}).get("budget") or {}).get("monthly_ai_usd")
+    if not _bounds(ceiling):
+        return  # check_loops_budget already fails an unbounded ceiling
+    for pattern in CEILING_DOCS:
+        for path in sorted(root.glob(pattern)):
+            rel = path.relative_to(root).as_posix()
+            for line, value, phrase in ceiling_figures(path.read_text(encoding="utf-8")):
+                check(f"{rel}:{line} '{phrase}' matches harnesses.budget.monthly_ai_usd (${ceiling:g})",
+                      math.isclose(value, ceiling))
+
+
+def check_ceiling_figure_gate() -> None:
+    """The record check above is itself held: its pattern must find the stale
+    phrasings bamr87#502 reported and leave per-engine caps alone, and a PRD
+    that still says "$75 fleet ceiling" must fail it."""
+    with tempfile.TemporaryDirectory() as tmp:
+        (Path(tmp) / "PRD.md").write_text("- NFR11: capped inside the $75 fleet ceiling\n", encoding="utf-8")
+        mark = len(CHECKS)
+        check_ceiling_in_records({"harnesses": {"budget": {"monthly_ai_usd": 200}}}, root=Path(tmp))
+        verdicts = CHECKS[mark:]
+        del CHECKS[mark:]
+    check("the records gate fails a PRD that says '$75 fleet ceiling' against a $200 ceiling",
+          bool(verdicts) and not any(ok for _, ok in verdicts))
+    cases = (("the $75 fleet ceiling", [75.0]),
+             ("inside the fleet ceiling (`harnesses.budget.monthly_ai_usd`, $200)", [200.0]),
+             ("harnesses.budget ceilings (monthly_ai_usd $1,200, monthly_actions_minutes 40,000 min/month)",
+              [1200.0]),
+             ("a $75/month AI budget", [75.0]),
+             ("the fleet ceiling of $75", [75.0]),
+             ("Capped at $10/month (budget.jev) inside the fleet ceiling (harnesses.budget.monthly_ai_usd)", []),
+             ("the monthly budget.loops ceiling ($25, a scheduled run stopping at 80%)", []))
+    for text, want in cases:
+        got = [value for _, value, _ in ceiling_figures(text)]
+        check(f"the fleet-ceiling pattern reads {want} from {text!r}", got == want)
+
+
 def main() -> int:
     fleet = yaml.safe_load(FLEET.read_text(encoding="utf-8"))
     check_workflows(fleet)
@@ -663,6 +733,8 @@ def main() -> int:
     check_loops_budget_gate(fleet)
     check_sprints_budget(fleet)
     check_sprints_budget_gate(fleet)
+    check_ceiling_in_records(fleet)
+    check_ceiling_figure_gate()
     check_abort_contract(call_sites())
     check_ledger()
     check_wrapper()

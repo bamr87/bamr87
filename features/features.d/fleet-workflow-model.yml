@@ -1,0 +1,17 @@
+id: HUB-NEW
+slug: fleet-workflow-model
+title: "Fleet workflow model: every repo's workflows, linted, with check states you can trust"
+description: "ADR 0007 phase S1 (#721), read-only. tools/dash workflows sync reads every registry repository's workflow files (and the hub's) into the local lake with the operator's token, fetching a file only when its blob sha changed, plus the latest run of each repository's Verify caller and pull-request/push gates (jobs, steps, a failed run's log); it refuses before reading anything in CI or on a pull request, never uses GITHUB_TOKEN, never fetches an external upstream, is capped by repositories, files, checks, log bytes and a wall-clock budget, and prints how many repositories it read and each one it could not, with the reason. tools/fleetcore/workflows.py builds fleet-workflows/v1 from the lake (opened read-only) through the atlas's own parse_workflow, lint_workflow and classify_failure: each repository with its read time or why it was not read (never a pass), each workflow with its findings, and each check as verified, passed-empty, never-ran, quota, real-failure or cancelled; fleet health counts verified only. tools/dash workflows --fleet (list, show, lint) and the fleet_workflows MCP tool with fleet=true render that one model."
+implemented: true
+status: shipped
+surface: cli
+link: tools/fleetcore/workflows.py
+docs: docs/WORKFLOW-ATLAS.md
+tags: [ workflows, ci, lake, mcp, studio ]
+date: 2026-11-15
+tests:
+  - tools/test_fleetcore_workflows.py
+  - .github/scripts/dash-gen/test_fleet_lake.py
+  - tools/test_fleetcore_mcp.py
+  - tools/console/test_mcp_layer.py
+prd: [FR5, FR21]
