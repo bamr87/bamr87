@@ -411,16 +411,30 @@ repos:
 - day: 20
   repo: ocrmd
   scheduled: '2026-11-18'
-  status: pending
-  last_processed: null
+  status: done
+  last_processed: '2026-11-18'
   cycle: 1
-  issues: []
-  prs: []
+  issues:
+  - https://github.com/bamr87/ocrmd/issues/27
+  - https://github.com/bamr87/ocrmd/issues/28
+  - https://github.com/bamr87/ocrmd/issues/29
+  - https://github.com/bamr87/ocrmd/issues/30
+  - https://github.com/bamr87/ocrmd/issues/31
+  - https://github.com/bamr87/ocrmd/issues/32
+  - https://github.com/bamr87/ocrmd/issues/33
+  - https://github.com/bamr87/ocrmd/issues/34
+  - https://github.com/bamr87/ocrmd/issues/35
+  - https://github.com/bamr87/ocrmd/issues/36
+  - https://github.com/bamr87/ocrmd/issues/37
+  prs:
+  - https://github.com/bamr87/ocrmd/pull/38
+  - https://github.com/bamr87/ocrmd/pull/39
   open_issues: 0
   open_prs: 0
-  findings: ''
-  score: null
-  next_focus: ''
+  findings: 'Public repo, main @ b6a2e8b (0.1.1). Two-read contract is real: local OCR vs Claude vision, visible disagreement flags, digits never auto-resolved, PDF text layer is the primary reading on born-digital pages. Main ci has been red since 2026-11-11 17:45 MST (typer 0.29 broke gen_reference.py); PR CI runs ruff only, so the break landed on merge. Draft #20 fixes the generator (macos-verified); draft #22 pins typer<0.29 and conflicts. Open PRs #22 and #26 both add OCRMD-007 (figure components vs constitution missions / amendment 0002). #25 covers #17 and #18 but overlaps #26 on docs. #21 and #24 both edit claude.yml. #23 covers #19 templates but not SECURITY.md; PVR is still off. 8 UPS MUSTs fail on main (4 already in open PRs). No model allowlist; xAI/grok-4 is an unlisted standard deviation. Local pytest on Linux: 277 passed, 5 skipped, 25 failed (font path, RapidOCR admission/split, typo). 3 planned FRs OCRMD-008..010 (local VLM, Docling/Marker digital-PDF structure, table reconstruction).
+    UPS 40/56. Filed issues #27-#37 and PRs #38-#39; deep-dive label not created.'
+  score: 70.0
+  next_focus: 'Land #20 (drop the typo pin from #22); resolve the OCRMD-007 clash and rebase #25/#26; get Amr''s #19 A/B/C and then merge #39 only after PVR is on; pin remaining @main workflows; add a cheap Linux pytest subset on PRs; then the RapidOCR admission/split gap and orientation-probe default.'
 - day: 21
   repo: rewind-arcade
   scheduled: '2026-11-19'
