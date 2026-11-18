@@ -1,28 +1,17 @@
-# The PR queue on a running console: every open pull request, who moves it next, and a bulk action planned (never applied here).
+# The PR queue on the published site: never published, so the page says it runs on a console. The console run is recorded by hand in the evidence README.
 id: pr-queue
 feature: HUB-117
 title: "The PR queue lists every open pull request, filters it, selects rows and plans a bulk action"
-description: "/prs on a running console (never the public build: the queue can hold a private repo's titles) shows the who-moves-next tabs with counts, the fan-out batch buttons, the bulk action bar and the table with collapsed checks, the gate and the next move. Selecting the shown rows of one tab and planning Mark ready reads GitHub live and opens the per-pull-request plan with its id, Check it still matches and Apply; the scenario stops there and writes nothing to GitHub (run it against a console started with DASH_CONSOLE_GITHUB_WRITES=off). The public build renders the Runs on a console notice instead."
+description: "/prs on the public build renders the PR queue header with 'Runs on a console' in place of the queue (it reads GitHub under the console's identity and can hold a private repo's titles, so it is never published) and does not scroll sideways. On a running console it shows the who-moves-next tabs with counts, the fan-out batch buttons, the bulk action bar and the table, and selecting the shown rows and planning Mark ready opens the per-pull-request plan with Check it still matches and Apply — recorded by hand in the evidence README (test/evidence/pr-queue/), never in CI, which serves only the public build."
 viewports: [desktop, mobile]
 ignore_console: ["Failed to load resource", "net::ERR_"]
 steps:
   - goto: /prs
   - expect: { status: 200 }
-  - wait: { selector: "[data-bulk-bar]", timeout_ms: 60000 }
-  - expect: { text: "Who moves next" }
-  - expect: { visible: "[data-who-tabs]" }
-  - expect: { visible: "[data-batches]" }
-  - expect: { count: { selector: "tbody tr", min: 5 } }
+  - wait: { selector: "text=Runs on a console" }
+  - expect: { text: "PR queue" }
+  - expect: { text: "Runs on a console" }
+  - expect: { text: "it is never published" }
+  - expect: { count: { selector: "[data-bulk-bar]", max: 0 } }
   - expect: { no_horizontal_scroll: true }
-  - screenshot: pr-queue
-  - goto: /prs?who=agent
-  - wait: { selector: "[data-bulk-bar]", timeout_ms: 60000 }
-  - click: "role=button[name=/^Select the \\d+ shown$/]"
-  - expect: { visible: "[data-selected-count]:not(:has-text('0 selected'))" }
-  - click: "[aria-label='Bulk action']"
-  - click: "role=option[name=/Mark ready for review/]"
-  - click: "role=button[name='Plan']"
-  - wait: { selector: "text=Check it still matches", timeout_ms: 90000 }
-  - expect: { visible: "[data-plan]" }
-  - expect: { text: "Governed by" }
-  - screenshot: pr-queue-plan
+  - screenshot: pr-queue-public
