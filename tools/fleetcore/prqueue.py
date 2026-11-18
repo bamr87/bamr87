@@ -58,6 +58,13 @@ KIND_TITLES = {"security": "Security", "dependabot": "Dependabot", "release": "R
 WHO = ("amr", "agent", "loop", "author")
 WHO_TITLES = {"amr": "Amr", "agent": "An agent", "loop": "A loop", "author": "The author"}
 CHECK_STATES = ("failing", "action_required", "cancelled", "pending", "green", "skipped", "none")
+#: Where what a pull request SAYS (its label, its next-action comment, its task list) disagrees with what
+#: the queue reads. A flag is a fact about the page a person opens, never a new gate.
+FLAGS = ("unlabelled", "stale-comment", "no-comment", "open-tasks", "tasks-contradict")
+FLAG_TITLES = {"unlabelled": "gated, no needs-amr label", "stale-comment": "next-action comment out of date",
+               "no-comment": "no next-action comment", "open-tasks": "unticked tasks in the description",
+               "tasks-contradict": "an unticked CI task while every check passes"}
+GATE_LABEL = "needs-amr"
 
 DEFAULTS: dict[str, Any] = {
     "ttl_s": 600,              # a detail record older than this, or read for an older updated_at, is read again
@@ -265,6 +272,88 @@ def parse_triage(body: str | None) -> dict | None:
 
 
 # --------------------------------------------------------------------------- #
+# Consistency: the label, the comment and the task list against the queue's own reading
+# --------------------------------------------------------------------------- #
+TASK_RX = re.compile(r"^[ \t]*[-*+][ \t]+\[([ xX])\][ \t]+(\S.*?)[ \t]*$", re.M)
+#: The pull-request template's "Type Of Change" block is a choice, not work: GitHub counts each unticked
+#: option as an open task, so a finished pull request reads "4 of 9 tasks" for good.
+OPTION_TASKS = frozenset({"bug fix", "new feature", "breaking change", "documentation update",
+                          "maintenance or refactor", "test improvement"})
+CI_TASK_RX = re.compile(r"\bci is green\b|\btests? pass(es)?\b|\bchecks? (pass|are green)\b", re.I)
+_TASK_TEXT = re.compile(r"[*_`]")
+_MERGE_WORD = re.compile(r"\bmerges?\b", re.I)
+_CONFLICT_WORD = re.compile(r"\bconflicts?\b|\brebase\b|\bupdate (the )?branch\b", re.I)
+_FAILING_WORD = re.compile(r"\bfailing\b|\bfix (the |its )?(ci|checks?)\b|\bred checks?\b", re.I)
+
+
+def tasks_of(body: str | None) -> dict | None:
+    """The description's task list: `total` and `done` as GitHub counts them, `open` without the
+    template's unticked options, the first open items, and whether one of them says CI is not green
+    yet. None when the description has no checkbox."""
+    found = TASK_RX.findall(str(body or ""))
+    if not found:
+        return None
+    opened = [_TASK_TEXT.sub("", text).strip() for mark, text in found if mark == " "]
+    options = [t for t in opened if t.lower().rstrip(".") in OPTION_TASKS]
+    work = [t for t in opened if t.lower().rstrip(".") not in OPTION_TASKS]
+    return {"total": len(found), "done": len(found) - len(opened), "open": len(work), "options": len(options),
+            "items": [t[:100] for t in work[:5]], "ci_open": any(CI_TASK_RX.search(t) for t in work)}
+
+
+def label_of(gate: dict, labels: Iterable[str], detail: dict) -> dict:
+    """§ 12.4: a gated pull request carries the needs-amr label. `missing` is a gated one that does not;
+    `repo_has_label` False means the label cannot be added until the repo has it."""
+    labelled = GATE_LABEL in set(labels or [])
+    state = "labelled" if labelled else "missing" if gate.get("gated") and detail.get("read") else "not-needed"
+    out: dict[str, Any] = {"state": state}
+    has = (detail.get("repo") or {}).get("gate_label")
+    if has is not None:
+        out["repo_has_label"] = bool(has)
+    return out
+
+
+def comment_of(triage: dict | None, detail: dict, *, draft: bool, mergeable: str | None, checks_state: str) -> dict:
+    """The next-action comment against the pull request today: `none`, `current`, or `stale` with each
+    fact that contradicts it. Only facts decide; the wording of a hand-written comment is never judged."""
+    if not triage:
+        return {"state": "none"}
+    said = str(triage.get("next_action") or "")
+    commands = " ".join(triage.get("commands") or [])
+    why = []
+    if detail.get("head_at") and triage.get("updated_at") and str(detail["head_at"]) > str(triage["updated_at"]):
+        why.append("commits were pushed after it was written")
+    if "gh pr ready" in commands and not draft:
+        why.append("it says mark it ready; it is ready")
+    says_merge = "gh pr merge" in commands or bool(_MERGE_WORD.search(said))
+    if says_merge and mergeable == "CONFLICTING":
+        why.append("it says merge; the pull request conflicts with its base")
+    if says_merge and checks_state == "failing":
+        why.append("it says merge; a check is failing")
+    if _CONFLICT_WORD.search(said) and mergeable == "MERGEABLE":
+        why.append("it says resolve a conflict; there is none")
+    if _FAILING_WORD.search(said) and checks_state in ("green", "skipped"):
+        why.append("it says fix failing checks; they pass")
+    return {"state": "stale", "why": why} if why else {"state": "current"}
+
+
+def flags_of(label: dict, comment: dict, tasks: dict | None, checks_state: str, read: bool) -> list[str]:
+    if not read:  # nothing was read, so nothing can be said to disagree
+        return []
+    out = []
+    if label["state"] == "missing":
+        out.append("unlabelled")
+    if comment["state"] == "stale":
+        out.append("stale-comment")
+    if comment["state"] == "none":
+        out.append("no-comment")
+    if tasks and tasks["open"]:
+        out.append("open-tasks")
+    if tasks and tasks.get("ci_open") and checks_state == "green":
+        out.append("tasks-contradict")
+    return out
+
+
+# --------------------------------------------------------------------------- #
 # One row
 # --------------------------------------------------------------------------- #
 def _days(stamp: Any, now: datetime) -> int | None:
@@ -461,6 +550,11 @@ def row(rec: dict, detail: dict | None, cfg: dict, now: datetime, batch_heads: s
         "triage": triage, "read": bool(detail.get("read")), "read_at": detail.get("read_at"),
         "review_threads": detail.get("unresolved_threads"),
     }
+    tasks = detail.get("tasks") if isinstance(detail.get("tasks"), dict) else None
+    label = label_of(gate, out["labels"], detail)
+    comment = comment_of(triage, detail, draft=out["draft"], mergeable=out["mergeable"], checks_state=checks["state"])
+    out.update(tasks=tasks, label=label, comment=comment,
+               flags=flags_of(label, comment, tasks, checks["state"], out["read"]))
     return {k: v for k, v in out.items() if v is not None}
 
 
@@ -504,6 +598,11 @@ def build(records: Iterable[dict], details: dict[str, dict], cfg: dict, now: dat
         "agent_mergeable": sum(bool(r["agent_merge"]["ok"]) for r in rows),
         "unread": sum(not r["read"] for r in rows),
         "triaged": sum(bool(r.get("triage")) for r in rows),
+        "flags": {f: sum(f in r.get("flags", []) for r in rows) for f in FLAGS},
+        "tasks": {"with": sum(bool(r.get("tasks")) for r in rows),
+                  "done": sum((r.get("tasks") or {}).get("done", 0) for r in rows),
+                  "total": sum((r.get("tasks") or {}).get("total", 0) for r in rows)},
+        "repos_without_gate_label": len({r["repo"] for r in rows if (r.get("label") or {}).get("repo_has_label") is False}),
     }
     return {"schema": SCHEMA, "generated_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "rows": rows, "batches": batches,
             "counts": counts, "actions": actions_view(cfg)}

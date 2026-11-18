@@ -243,7 +243,9 @@ TOOLS: dict[str, dict] = {
             "limit": {"type": "integer", "minimum": 1, "maximum": 100}})),
     "fleet_inbox": dict(fn=t_inbox, annotations=READ, description=(
         "The fleet inbox (flagged issues, PRs and failing workflows, highest priority first), or every open "
-        "item of one repo."), schema=_schema({
+        "item of one repo. A `merge` item (priority 95) is a green, clean PR that fixes a failing workflow: "
+        "its `clears` lists that workflow and the PRs that turn green once their branches are updated. "
+        "Merging stays a human's call."), schema=_schema({
             "repo": {"type": "string", "description": "registry name for the drill-down"},
             "limit": {"type": "integer", "minimum": 1, "maximum": 150}})),
     "fleet_docker": dict(fn=t_docker, annotations={"readOnlyHint": True, "openWorldHint": True},

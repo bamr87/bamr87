@@ -9,28 +9,28 @@
 # Rendered at /features/ on the dash. Kit: templates/verify/ · doc: docs/VERIFICATION.md
 # =============================================================================
 schema: features-index/v1
-generated_at: '2026-11-16T06:23:38Z'
-kit_version: 0.2.0
+generated_at: '2026-11-17T06:21:25Z'
+kit_version: 0.3.0
 totals:
   repos_scanned: 1
   repos_with_index: 1
   repos_with_kit: 1
   repos_prose_only: 0
   repos_no_index: 0
-  features: 114
-  implemented: 66
-  covered: 106
-  evidenced: 17
+  features: 116
+  implemented: 67
+  covered: 108
+  evidenced: 18
   verified: 8
-  ui: 26
-  ui_covered: 26
+  ui: 27
+  ui_covered: 27
   ui_verified: 8
-  scenarios: 21
-  screenshots: 125
+  scenarios: 22
+  screenshots: 129
   dangling: 5
 pct:
   coverage: 161
-  evidence: 26
+  evidence: 27
   verified: 12
   ui_coverage: 100
 attention:
@@ -74,7 +74,7 @@ repos:
   kit:
     config: true
     runner: true
-    scenarios: 21
+    scenarios: 22
     workflow: true
     workflow_fleet_caller: true
     workflow_gate: false
@@ -84,18 +84,18 @@ repos:
     legacy_evidence_kit: false
     legacy_visual_evidence_skill: false
   counts:
-    features: 114
-    implemented: 66
-    covered: 106
-    evidenced: 17
+    features: 116
+    implemented: 67
+    covered: 108
+    evidenced: 18
     verified: 8
-    ui: 26
-    ui_covered: 26
+    ui: 27
+    ui_covered: 27
     ui_verified: 8
     dangling: 5
   pct:
     coverage: 100
-    evidence: 26
+    evidence: 27
     verified: 12
   last_run: null
   gaps:
@@ -4467,4 +4467,96 @@ repos:
       - https://github.com/bamr87/bamr87/blob/main/tools/test_weekly_closeout.py
       scenarios: []
       screenshots: []
+  - id: HUB-116
+    title: 'On-premise compute node: local LLMs and Claude Code sessions on Amr''s own machine (planned)'
+    surface: infra
+    implemented: false
+    link: docs/ONPREM-COMPUTE.md
+    docs: docs/ONPREM-COMPUTE.md
+    tags:
+    - platform
+    - nodes
+    - local-llm
+    - claude-code
+    - weekly
+    - housekeeping
+    - cost
+    date: '2026-11-15'
+    provenance: null
+    tests: []
+    waived:
+    - plan only; phases P2–P6 add their tests (tools/test_fleetcore_nodes.py for the node entry, the weekly and JEV suites
+      for the timers and the local tier)
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'Plan only: enrol Amr''s new on-premise machine (Ryzen 9 9950X3D2, 64 GB, Radeon RX 9070 XT 16 GB, picked up
+      2026-11-10) as a second workload node in _data/fleet.yml nodes:, disabled until its deploy step. It serves local LLMs
+      through Ollama '
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/docs/ONPREM-COMPUTE.md
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/ONPREM-COMPUTE.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-117
+    title: 'PR queue: every open pull request, who moves it next, and bulk actions an agent carries out once Amr confirms'
+    surface: ui
+    implemented: true
+    link: tools/console/web/src/pages/PrQueue.tsx
+    docs: docs/PR-QUEUE.md
+    tags:
+    - console
+    - pull-requests
+    - decisions
+    - bulk-actions
+    - fleetcore
+    - mcp
+    - governance
+    date: '2026-11-15'
+    provenance: null
+    tests:
+    - tools/test_fleetcore_prqueue.py
+    - tools/console/test_pr_queue.py
+    - tools/console/test_mcp_layer.py
+    - tools/console/test_console.py
+    waived: []
+    scenarios:
+    - verify/scenarios/pr-queue.yml
+    evidence:
+    - test/evidence/pr-queue
+    screenshots:
+    - test/evidence/pr-queue/desktop-pr-queue-plan.png
+    - test/evidence/pr-queue/desktop-pr-queue.png
+    - test/evidence/pr-queue/mobile-pr-queue-plan.png
+    - test/evidence/pr-queue/mobile-pr-queue.png
+    verified: null
+    covered: true
+    evidenced: true
+    dangling: []
+    summary: 'The console''s /prs page (also /api/prs, the MCP''s pr_queue and tools/dash prs) lists every open pull request
+      of the hub and the registry repos in one queue, built on the decision index plus one batched detail read per pull request:
+      checks c'
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/console/web/src/pages/PrQueue.tsx
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/PR-QUEUE.md
+      evidence:
+      - https://github.com/bamr87/bamr87/tree/main/test/evidence/pr-queue
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_fleetcore_prqueue.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/console/test_pr_queue.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/console/test_mcp_layer.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/console/test_console.py
+      scenarios:
+      - https://github.com/bamr87/bamr87/blob/main/verify/scenarios/pr-queue.yml
+      screenshots:
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/pr-queue/desktop-pr-queue-plan.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/pr-queue/desktop-pr-queue.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/pr-queue/mobile-pr-queue-plan.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/pr-queue/mobile-pr-queue.png
   truncated: false

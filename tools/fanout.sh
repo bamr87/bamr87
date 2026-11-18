@@ -55,9 +55,10 @@
 #   FANOUT_PR_DRAFT=1            open new PRs as drafts
 #   FANOUT_SUBMODULES_ONLY=1     `--target all` means the checked-out submodules
 #                                only — not the registry rows without a checkout
-#                                (the zer0-mistakes mirror, the .github defaults
-#                                repo, the SCHEMA kit source, forks), which take a
-#                                kit only when named explicitly
+#                                (personal forks such as amrchy), which take a
+#                                kit only when named explicitly. bamr87/.github
+#                                (projects/dot-github) and the SCHEMA kit source
+#                                are submodules, so `all` includes them
 #   Together they turn N kit PRs per repo into ONE alignment PR per repo with one
 #   commit per kit — what the 2026-10-20 fleet alignment used on chore/root-tidy.
 #

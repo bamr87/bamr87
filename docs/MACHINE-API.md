@@ -24,7 +24,7 @@ Also: https://bamr87.github.io/bamr87/llms.txt
 ## How bots should use it
 
 1. `GET /api/v1/index.json`
-2. `GET /api/v1/fleet.json` and work `inbox[]` in array order (failing workflows first)
+2. `GET /api/v1/fleet.json` and work `inbox[]` in array order: a `merge` item (95) first, a green, clean PR that fixes a failing workflow, whose `clears` lists that workflow and the PRs it turns green (the merge is a human's call, never an agent's); then the failing workflows
 3. Optionally `GET /api/v1/health.json` for attention levels when present
 4. Prefer `agent:ready` / P0–P1; skip `agent:blocked` unless unblocking
 
