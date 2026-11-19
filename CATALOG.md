@@ -573,7 +573,7 @@ The pages of the public site — the Harness Console built static ([`docs/CONSOL
 | Operate | Operations | `/ops` | the allowlisted operations |
 | Operate | Toolbox | `/toolbox` | scripts, skills and kits the hub provides |
 | Operate | Terminal | `/terminal` | the terminal dash, in the page |
-| Operate | Assist | `/assist` | ask the read-only assistant; it reads the fleet through the MCP server |
+| Operate | Assist | `/assist` | ask the assistant; it reads the fleet through the MCP server, and docks beside any page from the header |
 | Settings | Config | `/config` | _data/fleet.yml, block by block |
 | Settings | Credentials | `/auth` | tokens, gh login, rotation |
 | Settings | Connect | `/connect` | give the public page GitHub, or a running console |

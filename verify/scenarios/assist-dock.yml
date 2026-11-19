@@ -1,6 +1,6 @@
 # The docked assistant on the published site: there is none. The published page has no console behind it, so it offers no dock and no page sharing, and says where the assistant runs.
 id: assist-dock
-feature: "HUB-NEW:console-page-assistant"
+feature: "HUB-125"
 title: "The published page offers no assistant dock, and says the assistant runs on a console"
 description: "On the public build the header has no assistant button on any page, nothing can open a dock, and /assist says the assistant runs on a console; nothing scrolls sideways. On a running console the sparkle button opens the dock beside the page: a conversation whose sessions can see the page, point at it and, in the mode the person picks, use it, with each click asked first by default and no way to answer a confirming dialog. That pass needs a console and a Claude Code CLI, so it is recorded by hand in the evidence README (it ran end to end on tools/console/assist_standin.py, a scripted stand-in for the model, at $0)."
 viewports: [desktop, mobile]
