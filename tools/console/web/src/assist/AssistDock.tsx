@@ -142,7 +142,7 @@ function Approvals() {
   if (!a) return null;
   const left = Math.max(0, Math.ceil((a.until - now) / 1000));
   return (
-    <div className={classes.approval} role="alertdialog" aria-label="The assistant asks to act on this page" data-testid="assist-approval">
+    <div className={classes.approval} role="alert" aria-label="The assistant asks to act on this page" data-testid="assist-approval">
       <Text size="xs" c="dimmed">{a.client === 'paired' ? 'The paired Claude Code session' : 'The assistant'} asks to</Text>
       <Text size="sm" fw={600}>{a.summary}</Text>
       {a.detail !== undefined ? <div className={classes.typed}>{a.detail || '(clear the field)'}</div> : null}

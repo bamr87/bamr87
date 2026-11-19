@@ -184,9 +184,12 @@ async function poll(sid: string, mine: number): Promise<void> {
       if (mine !== epoch) return;
       const status = e instanceof ApiError ? e.status : 0;
       if (status === 404 || status === 403) {
-        // The console dropped the session (a restart, the idle sweep, the ceiling switched off).
+        // The console dropped the session: a restart or the idle sweep (404), or the ceiling switched off (403).
         declineAll();
-        set({ session: null, sessionError: status === 403 ? (e as Error).message : 'The console dropped this page\'s session (it restarted, or the page sat idle). Close and reopen the assistant to share it again.' });
+        set({ session: null, sessionError: status === 403 ? (e as Error).message : null });
+        // After a restart the dock is still open and still means "share this page": ask for a new session
+        // once. A refusal (the ceiling is off now) is shown; a new session cannot 404, so this does not loop.
+        if (status === 404 && state.open) void share();
         return;
       }
       failures += 1;
