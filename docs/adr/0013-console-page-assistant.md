@@ -1,6 +1,7 @@
 # ADR 0013 — The docked assistant and the page bridge: an agent session may see and use the console page a person has open, and the confirming yes stays theirs
 
-- **Status**: proposed
+- **Status**: accepted
+- **Accepted in**: https://github.com/bamr87/bamr87/pull/930 (merged 2026-11-19 by @bamr87)
 - **Date**: 2026-11-18
 - **Deciders**: proposed by an agent at the maintainer's request (2026-11-18: build the AI assistant into the console so that Claude Code is inside the web console and can see and interact with the loaded page, frontend and backend)
 - **Related**: constitution § 10.5 to § 10.9 (hands off the Mac, read-only tools, honest cost, prior art, local first), § 11.4 and § 11.8 (dry run then confirm, the OPS remote-write path), § 13.5 to § 13.8 (tracing, risk tiers, earned autonomy, the lethal trifecta), § 25 (MCP server lifecycle); ADR 0004 P2 (the read-only Assist page this extends); HUB-075; `docs/HARNESS.md` roadmap ("the assistant in the console")
