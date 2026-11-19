@@ -3,7 +3,7 @@
   "name": "io.github.bamr87/fleet",
   "title": "bamr87 Harness Console",
   "description": "The bamr87 fleet's control plane: fleet status, harness health, jobs, spend and the Work board",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "repository": {
     "url": "https://github.com/bamr87/bamr87",
     "source": "github",

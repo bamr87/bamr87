@@ -22,8 +22,10 @@
 #   HARNESS_MCP_TOKEN                       bearer for --http (env or .env; never the console token)
 #   HARNESS_MCP_DOTENV                      the .env to parse (default <repo>/.env)
 #   HARNESS_MCP_ALLOW_WRITES=1              register the destructive write tools (off by default)
-#   HARNESS_MCP_SCOPES=jobs,work            only the narrow write tools: job_dispatch/job_cancel of
-#                                           local report ops, work_apply of Work-board priority
+#   HARNESS_MCP_SCOPES=jobs,work,page       only the narrow write tools: job_dispatch/job_cancel of
+#                                           local report ops, work_apply of Work-board priority,
+#                                           page_navigate/click/fill/press on a paired console page
+#                                           (stdio only; the dock's mode and the person's yes still rule)
 #   HARNESS_MCP_AUDIT                       the scoped-write audit (default .fleet/mcp/audit.jsonl)
 #
 # Usage: tools/console/mcp.sh [--http]     (or: tools/dash mcp [--http])

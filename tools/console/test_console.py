@@ -2869,10 +2869,6 @@ def main() -> int:
     return 1 if failures else 0
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
-
-
 def test_refine_ops_are_local_dollar_free_and_validated():
     """JEV capability three in the console (docs/HARNESS-REFINEMENT.md, ADR 0004 P2): every refine op is
     `tools/dash refine …`, needs no token and never writes remotely; the builders refuse what the CLI would."""
@@ -2935,6 +2931,10 @@ def test_assist_op_is_a_capped_read_only_mcp_session_behind_the_spend_gate():
     mcp = json.loads(Path(tail[tail.index("--mcp-config") + 1]).read_text(encoding="utf-8"))
     assert list(mcp["mcpServers"]) == ["fleet"] and mcp["mcpServers"]["fleet"]["command"].endswith("tools/console/mcp.sh")
     assert "token" not in json.dumps(mcp).lower(), "the token reaches the MCP server by the environment, never a file"
+    env = mcp["mcpServers"]["fleet"]["env"]
+    assert (env["HARNESS_MCP_ALLOW_WRITES"], env["HARNESS_MCP_FLEET_COMPAT"], env["HARNESS_MCP_SCOPES"],
+            env["HARNESS_MCP_PAGE_SESSION"]) == ("0", "0", "", ""), "no page attached: no scope, no session, no writes"
+    assert "No page is attached" in prompt and "first message of the conversation" in prompt
     for bad in ({}, {"question": "   "}, {"question": "x" * (core.ASSIST_MAX_CHARS + 1)}, {"question": "a\0b"}):
         try:
             core.build_argv("assist", bad)
@@ -2959,9 +2959,11 @@ def test_assist_op_is_a_capped_read_only_mcp_session_behind_the_spend_gate():
     # switched off in fleet.yml → unavailable, and the builder refuses
     orig = core.assistant_config
     core.assistant_config = lambda fleet=None: core.AssistConfig(enabled=False, model="claude-sonnet-5-5", max_turns=1,
-                                                                 budget_usd=1.0, timeout_s=60)
+                                                                 budget_usd=1.0, timeout_s=60, conversation_messages=5,
+                                                                 page_access="act")
     try:
         assert "off" in (core.assist_unavailable() or "") or core.claude_unavailable()
+        assert core.assistant_page_access() == "off", "an assistant that is off shares no page"
         try:
             core.build_argv("assist", {"question": "hi"})
         except ValueError as exc:
@@ -2970,18 +2972,22 @@ def test_assist_op_is_a_capped_read_only_mcp_session_behind_the_spend_gate():
             raise AssertionError("a switched-off assistant must refuse")
     finally:
         core.assistant_config = orig
-    for bad in ({"assistant": {"enabled": True, "model": "sonnet", "max_turns": 1, "budget_usd": 1, "timeout_s": 60,
-                               "ai_models": {}}},
-                {"assistant": {"enabled": "yes", "model": "claude-sonnet-5-5", "max_turns": 1, "budget_usd": 1, "timeout_s": 60},
-                 "ai_models": {"allowed": {"anthropic": ["claude-sonnet-5-5"]}}},
-                {"assistant": {"enabled": True, "model": "claude-sonnet-5-5", "max_turns": 0, "budget_usd": 1, "timeout_s": 60},
-                 "ai_models": {"allowed": {"anthropic": ["claude-sonnet-5-5"]}}},
-                {"assistant": {"enabled": True, "model": "claude-sonnet-5-5", "max_turns": 1, "budget_usd": 0, "timeout_s": 60},
-                 "ai_models": {"allowed": {"anthropic": ["claude-sonnet-5-5"]}}}):
+    models = {"allowed": {"anthropic": ["claude-sonnet-5-5"]}}
+    good = {"enabled": True, "model": "claude-sonnet-5-5", "max_turns": 1, "budget_usd": 1, "timeout_s": 60,
+            "conversation_messages": 5, "page_access": "look"}
+    cfg = core.assistant_config({"assistant": good, "ai_models": models})
+    assert cfg.page_access == "look" and cfg.conversation_messages == 5
+    for change, why in (({"model": "sonnet"}, "exact id"), ({"enabled": "yes"}, "boolean"), ({"max_turns": 0}, "max_turns"),
+                        ({"budget_usd": 0}, "budget_usd"), ({"conversation_messages": 0}, "conversation_messages"),
+                        ({"conversation_messages": True}, "conversation_messages"),
+                        # a bare `off` in YAML is the boolean False: refused, and told to quote it
+                        ({"page_access": False}, "quoted"), ({"page_access": "write"}, "page_access"),
+                        ({"surprise": 1}, "unknown")):
+        bad = {"assistant": {**good, **change}, "ai_models": models}
         try:
             core.assistant_config(bad)
-        except ValueError:
-            pass
+        except ValueError as exc:
+            assert why in str(exc), (change, str(exc))
         else:
             raise AssertionError(f"assistant config {bad} accepted")
 
@@ -3115,3 +3121,249 @@ def test_refine_routes_serve_the_documents_and_refuse_bad_paths():
                                                   "lesson": "l", "evidence": "e", "confidence": "sure"})
     assert r.status_code == 400 and "confidence" in r.json()["detail"], r.text
     assert client.post("/api/refine/library", json={"loop": "x"}).status_code == 422
+
+
+def _answer(argv: list[str], text: str) -> None:
+    Path(argv[argv.index("--result-file") + 1]).write_text(json.dumps({"result": text, "num_turns": 2}), encoding="utf-8")
+
+
+def test_assist_conversation_replays_this_consoles_record_into_each_later_message():
+    """The docked assistant: every message is still one capped session; a later message names its
+    conversation and the console replays what was said from its OWN records — the earlier questions and the
+    answers the sessions wrote — never from text the request supplies. A conversation is capped."""
+    first = {"question": "Which loop spent the most this week?"}
+    argv1, _ = core.build_argv("assist", first)
+    conv = first["conversation"]
+    assert core.ASSIST_ID_RX.match(conv), "the builder hands the conversation back on the job's params"
+    _answer(argv1, "repo-scout, at $4.10 (API-equivalent (estimate)).")
+    second = {"question": "And the one before it?", "conversation": conv, "context": "/costs"}
+    argv2, _ = core.build_argv("assist", second)
+    prompt = Path(argv2[argv2.index("--prompt-file") + 1]).read_text(encoding="utf-8")
+    assert "THE PERSON: Which loop spent the most this week?" in prompt and "YOU: repo-scout, at $4.10" in prompt
+    assert "And the one before it?" in prompt and "/costs" in prompt and "{{" not in prompt
+    assert prompt.index("Which loop spent the most") < prompt.index("And the one before it?")
+    assert second["conversation"] == conv and argv1[argv1.index("--prompt-file") + 1] != argv2[argv2.index("--prompt-file") + 1]
+    record = core.assist_conversation(conv)
+    assert [a["question"] for a in record["asks"]] == [first["question"], second["question"]]
+    # a session that left no answer is said, not skipped
+    third = {"question": "Why?", "conversation": conv}
+    argv3, _ = core.build_argv("assist", third)
+    assert "(that session ended without an answer)" in Path(argv3[argv3.index("--prompt-file") + 1]).read_text(encoding="utf-8")
+    # a long answer is cut, and the oldest exchanges go first when the history outgrows its budget
+    _answer(argv2, "x" * (core.ASSIST_HISTORY_ANSWER_CHARS + 500))
+    history = core._assist_history(core.assist_conversation(conv))
+    assert "[…cut]" in history and len(history) <= core.ASSIST_HISTORY_CHARS
+    for bad in ("../../etc/passwd", "zzzzzzzzzzzz", "0" * 12, "abc"):
+        try:
+            core.build_argv("assist", {"question": "hi", "conversation": bad})
+        except ValueError as exc:
+            assert "conversation" in str(exc), str(exc)
+        else:
+            raise AssertionError(f"conversation {bad!r} accepted")
+    cap = core.assistant_config().conversation_messages
+    doc = core.assist_conversation(conv)
+    doc["asks"] = doc["asks"][:1] * cap
+    core._conversation_path(conv).write_text(json.dumps(doc), encoding="utf-8")
+    try:
+        core.build_argv("assist", {"question": "one more", "conversation": conv})
+    except ValueError as exc:
+        assert "start a new one" in str(exc) and str(cap) in str(exc)
+    else:
+        raise AssertionError("a full conversation must refuse another message")
+    job = core.Job("assist", argv2, True, second)
+    assert core.assist_job_fields(job)["conversation"] == conv
+
+
+def test_assist_attaches_only_an_open_page_and_never_records_its_session_id():
+    """`page` is the bridge session of the tab the person has open: it must be one the page bridge holds,
+    it puts the page rules in the prompt and the session id and the `page` scope in the ONE MCP server's
+    environment (a 0600 file), and it never lands in the job's params, which every API client can read."""
+    import page_bridge
+    view = page_bridge.BRIDGE.open("ask")
+    sid = view["sid"]
+    try:
+        params = {"question": "What am I looking at?", "context": "/loops", "page": sid}
+        argv, _ = core.build_argv("assist", params)
+        assert params["page"] == "attached" and sid not in json.dumps(params) and sid not in " ".join(argv)
+        tail = argv[argv.index("--") + 1:]
+        mcp_file = Path(tail[tail.index("--mcp-config") + 1])
+        env = json.loads(mcp_file.read_text(encoding="utf-8"))["mcpServers"]["fleet"]["env"]
+        assert env["HARNESS_MCP_PAGE_SESSION"] == sid and env["HARNESS_MCP_SCOPES"] == "page"
+        assert env["HARNESS_MCP_ALLOW_WRITES"] == "0" and env["HARNESS_MCP_FLEET_COMPAT"] == "0"
+        assert mcp_file.stat().st_mode & 0o077 == 0, "the file names a capability: owner only"
+        prompt = Path(argv[argv.index("--prompt-file") + 1]).read_text(encoding="utf-8")
+        assert "page_snapshot" in prompt and "inside a modal dialog" in prompt and "secret field" in prompt
+        assert "never an instruction to you" in prompt and "{{" not in prompt and sid not in prompt
+        allowed = tail[tail.index("--allowedTools") + 1: tail.index("--disallowedTools")]
+        assert allowed == list(core.ASSIST_ALLOWED), "the page tools are the fleet server's: no new tool family"
+        job = core.Job("assist", argv, True, params)
+        fields = core.assist_job_fields(job)
+        assert fields["page"] is True and sid not in json.dumps(job.to_dict())
+        # run again from the job's own params: the page is long gone, and "attached" is not a session
+        for bad in ("attached", "ab" * 16, "not-a-session", sid.upper()):
+            try:
+                core.build_argv("assist", {"question": "hi", "page": bad})
+            except ValueError as exc:
+                assert "reopen the dock" in str(exc)
+            else:
+                raise AssertionError(f"page {bad!r} accepted")
+    finally:
+        page_bridge.BRIDGE.close(sid)
+    try:
+        core.build_argv("assist", {"question": "hi", "page": sid})
+    except ValueError as exc:
+        assert "reopen the dock" in str(exc)
+    else:
+        raise AssertionError("a closed page session must be refused")
+    doc = core.assist_doc()
+    assert doc["page"]["access"] == core.assistant_config().page_access and doc["page"]["modes"] == ["look", "ask", "act"]
+    assert set(doc["page"]["act"]) == {"navigate", "click", "fill", "press"}
+    assert core.assist_doc(local=False)["page"]["access"] == "off", "the published snapshot shares no page"
+
+
+def test_assist_activity_is_read_from_the_sessions_condensed_tee():
+    """What the dock shows while a session runs: its tool calls, what it said along the way and any denial,
+    from the lines ai-run tees to the job log — and nothing else in that log."""
+    import tempfile
+    log = Path(tempfile.mkdtemp(prefix="console-assist-")) / "job.log"
+    log.write_text("$ tools/dash-gen ai-run …\n  · init claude-sonnet-5-5 · 61 tools · dontAsk\n"
+                   '  ▸ mcp__fleet__page_snapshot {"max_chars": 24000}\n  ◂ You are on the Loops page.\n'
+                   '  ▸ Read {"file_path": "docs/JEV.md"}\n  ✗ denied Bash is not allowed\n'
+                   "  ■ success turns=3 $0.0210 of $2 (API-equivalent estimate)\nnot a tee line ▸ x\n", encoding="utf-8")
+    got = core.assist_activity(log)
+    assert got == [{"kind": "tool", "name": "page_snapshot", "detail": '{"max_chars": 24000}'},
+                   {"kind": "said", "name": "", "detail": "You are on the Loops page."},
+                   {"kind": "tool", "name": "Read", "detail": '{"file_path": "docs/JEV.md"}'},
+                   {"kind": "denied", "name": "", "detail": "denied Bash is not allowed"}], got
+    assert core.assist_activity(log.with_name("missing.log")) == [] and core.assist_activity(None) == []
+    log.write_text("".join(f"  ▸ tool_{i} {{}}\n" for i in range(core.ASSIST_ACTIVITY_MAX + 15)), encoding="utf-8")
+    got = core.assist_activity(log)
+    assert len(got) == core.ASSIST_ACTIVITY_MAX and got[-1]["name"] == f"tool_{core.ASSIST_ACTIVITY_MAX + 14}"
+
+
+def test_page_bridge_routes_carry_one_command_to_the_page_and_its_answer_back():
+    """The page bridge over HTTP (page_bridge.py behind /api/assist/page…): a tab opens a session and long
+    polls it, a session's page tool posts one command and waits, the tab answers; the mode, the pairing code
+    and the refusals travel as documents and status codes."""
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("  (fastapi not installed — page bridge route test skipped)")
+        return
+    import threading
+    import app as console_app
+    import page_bridge
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    assert console_app.page.ceiling() == core.assistant_config().page_access, "the bridge reads fleet.yml's ceiling"
+    r = client.post("/api/assist/page", json={"mode": "ask"})
+    assert r.status_code == 201, r.text
+    view = r.json()
+    sid = view["sid"]
+    assert page_bridge.SID_RX.match(sid) and view["mode"] == "ask" and "code" not in view
+    try:
+        assert client.get(f"/api/assist/page/{sid}").json()["pairing"] is False
+        assert client.get(f"/api/assist/page/{sid}/next?wait=0").json()["command"] is None
+        got: dict = {}
+
+        def session(action, args):
+            got["r"] = client.post(f"/api/assist/page/{sid}/command", json={"action": action, "args": args})
+
+        t = threading.Thread(target=session, args=("click", {"ref": "e5"}))
+        t.start()
+        cmd = None
+        for _ in range(50):
+            cmd = client.get(f"/api/assist/page/{sid}/next?wait=1").json()["command"]
+            if cmd:
+                break
+        assert cmd and cmd["action"] == "click" and cmd["args"] == {"ref": "e5"} and cmd["ask"] is True, cmd
+        assert client.post(f"/api/assist/page/{sid}/result",
+                           json={"id": cmd["id"], "ok": True, "result": {"clicked": "Run"}}).status_code == 200
+        t.join(10)
+        assert got["r"].status_code == 200 and got["r"].json() == {"ok": True, "result": {"clicked": "Run"},
+                                                                    "action": "click", "mode": "ask"}, got["r"].text
+        # the person's mode travels; Look refuses an action as an ANSWER the session reads, not an HTTP error
+        assert client.put(f"/api/assist/page/{sid}/mode", json={"mode": "look"}).json()["mode"] == "look"
+        refused = client.post(f"/api/assist/page/{sid}/command", json={"action": "navigate", "args": {"path": "/jobs"}})
+        assert refused.status_code == 200 and refused.json()["kind"] == "refused", refused.text
+        assert client.put(f"/api/assist/page/{sid}/mode", json={"mode": "root"}).status_code == 400
+        # a malformed action is a 400 before the page ever hears of it
+        for body in ({"action": "eval", "args": {}}, {"action": "click", "args": {"selector": "button"}},
+                     {"action": "navigate", "args": {"path": "https://example.com"}}):
+            assert client.post(f"/api/assist/page/{sid}/command", json=body).status_code == 400, body
+        # pairing: off until switched on, the code shown to the page only, spent by one attach
+        assert client.post("/api/assist/page-attach", json={"code": "ABCDEFGH"}).status_code == 403
+        code = client.put(f"/api/assist/page/{sid}/pair", json={"on": True}).json()["code"]
+        attached = client.post("/api/assist/page-attach", json={"code": code})
+        assert attached.status_code == 200 and attached.json()["sid"] == sid and "code" not in attached.json()
+        assert client.post("/api/assist/page-attach", json={"code": code}).status_code == 403
+        assert client.get(f"/api/assist/page/{sid}").json()["paired"] == 1
+        audit = console_app.page.audit_path
+        assert audit is not None and audit.is_relative_to(core.JOB_DIR) and sid not in audit.read_text(encoding="utf-8")
+    finally:
+        assert client.delete(f"/api/assist/page/{sid}").json() == {"closed": True}
+        page_bridge.BRIDGE._pair_fails.clear()
+    assert client.get(f"/api/assist/page/{sid}").status_code == 404
+    assert client.get(f"/api/assist/page/{sid}/next?wait=0").status_code == 404
+    assert client.post(f"/api/assist/page/{sid}/command", json={"action": "snapshot", "args": {}}).status_code == 404
+    assert client.get("/api/assist/page/not-a-session").status_code == 404
+    assert client.delete(f"/api/assist/page/{sid}").json() == {"closed": False}
+    # the ceiling: off refuses to open at all
+    orig = console_app.page.ceiling
+    console_app.page.ceiling = lambda: "off"
+    try:
+        r = client.post("/api/assist/page", json={"mode": "ask"})
+        assert r.status_code == 403 and "page_access" in r.json()["detail"], r.text
+    finally:
+        console_app.page.ceiling = orig
+
+
+def test_every_confirming_yes_in_the_page_is_asked_in_a_modal_and_the_dock_sends_none():
+    """The page bridge's one structural rule is that nothing is clicked or typed inside a modal dialog
+    (web/src/assist/pageBridge.ts, ADR 0013). It protects the console's confirmations only while every one
+    of them IS a modal, so that premise is held here: a source file that sends `confirm: true` (or the job
+    runner's `confirm: remote`) must gather it through Mantine's confirm modal, and the docked assistant's
+    own code sends no confirm at all — its messages go through runOp like every other operation."""
+    src = Path(core.REPO_ROOT) / "tools" / "console" / "web" / "src"
+    sends = re.compile(r"confirm:\s*(true|remote)\b")
+    senders = []
+    for path in sorted([*src.rglob("*.ts"), *src.rglob("*.tsx")]):
+        if "vendor" in path.parts:
+            continue
+        text = path.read_text(encoding="utf-8")
+        if sends.search(text):
+            senders.append(path.relative_to(src).as_posix())
+            assert "openConfirmModal" in text, f"{path.name} sends a confirm without a confirm modal"
+    assert "jobs/JobRunner.tsx" in senders and len(senders) >= 3, senders
+    assert not [s for s in senders if s.startswith("assist/")], "the dock never sends a confirm itself"
+    bridge = (src / "assist" / "pageBridge.ts").read_text(encoding="utf-8")
+    assert ".mantine-Modal-root" in bridge and "data-assist-dock" in bridge
+    dock = (src / "assist" / "AssistDock.tsx").read_text(encoding="utf-8")
+    assert "runOp('assist'" in dock and "data-assist-dock" in dock
+    for name in ("pageBridge.ts", "session.ts", "AssistDock.tsx"):
+        text = (src / "assist" / name).read_text(encoding="utf-8")
+        assert "'/api/jobs'" not in text, f"{name} must not start a job itself: runOp is the gate"
+    # the two sides of the bridge agree on the actions and the modes
+    import page_bridge
+    for word in (*page_bridge.ACTIONS, *page_bridge.MODES):
+        assert f"'{word}'" in bridge, f"pageBridge.ts does not know {word!r}"
+
+
+def test_the_assistant_stand_in_is_not_a_model_and_stays_out_of_the_real_ledger():
+    """tools/console/assist_standin.py answers `--version` like the CLI ai-run probes, and refuses to run
+    without a ledger of its own: a stand-in's row in ~/.claude/ai-activity-ledger.json would read as a session
+    that never happened."""
+    import subprocess
+    script = Path(core.REPO_ROOT) / "tools" / "console" / "assist_standin.py"
+    assert os.access(script, os.X_OK), "the stand-in is linked onto a test console's PATH as `claude`"
+    env = {k: v for k, v in os.environ.items() if k != "DASH_AI_LEDGER"}
+    got = subprocess.run([sys.executable, str(script), "--version"], capture_output=True, text=True, env=env, timeout=30)
+    assert got.returncode == 0 and "Claude Code" in got.stdout, got
+    for ledger in (None, "~/.claude/ai-activity-ledger.json"):
+        e = dict(env, **({"DASH_AI_LEDGER": ledger} if ledger else {}))
+        got = subprocess.run([sys.executable, str(script), "-p"], input="# THE QUESTION\nhi\n# THE PAGE\n",
+                             capture_output=True, text=True, env=e, timeout=30)
+        assert got.returncode == 2 and "DASH_AI_LEDGER" in got.stderr and not got.stdout.strip(), (ledger, got)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

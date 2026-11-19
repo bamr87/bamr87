@@ -348,6 +348,13 @@ export interface LoopJob {
   notes: string[];
 }
 
+/** One line of an assistant session's condensed tee (core.assist_activity): a tool call, something it said, a denial. */
+export interface AssistActivity {
+  kind: 'tool' | 'said' | 'denied';
+  name: string;
+  detail: string;
+}
+
 /** The `assist` job's structured view (core.assist_job_fields). */
 export interface AssistJob {
   schema: string;
@@ -361,6 +368,12 @@ export interface AssistJob {
   models: string[];
   outcome: string | null;
   subtype: string | null;
+  /** The conversation this message belongs to (the docked assistant sends it back with the next one). */
+  conversation: string | null;
+  /** True when the person's open page was attached to the session. */
+  page: boolean;
+  /** What the session did so far, newest last. */
+  activity: AssistActivity[];
 }
 
 export interface JobTail {
@@ -1117,16 +1130,25 @@ export interface RefineDoc {
 }
 export interface AssistDoc {
   schema: string;
-  config: { enabled: boolean; model: string; max_turns: number; budget_usd: number; timeout_s: number } | null;
+  config: {
+    enabled: boolean; model: string; max_turns: number; budget_usd: number; timeout_s: number;
+    conversation_messages: number; page_access: 'off' | 'look' | 'act';
+  } | null;
   config_error: string | null;
   cost_label: string;
   unavailable: string | null;
+  /** Why no session starts here: no claude CLI (the Docker console), a broken config, or switched off. */
+  unavailable_kind: 'no_cli' | 'config' | 'off' | null;
+  /** The command that starts a console on the host, where the CLI is. */
+  host_command: string;
   mcp_server: string;
   allowed_tools: string[];
   denied_tools: string[];
   prompt_sha256: string | null;
   max_question_chars: number;
   local: boolean;
+  /** The page bridge: the fleet.yml ceiling on what a session may do to an open page, and its two tiers of tools. */
+  page: { access: 'off' | 'look' | 'act'; look: string[]; act: string[]; modes: string[]; approval_s: number };
 }
 
 // --- The fleet voice model (tools/voices.py, /api/voices; constitution § 23 rule 7) ---

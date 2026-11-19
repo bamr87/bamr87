@@ -20,6 +20,8 @@ export const LAYOUT = {
   proseMaxWidth: rem(860),
   headerHeight: 54,
   navbarWidth: 236,
+  /** The docked assistant (src/assist/AssistDock.tsx), from md up; below that it takes the page's width. */
+  assistWidth: 400,
 } as const;
 
 export const theme = createTheme({
@@ -130,5 +132,6 @@ declare module '@mantine/core' {
     proseMaxWidth: string;
     headerHeight: number;
     navbarWidth: number;
+    assistWidth: number;
   }
 }

@@ -110,7 +110,7 @@ export const NAV: NavSection[] = [
       { label: 'Operations', to: '/ops', icon: IconPlayerPlay, hint: 'the allowlisted operations' },
       { label: 'Toolbox', to: '/toolbox', icon: IconTools, hint: 'scripts, skills and kits the hub provides' },
       { label: 'Terminal', to: '/terminal', icon: IconTerminal2, hint: 'the terminal dash, in the page' },
-      { label: 'Assist', to: '/assist', icon: IconSparkles, hint: 'ask the read-only assistant; it reads the fleet through the MCP server' },
+      { label: 'Assist', to: '/assist', icon: IconSparkles, hint: 'ask the assistant; it reads the fleet through the MCP server, and docks beside any page from the header' },
     ],
   },
   {

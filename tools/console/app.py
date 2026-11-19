@@ -54,6 +54,7 @@ import core
 import decision_index
 import gh_projects as gp
 import github_link as ghl
+import page_bridge
 import pr_queue
 import site_docs
 import tui_bridge
@@ -74,6 +75,11 @@ from fleetcore import views as fviews  # noqa: E402
 # The page: a React + Mantine app (web/), built by run.sh into web/dist.
 WEB_DIST = Path(os.environ.get("CONSOLE_WEB_DIST") or (Path(__file__).resolve().parent / "web" / "dist"))
 jobs = core.JobManager()
+# The page bridge: one per process, shared with core._assist (which checks a page session exists before it
+# starts a session for it). Its ceiling is _data/fleet.yml assistant.page_access, read on every command.
+page = page_bridge.BRIDGE
+page.ceiling = core.assistant_page_access
+page.audit_path = core.JOB_DIR / "assist" / "page-audit.jsonl"
 
 
 @asynccontextmanager
@@ -315,6 +321,36 @@ class LibraryEntry(BaseModel):
     notes: str = Field("", max_length=2000)
     edits: list[dict] = Field(default_factory=list)
     diff: str | None = Field(None, max_length=262_144)
+
+
+class PageOpen(BaseModel):
+    """A page starts sharing itself with the assistant (page_bridge.py)."""
+    mode: str = Field("ask", max_length=8)
+
+
+class PagePair(BaseModel):
+    on: bool = True
+
+
+class PageResult(BaseModel):
+    """What the page did with one command. `result` is whatever the action returns, capped and scrubbed by
+    the bridge; `kind` says why it was not done (declined by the person, refused by a page rule, page)."""
+    id: str = Field(..., max_length=12)
+    ok: bool
+    result: dict | list | str | None = None
+    error: str | None = Field(None, max_length=2000)
+    kind: str | None = Field(None, max_length=16)
+
+
+class PageCommand(BaseModel):
+    """One action a session's page tool asks of one open page: an allowlisted action and its arguments."""
+    action: str = Field(..., max_length=16)
+    args: dict = Field(default_factory=dict)
+    client: str = Field("dock", max_length=16)
+
+
+class PageAttach(BaseModel):
+    code: str = Field(..., max_length=32)
 
 
 class WorkflowDraft(BaseModel):
@@ -704,6 +740,84 @@ def assist() -> dict:
     """The in-page assistant: its configuration (_data/fleet.yml assistant:), the tools a session gets,
     and why it cannot run here, if it cannot."""
     return core.assist_doc()
+
+
+# --- the page bridge (page_bridge.py) ----------------------------------------
+# Two sides share these routes. The PAGE's side — open, close, mode, pair, next,
+# result — is what the dock calls for its own tab. The SESSION's side — command,
+# attach — is what the MCP layer's page tools call. A session id is the
+# capability on both: 128 random bits, issued to the page that opened it and
+# handed on only to the one MCP process core._assist starts for it, or to a
+# second session that presents the pairing code the person switched on.
+def _page(fn, *a, **kw):
+    try:
+        return fn(*a, **kw)
+    except page_bridge.NoSession as exc:
+        raise HTTPException(status_code=404, detail=str(exc.args[0] if exc.args else exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except page_bridge.Refused as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    except page_bridge.Busy as exc:
+        raise HTTPException(status_code=429, detail=str(exc))
+
+
+@app.post("/api/assist/page", dependencies=[Depends(require_token)], status_code=201)
+def page_open(req: PageOpen) -> dict:
+    """This tab starts sharing itself with the assistant: a session the dock then long-polls. Refused (403)
+    while assistant.page_access is off; opens as `look` when the ceiling is look."""
+    return _page(page.open, req.mode)
+
+
+@app.get("/api/assist/page/{sid}", dependencies=[Depends(require_token)])
+def page_describe(sid: str) -> dict:
+    return _page(page.describe, sid)
+
+
+@app.delete("/api/assist/page/{sid}", dependencies=[Depends(require_token)])
+def page_close(sid: str) -> dict:
+    """The tab stops sharing. Anything a session was waiting on is told the page closed."""
+    return {"closed": page.close(sid)}
+
+
+@app.put("/api/assist/page/{sid}/mode", dependencies=[Depends(require_token)])
+def page_mode(sid: str, req: PageOpen) -> dict:
+    """The person's choice for this tab: look, ask or act (the ceiling still applies)."""
+    return _page(page.set_mode, sid, req.mode)
+
+
+@app.put("/api/assist/page/{sid}/pair", dependencies=[Depends(require_token)])
+def page_pair(sid: str, req: PagePair) -> dict:
+    """Switch pairing on (a fresh single-use code, shown in the dock) or off."""
+    return _page(page.pair, sid, req.on)
+
+
+@app.get("/api/assist/page/{sid}/next", dependencies=[Depends(require_token)])
+def page_next(sid: str, wait: float = Query(default=page_bridge.POLL_MAX_S, ge=0, le=page_bridge.POLL_MAX_S)) -> dict:
+    """The tab's long poll: the next command for it, or `command: null` after `wait` seconds. A sync route,
+    so it waits on a threadpool thread; page_bridge.MAX_SESSIONS bounds how many can."""
+    return _page(page.next, sid, wait)
+
+
+@app.post("/api/assist/page/{sid}/result", dependencies=[Depends(require_token)])
+def page_result(sid: str, req: PageResult) -> dict:
+    _page(page.result, sid, req.id, req.ok, req.result, req.error, req.kind)
+    return {"ok": True}
+
+
+@app.post("/api/assist/page/{sid}/command", dependencies=[Depends(require_token)])
+def page_command(sid: str, req: PageCommand) -> dict:
+    """One allowlisted action on that tab, for a session's page tool; waits for the page (and, in ask mode,
+    for the person). Answers {ok, result} or {ok: false, kind, error}: a refusal, a decline and a timeout
+    are answers the session reads. 400 a malformed action, 404 no such session, 429 a cap."""
+    return _page(page.command, sid, req.action, req.args, req.client)
+
+
+@app.post("/api/assist/page-attach", dependencies=[Depends(require_token)])
+def page_attach(req: PageAttach) -> dict:
+    """A second Claude Code session presents the pairing code read off a dock. 403 a wrong or spent code,
+    429 after too many wrong ones."""
+    return _page(page.attach, req.code)
 
 
 @app.get("/api/workflows", dependencies=[Depends(require_token)])

@@ -91,7 +91,7 @@ STATIC_ROUTES: dict[str, tuple[str, str]] = {
     "work": ("Work board", "Every open issue, PR, roadmap spec and backlog item, in the order the loops take them."),
     "sprints": ("Sprints", "The live expedite-sprint record: the three gates with who and when, the phase, items, spend against the cap, trip wires and the retro."),
     "refine": ("Refine", "Harness refinement: the surface check, one Propose–Probe–Compose plan per loop, the experience library, the review queue."),
-    "assist": ("Assist", "The console's read-only assistant, through the fleet MCP server."),
+    "assist": ("Assist", "The console's assistant: it reads the fleet through the MCP server, and on a console it docks beside every page."),
     "deep-dive": ("Deep dive", "One repo a day, every repo once per cycle: progress, calendar, scores and deep-dive issues/PRs."),
     "features": ("Features", "What each repo does and what proves it — the fleet feature index."),
     "engagements": ("Engagements", "Every project as a client: estimates, actuals and leverage."),

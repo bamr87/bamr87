@@ -39,7 +39,8 @@ tools/dash mcp --list-tools     # print the catalog (read / WRITE) and exit
 | `HARNESS_MCP_FLEET_COMPAT` | off | `1` = `--fleet-compat` |
 | `HARNESS_MCP_HOST` / `HARNESS_MCP_PORT` | `127.0.0.1` / `4002` | HTTP bind; a non-loopback host prints a warning |
 | `HARNESS_MCP_ALLOW_WRITES` | off | `1` registers the broad write tools (and every scope) |
-| `HARNESS_MCP_SCOPES` | empty | comma list of narrow write scopes: `jobs` (`job_dispatch`, `job_cancel`), `work` (`work_apply`); unknown names grant nothing ([Scoped write access](#scoped-write-access-harness_mcp_scopes)) |
+| `HARNESS_MCP_SCOPES` | empty | comma list of narrow write scopes: `jobs` (`job_dispatch`, `job_cancel`), `work` (`work_apply`), `page` (`page_navigate`, `page_click`, `page_fill`, `page_press` on a paired console page; stdio only); unknown names grant nothing ([Scoped write access](#scoped-write-access-harness_mcp_scopes)) |
+| `HARNESS_MCP_PAGE_SESSION` | unset | set by the console for the one server process it starts for a docked-assistant message: the page-bridge session that process may reach. Never set by hand; a paired session uses `page_attach` |
 | `HARNESS_MCP_AUDIT` | `<repo>/.fleet/mcp/audit.jsonl` | the scoped-write audit file (gitignored); the sidecar writes `/audit/audit.jsonl`, which is `.fleet/mcp/` on the host |
 | `HARNESS_MCP_MAX_CHARS` | `60000` | larger results come back as `{truncated, total_chars, json_prefix}` |
 | `QDRANT_URL` / `OLLAMA_URL` | the `_data/fleet.yml` URLs | where the code index is reached from THIS process (the contract's are the browser's) |
@@ -212,6 +213,19 @@ Write tools — registered only with `HARNESS_MCP_ALLOW_WRITES=1`, annotated `de
 | `console_run` / `console_cancel` | as `run_op` / `cancel_job` | Legacy `fleet` names (also with `--fleet-compat`; the console's confirm gate still applies) |
 | `workflow_kill_switch` | `POST /api/github/repos/{owner}/{repo}/actions` | `workflow.enable` / `workflow.disable` by `workflow_id` (needs the console's GitHub writes on) |
 
+Page tools — the console page a person has open, through the console's page bridge ([ADR 0013](../../../docs/adr/0013-console-page-assistant.md), [the assistant](../README.md#the-assistant)). Registered on the **stdio** transport only (an HTTP server is one process shared by every client, and a page binding is per process). A session reaches a page in one of two ways: the console starts the server for a docked-assistant message with `HARNESS_MCP_PAGE_SESSION`, or the person switches pairing on in the assistant dock and gives the session the code for `page_attach`.
+
+| Tool | Console route | What it does |
+| --- | --- | --- |
+| `page_attach(code)` | `POST /api/assist/page-attach` | Pair this session with the page whose dock shows that code (eight characters, single use, ten minutes; wrong codes lock pairing). Absent from a docked session, which is already bound. The session id never leaves the server process |
+| `page_snapshot(max_chars)` | `POST /api/assist/page/{sid}/command` | The route, title, an outline of the page with a ref per control, open dialogs, page errors, loading and failed documents, the console's pages by path, and the mode the person chose. Refs are valid until the next snapshot |
+| `page_read(ref, max_chars)` | same | The full text of one region |
+| `page_data(key, max_chars)` | same | A document the page loaded from the console API, or the list of them |
+| `page_highlight(ref, note)` | same | Scroll an element into view and ring it |
+| `page_navigate(path)` · `page_click(ref)` · `page_fill(ref, text, submit)` · `page_press(key, ref)` | same | Use the page. Registered only with the `page` scope. Refused in the dock's *Look* mode; in *Ask first* each click, fill and key press waits up to 90 s for the person; never inside a modal dialog, never on a secret field, never a link that leaves the console |
+
+A refusal, a decline and a timeout come back as tool errors that carry the reason (`refused: …`, `declined: …`, `timeout: …`, `page: …`). They are the person's or the page's answer, not something to retry or route around.
+
 Resources: `harness://overview`, `harness://health`, `harness://ops`, `harness://deep-dive`, `harness://live`.
 
 ## Scoped write access (`HARNESS_MCP_SCOPES`)
@@ -222,6 +236,7 @@ Resources: `harness://overview`, `harness://health`, `harness://ops`, `harness:/
 | --- | --- | --- |
 | `jobs` | `job_dispatch(op, params, confirm, wait_s)`, `job_cancel(job_id, confirm)` | Start one op from a fixed allowlist of local, $0 reports and checks: `config-show`, `status`, `audit`, `drift`, `schema-lint`, `workflows-lint`, `observe-status`, `observe-verify`, `lake-status` and `refine-surface`. None of them writes to GitHub, reads or writes a secret, or starts or destroys a container. `job_cancel` stops only a job of one of those ops. |
 | `work` | `work_apply(plan, plan_id, confirm)` | Apply a prioritising Work-board plan that `work_preview` returned: `priority`, `pins`, `unpin` and `notes`. It writes `_data/work_queue.yml` (and, for a `roadmap:FF-…` key's priority, `_data/roadmap.yml`) in the console's working tree and commits nothing. Committing the file is the approval the loops read ([docs/WORK-BOARD.md](../../../docs/WORK-BOARD.md)). |
+| `page` | `page_navigate(path)`, `page_click(ref)`, `page_fill(ref, text, submit)`, `page_press(key, ref)` | Use the console page this server is attached to, as far as the page bridge allows: the `assistant.page_access` ceiling in `_data/fleet.yml`, the mode the person picked in the dock, and their yes on each click, fill and key press in *Ask first*. Stdio only. The gate here is the dock, not a `confirm` argument: a click can only do what that person could do on that page, and the console's own confirm, always a modal dialog, is out of a session's reach. Audited by the console (`assist/page-audit.jsonl` under its job directory), not in the MCP audit file |
 
 These guards apply to every scoped call, and the console's own gates still apply behind them:
 
@@ -233,7 +248,7 @@ These guards apply to every scoped call, and the console's own gates still apply
 - **Undo.** `work_preview` and `work_apply` return `undo_plan`, the plan that puts every named item back as it was: its override or computed priority, its note and its lane's pin order. Preview it and apply it like any other plan, or restore the file from git.
 - **Annotations.** Like every write tool, the scoped ones are marked `destructiveHint: true` (NFR9), so a host asks before each call. They are also marked `openWorldHint: false`, because they change only local state.
 
-Neither scope writes to GitHub, so neither is a write-back path under constitution § 11. Under § 13.6 their actions are reversible, local and $0. The person's `confirm` comes before each one, and each is audited. A scope can only narrow what the console allows. Turning a scope on for the sidecar is a runtime change on the Mac: set `HARNESS_MCP_SCOPES` in `.env` or the environment, then recreate the `mcp` service.
+The `jobs` and `work` scopes do not write to GitHub, so neither is a write-back path under constitution § 11; under § 13.6 their actions are reversible, local and $0. The `page` scope has no write of its own either: what a click reaches is whatever that page offers the person, and a page action that would write to GitHub or spend opens the console's confirm, which stays theirs. The person's `confirm` comes before each one, and each is audited. A scope can only narrow what the console allows. Turning a scope on for the sidecar is a runtime change on the Mac: set `HARNESS_MCP_SCOPES` in `.env` or the environment, then recreate the `mcp` service.
 
 ## Result size
 
@@ -248,7 +263,7 @@ The MCP sidecar and the console run in containers, and the `_data/fleet.yml` URL
 [`../server.json`](../server.json) describes this server in the MCP Registry's `server.json` format (schema `2025-12-11`), as constitution § 16.4 asks of every fleet MCP server. It is a description only: nothing publishes it, and publishing to the public registry, with the namespace sign-in that needs, is the maintainer's decision.
 
 - **name** `io.github.bamr87/fleet`: the registry's GitHub namespace for the owner, then `fleet`, the server's stable id under § 25.4 and in `_data/mcp_servers.yml`. The repository name (`bamr87`) would name the hub, not this server, and the hub registers more than one.
-- **version** equals `VERSION` in `mcp_layer/server.py` (0.2.0). Bump both together: `tools/mcp_servers_lint.py` and `tools/test_mcp_servers_lint.py` fail when they differ.
+- **version** equals `VERSION` in `mcp_layer/server.py` (0.3.0). Bump both together: `tools/mcp_servers_lint.py` and `tools/test_mcp_servers_lint.py` fail when they differ.
 - **repository** points at `tools/console` in `bamr87/bamr87`.
 - **No `packages` or `remotes`.** The schema requires a package to name a registry (npm, PyPI, OCI, NuGet or MCPB), and this server is not published to any of them; a checkout runs it. A remote needs a URL, and the only HTTP endpoints are loopback or a quick tunnel whose hostname changes, which § 25.6 keeps out of git. How a checkout starts it is therefore recorded under `_meta` → `io.modelcontextprotocol.registry/publisher-provided`: transport `stdio`, the launch `tools/console/mcp.sh --fleet-compat` (what `.mcp.json` runs) from the repository root, and the environment variables it reads, by name only.
 
@@ -271,7 +286,7 @@ tools/console/mcp.sh --list-tools >/dev/null   # bootstrap .venv-mcp once
 python3 tools/test_mcp_servers_lint.py                    # server.json: the lint, and its version equal to VERSION
 ```
 
-`test_mcp_layer.py` skips cleanly where `mcp` is not installed. It covers the scoped tools too: which tools each scope registers, the refusals (no confirm, an op off the allowlist, an undeclared parameter, a stale `plan_id`, a `stage` move), the running and hourly caps, the watchdog's cancel, the round trip of a plan and its `undo_plan`, and the audit's scrubbing. The smoke test lists tools and resources and calls a few read tools, printing sizes and top-level keys only. With `--url` it runs the remote handshake against a running HTTP server, reading the bearer token in-process, and fails when no tools are listed.
+`test_mcp_layer.py` skips cleanly where `mcp` is not installed. It covers the scoped tools too: which tools each scope registers, the refusals (no confirm, an op off the allowlist, an undeclared parameter, a stale `plan_id`, a `stage` move), the running and hourly caps, the watchdog's cancel, the round trip of a plan and its `undo_plan`, and the audit's scrubbing. The smoke test lists tools and resources and calls a few read tools, printing sizes and top-level keys only. With `--url` it runs the remote handshake against a running HTTP server, reading the bearer token in-process, and fails when no tools are listed. The page tools are covered too: which server carries them (never the HTTP one), that the docked session cannot re-pair, the action and arguments each tool sends and how long it waits, and that a refusal, a decline and a timeout arrive as tool errors with their reason; `test_page_bridge.py` covers the console's side.
 
 ## Not yet
 

@@ -20,7 +20,7 @@ coverage: listed
 | `vite.config.ts` | file | Build to `dist/` (or `CONSOLE_OUT`) under `CONSOLE_BASE`; the public build's CSP `<meta>`; the dev server's proxy to a running console (HTTP + the `/api/tui` WebSocket) | required |
 | `index.html` | file | The entry document — links `/theme.css` (fleetcore's palette) and the bundle | required |
 | `public/` | dir | Files copied verbatim into the build (`favicon.svg`; `headshot-448.jpg`, the avatar `_data/profile.yml` names, a 448 px copy of the full-size `headshot.jpg` kept beside it; `social-preview.png`, its 1280x640 `site.image` link card, also the repo's GitHub social preview; `readme-hero.jpg`, the profile README's hero screenshot) | terminal |
-| `src/` | dir | The app: `main.tsx`, `nav.ts`, `theme.ts`, `styles.css`, and `api/`, `lib/`, `components/`, `jobs/`, `github/`, `pages/` (see README) | terminal |
+| `src/` | dir | The app: `main.tsx`, `nav.ts`, `theme.ts`, `styles.css`, and `api/`, `lib/`, `components/`, `jobs/`, `github/`, `pages/`, `assist/` (see README) | terminal |
 | `dist/` | generated | Vite's build output — what the console serves; gitignored, rebuilt by `../run.sh` | generated |
 | `dist-pages/` | generated | The public site built locally by `../build-pages.sh` (page + snapshot); gitignored — CI builds into `_site/` | generated |
 | `node_modules/` | generated | Installed dependencies | generated |
@@ -31,8 +31,9 @@ coverage: listed
 - A new page → `src/pages/<Name>.tsx`, its route in `src/main.tsx`, its nav entry in `src/nav.ts`, and its URL builder in `src/lib/links.ts`.
 - A new API document → its type in `src/api/types.ts` and a Query hook in `src/api/hooks.ts`.
 - A list → `components/DataTable.tsx`, with `href` (or `onActivate`) so every row drills down, and `keys` so keys v1 navigates it.
-- Something that runs an operation → `jobs/RunButton.tsx` or `useRunner().runOp()`; never `POST /api/jobs` directly, which would skip the confirm gate.
+- Something that runs an operation → `jobs/RunButton.tsx` or `useRunner().runOp()`; never `POST /api/jobs` directly, which would skip the confirm gate. The docked assistant's messages go through `runOp` too.
+- Something an assistant session may do to the page → an action in `src/assist/pageBridge.ts` and its twin in `../page_bridge.py` (the allowlist and the argument check), never a selector or a script from the session.
 
 ## Forbidden
 
-- No lockfile, no pinned versions. No hex colour for a role fleetcore already defines; use the `var(--…)` roles from `/theme.css`. No inline `<script>` in `index.html` (the console's CSP is `script-src 'self'`). No credential value held in page state beyond the input that sends it.
+- No confirming question outside a Mantine modal: the page bridge keeps every modal out of an assistant session's reach, and `../test_console.py` fails a file that sends `confirm: true` without one. No lockfile, no pinned versions. No hex colour for a role fleetcore already defines; use the `var(--…)` roles from `/theme.css`. No inline `<script>` in `index.html` (the console's CSP is `script-src 'self'`). No credential value held in page state beyond the input that sends it.

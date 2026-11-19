@@ -1,0 +1,24 @@
+id: HUB-NEW
+slug: console-page-assistant
+title: "The docked assistant: Claude Code beside every console page, able to see the page a person has open and, in the mode they choose, use it"
+description: "The sparkle button in the header of every console page opens the assistant in the shell's aside, beside the page. A message is one capped headless Claude Code session (the assist op, through dash-gen ai-run) that continues a conversation the console replays from its own records and carries the page the person has open. Through a page bridge with eight allowlisted actions the session reads the page (an outline with a ref per control, the documents the page loaded, page errors), points at things on it, and, as far as _data/fleet.yml assistant.page_access and the dock's mode allow (Look, Ask first, Act), navigates, clicks, types and presses keys; in Ask first each of those is shown to the person and waits for their yes. Nothing is ever clicked or typed inside a modal dialog, where this console asks every confirming question, and no secret field is read or filled. A Claude Code session in a terminal or an editor reaches the same page tools by a single-use pairing code read off the dock, which is how the assistant is used on a console whose container has no claude CLI. Every page command leaves an audit line. Proven by tools/console/test_page_bridge.py, test_console.py, test_mcp_layer.py and the evidence bundle, whose console pass ran end to end on a scripted stand-in for the model at $0."
+implemented: true
+status: shipped
+surface: ui
+link: /assist
+docs: docs/adr/0013-console-page-assistant.md
+tags: [ console, assistant, mcp, page-bridge, claude-code ]
+date: 2026-11-18
+tests:
+  - tools/console/test_page_bridge.py
+  - tools/console/test_console.py
+  - tools/console/test_mcp_layer.py
+scenarios:
+  - verify/scenarios/assist-dock.yml
+evidence:
+  - test/evidence/assist-dock
+prd: ["FR-NEW:console-page-assistant"]
+prd_new:
+  - key: console-page-assistant
+    kind: FR
+    text: "The console must let an assistant session see the page a person has open and act on it for them only as far as that person allows: the session reads and points by default, each action is asked of the person unless they chose otherwise, and no session can answer a confirming dialog or read or fill a secret field."
