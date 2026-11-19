@@ -10,6 +10,7 @@ import { hasConsole } from '../api/backend';
 import { useAssist, useJobTail, useJobs } from '../api/hooks';
 import type { Job } from '../api/types';
 import { Banner, Load, LocalOnly, Mono, PageHeader, Section } from '../components/ui';
+import { setOpen } from '../assist/session';
 import { AssistAnswer } from '../jobs/AssistAnswer';
 import { useRunner } from '../jobs/JobRunner';
 import { JobStatus } from '../jobs/JobStatus';
@@ -45,6 +46,17 @@ export function Assist() {
         {(a) => (
           <>
             {!hasConsole() ? <LocalOnly what="The assistant" /> : a.unavailable ? <Banner tone="warn" title="The assistant cannot run here">{a.unavailable}</Banner> : null}
+            {hasConsole() ? (
+              <Paper p="md" mb="sm">
+                <Group justify="space-between" wrap="wrap" gap="sm">
+                  <Text size="sm" maw={720}>
+                    The assistant also docks beside every page (the sparkle button in the header). There it holds a conversation and can see the page you are on:
+                    read it, point at things, and, in the mode you choose, move around and use it for you. This page keeps the single-question form and every answer.
+                  </Text>
+                  <Button variant="default" leftSection={<IconSparkles size={14} />} onClick={() => setOpen(true)} data-testid="assist-open-dock">Open the docked assistant</Button>
+                </Group>
+              </Paper>
+            ) : null}
             <Paper p="md">
               <Stack gap="sm">
                 <Textarea

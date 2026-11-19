@@ -78,8 +78,10 @@ class FakeConsole(Console):
         super().__init__(url="http://fake", token="s3cret-token")
         self.routes = {"/api/state": STATE, "/api/health": {"ok": True}, **(routes or {})}
         self.calls: list[tuple] = []
+        self.timeouts: list[float | None] = []
 
-    def request(self, method, path, query=None, body=None):
+    def request(self, method, path, query=None, body=None, timeout=None):
+        self.timeouts.append(timeout)
         self.calls.append((method, path, {k: v for k, v in (query or {}).items() if v not in (None, "")}, body))
         hit = self.routes.get((method, path), self.routes.get(path))
         if isinstance(hit, Exception):
@@ -1319,6 +1321,133 @@ class AuditLog(unittest.TestCase):
     def test_default_path_is_gitignored_fleet_mcp(self):
         with mock.patch.dict(os.environ, {"HARNESS_MCP_AUDIT": ""}):
             self.assertEqual(srv.audit_file().relative_to(srv.ROOT).as_posix(), ".fleet/mcp/audit.jsonl")
+
+
+SID = "ab" * 16
+LOOK_TOOLS = {"page_snapshot", "page_read", "page_data", "page_highlight"}
+ACT_TOOLS = {"page_navigate", "page_click", "page_fill", "page_press"}
+
+
+class PageTools(unittest.TestCase):
+    """The page tools (../page_bridge.py behind /api/assist/page/…): which server carries them, which page
+    they reach, what they send, and that a refusal or a decline arrives as a tool error with its reason."""
+
+    def env(self, **kw):
+        base = {"HARNESS_MCP_ALLOW_WRITES": "", "HARNESS_MCP_SCOPES": "", "HARNESS_MCP_PAGE_SESSION": ""}
+        return mock.patch.dict(os.environ, {**base, **kw})
+
+    def console(self, answer=None):
+        return FakeConsole({("POST", f"/api/assist/page/{SID}/command"):
+                            answer or (lambda body: {"ok": True, "result": {"echo": body}, "action": body["action"]})})
+
+    def test_no_page_tool_unless_the_server_is_local_or_was_started_for_a_page(self):
+        with self.env():
+            self.assertFalse((LOOK_TOOLS | ACT_TOOLS | {"page_attach"}) & tool_names(srv.build_server(FakeConsole())))
+            # a session id in the environment never opens the tools on a server told it is not local (HTTP)
+        with self.env(HARNESS_MCP_PAGE_SESSION=SID, HARNESS_MCP_SCOPES="page"):
+            self.assertFalse((LOOK_TOOLS | ACT_TOOLS) & tool_names(srv.build_server(FakeConsole(), page=False)))
+        with self.env(HARNESS_MCP_PAGE_SESSION="not-a-session"):
+            self.assertFalse(LOOK_TOOLS & tool_names(srv.build_server(FakeConsole())))
+
+    def test_a_local_server_reads_a_paired_page_and_acts_only_with_the_page_scope(self):
+        with self.env():
+            names = tool_names(srv.build_server(FakeConsole(), page=True))
+            self.assertEqual(names & (LOOK_TOOLS | ACT_TOOLS | {"page_attach"}), LOOK_TOOLS | {"page_attach"})
+            scoped = tool_names(srv.build_server(FakeConsole(), page=True, scopes="page"))
+            self.assertTrue(ACT_TOOLS <= scoped)
+            self.assertFalse({"job_dispatch", "work_apply", "run_op", "console_run"} & scoped)
+
+    def test_the_docked_session_is_bound_to_its_page_and_cannot_re_pair(self):
+        with self.env(HARNESS_MCP_PAGE_SESSION=SID, HARNESS_MCP_SCOPES="page"):
+            s = srv.build_server(self.console())
+            names = tool_names(s)
+        self.assertTrue((LOOK_TOOLS | ACT_TOOLS) <= names)
+        self.assertNotIn("page_attach", names)
+        self.assertFalse({"run_op", "console_run", "job_dispatch", "work_apply"} & names)
+
+    def test_annotations_say_which_tools_only_read(self):
+        with self.env():
+            tools = {t.name: t.annotations for t in anyio.run(srv.build_server(FakeConsole(), page=True, scopes="page").list_tools)}
+        for name in ("page_snapshot", "page_read", "page_data"):
+            self.assertTrue(tools[name].read_only_hint, name)
+        for name in ("page_highlight", "page_attach"):
+            self.assertFalse(tools[name].read_only_hint or tools[name].destructive_hint, name)
+        for name in ACT_TOOLS:
+            self.assertTrue(tools[name].destructive_hint and not tools[name].read_only_hint, name)
+
+    def test_each_tool_sends_its_action_and_arguments_and_waits_long_enough_for_a_person(self):
+        fc = self.console()
+        with self.env(HARNESS_MCP_PAGE_SESSION=SID, HARNESS_MCP_SCOPES="page"):
+            s = srv.build_server(fc)
+        for tool, args, want in (
+                ("page_snapshot", {}, ("snapshot", {"max_chars": 24000})),
+                ("page_read", {"ref": "e4", "max_chars": 900}, ("read", {"ref": "e4", "max_chars": 900})),
+                ("page_data", {}, ("data", {"key": "", "max_chars": 24000})),
+                ("page_data", {"key": '["jobs"]'}, ("data", {"key": '["jobs"]', "max_chars": 24000})),
+                ("page_highlight", {"ref": "e2", "note": "here"}, ("highlight", {"ref": "e2", "note": "here"})),
+                ("page_navigate", {"path": "/loops"}, ("navigate", {"path": "/loops"})),
+                ("page_click", {"ref": "e9"}, ("click", {"ref": "e9"})),
+                ("page_fill", {"ref": "e3", "text": ""}, ("fill", {"ref": "e3", "text": "", "submit": False})),
+                ("page_fill", {"ref": "e3", "text": "x", "submit": True}, ("fill", {"ref": "e3", "text": "x", "submit": True})),
+                ("page_press", {"key": "Escape"}, ("press", {"key": "Escape"})),
+                ("page_press", {"key": "Enter", "ref": "e3"}, ("press", {"key": "Enter", "ref": "e3"}))):
+            res, text = call(s, tool, args)
+            self.assertFalse(res.is_error if hasattr(res, "is_error") else res.isError, f"{tool}: {text}")
+            method, path, _, body = fc.calls[-1]
+            self.assertEqual((method, path), ("POST", f"/api/assist/page/{SID}/command"))
+            self.assertEqual((body["action"], body["args"], body["client"]), (*want, "dock"), tool)
+            wait = fc.timeouts[-1]
+            self.assertEqual(wait, srv.PAGE_ACT_WAIT_S if tool in ACT_TOOLS else srv.PAGE_LOOK_WAIT_S, tool)
+        self.assertGreater(srv.PAGE_ACT_WAIT_S, 90 + 20, "an ask waits 90 s for the person, then 20 s for the page")
+
+    def test_a_refusal_a_decline_and_a_timeout_are_tool_errors_that_carry_the_reason(self):
+        for kind, why in (("refused", "the person set this page to Look only"), ("declined", "the person said no"),
+                          ("timeout", "the person did not answer within 90 s"), ("page", "that control is inside a modal dialog")):
+            fc = self.console(lambda body, k=kind, w=why: {"ok": False, "kind": k, "error": w})
+            with self.env(HARNESS_MCP_PAGE_SESSION=SID, HARNESS_MCP_SCOPES="page"):
+                res, text = call(srv.build_server(fc), "page_click", {"ref": "e1"})
+            self.assertTrue(res.is_error if hasattr(res, "is_error") else res.isError)
+            self.assertIn(f"{kind}: {why}", text)
+            self.assertNotIn("s3cret-token", text)
+
+    def test_pairing_binds_the_session_the_console_answers_and_never_returns_it(self):
+        fc = FakeConsole({("POST", "/api/assist/page-attach"): lambda body: {"sid": SID, "mode": "ask", "ceiling": "act",
+                                                                             "live": True, "paired": 1},
+                          ("POST", f"/api/assist/page/{SID}/command"): lambda body: {"ok": True, "result": {"route": "/loops"}}})
+        with self.env():
+            s = srv.build_server(fc, page=True)
+        res, text = call(s, "page_snapshot")
+        self.assertTrue(res.is_error if hasattr(res, "is_error") else res.isError)
+        self.assertIn("no page is attached", text)
+        self.assertIn("page_attach", text)
+        res, text = call(s, "page_attach", {"code": "ABCD-EFGH"})
+        self.assertEqual(payload(res, text), {"mode": "ask", "ceiling": "act", "live": True})
+        self.assertNotIn(SID, text, "the session id is a capability: it stays inside the server process")
+        self.assertEqual(fc.calls[-1][3], {"code": "ABCD-EFGH"})
+        self.assertEqual(payload(*call(s, "page_snapshot")), {"route": "/loops"})
+        self.assertEqual(fc.calls[-1][3]["client"], "paired")
+
+    def test_a_wrong_code_and_a_closed_page_are_said(self):
+        gone = ConsoleError("console POST /x -> 404: no such page session", 404)
+        fc = FakeConsole({("POST", "/api/assist/page-attach"): ConsoleError("console POST -> 403: that pairing code is not on any open page", 403)})
+        with self.env():
+            s = srv.build_server(fc, page=True)
+        res, text = call(s, "page_attach", {"code": "ZZZZZZZZ"})
+        self.assertTrue(res.is_error if hasattr(res, "is_error") else res.isError)
+        self.assertIn("pairing code", text)
+        fc.routes[("POST", "/api/assist/page-attach")] = lambda body: {"sid": SID, "mode": "look", "ceiling": "act", "live": True}
+        fc.routes[("POST", f"/api/assist/page/{SID}/command")] = gone
+        call(s, "page_attach", {"code": "ABCDEFGH"})
+        res, text = call(s, "page_snapshot")
+        self.assertIn("no such page session", text)
+        res, text = call(s, "page_snapshot")            # the dead session was dropped: pair again
+        self.assertIn("no page is attached", text)
+
+    def test_the_overview_reports_the_page_scope(self):
+        with self.env():
+            p = payload(*call(srv.build_server(FakeConsole(), page=True, scopes="page"), "console_overview"))
+        self.assertEqual(p["mcp_scopes"], ["page"])
+        self.assertFalse(p["mcp_writes_enabled"])
 
 
 if __name__ == "__main__":

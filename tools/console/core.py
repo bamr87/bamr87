@@ -1676,8 +1676,20 @@ REFINE_STAGES = ("propose-invariant", "propose-domain", "compose", "select", "re
 REFINE_MODES = ("parallel", "sequential")
 STAMP_RX = re.compile(r"^\d{8}T\d{6}Z-[a-z0-9][a-z0-9-]{0,80}$")
 ASSIST_PROMPT = Path(_HERE) / "assist.prompt.txt"
+#: appended to the prompt when the person's open page is attached (the page tools and their rules)
+ASSIST_PAGE_PROMPT = Path(_HERE) / "assist.page.txt"
 ASSIST_MAX_CHARS = 4000
 ASSIST_CONTEXT_CHARS = 300
+#: a conversation is replayed into each later message's prompt: this many characters of it at most,
+#: newest exchanges first kept, each earlier answer cut to ASSIST_HISTORY_ANSWER_CHARS
+ASSIST_HISTORY_CHARS = 12_000
+ASSIST_HISTORY_ANSWER_CHARS = 2_000
+ASSIST_ID_RX = re.compile(r"^[0-9a-f]{12}$")
+ASSIST_PAGE_ACCESS = ("off", "look", "act")
+#: where a console CAN start a session: on the host, beside the Claude Code CLI (the Docker console holds :4001)
+ASSIST_HOST_COMMAND = "CONSOLE_PORT=4010 tools/dash console"
+#: the lines of a session's condensed tee (tools/jev/headless.py condensed) the dock shows while it runs
+ASSIST_ACTIVITY_MAX = 40
 #: the tools an assistant session may use: the fleet MCP server, and reading the hub checkout
 ASSIST_ALLOWED = ("mcp__fleet", "Read", "Grep", "Glob")
 ASSIST_DENIED = ("Bash", "Write", "Edit", "MultiEdit", "NotebookEdit", "WebFetch", "WebSearch", "Agent", "Task")
@@ -1775,7 +1787,7 @@ def _refine_evidence(params: dict) -> list[str]:
 
 class AssistConfig(dict):
     """`_data/fleet.yml` `assistant:` as a dict with attribute access (enabled, model, max_turns,
-    budget_usd, timeout_s), validated on every read."""
+    budget_usd, timeout_s, conversation_messages, page_access), validated on every read."""
 
     __getattr__ = dict.__getitem__
 
@@ -1785,7 +1797,7 @@ def assistant_config(fleet: dict | None = None) -> AssistConfig:
     raw = fleet.get("assistant") if isinstance(fleet, dict) else None
     if not isinstance(raw, dict):
         raise ValueError("_data/fleet.yml has no `assistant:` block (tools/console/README.md, The assistant)")
-    want = {"enabled", "model", "max_turns", "budget_usd", "timeout_s"}
+    want = {"enabled", "model", "max_turns", "budget_usd", "timeout_s", "conversation_messages", "page_access"}
     missing, unknown = want - set(raw), set(raw) - want
     if missing or unknown:
         raise ValueError(f"_data/fleet.yml assistant: missing {sorted(missing)} / unknown {sorted(map(str, unknown))}")
@@ -1796,22 +1808,41 @@ def assistant_config(fleet: dict | None = None) -> AssistConfig:
     if raw["model"] not in ids:
         raise ValueError(f"_data/fleet.yml assistant.model {raw['model']!r} is not an exact id in ai_models.allowed "
                          f"(constitution § 13.3)")
-    for key in ("max_turns", "timeout_s"):
+    for key in ("max_turns", "timeout_s", "conversation_messages"):
         v = raw[key]
         if isinstance(v, bool) or not isinstance(v, int) or v <= 0:
             raise ValueError(f"_data/fleet.yml assistant.{key}: a positive integer")
     b = raw["budget_usd"]
     if isinstance(b, bool) or not isinstance(b, (int, float)) or not math.isfinite(b) or b <= 0:
         raise ValueError("_data/fleet.yml assistant.budget_usd: a finite positive number")
+    if raw["page_access"] not in ASSIST_PAGE_ACCESS:
+        # YAML reads a bare `off` as false: the value is quoted in fleet.yml, and a boolean is said plainly here
+        raise ValueError(f"_data/fleet.yml assistant.page_access: one of {', '.join(ASSIST_PAGE_ACCESS)} "
+                         f"(quoted — a bare off is a YAML boolean), got {raw['page_access']!r}")
     return AssistConfig(enabled=raw["enabled"], model=str(raw["model"]), max_turns=int(raw["max_turns"]),
-                        budget_usd=float(b), timeout_s=int(raw["timeout_s"]))
+                        budget_usd=float(b), timeout_s=int(raw["timeout_s"]),
+                        conversation_messages=int(raw["conversation_messages"]), page_access=str(raw["page_access"]))
+
+
+def assistant_page_access() -> str:
+    """The ceiling on what an assistant session may do to an open page (page_bridge.CEILINGS): `off` when
+    the assistant itself is off or its configuration cannot be read — a broken config never widens access."""
+    try:
+        cfg = assistant_config()
+    except ValueError:
+        return "off"
+    return cfg.page_access if cfg.enabled else "off"
 
 
 def assist_unavailable() -> str | None:
-    """Why the assistant cannot run here: no claude CLI, or switched off in fleet.yml."""
-    why = claude_unavailable()
-    if why:
-        return why
+    """Why this console cannot START an assistant session: no claude CLI on its PATH, or switched off in
+    fleet.yml. A paired Claude Code session needs neither — it brings its own CLI — so the page bridge is
+    reported apart from this (assist_doc `page`)."""
+    if claude_unavailable():
+        return ("this console has no `claude` CLI on its PATH (the console container and the devenv image carry "
+                "none), so it cannot start an assistant session itself. Run a console on the host, where Claude "
+                f"Code is installed — `{ASSIST_HOST_COMMAND}`, then http://127.0.0.1:4010/ — or "
+                "pair a Claude Code session on this machine with this page from the assistant dock")
     try:
         cfg = assistant_config()
     except ValueError as exc:
@@ -1821,12 +1852,69 @@ def assist_unavailable() -> str | None:
     return None
 
 
-def _assist_mcp_config() -> dict:
+def _assist_mcp_config(page: str | None = None) -> dict:
     """The one MCP server an assistant session gets: the Harness Console MCP layer over stdio, pointed
-    at THIS console. The job inherits DASH_CONSOLE_TOKEN from the process environment, never argv."""
+    at THIS console. The job inherits DASH_CONSOLE_TOKEN from the process environment, never argv.
+
+    Its write surface is pinned here rather than inherited: no broad writes, no legacy console_run, and
+    only the `page` scope — and that only when the person's page is attached. `page` is that page's
+    bridge session id (page_bridge.py), a capability this one process holds; with it the layer registers
+    the page tools, whose every action still passes the ceiling, the dock's mode and the page's own rules."""
     url = os.environ.get("DASH_CONSOLE_URL") or "http://127.0.0.1:4001"
-    return {"mcpServers": {"fleet": {"command": str(TOOLS / "console" / "mcp.sh"), "args": [],
-                                     "env": {"DASH_CONSOLE_URL": url, "HARNESS_MCP_SKIP_INSTALL": "1"}}}}
+    env = {"DASH_CONSOLE_URL": url, "HARNESS_MCP_SKIP_INSTALL": "1", "HARNESS_MCP_ALLOW_WRITES": "0",
+           "HARNESS_MCP_FLEET_COMPAT": "0", "HARNESS_MCP_SCOPES": "page" if page else "",
+           "HARNESS_MCP_PAGE_SESSION": page or ""}
+    return {"mcpServers": {"fleet": {"command": str(TOOLS / "console" / "mcp.sh"), "args": [], "env": env}}}
+
+
+def _assist_dir() -> Path:
+    d = JOB_DIR / "assist"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _conversation_path(conversation: str) -> Path:
+    return _assist_dir() / f"conv-{conversation}.json"
+
+
+def assist_conversation(conversation: str) -> dict:
+    """One conversation's record: its id and its messages in order (each an ask id and the question).
+    ValueError when the id is malformed or names no conversation this console holds."""
+    if not ASSIST_ID_RX.match(str(conversation)):
+        raise ValueError("conversation must be an id this console issued")
+    try:
+        doc = json.loads(_conversation_path(conversation).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise ValueError("no such conversation — it was cleared with the console's job history; "
+                         "start a new one") from exc
+    if not isinstance(doc, dict) or not isinstance(doc.get("asks"), list):
+        raise ValueError("that conversation's record is unreadable — start a new one")
+    return doc
+
+
+def _assist_history(doc: dict) -> str:
+    """The conversation so far, for a later message's prompt: each exchange's question and the answer the
+    session gave (the CLI's result text, cut to ASSIST_HISTORY_ANSWER_CHARS), oldest first, the oldest
+    dropped until it fits ASSIST_HISTORY_CHARS. An exchange whose session left no answer says so."""
+    d = _assist_dir()
+    blocks: list[str] = []
+    for ask in doc.get("asks") or []:
+        ask_id = str((ask or {}).get("id") or "")
+        if not ASSIST_ID_RX.match(ask_id):
+            continue
+        answer = ""
+        try:
+            result = json.loads((d / f"{ask_id}.result.json").read_text(encoding="utf-8"))
+            answer = str(result.get("result") or "") if isinstance(result, dict) else ""
+        except (OSError, ValueError):
+            answer = ""
+        if len(answer) > ASSIST_HISTORY_ANSWER_CHARS:
+            answer = answer[:ASSIST_HISTORY_ANSWER_CHARS] + " […cut]"
+        blocks.append(f"THE PERSON: {str(ask.get('question') or '').strip()}\n"
+                      f"YOU: {answer.strip() or '(that session ended without an answer)'}")
+    while blocks and sum(len(b) + 2 for b in blocks) > ASSIST_HISTORY_CHARS:
+        blocks.pop(0)
+    return "\n\n".join(blocks)
 
 
 def _assist(params: dict) -> list[str]:
@@ -1834,7 +1922,13 @@ def _assist(params: dict) -> list[str]:
     prompt (tools/console/assist.prompt.txt with the question and the page context filled) on stdin,
     the `fleet` MCP server as its only server (--strict-mcp-config), the hub checkout as its cwd,
     the result captured to a file the job page reads. Capped by assistant.budget_usd and recorded in
-    the AI ledger by ai-run; never a write tool, never the network."""
+    the AI ledger by ai-run; never a write tool, never the network.
+
+    Two optional parameters make it the docked assistant (web/src/assist/): `conversation` continues an
+    earlier exchange — every message is still its own capped session, with the conversation so far
+    replayed into its prompt from this console's own records, never from the request — and `page` is
+    the bridge session of the page the person has open, which attaches the page tools and their rules
+    (assist.page.txt). A conversation holds assistant.conversation_messages messages at most."""
     question = str(params.get("question") or "").strip()
     if not question:
         raise ValueError("question is required")
@@ -1844,18 +1938,45 @@ def _assist(params: dict) -> list[str]:
     cfg = assistant_config()
     if not cfg.enabled:
         raise ValueError("the assistant is off: _data/fleet.yml assistant.enabled is false")
+    page = str(params.get("page") or "").strip()
+    if page:
+        import page_bridge  # noqa: PLC0415 — stdlib only; core stays importable without it being loaded first
+        if cfg.page_access == "off":
+            raise ValueError("page access is off: _data/fleet.yml assistant.page_access is off")
+        if not page_bridge.SID_RX.match(page) or not page_bridge.BRIDGE.has(page):
+            raise ValueError("that page is not sharing itself with the assistant any more — reopen the dock")
+    conversation = str(params.get("conversation") or "").strip()
+    record = assist_conversation(conversation) if conversation else {"id": uuid.uuid4().hex[:12], "asks": []}
+    if len(record["asks"]) >= cfg.conversation_messages:
+        raise ValueError(f"this conversation has reached {cfg.conversation_messages} messages "
+                         "(_data/fleet.yml assistant.conversation_messages) — start a new one")
     try:
         template = ASSIST_PROMPT.read_text(encoding="utf-8")
+        page_rules = ASSIST_PAGE_PROMPT.read_text(encoding="utf-8") if page else ""
     except OSError as exc:
         raise ValueError(f"the assistant's prompt cannot be read: {exc}") from exc
-    prompt = template.replace("{{CONTEXT}}", context).replace("{{QUESTION}}", question)
-    d = JOB_DIR / "assist"
-    d.mkdir(parents=True, exist_ok=True)
+    history = _assist_history(record)
+    prompt = (template.replace("{{PAGE}}", page_rules.strip() or "No page is attached to this session: you "
+                               "cannot see or change what the person has open, only what they told you above.")
+              .replace("{{HISTORY}}", history or "This is the first message of the conversation.")
+              .replace("{{CONTEXT}}", context).replace("{{QUESTION}}", question))
+    d = _assist_dir()
     ask_id = uuid.uuid4().hex[:12]
     prompt_file, result_file, outcome_file, mcp_file = (d / f"{ask_id}.prompt.txt", d / f"{ask_id}.result.json",
                                                         d / f"{ask_id}.outcome.json", d / f"{ask_id}.mcp.json")
     prompt_file.write_text(prompt, encoding="utf-8")
-    mcp_file.write_text(json.dumps(_assist_mcp_config(), indent=1), encoding="utf-8")
+    # 0600: with a page attached this file names the page's bridge session, a capability.
+    mcp_file.touch(mode=0o600, exist_ok=True)
+    mcp_file.write_text(json.dumps(_assist_mcp_config(page or None), indent=1), encoding="utf-8")
+    record["asks"].append({"id": ask_id, "question": question, "page": bool(page),
+                           "at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")})
+    _conversation_path(record["id"]).write_text(json.dumps(record, indent=1), encoding="utf-8")
+    # The conversation rides on the job's params: the page reads it back to send the next message. The
+    # page's session id does not — a job's params are shown to every API client, and that id is the
+    # capability to drive someone's browser; the record keeps only that a page was attached.
+    params["conversation"] = record["id"]
+    if page:
+        params["page"] = "attached"
     return [DASH_GEN, "ai-run", "--source", "console assist", "--repo", "bamr87/bamr87", "--cwd", str(REPO_ROOT),
             "--prompt-file", str(prompt_file), "--result-file", str(result_file), "--outcome-file", str(outcome_file),
             "--stream", "--timeout", str(cfg.timeout_s), "--max-budget-usd", f"{cfg.budget_usd:g}",
@@ -1872,6 +1993,39 @@ def _argv_value(argv: list[str], flag: str) -> str | None:
         return None
 
 
+_ACTIVITY_RX = re.compile(r"^  (?P<mark>[▸◂✗]) (?P<rest>.*)$")
+
+
+def assist_activity(log_path: Path | None) -> list[dict]:
+    """What a session did, from the condensed tee ai-run writes to the job's log (tools/jev/headless.py
+    `condensed`, already redacted there): each tool call (`▸ name {args}`), each thing it said along the
+    way (`◂ text`) and each denial (`✗ denied …`), in order, the newest ASSIST_ACTIVITY_MAX. The dock
+    shows it while the session runs; the job page keeps the raw log."""
+    if log_path is None:
+        return []
+    try:
+        with log_path.open("rb") as fh:
+            fh.seek(0, os.SEEK_END)
+            fh.seek(max(0, fh.tell() - 200_000))
+            text = fh.read().decode("utf-8", "replace")
+    except OSError:
+        return []
+    out: list[dict] = []
+    for line in text.splitlines():
+        m = _ACTIVITY_RX.match(line)
+        if not m:
+            continue
+        mark, rest = m.group("mark"), m.group("rest").strip()
+        if mark == "▸":
+            name, _, detail = rest.partition(" ")
+            out.append({"kind": "tool", "name": name.removeprefix("mcp__fleet__"), "detail": detail[:300]})
+        elif mark == "◂":
+            out.append({"kind": "said", "name": "", "detail": rest[:300]})
+        else:
+            out.append({"kind": "denied", "name": "", "detail": rest[:300]})
+    return out[-ASSIST_ACTIVITY_MAX:]
+
+
 def assist_job_fields(job: "Job") -> dict:
     """The structured view of an `assist` job: the question, the page context, and once the session
     ended its answer (the CLI's result text), turns, models and cost (API-equivalent (estimate)) from
@@ -1879,7 +2033,8 @@ def assist_job_fields(job: "Job") -> dict:
     out = {"schema": "assist-job/v1", "question": str((job.params or {}).get("question") or ""),
            "context": str((job.params or {}).get("context") or ""), "answer": None, "turns": None,
            "cost_usd": None, "cost_source": None, "cost_label": COST_LABEL, "models": [], "outcome": None,
-           "subtype": None}
+           "subtype": None, "conversation": str((job.params or {}).get("conversation") or "") or None,
+           "page": bool((job.params or {}).get("page")), "activity": assist_activity(job.log_path)}
     result_path = _argv_value(job.argv, "--result-file")
     outcome_path = _argv_value(job.argv, "--outcome-file")
     for label, path in (("result", result_path), ("outcome", outcome_path)):
@@ -2314,15 +2469,18 @@ OPS: dict[str, dict] = {
                                  argv=lambda p: [DASH, "refine", "library", "check"], needs_token=False,
                                  desc="Every entry under _data/harness_library is well-formed and carries nothing "
                                       "private (exit 1 otherwise)."),
-    "assist": dict(title="Ask the assistant (read-only, through the fleet MCP server)", group="refine", argv=_assist,
+    "assist": dict(title="Ask the assistant (through the fleet MCP server; no write tool)", group="refine", argv=_assist,
                    needs_token=False, needs="claude", gate=assist_unavailable, exclusive="assist",
                    remote=lambda p: True, confirm="spend",
                    desc="One headless Claude Code session (tools/console/assist.prompt.txt) with the `fleet` MCP "
                         "server attached, reading the hub checkout, answering the question from the fleet's own "
                         "data and citing its sources. Capped per answer by _data/fleet.yml assistant.budget_usd "
                         "(API-equivalent, an estimate) and recorded in the AI ledger; no write tool, no network, "
-                        "no job it can start. It spends, so it asks first.",
-                   params=["question", "context"]),
+                        "no job it can start. It spends, so it asks first. From the docked assistant a message "
+                        "continues a conversation and carries the page the person has open: the session can then "
+                        "read that page and, as far as assistant.page_access and the dock's mode allow, navigate, "
+                        "click and type in it — never inside a confirming dialog, never in a secret field.",
+                   params=["question", "context", "conversation", "page"]),
 }
 
 
@@ -3970,8 +4128,23 @@ def assist_doc(*, local: bool = True) -> dict:
         error = None
     except ValueError as exc:
         cfg, error = None, str(exc)
+    import page_bridge  # noqa: PLC0415 — stdlib only
+    prompts = b"".join(p.read_bytes() for p in (ASSIST_PROMPT, ASSIST_PAGE_PROMPT) if p.is_file())
+    # Why no session starts here, as a kind the dock can lay out: the missing CLI is the ordinary case (the
+    # Docker console) and has two ways forward, so it is not shown as a fault.
+    kind = None
+    if local:
+        kind = ("no_cli" if claude_unavailable() else "config" if error
+                else "off" if cfg is not None and not cfg["enabled"] else None)
     return {"schema": "assist-doc/v1", "config": cfg, "config_error": error, "cost_label": COST_LABEL,
             "unavailable": (assist_unavailable() if local else "The assistant runs on the operator's machine."),
+            "unavailable_kind": kind, "host_command": ASSIST_HOST_COMMAND,
             "mcp_server": "fleet", "allowed_tools": list(ASSIST_ALLOWED), "denied_tools": list(ASSIST_DENIED),
-            "prompt_sha256": hashlib.sha256(ASSIST_PROMPT.read_bytes()).hexdigest()[:12] if ASSIST_PROMPT.is_file() else None,
-            "max_question_chars": ASSIST_MAX_CHARS, "local": local}
+            "prompt_sha256": hashlib.sha256(prompts).hexdigest()[:12] if ASSIST_PROMPT.is_file() else None,
+            "max_question_chars": ASSIST_MAX_CHARS, "local": local,
+            # The page bridge (page_bridge.py): the ceiling on what a session may do to an open page, and
+            # the two tiers of page tools. It serves a paired Claude Code session too, so it is reported
+            # apart from `unavailable`, which is only about the session this console can start itself.
+            "page": {"access": (assistant_page_access() if local else "off"), "look": list(page_bridge.LOOK),
+                     "act": list(page_bridge.ACT), "modes": list(page_bridge.MODES),
+                     "approval_s": int(page_bridge.APPROVAL_S)}}

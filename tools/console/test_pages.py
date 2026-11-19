@@ -234,7 +234,10 @@ def test_the_shell_keeps_its_keyboard_and_failure_contract():
     scenarios drive these in a browser; this holds them where no browser runs."""
     shell = (WEB / "components" / "Shell.tsx").read_text()
     assert "Skip to content" in shell and 'id="main"' in shell, "the skip link or its target is gone"
-    assert shell.count("<ErrorBoundary") == 2, "both shell layouts must contain a page that throws"
+    assert shell.count("<ErrorBoundary resetKey={pathname}><Outlet /></ErrorBoundary>") == 2, \
+        "both shell layouts must contain a page that throws"
+    # the docked assistant has a boundary of its own: a dock that throws must not take the page with it
+    assert shell.count("<ErrorBoundary") == 3 and '<ErrorBoundary resetKey="assist"><AssistDock /></ErrorBoundary>' in shell
     table = (WEB / "components" / "DataTable.tsx").read_text()
     assert "aria-sort=" in table and "<UnstyledButton" in table, "a sortable header must be a button that reports its sort"
     keys = (WEB / "components" / "GlobalKeys.tsx").read_text()

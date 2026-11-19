@@ -8,13 +8,15 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { spotlight } from '@mantine/spotlight';
 import {
-  IconApi, IconBox, IconBrandGithub, IconCamera, IconGitBranch, IconKey, IconMoonStars, IconPlugConnected, IconRefresh, IconSearch, IconSun,
+  IconApi, IconBox, IconBrandGithub, IconCamera, IconGitBranch, IconKey, IconMoonStars, IconPlugConnected, IconRefresh, IconSearch, IconSparkles, IconSun,
 } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { EMBEDDED, asset, consoleOrigin, hasConsole, mode } from '../api/backend';
 import { useCaps, useGithubStatus, useJobs, useManifest, useSite, useStateDoc } from '../api/hooks';
 import { clearSnapshotCache } from '../api/static';
+import { AssistDock } from '../assist/AssistDock';
+import { bindPage, toggleOpen, useDock } from '../assist/session';
 import { when } from '../lib/format';
 import { rememberPage } from '../lib/prefs';
 import { activeIndex, FLAT } from '../nav';
@@ -195,6 +197,10 @@ export function Shell() {
     clearSnapshotCache();
     void qc.invalidateQueries();
   };
+  // The docked assistant (src/assist/): the page bridge moves this page with the router's own navigate and
+  // reads the documents it loaded from this query cache. Lent once; the dock's state lives outside React.
+  const assist = useDock();
+  useEffect(() => bindPage((path) => navigate(path), qc), [navigate, qc]);
 
   // The reducer's "plain" experience: one scene, chrome unmounted. The window
   // on the Desktop is this page's frame, so the header and sidebar would be a
@@ -211,7 +217,10 @@ export function Shell() {
     <PageTitleContext.Provider value={setNamed}>
     <a href="#main" className={navClasses.skip} onClick={(e) => { e.preventDefault(); main.current?.focus(); }}>Skip to content</a>
     <VisuallyHidden aria-live="polite" aria-atomic>{pageTitle}</VisuallyHidden>
-    <AppShell header={{ height: LAYOUT.headerHeight }} navbar={{ width: LAYOUT.navbarWidth, breakpoint: 'sm', collapsed: { mobile: !opened } }} padding="lg">
+    <AppShell
+      header={{ height: LAYOUT.headerHeight }} navbar={{ width: LAYOUT.navbarWidth, breakpoint: 'sm', collapsed: { mobile: !opened } }}
+      aside={{ width: LAYOUT.assistWidth, breakpoint: 'md', collapsed: { desktop: !assist.open, mobile: !assist.open } }} padding="lg"
+    >
       <AppShell.Header px="md">
         <Group h="100%" justify="space-between" wrap="nowrap" gap="sm">
           <Group gap="sm" wrap="nowrap">
@@ -232,6 +241,18 @@ export function Shell() {
             </Button>
             <ActionIcon variant="default" size="lg" hiddenFrom="xs" onClick={() => spotlight.open()} aria-label="Search"><IconSearch size={18} /></ActionIcon>
             <JobsIndicator />
+            {hasConsole() ? (
+              <Tooltip label={assist.open ? 'Close the assistant' : 'Assistant: ask about this page, or have it shown to you'}>
+                <Indicator disabled={!assist.approvals.length} color="yellow" size={10} processing>
+                  <ActionIcon
+                    variant={assist.open ? 'filled' : 'default'} size="lg" onClick={toggleOpen} aria-label="Assistant" aria-pressed={assist.open}
+                    aria-controls="console-assist" data-testid="assist-toggle"
+                  >
+                    <IconSparkles size={18} />
+                  </ActionIcon>
+                </Indicator>
+              </Tooltip>
+            ) : null}
             <Tooltip label="Re-read every document (r)">
               <ActionIcon variant="default" size="lg" visibleFrom="xs" onClick={refresh} aria-label="Refresh"><IconRefresh size={18} /></ActionIcon>
             </Tooltip>
@@ -264,6 +285,11 @@ export function Shell() {
           <ErrorBoundary resetKey={pathname}><Outlet /></ErrorBoundary>
         </Box>
       </AppShell.Main>
+      {/* Beside the page, not over it: the person keeps reading and using the page while the assistant
+          works on it. Mounted only while open, so a closed dock holds no session and no poll. */}
+      <AppShell.Aside id="console-assist">
+        {assist.open ? <ErrorBoundary resetKey="assist"><AssistDock /></ErrorBoundary> : null}
+      </AppShell.Aside>
     </AppShell>
     </PageTitleContext.Provider>
   );

@@ -22,8 +22,16 @@ import u from '../styles/utils.module.css';
 
 type Params = Record<string, unknown>;
 
+/** How a caller wants a run handled. The gate is not optional: neither field skips a confirm. */
+export interface RunOptions {
+  /** No "Started" toast and no job drawer, and a failure to start is thrown to the caller (the docked assistant shows its own thread). */
+  quiet?: boolean;
+  /** One more line for the confirm dialog: what this particular run adds to the operation's standing description. */
+  detail?: string;
+}
+
 interface Runner {
-  runOp: (op: string, params?: Params) => Promise<Job | null>;
+  runOp: (op: string, params?: Params, opts?: RunOptions) => Promise<Job | null>;
   openJob: (id: string) => void;
   isRemote: (op: string, params?: Params) => boolean;
 }
@@ -52,7 +60,7 @@ function confirmText(op: Op, p: Params): string {
     case 'prs-act': return `Apply PR queue plan ${String(p.plan_id)}: the action and pull requests you just reviewed. It is planned again from GitHub first and refused if any pull request moved since; then each op runs once and its result is recorded.`;
     case 'prs-agent': return `Apply PR queue plan ${String(p.plan_id)}: one capped local Claude Code session per pull request you reviewed (pr_queue.agent's model, turns and dollars; API-equivalent, an estimate). Each edit is pushed as one commit to the pull request's branch, never forced, and the pull request is labelled needs-amr.`;
     case 'loop-run': return `Run ${String(p.loop)}${p.step ? `/${String(p.step)}` : ''} locally on ${p.target && p.target !== 'all' ? String(p.target) : "today's sample"}: one capped attempt per item through headless Claude Code in the sandbox, then a dry-run preview under .fleet/runs/ — nothing is filed. This spends Claude budget (API-equivalent, an estimate), held to budget.loops.`;
-    case 'assist': return `Ask the assistant: "${String(p.question ?? '').slice(0, 160)}" — one read-only headless Claude Code session with the fleet MCP server attached. This spends Claude budget (API-equivalent, an estimate), capped by assistant.budget_usd; it cannot run a job, write a file or reach the network.`;
+    case 'assist': return `Ask the assistant: "${String(p.question ?? '').slice(0, 160)}" — one headless Claude Code session with the fleet MCP server attached${p.page ? ' and the page you have open' : ''}. This spends Claude budget (API-equivalent, an estimate), capped by assistant.budget_usd; it holds no write tool and cannot reach the network${p.page ? ', and on the page it can do only what the dock\'s mode allows — never answer a confirming dialog' : ''}.`;
     case 'voices-pr': return `File the staged edit of the voice model (plan ${String(p.plan_id)}) as ONE draft pull request in the hub that changes only _data/voices/voices.yml. The publish token is probed with gh api user first, and the plan is re-checked against a fresh main; it is refused while another voices PR is open.`;
     case 'content-file': return `${op.title} for ${String(p.target)}. With apply, this opens issues in that site's GitHub repo.`;
     case 'keys-rotate': return `Write each workspace's new Anthropic API key from .env to the repos it serves (hub first), then DISABLE the key each one replaces in the Console.${p.allow_long_lived ? ' Keys that outlive the lifetime policy are allowed.' : ''}`;
@@ -77,6 +85,12 @@ function confirm(title: string, body: ReactNode, label: string, danger: boolean)
   });
 }
 
+// Assistant conversations the person confirmed in this tab. The spend gate asks once per conversation: its
+// dialog states the whole envelope (how many messages, the cap of each), and a later message that continues
+// THAT conversation is sent under the same yes. A new conversation, another tab or a reload asks again, and
+// the server caps a conversation's length whatever the page remembers (core._assist).
+const confirmedConversations = new Set<string>();
+
 /** Where an operation can run from this page: anywhere with a console; on the
  * public page, only a workflow dispatch, and only with a GitHub token. */
 export function runnableHere(opId: string): boolean {
@@ -93,7 +107,7 @@ export function JobRunner({ children }: { children: ReactNode }) {
   const isRemote = useCallback((id: string, params: Params = {}) => remoteWrite(ops.data?.find((o) => o.id === id), params), [ops.data]);
 
   const runOp = useCallback(
-    async (id: string, params: Params = {}) => {
+    async (id: string, params: Params = {}, opts: RunOptions = {}) => {
       const op = ops.data?.find((o) => o.id === id);
       if (!op) {
         notifications.show({ color: 'red', title: 'Unknown operation', message: id });
@@ -109,12 +123,16 @@ export function JobRunner({ children }: { children: ReactNode }) {
         return null;
       }
       const remote = remoteWrite(op, params);
-      if (remote) {
+      const continues = id === 'assist' && typeof params.conversation === 'string' && confirmedConversations.has(params.conversation);
+      if (remote && !continues) {
         const spend = op.confirm === 'spend';
         const ok = await confirm(spend ? 'This spends Claude budget' : 'This writes to GitHub', (
           <Stack gap="xs">
             <Text size="sm">{confirmText(op, params)}</Text>
-            <Text size="xs" c="dimmed">{spend
+            {opts.detail ? <Text size="sm">{opts.detail}</Text> : null}
+            <Text size="xs" c="dimmed">{id === 'assist'
+              ? 'One confirmed job runs at a time, so an operation that writes or spends waits until the answer is in. The console never commits, merges or files.'
+              : spend
               ? 'One confirmed job runs at a time, and one run per loop. Tick "rehearse" for a $0 pass that stops before the model call. The console never commits, merges or files.'
               : 'Only one GitHub-writing job runs at a time. The console never commits or merges.'}</Text>
           </Stack>
@@ -129,12 +147,15 @@ export function JobRunner({ children }: { children: ReactNode }) {
       }
       try {
         const job = await post<Job>('/api/jobs', { op: id, params, confirm: remote });
-        notifications.show({ title: 'Started', message: job.title, color: 'cyan' });
+        if (id === 'assist' && typeof job.params?.conversation === 'string') confirmedConversations.add(job.params.conversation);
         void qc.invalidateQueries({ queryKey: ['jobs'] });
+        if (opts.quiet) return job;
+        notifications.show({ title: 'Started', message: job.title, color: 'cyan' });
         expectJob(job.id);
         setJobId(job.id);
         return job;
       } catch (e) {
+        if (opts.quiet) throw e;
         notifications.show({ color: 'red', title: 'Could not start', message: (e as Error).message, autoClose: 9000 });
         return null;
       }

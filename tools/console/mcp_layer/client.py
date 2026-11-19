@@ -53,7 +53,10 @@ class Console:
     def __repr__(self) -> str:  # never show the token
         return f"Console(url={self.url!r}, token={'set' if self._token else 'unset'})"
 
-    def request(self, method: str, path: str, query: dict | None = None, body: dict | None = None):
+    def request(self, method: str, path: str, query: dict | None = None, body: dict | None = None,
+                timeout: float | None = None):
+        """`timeout` overrides the client's own for one call: a page command waits on a person (the page
+        bridge's ask mode), which the default would cut short."""
         q = {k: v for k, v in (query or {}).items() if v is not None and v != ""}
         url = self.url + path + (("?" + urllib.parse.urlencode(q)) if q else "")
         data = json.dumps(body).encode() if body is not None else None
@@ -66,7 +69,7 @@ class Console:
         if self._token:
             req.add_header("Authorization", f"Bearer {self._token}")
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            with urllib.request.urlopen(req, timeout=timeout or self.timeout) as resp:
                 raw = resp.read().decode("utf-8", errors="replace")
         except urllib.error.HTTPError as e:
             detail = e.read().decode("utf-8", errors="replace")[:500]
@@ -82,5 +85,7 @@ class Console:
     def get(self, path: str, **query):
         return self.request("GET", path, query=query)
 
-    def post(self, path: str, body: dict):
-        return self.request("POST", path, body=body)
+    def post(self, path: str, body: dict, timeout: float | None = None):
+        if timeout is None:
+            return self.request("POST", path, body=body)
+        return self.request("POST", path, body=body, timeout=timeout)

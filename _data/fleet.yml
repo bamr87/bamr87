@@ -1356,6 +1356,17 @@ harness_refinement:
 # behind its confirm gate, capped per answer by `budget_usd` and recorded in
 # the AI ledger like every other local run (budget.local_usd stays the cap of
 # a plain `dash ai run`). `enabled: false` hides the op from every surface.
+#
+# The docked assistant (the sparkle button on every console page) sends each
+# message as one such session and can attach the page the person has open
+# (tools/console/page_bridge.py). `page_access` is the ceiling on what any
+# session may do to an open page, whatever mode the person picks in the dock:
+#   "off"   no page is ever attached, and no Claude Code session can pair
+#   "look"  a session may read the page (snapshot, read, data, highlight)
+#   "act"   it may also navigate, click, type and press keys — in the dock's
+#           Ask mode each of those waits for the person's yes; nothing is
+#           ever clicked inside a confirming dialog or typed in a secret field
+# Quoted: a bare off is a YAML boolean.
 # --------------------------------------------------------------------------- #
 assistant:
   enabled: true
@@ -1363,6 +1374,8 @@ assistant:
   max_turns: 30
   budget_usd: 2                        # per answer, API-equivalent (estimate)
   timeout_s: 600
+  conversation_messages: 20            # messages one conversation holds before it must start fresh
+  page_access: "act"
 
 # --------------------------------------------------------------------------- #
 # Learning — what happened to each loop's output, and where its next slots would

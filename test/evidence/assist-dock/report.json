@@ -1,0 +1,312 @@
+{
+  "id": "assist-dock",
+  "title": "The published page offers no assistant dock, and says the assistant runs on a console",
+  "features": [
+    "HUB-NEW:console-page-assistant"
+  ],
+  "path": "verify/scenarios/assist-dock.yml",
+  "started": "2026-11-19T06:10:40.933Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/assist",
+          "ok": true,
+          "ms": 608
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Runs on a console"
+          },
+          "ok": true,
+          "ms": 19
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Runs on a console"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "[data-testid='assist-toggle']",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "[data-testid='assist-open-dock']",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "[data-assist-dock]",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "assist-public",
+          "ok": true,
+          "file": "test/evidence/assist-dock/desktop-assist-public.png",
+          "ms": 36
+        },
+        {
+          "step": "goto",
+          "arg": "/loops",
+          "ok": true,
+          "ms": 544
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Every reconciliation loop"
+          },
+          "ok": true,
+          "ms": 20
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "[data-testid='assist-toggle']",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "[data-assist-dock]",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 2
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/assist-dock/desktop-assist-public.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4020/loops/"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/assist",
+          "ok": true,
+          "ms": 618
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Runs on a console"
+          },
+          "ok": true,
+          "ms": 25
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Runs on a console"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "[data-testid='assist-toggle']",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "[data-testid='assist-open-dock']",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "[data-assist-dock]",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "assist-public",
+          "ok": true,
+          "file": "test/evidence/assist-dock/mobile-assist-public.png",
+          "ms": 25
+        },
+        {
+          "step": "goto",
+          "arg": "/loops",
+          "ok": true,
+          "ms": 561
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Every reconciliation loop"
+          },
+          "ok": true,
+          "ms": 23
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "[data-testid='assist-toggle']",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "[data-assist-dock]",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 2
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/assist-dock/mobile-assist-public.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4020/loops/"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-11-19T06:10:43.558Z",
+  "base": "http://127.0.0.1:4020"
+}

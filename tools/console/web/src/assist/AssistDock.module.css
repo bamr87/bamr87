@@ -1,0 +1,177 @@
+/* The docked assistant: a column that fills the AppShell's aside. The palette
+   is the fleetcore roles (/theme.css); nothing here names a colour. */
+.dock {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--surface);
+}
+
+.head {
+  padding: rem(10px) rem(12px) rem(8px);
+  border-bottom: rem(1px) solid var(--grid);
+}
+
+.share {
+  display: flex;
+  align-items: center;
+  gap: rem(6px);
+  margin-top: rem(8px);
+  font-size: rem(12px);
+  line-height: 1.35;
+  color: var(--ink-2);
+}
+
+/* The dot that says whether this page is shared right now. */
+.dot {
+  flex: none;
+  width: rem(8px);
+  height: rem(8px);
+  border-radius: 50%;
+  background: var(--muted);
+}
+.dot[data-on='true'] {
+  background: var(--good);
+  box-shadow: 0 0 0 rem(3px) var(--good-track);
+}
+
+.thread {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.messages {
+  display: flex;
+  flex-direction: column;
+  gap: rem(14px);
+  padding: rem(14px) rem(12px);
+}
+
+.you {
+  align-self: flex-end;
+  max-width: 88%;
+  padding: rem(7px) rem(11px);
+  border-radius: rem(14px) rem(14px) rem(4px) rem(14px);
+  background: var(--panel);
+  font-size: rem(13.5px);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.answer {
+  font-size: rem(13.5px);
+  overflow-wrap: anywhere;
+}
+/* Markdown in a narrow column: tables and code scroll instead of pushing the dock wide. */
+.answer :global(.md) { font-size: rem(13.5px); }
+.answer :global(.md) table { display: block; max-width: 100%; overflow-x: auto; }
+.answer :global(.md) pre { max-width: 100%; overflow-x: auto; }
+.answer :global(.md) > div > :first-child { margin-top: 0; }
+.answer :global(.md) > div > :last-child { margin-bottom: 0; }
+
+/* What the session is doing, or did: one quiet line per step. */
+.steps {
+  margin: 0;
+  padding: 0 0 0 rem(10px);
+  border-left: rem(2px) solid var(--grid);
+  list-style: none;
+  font-size: rem(12px);
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.steps li { overflow-wrap: anywhere; }
+.steps li[data-kind='denied'] { color: var(--critical); }
+.steps code { font-size: rem(11.5px); }
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: rem(4px) rem(10px);
+  font-size: rem(11.5px);
+  color: var(--muted);
+}
+
+.empty {
+  padding: rem(20px) rem(14px);
+}
+.suggestion {
+  display: block;
+  width: 100%;
+  padding: rem(8px) rem(10px);
+  border: rem(1px) solid var(--grid);
+  border-radius: var(--mantine-radius-md);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: rem(13px);
+  text-align: left;
+  cursor: pointer;
+}
+.suggestion:hover { background: var(--panel); }
+.suggestion:focus-visible { outline: rem(2px) solid var(--accent); outline-offset: rem(1px); }
+
+/* The yes/no the Ask mode waits on. It is the one thing in the dock that must not be missed. */
+.approval {
+  margin: 0 rem(12px) rem(10px);
+  padding: rem(10px) rem(12px);
+  border: rem(1px) solid var(--warning);
+  border-radius: var(--mantine-radius-md);
+  background: var(--warning-track);
+}
+.typed {
+  margin-top: rem(6px);
+  padding: rem(6px) rem(8px);
+  max-height: rem(120px);
+  overflow: auto;
+  border-radius: var(--mantine-radius-sm);
+  background: var(--surface);
+  font: rem(12px) / 1.45 var(--mantine-font-family-monospace);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.composer {
+  padding: rem(10px) rem(12px) rem(12px);
+  border-top: rem(1px) solid var(--grid);
+}
+/* The caption beside it wraps; the button that sends never shrinks. */
+.send { flex: none; }
+
+.foot {
+  padding: 0 rem(12px) rem(10px);
+}
+.code {
+  font: 650 rem(18px) / 1 var(--mantine-font-family-monospace);
+  letter-spacing: rem(2px);
+}
+.events {
+  margin: rem(6px) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: rem(12px);
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.events li[data-outcome='declined'],
+.events li[data-outcome='refused'],
+.events li[data-outcome='failed'] { color: var(--muted); }
+
+/* One way forward, where this console cannot start a session itself. */
+.way {
+  padding: rem(10px) rem(12px);
+  border: rem(1px) solid var(--grid);
+  border-radius: var(--mantine-radius-md);
+}
+.command {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: rem(4px) rem(8px);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--panel);
+  font: rem(12px) / 1.5 var(--mantine-font-family-monospace);
+  overflow-x: auto;
+  white-space: nowrap;
+}
