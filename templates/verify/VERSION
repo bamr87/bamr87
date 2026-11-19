@@ -2,7 +2,7 @@ kit: verify
 version: 0.3.0
 source: bamr87/bamr87 templates/verify/
 seeded-by: tools/fanout.sh --kit verify (fanout.yml, kit verify); `dash verify deploy`
-files: features.template.yml, verify.template.yml, scenario.template.yml, runner.mjs, mcp.json, verify.yml, SKILL.template.md, verifier.template.md, EVIDENCE-README.template.md, archive/{verify-0.1.0.yml,verify-0.2.0.yml,verify.template-0.1.0.yml,runner-0.1.0.mjs}
+files: features.template.yml, verify.template.yml, scenario.template.yml, runner.mjs, mcp.json, verify.yml, SKILL.template.md, verifier.template.md, EVIDENCE-README.template.md, archive/{verify-0.1.0.yml,verify-0.1.0-oauth.yml,verify-0.1.0-oauth-short.yml,verify-0.2.0.yml,verify-0.2.0-oauth.yml,verify-0.2.0-oauth-short.yml,verify.template-0.1.0.yml,runner-0.1.0.mjs}
 spec: specs/QUALITY.md "Verification" (UPS-QA-50..53); reusable workflow .github/workflows/fleet-verify.yml; hub aggregator tools/features_index.py; docs/VERIFICATION.md
 updated: 2026-11-14
 changelog: |
