@@ -266,6 +266,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_pm_review.py`](tools/test_pm_review.py) | Offline tests for `pm_review.py`: the scope, the gather against a recording fake `gh` that would see a write, each lane's rules, the preview the § 11 service accepts, th… |
 | [`test_projects_backfill.py`](tools/test_projects_backfill.py) | Offline tests for `projects_backfill.py` — decisions validation and compilation, the 50-op batching, the REST state reader and executor against a recording fake `gh`, th… |
 | [`test_projects_lint.py`](tools/test_projects_lint.py) | — |
+| [`test_python_tests_paths.py`](tools/test_python_tests_paths.py) | python-tests.yml skips docs-only changes in two places that must agree: the `changes` job's case statement (pull requests) and the push trigger's `paths:` filter (pushes… |
 | [`test_quality_contract.py`](tools/test_quality_contract.py) | Tests specs/QUALITY.contract.yml against _data/specs.yml and every tool that reads it. |
 | [`test_release_please.py`](tools/test_release_please.py) | The release credential: `.github/workflows/release-please.yml` and its contract. |
 | [`test_scorecard_snapshot.py`](tools/test_scorecard_snapshot.py) | Offline fixture tests for tools/scorecard_snapshot.py (bamr87/bamr87#513): the OpenSSF Scorecard results → `security:` block of _data/conformance.yml, its --check gate,… |
