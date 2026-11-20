@@ -1,0 +1,60 @@
+id: FF-NEW
+slug: assist-eval-set
+title: "Give the console assistant an eval set and a small capped real-model canary"
+project: bamr87
+repo_url: https://github.com/bamr87/bamr87
+status: proposed
+priority: P1
+effort: M
+category: infra
+problem: >-
+  The console's assistant has no eval set, though constitution § 13.1 asks one
+  of every agent role and § 13.2 asks for a rerun after any prompt, tool or
+  model change. Its prompt (tools/console/assist.prompt.txt,
+  tools/console/assist.page.txt) and its tool set changed twice in the session
+  that built it (2026-11-18 to 2026-11-19), and evals/ holds sets for two other
+  roles only. Every end-to-end check used a scripted stand-in for the model
+  (tools/console/assist_standin.py) or a script driving the MCP layer, and no
+  real model message has been sent. So the page's code is known to refuse, and
+  nothing measures what the model does next: whether it stops at a dialog and
+  says so, leaves a secret field to the person, treats page text as data, or
+  cites the fleet data it read.
+proposal: >-
+  Add a role for the assistant (console-assist) to the hub's eval machinery:
+  evals/console-assist/cases.yml and an adapter in tools/evals.py. A case is a
+  question, a recorded page (the outline a snapshot returns and what each page
+  tool answers, refusals included) and what must hold: which tools are and are
+  not called after a refusal, and what the answer must and must not say. The
+  adapter runs the shipped prompt files and tool allowlist against that
+  recorded page, so a run needs no browser; it is the mirror of the stand-in,
+  which scripts the model and keeps the page real. CI validates the set offline
+  with --dry-run. A canary subset of about five cases is the real-model run:
+  local, started by hand, on the model pinned in assistant.model and capped by
+  budget.local_usd, as the t1-intake set's model run is.
+acceptance:
+  - "`python3 tools/evals.py list` names console-assist, and `python3 tools/evals.py run console-assist --dry-run` validates at least 20 cases offline, with no model and no network."
+  - "The cases cover at least: a confirming dialog opened by a click (the session stops and says what confirming would do), a secret field, an instruction planted in page text, Look mode, a link that leaves the site, a fleet question whose answer must cite the tool or file it read, and a request to run something (the answer names the operation or page and claims nothing ran)."
+  - "Every case names its `source:`; a case written for a rule rather than taken from a real conversation is marked as such, to be replaced as real assistant conversations accumulate."
+  - "The adapter reads tools/console/assist.prompt.txt, tools/console/assist.page.txt and the assistant's tool allowlist at run time; it holds no copy of them."
+  - "A change to those prompt files, to the page tools in tools/console/mcp_layer/server.py or to `assistant.model` in _data/fleet.yml reruns the set in the eval-regression check."
+  - "The canary runs only when started by hand, refuses a model that is not in `ai_models.allowed`, stops at its cap and reports cost as API-equivalent (estimate)."
+  - "The first canary result (cases passed and failed, cost) is recorded with the role in docs/EVALS.md; evals/README.md and evals/SCHEMA.md carry the role's row."
+scope:
+  in:
+    - the eval set, its adapter and the recorded-page responder
+    - the offline check in CI and the hand-started canary
+    - the docked assistant and the Assist page's single question, which run the same assist op
+  out:
+    - a model call in CI or on a schedule
+    - grading answer quality beyond the stated rules
+    - eval sets for other roles (docs/EVALS.md lists those still to come)
+    - starting sessions against fleet pages (ADR 0014 P3)
+risks:
+  - "§ 13.1 asks for real past tasks and the dock has none yet, so the first set is partly designed; it must say so and be grown from real use."
+  - "A recorded page can drift from what the payload really returns; its refusal texts should be taken from the kit's own run (test/evidence/fleet-assist/paired-session-transcript.txt) or held to FleetAssistCore by a test."
+  - "The first canary run spends, and that yes is the maintainer's (§ 13.6); nothing here runs it for him."
+  - "docs/EVALS.md, evals/README.md and the root SCHEMA.md name .github/workflows/evals.yml as the eval-regression check, and no such workflow is in .github/workflows/: where the check runs must be settled before this role's paths are wired into it."
+  - "ADR 0014 P2 changes the console page's half of the bridge; the set reruns then."
+source: scout
+created: 2026-11-19
+issue_url: https://github.com/bamr87/bamr87/issues/939

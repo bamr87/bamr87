@@ -1,0 +1,60 @@
+id: FF-NEW
+slug: fleet-assist-browser-test
+title: "Run the fleet-assist fixture in a real browser in CI, so the page rules that need a DOM are proven on every change"
+project: bamr87
+repo_url: https://github.com/bamr87/bamr87
+status: proposed
+priority: P1
+effort: M
+category: infra
+problem: >-
+  The assistant kit's rules that need a DOM (nothing inside or behind a modal
+  dialog, no secret field, no link that leaves the site, the Ask-first Allow or
+  Deny, a session that survives a navigation) are proven only by hand, in a
+  browser, against templates/assistant/tests/fixture.html, with the result kept
+  in test/evidence/fleet-assist/. CI runs the pure-function contract tests
+  (templates/assistant/tests/contract.test.mjs) and the broker's unit tests
+  (tools/console/test_page_bridge.py), and no browser. The one hand run found a
+  loss those tests had missed (after a navigation the old page's abandoned long
+  poll took the next command) and two snapshot faults, and a later review found
+  a setting that could switch the dialog rule off. The payload is about to be
+  vendored byte-identical into 19 repos, so a regression in a rule would ship to
+  all of them unseen.
+proposal: >-
+  Turn the hand run into a scripted one that costs nothing. A test starts a
+  credential-free console as the broker on a loopback port with only the
+  fixture's origin admitted (DASH_CONSOLE_ASSIST_ORIGINS), serves
+  templates/assistant/ from a second loopback origin, opens the fixture in
+  headless Chromium, opens the panel and pairs, then plays the session's side
+  through the real MCP layer's page tools from a script, as the evidence run
+  did. It asserts each refusal and each allowed action against the DOM, in
+  Look, Ask first and Act. It runs as a pull-request check when the kit, the
+  page bridge, the fleet routes or the MCP layer's page tools change, on the
+  Playwright install the hub's verify job already uses rather than a second
+  browser toolchain. No model is called.
+acceptance:
+  - "One documented command runs the browser test locally at $0: no Claude session, no model, and the live console on :4001 is never touched."
+  - "In a real DOM it asserts at least: Look refuses every act; in Ask first a Deny comes back as declined with the page unchanged and an Allow runs; inside and behind a native modal dialog and a Bootstrap-style one, click, fill, Enter and navigate are refused and the form's state is unchanged, while Escape closes the dialog; the secret field is neither read nor filled; the link that leaves the site is refused; no `configure({ modal })` value unprotects a dialog."
+  - "After a navigation to tests/fixture-2.html the same session carries on and the next command reaches the new page: the abandoned-poll loss found on 2026-11-19 is held by a browser regression test, not only by test_page_bridge.py."
+  - "It runs in CI on pull requests that touch templates/assistant/**, tools/console/page_bridge.py, the fleet routes in tools/console/app.py or tools/console/mcp_layer/**; a broken rule fails the job, and a missing browser, console or MCP dependency fails it too rather than skipping."
+  - "The check is shown to be able to fail: a self-test with one rule deliberately broken turns it red."
+  - "templates/assistant/README.md (Changing the kit) and test/evidence/fleet-assist/README.md say which rules are now held by the automated run and which are still checked by hand; UPS-AST-42 in specs/ASSIST.md names the test."
+scope:
+  in:
+    - the kit's fixture pages and payload (templates/assistant/)
+    - the broker's fleet routes and the MCP layer's page tools, driven by a script
+    - one CI job and its local command
+  out:
+    - a real model on the session's side (the assistant eval set is a separate proposal)
+    - real fleet sites and their adapters (ADR 0014 P1), and a deployed https page
+    - the console's own React page (tools/console/web/src/assist/pageBridge.ts) until ADR 0014 P2 makes the rules one implementation
+    - crawling or scoring any site (the agent-lens crawl, bamr87/bamr87#934)
+risks:
+  - "Long polls and the 90-second approval wait make a browser test slow or flaky; the bridge takes an injected clock, and the test needs short waits of its own rather than sleeps."
+  - "The python-tests job has little time headroom, so the browser run belongs in its own job or in the verify job."
+  - "The console's route tests and the MCP layer test skip silently where FastAPI or the mcp package is missing; this job must install both and treat a skip as a failure."
+  - "verify/runner.mjs is a rendered copy of the verify kit; if scenario/v1 needs a new step for a second origin or a session driver, the change goes to templates/verify/runner.mjs first."
+  - "The check is advisory until the maintainer makes it required in branch protection; nothing in this entry does that."
+source: scout
+created: 2026-11-19
+issue_url: https://github.com/bamr87/bamr87/issues/938
