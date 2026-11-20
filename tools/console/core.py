@@ -2438,6 +2438,13 @@ OPS: dict[str, dict] = {
                        argv=lambda p: [DASH, "learn", "plan"], needs_token=False,
                        desc="The share of the next slots each repo would get (Thompson sampling, seeded by the date) "
                             "beside what the loop filed lately, and the replay test. Prints a plan; changes nothing. $0."),
+    "uplift": dict(title="Fleet uplift: what one repo improved that the others still lack", group="observe",
+                   argv=lambda p: [DASH, "uplift", "scan"], needs_token=False,
+                   desc="tools/dash uplift scan (docs/UPLIFT.md): the last uplift.days of every fleet repo's default "
+                        "branch, read from the local checkouts and compared by file contents. Candidates (one repo "
+                        "changed a file others still hold in an earlier version), rollouts in flight (a kit or hub "
+                        "change that has not reached everyone) and the features each repo declared or shipped. "
+                        "Reads no GitHub, calls no model, writes only .fleet/uplift/. $0."),
     "decisions": dict(title="Decision queue: what waits on Amr across the fleet", group="observe",
                       argv=lambda p: [DASH, "decisions", "queue", "--repos"], needs_token=True,
                       desc="needs-amr items, pull requests awaiting ratification, failing or major Dependabot pull "
