@@ -223,7 +223,7 @@ export const useGhProjectItems = (projectId: string | null) =>
   });
 
 // --- The site: profile, pages, posts, public registries (site_docs.py) -----
-export const useSite = () => useQuery({ queryKey: ['site'], queryFn: () => api<SiteIndex>('/api/site'), staleTime: 10 * minute });
+export const useSite = (enabled = true) => useQuery({ queryKey: ['site'], queryFn: () => api<SiteIndex>('/api/site'), staleTime: 10 * minute, enabled });
 export const useSitePage = (slug: string) =>
   useQuery({ queryKey: ['site', 'page', slug], queryFn: () => api<SitePage>(`/api/site/page/${encodeURIComponent(slug)}`), staleTime: 10 * minute });
 export const useSitePost = (slug: string) =>

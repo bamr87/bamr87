@@ -27,6 +27,13 @@
 // the app's address are dropped, and the window falls back to the app's
 // default. Below the reducer's narrow width the desktop becomes a home
 // screen: the icons, then one app at a time.
+//
+// A site build may make this page the front door (`/`, see FRONT_DOOR in
+// ../api/backend). It then takes its name, its mark and what it shows from
+// that site's settings in the site document (_data/profile.yml `sites:`):
+// an icon for every repo, not only the framed frontends, in a dock that
+// scrolls; the pinned apps first; and the profile and the palette one click
+// away. With no such settings every line below draws what it always drew.
 import {
   Fragment, useEffect, useMemo, useReducer, useRef, useState,
   type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent,
@@ -36,14 +43,15 @@ import { Link } from 'react-router';
 import { Anchor, Badge, Code, Group, Menu, ScrollArea, Stack, Text, Title } from '@mantine/core';
 import { useViewportSize } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
+import { spotlight } from '@mantine/spotlight';
 import {
   IconAppWindow, IconArrowsMinimize, IconChevronLeft, IconColumns2, IconDeviceGamepad2, IconDeviceMobile, IconDots, IconExternalLink,
   IconFileText, IconFolder, IconLayoutGrid, IconLayoutSidebarRight, IconLink, IconMaximize, IconMinus, IconPlayerPlayFilled,
-  IconPuzzle, IconStack2, IconTerminal2, IconWorld, IconX,
+  IconPuzzle, IconSearch, IconStack2, IconTerminal2, IconUser, IconWorld, IconX,
 } from '@tabler/icons-react';
-import { BASENAME, EMBEDDED, OPEN_EVENT, hasConsole } from '../api/backend';
-import { useApps } from '../api/hooks';
-import type { AppsDoc, FleetApp, FleetRepo } from '../api/types';
+import { BASENAME, EMBEDDED, FRONT_DOOR, MARK, OPEN_EVENT, asset, hasConsole } from '../api/backend';
+import { useApps, useSite } from '../api/hooks';
+import type { AppsDoc, FleetApp, FleetRepo, SiteSettings } from '../api/types';
 import { ThemeToggle } from '../components/Shell';
 import { Load, Status } from '../components/ui';
 import { to } from '../lib/links';
@@ -64,12 +72,20 @@ const TAB_KEY = 'bashos_desktop_layout';
 const MENUBAR_PX = 44;
 const TASKBAR_PX = 48;
 const DOCK_ROW_PX = 82; // an icon row (80) and its gap
+// A dock of every repo scrolls instead of growing sideways: this many columns, by width.
+const GROUPED_COLS_WIDE = 3;
+const GROUPED_COLS = 2;
+const GROUPED_WIDE_PX = 1200;
+/** This build's front door is the desktop: it speaks for the site, not only for the fleet. */
+const DESKTOP_FIRST = FRONT_DOOR === 'desktop';
 
 // The console's own pages a window may hold: the first path segment of every
 // page in the navigation (their drill-downs sit under them). Never the Desktop
 // itself, and never anything that is not a page of this app.
 const PAGE_ROOTS = new Set(FLAT.map((item) => item.to.split('/')[1] ?? ''));
 PAGE_ROOTS.delete('desktop');
+// ...wherever this build puts it: as the front door it is `/` itself.
+PAGE_ROOTS.delete(to.desktop().split('/')[1] ?? '');
 
 /** A path of this console that may open in a window, normalised; null for anything else. */
 export function pagePath(raw: string | null | undefined): string | null {
@@ -225,11 +241,40 @@ function boot(doc: AppsDoc): Booted {
 }
 
 // ------------------------------------------------------------------- panels
-function WelcomePanel({ doc, open }: { doc: AppsDoc; open: Open }) {
+/** One thing the dock can open: a framed frontend, or a repo as the generated repo app. */
+interface DockItem { id: string; name: string; description?: string | null; scene: 'app' | 'repo'; glyph: ReactNode }
+
+const appItem = (a: FleetApp, size = 20): DockItem => ({ id: a.id, name: a.name, description: a.description, scene: 'app', glyph: typeIcon(a.type, size) });
+const repoItem = (r: FleetRepo, size = 20): DockItem => ({ id: r.id, name: r.name, description: r.description, scene: 'repo', glyph: repoIcon(r, size) });
+
+/** The site's pinned ids that the registry declares, in the site's order: an id it does not declare is dropped. */
+function pinnedOf(doc: AppsDoc, site: SiteSettings | undefined, size = 16): DockItem[] {
+  const out: DockItem[] = [];
+  for (const id of site?.desktop?.pinned ?? []) {
+    const app = doc.apps.find((a) => a.id === id && a.embed === 'frame');
+    const repo = app ? undefined : doc.repos.find((r) => r.id === id);
+    if (app) out.push(appItem(app, size));
+    else if (repo) out.push(repoItem(repo, size));
+  }
+  return out;
+}
+
+function WelcomePanel({ doc, open, site }: { doc: AppsDoc; open: Open; site?: SiteSettings }) {
   const owed = doc.repos.filter((r) => !r.framed).length;
+  const pinned = pinnedOf(doc, site);
   return (
     <Stack gap="sm" className={c.panel}>
-      <Title order={3} fz={18}>bashOS · the fleet desktop</Title>
+      <Title order={3} fz={18}>{site?.title ? `${site.title} · on bashOS` : 'bashOS · the fleet desktop'}</Title>
+      {site?.desktop?.welcome ? <Text size="sm">{site.desktop.welcome}</Text> : null}
+      {pinned.length ? (
+        <Group gap="xs">
+          {pinned.map((x) => (
+            <button key={x.id} type="button" className={c.start} title={x.description ?? x.name} onClick={() => open(x.scene, x.id)}>
+              {x.glyph} Open {x.name}
+            </button>
+          ))}
+        </Group>
+      ) : null}
       <Text size="sm">
         Every icon is a fleet frontend from the registry. Open one and it runs in a window with the same controls as every other: where it runs (the live site or the stack on this machine), a device size, and a path inside the app.
       </Text>
@@ -244,6 +289,7 @@ function WelcomePanel({ doc, open }: { doc: AppsDoc; open: Open }) {
         <Anchor component="button" type="button" size="sm" onClick={() => open('fleet', null)}>Every repo and its component</Anchor>
         <Anchor component={Link} to={to.apps()} size="sm">The same apps as a list</Anchor>
         <Anchor component="button" type="button" size="sm" onClick={() => open('page', '/overview')}>The console's Overview, in a window</Anchor>
+        {DESKTOP_FIRST ? <Anchor component="button" type="button" size="sm" onClick={() => open('page', to.home())}>The profile behind it</Anchor> : null}
       </Group>
       <Text size="xs" c="dimmed">The same launcher in a terminal: <Code>tools/dash apps</Code>, and <Code>tools/dash apps plan</Code> for what each repo is owed.</Text>
     </Stack>
@@ -312,8 +358,8 @@ function describe(win: ShellWindow, doc: AppsDoc, view: AppView | undefined, liv
   return { title: 'Welcome', icon: <IconPlayerPlayFilled size={14} /> };
 }
 
-function Scene({ win, doc, view, onView, open }: {
-  win: ShellWindow; doc: AppsDoc; view: AppView; onView: (v: AppView) => void; open: Open;
+function Scene({ win, doc, view, onView, open, site }: {
+  win: ShellWindow; doc: AppsDoc; view: AppView; onView: (v: AppView) => void; open: Open; site?: SiteSettings;
 }) {
   if (win.sceneId === 'app') {
     const app = doc.apps.find((a) => a.id === win.resourceId);
@@ -332,7 +378,7 @@ function Scene({ win, doc, view, onView, open }: {
       : <Text className={c.panel} size="sm">That is not a page of this console.</Text>;
   }
   if (win.sceneId === 'fleet') return <FleetPanel doc={doc} open={open} />;
-  return <WelcomePanel doc={doc} open={open} />;
+  return <WelcomePanel doc={doc} open={open} site={site} />;
 }
 
 // ------------------------------------------------------------- context menu
@@ -435,7 +481,7 @@ function IconButton({ label, glyph, title, open: isOpen, onClick, onMenu }: {
   );
 }
 
-function DesktopShell({ doc }: { doc: AppsDoc }) {
+function DesktopShell({ doc, site }: { doc: AppsDoc; site?: SiteSettings }) {
   // One boot for both: the windows and the views keyed by those windows' ids.
   const [booted] = useState(() => boot(doc));
   const [state, dispatch] = useReducer(reduce, booted.state);
@@ -455,7 +501,22 @@ function DesktopShell({ doc }: { doc: AppsDoc }) {
   // The dock: as many icon rows as fit between the menu bar and the taskbar,
   // and the columns that takes (the apps, plus Fleet and Console).
   const rows = Math.max(1, Math.floor(((viewport.height || window.innerHeight) - MENUBAR_PX - TASKBAR_PX - 24) / DOCK_ROW_PX));
-  const dock = { '--rows': rows, '--cols': Math.ceil((framed.length + 2) / rows) } as CSSProperties;
+  // A site that asks for an icon per repo gets them in groups, in a dock that
+  // scrolls: forty icons laid out in columns would take half the desktop.
+  const grouped = site?.desktop?.icons === 'repos';
+  const dockVars: Record<string, number> = grouped
+    ? { '--cols': width >= GROUPED_WIDE_PX ? GROUPED_COLS_WIDE : GROUPED_COLS }
+    : { '--rows': rows, '--cols': Math.ceil((framed.length + 2) / rows) };
+  const dock = dockVars as CSSProperties;
+  const groups = useMemo(() => {
+    const pinned = pinnedOf(doc, site, 20);
+    const taken = new Set(pinned.map((x) => x.id));
+    return [
+      { label: site?.title ?? 'Pinned', items: pinned },
+      { label: 'Apps', items: framed.filter((a) => !taken.has(a.id)).map((a) => appItem(a)) },
+      { label: 'Repos', items: doc.repos.filter((r) => !r.framed && !taken.has(r.id)).map((r) => repoItem(r)) },
+    ].filter((g) => g.items.length);
+  }, [doc, site, framed]);
 
   // A layout remembers where a console page is now, not where its window was opened.
   const withLivePaths = (st: ShellState): ShellState => ({
@@ -591,7 +652,7 @@ function DesktopShell({ doc }: { doc: AppsDoc }) {
   const current = state.windows.find((w) => w.id === state.focusId) ?? state.windows[0];
   const describedOf = (w: ShellWindow) => describe(w, doc, views[contentKey(w)], live[w.id]);
   const scene = (w: ShellWindow) => (
-    <Scene key={contentKey(w)} win={w} doc={doc} open={open} view={views[contentKey(w)] ?? {}}
+    <Scene key={contentKey(w)} win={w} doc={doc} open={open} site={site} view={views[contentKey(w)] ?? {}}
       onView={(v) => setViews((all) => ({ ...all, [contentKey(w)]: v }))} />
   );
   const copyLink = () => {
@@ -603,7 +664,21 @@ function DesktopShell({ doc }: { doc: AppsDoc }) {
     });
   };
 
-  const icons = (
+  const icons = grouped ? (
+    <>
+      {groups.map((g) => (
+        <Fragment key={g.label}>
+          <span className={c.dockLabel}>{g.label}</span>
+          {g.items.map((x) => (
+            <IconButton key={x.id} label={x.name} glyph={x.glyph}
+              title={`${x.description ?? x.name}${x.scene === 'app' ? ' — shift-click for a second window' : ' — opens as the repo app'}`}
+              open={isOpen(x.scene, x.id)} onClick={(e) => open(x.scene, x.id, e.shiftKey)} onMenu={showFor(x.name, () => entriesFor(x.scene, x.id))} />
+          ))}
+        </Fragment>
+      ))}
+      <span className={c.dockLabel}>System</span>
+    </>
+  ) : (
     <>
       {framed.map((a: FleetApp) => (
         <IconButton key={a.id} label={a.name} glyph={typeIcon(a.type, 20)} title={`${a.description ?? a.name} — shift-click for a second window`}
@@ -611,8 +686,19 @@ function DesktopShell({ doc }: { doc: AppsDoc }) {
       ))}
     </>
   );
+  // Where the desktop is the front door, the profile it replaced at `/` is one icon away.
+  const profile = !DESKTOP_FIRST ? null : narrow ? (
+    <Link className={c.icon} to={to.home()} title="The profile: who is behind this, the portfolio, writing and contact">
+      <span className={c.glyph}><IconUser size={20} stroke={1.6} /></span>
+      <span className={c.iconLabel}>Profile</span>
+    </Link>
+  ) : (
+    <IconButton label="Profile" glyph={<IconUser size={20} stroke={1.6} />} title="The profile in a window: who is behind this, the portfolio, writing and contact"
+      open={isOpen('page', to.home())} onClick={() => open('page', to.home())} onMenu={showFor('Profile', () => entriesFor('page', to.home()))} />
+  );
   const system = (
     <>
+      {profile}
       <IconButton label="Fleet" glyph={<IconFolder size={20} stroke={1.6} />} title="Every repo and the frontend component it has or is owed"
         open={isOpen('fleet', null)} onClick={() => open('fleet', null)} onMenu={showFor('Fleet', () => entriesFor('fleet', null))} />
       {narrow ? (
@@ -632,10 +718,18 @@ function DesktopShell({ doc }: { doc: AppsDoc }) {
     <div className={c.os} data-narrow={narrow || undefined}>
       <header className={c.menubar}>
         <div className={c.crumbs}>
-          <span>bashOS</span><span>/</span><span>Fleet</span>
+          {site?.title ? (
+            <><img className={c.mark} src={asset(MARK)} width={20} height={20} alt="" /><span>{site.title}</span><span>/</span><span>bashOS</span></>
+          ) : <><span>bashOS</span><span>/</span><span>Fleet</span></>}
           {narrow && home ? null : <><span>/</span><strong>{describedOf(current).title}</strong></>}
         </div>
         <div className={c.menuRight}>
+          {DESKTOP_FIRST ? (
+            // The palette reaches every page, project and app; on a phone it is the only way to type for one.
+            <button type="button" className={c.pill} onClick={() => spotlight.open()} title="Search every page, project and app  ( : )" aria-label="Search every page, project and app">
+              <IconSearch size={12} /><span className={c.pillWord}>search</span>
+            </button>
+          ) : null}
           <span className={`${c.pill} ${c.mode}`}>{hasConsole() ? 'console connected' : 'public snapshot'}</span>
           <Link className={c.pill} to={to.overview()}>classic console</Link>
           <ThemeToggle />
@@ -645,7 +739,7 @@ function DesktopShell({ doc }: { doc: AppsDoc }) {
       {narrow ? (
         <div className={c.surface}>
           {home ? (
-            <nav className={c.home} aria-label="Apps">{icons}{system}</nav>
+            <nav className={c.home} data-grouped={grouped || undefined} aria-label="Apps">{icons}{system}</nav>
           ) : (
             <section className={c.sheet} data-window-id={current.id} aria-label={`${describedOf(current).title} window`}>
               <header className={c.winHead}>
@@ -662,7 +756,7 @@ function DesktopShell({ doc }: { doc: AppsDoc }) {
         </div>
       ) : (
         <div className={c.surface}>
-          <nav className={c.icons} style={dock} aria-label="Apps">{icons}{system}</nav>
+          <nav className={c.icons} style={dock} data-grouped={grouped || undefined} aria-label="Apps">{icons}{system}</nav>
           <div className={c.stage} ref={surface} data-dragging={dragging || undefined}>
             {state.windows.map((w) => (
               <WindowFrame key={w.id} win={w} focused={w.id === state.focusId && !w.minimized} only={state.windows.length === 1}
@@ -741,8 +835,17 @@ export function Desktop() {
 
 function DesktopPage() {
   const apps = useApps();
+  // Only a build whose front door is the desktop reads the site's settings:
+  // everywhere else the desktop is a page of the console and asks for nothing more.
+  const site = useSite(DESKTOP_FIRST);
+  const settings = DESKTOP_FIRST ? site.data?.profile.site : undefined;
+  const by = settings?.name ?? site.data?.profile.name;
+  const title = settings?.title ? `${settings.title}${by ? ` — ${by}` : ''}` : 'Desktop · bashOS';
   useEffect(() => {
-    document.title = 'Desktop · bashOS';
-  }, []);
-  return <Load q={apps} rows={8}>{(doc) => <DesktopShell doc={doc} />}</Load>;
+    document.title = title;
+  }, [title]);
+  // The settings decide what the dock holds, so the desktop waits for them
+  // rather than redrawing; if they cannot be read it opens as the plain desktop.
+  if (DESKTOP_FIRST && site.isPending) return null;
+  return <Load q={apps} rows={8}>{(doc) => <DesktopShell doc={doc} site={settings} />}</Load>;
 }

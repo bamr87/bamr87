@@ -76,7 +76,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash docker <cmd>${c_off}       the fleet Docker standard — audit|apply|check|tags|fleet; image versions live
                          in _data/fleet.yml \`images:\`, fan-out via fanout.yml (kit: docker; docs/DOCKER.md).
                          \`view [--write]\` builds the consolidated /docker/ dashboard (_data/docker.yml)
-  ${c_bold}dash serve${c_off}             build the public site (the console, static) and serve it on :4000
+  ${c_bold}dash serve${c_off}             build the public site (the console, static) and serve it on :4000; CONSOLE_SITE=<key> builds one of the other sites _data/profile.yml declares (docs/CONSOLE-PAGES.md)
   ${c_bold}dash tui [--docker]${c_off}    terminal command center — registry, health, triage inbox, harness wires + live Docker (DASH_DOCKER_HOST, default local,ssh://forge)
   ${c_bold}dash host [setup|ps|up|rebuild --wipe-all]${c_off}  forge Docker host — up a submodule, or the legacy whole-hub rebuild (deletes every container and volume on forge, so it needs --wipe-all)
   ${c_bold}dash node [status|plan|gen|key]${c_off}  where hub workloads run — the Mac edge and the forge workload node, from _data/fleet.yml \`nodes:\` (docs/PLATFORM.md); read-only except gen, which writes .fleet/nodes/
@@ -179,7 +179,9 @@ cmd_docker() {
 # allocates). Binds loopback unless DASH_SERVE_HOST says otherwise. When the
 # devenv container is up and publishes that port, the page is built here and
 # served from inside it. For the live, write-capable version run `dash
-# console` — the same page with an API behind it.
+# console` — the same page with an API behind it. CONSOLE_SITE=<key> in the
+# environment reaches build-pages.sh and builds that site of _data/profile.yml
+# `sites:` instead (its own title, mark and front door), at the same address.
 cmd_serve() {
   cd "$ROOT"
   local port="${DASH_SERVE_PORT:-${SITE_PORT:-4000}}" host="${DASH_SERVE_HOST:-127.0.0.1}"
