@@ -1,0 +1,52 @@
+id: FF-NEW
+slug: assist-shared-pages-view
+title: "Show the fleet pages shared with the console on the Assist page, and let the operator end one"
+project: bamr87
+repo_url: https://github.com/bamr87/bamr87
+status: proposed
+priority: P2
+effort: S
+category: feature
+problem: >-
+  Since the assistant kit, a page of another fleet site can open a session on
+  the console through routes that take no token (POST /api/assist/fleet/<verb>).
+  The console's /api/assist document already lists those sessions
+  (fleet_pages.sessions: origin, repo and source file, mode, paired or not,
+  commands, opened at), but no console page reads the field, so the operator
+  cannot see which pages are sharing themselves right now or whether a session
+  is paired with one. Short of that page's tab closing or the session going
+  idle, the only way to stop one is to set assistant.fleet_pages to off for
+  every page.
+proposal: >-
+  A "Shared pages" section on the console's Assist page
+  (tools/console/web/src/pages/Assist.tsx) that lists each fleet page sharing
+  itself: origin, repo, source file or route, mode, live or idle, paired or
+  not, commands so far and age, under the ceiling in force. Each row has an End
+  control, served by a new token-guarded route that ends a session by the
+  eight-character id the audit log already uses, so the session id, which is
+  the capability, never leaves the broker. Ending one is written to the page
+  bridge's audit log, and the page's panel says the console ended the sharing.
+acceptance:
+  - "With a fixture page sharing itself, the Assist page lists it with origin, repo, source file or route, mode, paired or not, command count and age, and drops it when the panel closes; with none it says so and names the ceiling (`assistant.fleet_pages`)."
+  - "End removes the session: the row goes, the page's panel shows that sharing was ended from the console, a paired session's next page tool is refused with that reason, and one audit line records it."
+  - "The end route needs the console token, is not among the token-free fleet routes, and refuses an unknown or ambiguous id."
+  - "No session id beyond its first eight characters appears in the page, the /api/assist document, a URL or a log."
+  - "The published build shows no shared pages and no End control (`assist_doc(local=False)` returns none), and verify/scenarios/assist-dock.yml asserts that."
+  - "Covered by tools/console/test_page_bridge.py and tools/console/test_console.py, with a feature fragment in features/features.d/ and an evidence bundle under test/evidence/ (docs/VERIFICATION.md)."
+scope:
+  in:
+    - the Assist page section and its refresh
+    - one token-guarded route to end a fleet-page session, and its audit line
+  out:
+    - changing the ceiling or a session's mode from this view (the Config page and the person on the page hold those)
+    - a history of past sessions (the audit log is that)
+    - the same view in the TUI, the CLI or an MCP tool
+    - sessions of the console's own tabs
+risks:
+  - "Eight characters are 32 bits of the id: enough under the fleet-page session cap, and an ambiguous match must be refused, never guessed."
+  - "The list should ride the document the page already fetches; a new per-poll call would add load to a console that has saturated on polling before."
+  - "ADR 0014 P2 moves the tab routes' session id into the request body; the end route should be written to that shape from the start."
+  - "If a second surface later wants the view, its model belongs in tools/fleetcore/, not in the page."
+source: scout
+created: 2026-11-19
+issue_url: https://github.com/bamr87/bamr87/issues/940

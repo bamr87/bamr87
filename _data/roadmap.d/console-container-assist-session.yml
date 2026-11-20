@@ -1,0 +1,55 @@
+id: FF-NEW
+slug: console-container-assist-session
+title: "Let the container console start an assistant session (decide: the claude CLI in its image, or a runner on the host)"
+project: bamr87
+repo_url: https://github.com/bamr87/bamr87
+status: proposed
+priority: P2
+effort: M
+category: infra
+problem: >-
+  The console the maintainer opens every day (:4001) runs in a container whose
+  image (.devcontainer/Dockerfile, shared with devenv) has no claude CLI, so
+  there the docked assistant cannot start a session: the dock says so and
+  offers pairing a terminal session or running a second console on the host.
+  The same missing binary makes every operation that needs claude, the local
+  loop runner included, unavailable from that console. ADR 0013 left putting
+  the CLI in the image as a separate decision (§ 21), and nothing records it as
+  open work.
+proposal: >-
+  First a recorded decision, as an ADR or an addendum to ADR 0013, between two
+  routes: carry a versioned claude CLI in the console's image, or keep the
+  image as it is and have the container console hand the session to a runner on
+  the host. Then build the chosen one. For the image route: the CLI installed
+  in the Dockerfile at a version _data/fleet.yml names, auth by the OAuth token
+  docker-compose.yml already passes to the service by name, a writable place
+  for the CLI's own state and the run's ledger row that is not the read-only
+  ~/.claude mount, and the same caps, tool allowlist and redaction dash-gen
+  ai-run applies on the host. Either way the dock's "no CLI" state stays for a
+  console that still has none.
+acceptance:
+  - "The decision is recorded and accepted by the maintainer before any image or runner change: which route, what the container may hold, and how § 21 (no secret in a layer, pinned bases) and `ai_auth` (OAuth only) are met."
+  - "On the container console a first message in the dock asks the spend question and then starts a session; /api/assist reports `unavailable_kind` as null there, and the operations that need claude stop reporting themselves unavailable."
+  - "The session runs through dash-gen ai-run with the per-answer cap from `assistant.budget_usd`, the pinned `assistant.model`, the same allowed and denied tools as on the host, and a ledger row and trace the lake can read."
+  - "No credential is in an image layer, a build arg, a label or argv, and the ~/.claude mount stays read-only."
+  - "The pull request rebuilds and restarts nothing on the maintainer's machine; the rollout is one documented step he runs, with its undo."
+  - "tools/console/README.md (Where it runs), docs/DOCKER.md and the dock's own text say what changed; a console without the CLI still shows the pairing and host-console routes."
+scope:
+  in:
+    - the decision record
+    - the console service's image or a host-side runner, whichever is chosen
+    - the assist op and the other operations gated on the claude CLI in tools/console/core.py
+  out:
+    - the devenv workspace or any other service gaining the CLI, unless the decision says so
+    - turning ANTHROPIC_API_KEY back on
+    - starting sessions against fleet pages (ADR 0014 P3), which this unblocks on the container console but does not build
+    - scheduled or unattended runs from the container
+risks:
+  - "A model-driven session would run inside the container that also holds the operator's GitHub and console tokens; the decision must say why that is acceptable, or pick the host-runner route."
+  - "The console and devenv share one Dockerfile, so an image change reaches both unless a build target separates them."
+  - "The fleet's rule is latest dependencies with no exact pins, while the local runner is proven against one CLI version; how the CLI version is declared (a `toolchain:` entry is the existing exception) is part of the decision."
+  - "The container can use only the OAuth token passed in from .env; a login kept in the host's keychain does not reach it."
+  - "Pairing already works on this console and is the local-first route (§ 10.9), so the gain is convenience and ADR 0014 P3 rather than a missing capability; that may make this a decline."
+source: scout
+created: 2026-11-19
+issue_url: https://github.com/bamr87/bamr87/issues/941
