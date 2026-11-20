@@ -263,6 +263,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_projects_backfill.py`](tools/test_projects_backfill.py) | Offline tests for `projects_backfill.py` — decisions validation and compilation, the 50-op batching, the REST state reader and executor against a recording fake `gh`, th… |
 | [`test_projects_lint.py`](tools/test_projects_lint.py) | — |
 | [`test_quality_contract.py`](tools/test_quality_contract.py) | Tests specs/QUALITY.contract.yml against _data/specs.yml and every tool that reads it. |
+| [`test_release_please.py`](tools/test_release_please.py) | The release credential: `.github/workflows/release-please.yml` and its contract. |
 | [`test_scorecard_snapshot.py`](tools/test_scorecard_snapshot.py) | Offline fixture tests for tools/scorecard_snapshot.py (bamr87/bamr87#513): the OpenSSF Scorecard results → `security:` block of _data/conformance.yml, its --check gate,… |
 | [`test_sprint_record.py`](tools/test_sprint_record.py) | Tests for tools/sprint_record.py — the live expedite-sprint record (`sprint/v1`, constitution § 27.7). |
 | [`test_sprint_record_fixture.yml`](tools/test_sprint_record_fixture.yml) | Fixture records for tools/test_sprint_record.py and the /sprints page's evidence (test/evidence/sprints/). |
