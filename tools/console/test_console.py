@@ -44,6 +44,8 @@ from pathlib import Path
 # container — the console's own Tests job does — that was the RUNNING
 # console's index. core reads this at import, so it is set before any import.
 os.environ["DASH_CONSOLE_JOBS"] = tempfile.mkdtemp(prefix="console-test-jobs-")
+# Nor the checkout's page audit (.fleet/assist/): a test's page commands are not what a person did.
+os.environ["DASH_CONSOLE_PAGE_AUDIT"] = str(Path(os.environ["DASH_CONSOLE_JOBS"]) / "assist" / "page-audit.jsonl")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -3452,6 +3454,117 @@ def test_a_fleet_page_shares_itself_without_a_token_and_only_from_a_registered_o
         else:
             os.environ["DASH_CONSOLE_TOKEN"] = had_token
     assert console_app.page.fleet_ceiling() == core.assistant_config().fleet_pages, "the bridge reads fleet.yml's ceiling"
+
+
+def test_the_operator_sees_the_shared_fleet_pages_and_ends_one_by_eight_characters():
+    """The Assist page lists the fleet pages sharing themselves and can end one (issue #940). The end route
+    needs the console token, is not one of the token-free fleet routes, takes the eight characters the list
+    shows and never the session id, and tells the page it was the console that ended it."""
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("  (fastapi not installed — shared pages route test skipped)")
+        return
+    import json as _json
+    import app as console_app
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    origin = sorted(o for o in console_app.fleet_page_origins() if o.startswith("http://127.0.0.1:"))[0]
+    token = "a-console-token-no-fleet-page-holds"
+    auth = {"Authorization": f"Bearer {token}"}
+
+    def fleet(verb, body):
+        return client.post(f"/api/assist/fleet/{verb}", content=_json.dumps(body),
+                           headers={"Content-Type": "text/plain;charset=UTF-8", "Origin": origin})
+
+    orig_ceiling = console_app.page.fleet_ceiling
+    had_token = os.environ.get("DASH_CONSOLE_TOKEN")
+    os.environ["DASH_CONSOLE_TOKEN"] = token
+    try:
+        console_app.page.fleet_ceiling = lambda: "act"
+        sid = fleet("open", {"mode": "ask", "page": {"repo": "bamr87/x", "source": "pages/about.md"}}).json()["sid"]
+        # the list is part of the activity document, behind the token, and names a session by eight characters
+        assert client.get("/api/assist/activity").status_code == 401
+        doc = client.get("/api/assist/activity?days=0&limit=5", headers=auth).json()
+        shared = doc["shared_pages"]
+        assert shared["access"] == "act" and shared["setting"] == "assistant.fleet_pages"
+        (row,) = [x for x in shared["sessions"] if x["origin"] == origin]
+        assert row["id"] == sid[:8] and row["page"]["repo"] == "bamr87/x" and row["paired"] == 0
+        assert sid not in _json.dumps(doc), "no session id leaves the broker"
+        # ending one: not without the token, not from a fleet page, not by the whole id, not a stranger
+        end = "/api/assist/shared-pages/end"
+        assert client.post(end, json={"id": row["id"]}).status_code == 401
+        assert not end.startswith(console_app.FLEET_PAGE_PREFIX), "a page cannot end another page's session"
+        assert fleet("end", {"sid": sid}).status_code == 404, "the token-free routes have no such verb"
+        assert client.post(end, json={"id": sid}, headers=auth).status_code == 422
+        r = client.post(end, json={"id": "0" * 8}, headers=auth)
+        assert r.status_code == 404 and "0" * 8 not in r.text, r.text
+        r = client.post(end, json={"id": row["id"]}, headers=auth)
+        assert r.status_code == 200 and r.json()["ended"] is True and sid not in r.text, r.text
+        # the row goes; the page's next poll is told it was the console; a paired session's tool is told why
+        after = client.get("/api/assist/activity?days=0", headers=auth).json()
+        assert not [x for x in after["shared_pages"]["sessions"] if x["origin"] == origin]
+        gone = fleet("next", {"sid": sid, "wait": 0})
+        assert gone.status_code == 404 and gone.json()["ended"] == "console", gone.text
+        cmd = client.post("/api/assist/page-command", json={"sid": sid, "action": "snapshot", "client": "paired"},
+                          headers=auth)
+        assert cmd.status_code == 404 and "operator ended" in cmd.json()["detail"], cmd.text
+        assert client.post(end, json={"id": row["id"]}, headers=auth).status_code == 404, "an ended session is gone"
+        # and the audit has the line, which the activity document reads back
+        last = after["page_audit"]["recent"][0]
+        assert (last["action"], last["client"], last["kind"], last["origin"], last["session"]) == \
+            ("end", "operator", "fleet", origin, sid[:8]), last
+        assert after["page_audit"]["summary"]["ended_by_operator"] >= 1
+    finally:
+        console_app.page.fleet_ceiling = orig_ceiling
+        if had_token is None:
+            os.environ.pop("DASH_CONSOLE_TOKEN", None)
+        else:
+            os.environ["DASH_CONSOLE_TOKEN"] = had_token
+
+
+def test_the_activity_document_is_the_shared_reader_and_the_published_build_carries_no_activity():
+    """/api/assist/activity is fleetcore.assistlog's document plus what only the console knows: the fleet
+    pages shared now and the assistant's entry in the agent inventory. Paths are shown relative; the
+    published build gets the inventory entry and nothing of one machine's records."""
+    from fleetcore import assistlog
+    doc = core.assist_activity_doc(0, 5)
+    assert doc["schema"] == assistlog.SCHEMA and doc["agent"] == assistlog.AGENT and doc["local"] is True
+    assert set(doc) >= {"page_audit", "messages", "shared_pages", "agent_entry", "cost_label", "window_days"}
+    assert not str(doc["messages"]["ledger"]).startswith(str(Path.home())), "a home path is shown as ~/…"
+    assert core.page_audit_path() == Path(os.environ["DASH_CONSOLE_PAGE_AUDIT"]), "the tests' own audit, never the checkout's"
+    entry = doc["agent_entry"]
+    assert entry and entry["id"] == assistlog.AGENT, "the assistant is registered (_data/agents.yml, § 29)"
+    cfg = core.assistant_config()
+    assert entry["model"] == cfg.model and entry["budget"]["per_run_usd"] == cfg.budget_usd
+    assert entry["switch"] == {"config": "assistant.enabled"} and entry["run_record"] == "ai-ledger"
+    assert entry["kpis"], "its kind declares KPIs (rule 3)"
+    public = core.assist_activity_doc(local=False)
+    assert public["local"] is False and public["agent_entry"] == entry
+    assert public["page_audit"]["path"] is None and public["messages"]["ledger"] is None
+    assert public["page_audit"]["recent"] == [] and public["messages"]["recent"] == []
+    assert public["shared_pages"] == {"access": "off", "setting": "assistant.fleet_pages",
+                                      "cap": public["shared_pages"]["cap"], "sessions": []}
+    import snapshot
+    assert snapshot.documents()["assist/activity"]["local"] is False
+
+
+def test_every_operation_that_starts_a_claude_session_names_a_registered_agent():
+    """Constitution § 29: an agent lands with its entry in _data/agents.yml. A console operation that starts
+    a Claude session is one, so each names its agent (`agent=`), and the name is in the inventory. This is
+    what catches the NEXT such operation: the assistant ran unregistered until 2026-11-20."""
+    inventory = {a["id"] for a in (core.load_yaml(core.DATA / "agents.yml") or {}).get("agents") or []}
+    spenders = {op_id: op for op_id, op in core.OPS.items() if op.get("needs") == "claude"}
+    assert {"assist", "prs-agent", "loop-run"} <= set(spenders)
+    for op_id, op in spenders.items():
+        agent = op.get("agent")
+        assert agent, f"operation {op_id} starts a Claude session and names no agent (add agent=, and its _data/fleet.yml harness.agents entry)"
+        if agent.endswith("*"):
+            assert any(a.startswith(agent[:-1]) for a in inventory), f"{op_id}: no agent matches {agent}"
+        else:
+            assert agent in inventory, f"{op_id}: {agent} is not in _data/agents.yml (run tools/dash agents)"
+        assert op.get("confirm") == "spend", f"{op_id} spends, so it asks first"
+    listed = {o["id"]: o.get("agent") for o in core.list_ops()}
+    assert listed["assist"] == "local:console-assist" and listed["status"] is None
 
 
 def test_the_pages_site_reaches_a_fleet_route_without_the_remote_page_refusal():

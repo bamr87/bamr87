@@ -1,0 +1,22 @@
+The console's assistant (local:console-assist), all time
+
+Messages (AI ledger, source `console assist`): 2 message(s) · $0.3207 API-equivalent (estimate) · 2 ok
+  2026-11-20T02:16:39+00:00  ok             $0.1540    6 turn(s)  claude-sonnet-5-5  session 28bea297
+  2026-11-19T19:42:47+00:00  ok             $0.1666    5 turn(s)  claude-sonnet-5-5  session a3922fc8
+
+Page audit (<scratch>/page-audit.jsonl): 28 command(s) on 6 session(s) · 20 ok, 6 page, 2 timeout · asked by 27 paired, 1 dock · pages: 19 fleet, 9 console · 3 ended from the console
+  fleet pages by origin: 25 http://127.0.0.1:4777
+  2026-11-20T20:32:44+00:00  b1537ffa operator end       ok       ask  http://127.0.0.1:4777  http://127.0.0.1:4777
+  2026-11-20T20:24:52+00:00  4baaea25 paired   read      ok       act  http://127.0.0.1:4777  e13
+  2026-11-20T20:24:52+00:00  4baaea25 paired   click     ok       act  http://127.0.0.1:4777  e7
+  2026-11-20T20:24:52+00:00  4baaea25 paired   fill      ok       act  http://127.0.0.1:4777  e3 (3 chars)
+  2026-11-20T20:24:51+00:00  4baaea25 paired   snapshot  ok       act  http://127.0.0.1:4777  
+  2026-11-20T20:24:51+00:00  4baaea25 paired   attach    ok       act  http://127.0.0.1:4777  http://127.0.0.1:4777
+  2026-11-20T20:23:52+00:00  7b1a76ef operator end       ok       act  http://127.0.0.1:4777  http://127.0.0.1:4777
+  2026-11-20T20:19:37+00:00  5cba1cdc operator end       ok       act  http://127.0.0.1:4777  http://127.0.0.1:4777
+  2026-11-20T20:19:15+00:00  5cba1cdc paired   click     page     act  http://127.0.0.1:4777  e16
+  2026-11-20T20:19:15+00:00  5cba1cdc paired   click     ok       act  http://127.0.0.1:4777  e7
+  2026-11-20T20:19:14+00:00  5cba1cdc paired   fill      page     act  http://127.0.0.1:4777  e4 (1 chars)
+  2026-11-20T20:19:14+00:00  5cba1cdc paired   fill      ok       act  http://127.0.0.1:4777  e3 (5 chars)
+
+A paired Claude Code session has page-audit lines (client `paired`) and no ledger row: it is the person's own session, never the capped runner's. Its cost is in its transcript (`tools/dash lake assist` reads it from the lake).

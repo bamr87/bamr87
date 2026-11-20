@@ -1,5 +1,5 @@
 /*!
- * fleet-assist v0.1.0 — the fleet's page bridge: an assistant session can see
+ * fleet-assist v0.1.1 — the fleet's page bridge: an assistant session can see
  * the page a person has open and, as far as that person allows, use it.
  * Source: bamr87/bamr87 templates/assistant/ (spec: specs/ASSIST.md, UPS-AST).
  *
@@ -46,7 +46,7 @@
 (function (root) {
   'use strict';
 
-  var VERSION = '0.1.0';
+  var VERSION = '0.1.1';
   if (root.FleetAssistCore && root.FleetAssistCore.version) { return; } // loaded twice: the first copy wins
 
   /* ---------------------------------------------------------------------- */
@@ -911,6 +911,8 @@
       if (!res.ok) {
         const err = new Error((reply && reply.detail) || 'the console answered ' + res.status);
         err.status = res.status;
+        // `console` when the operator ended this page's sharing from the console's Assist page
+        err.ended = reply && typeof reply.ended === 'string' ? reply.ended : null;
         throw err;
       }
       return reply || {};
@@ -1005,10 +1007,13 @@
         } catch (e) {
           if (mine !== epoch || (e && e.name === 'AbortError')) return;
           if (e.status === 404 || e.status === 403) {
-            // The console dropped the session (a restart, the idle sweep) or switched fleet pages off.
+            // The console dropped the session (a restart, the idle sweep), its operator ended it, or fleet
+            // pages were switched off. Each is said in its own words: the person should know which.
             declineAll();
             remember(null);
-            set({ session: null, error: e.status === 403 ? e.message : 'The console no longer holds this page\'s session (it restarted, or the session sat idle). Share again to continue.' });
+            set({ session: null, error: e.status === 403 ? e.message
+              : e.ended === 'console' ? 'Sharing was ended from the console. Share again to carry on.'
+              : 'The console no longer holds this page\'s session (it restarted, or the session sat idle). Share again to continue.' });
             return;
           }
           failures += 1;

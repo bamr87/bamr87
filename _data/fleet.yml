@@ -1248,6 +1248,10 @@ harness:
       path: ~/.claude/projects/
       writer: Claude Code (every local session)
       slo: live
+    assist-page-audit:
+      path: .fleet/assist/page-audit.jsonl (DASH_CONSOLE_PAGE_AUDIT)
+      writer: the console's page bridge (tools/console/page_bridge.py, one line per page command, pairing and operator's end)
+      slo: on-change
     github-live:
       path: the GitHub API at run time (the triggering event, the repo, its issues, PRs and run logs)
       writer: GitHub
@@ -1288,7 +1292,7 @@ harness:
       local_entry: tools/update-submodules.sh --no-commit --no-push
       run_record: none
     local:harness-review:
-      reads: [claude-transcripts, github-live, lake, harness-health, loop-runs, jev-ledger, harness-library]
+      reads: [claude-transcripts, github-live, lake, harness-health, loop-runs, jev-ledger, harness-library, assist-page-audit]
       model_from: harness_refinement.model
       budget_from: {per_run_usd: harness_refinement.stage_usd, monthly_usd: budget.loops.monthly_usd}
       switch: {config: harness_refinement.enabled, uninstall: tools/install-harness-review.sh --uninstall}
@@ -1315,6 +1319,22 @@ harness:
       switch: {config: pr_queue.agent.enabled}
       run_record: ai-ledger
       local_entry: tools/dash prs apply --plan-id <id> --apply
+    local:console-assist:
+      # The console's assistant (tools/console/README.md "The assistant", ADR 0013): one capped,
+      # read-only session per message a person sends from the dock or the Assist page; no
+      # schedule, no installer. Its page-level record is harness.sources.assist-page-audit;
+      # `tools/dash apps assist activity` and the Assist page read both records back.
+      declare:
+        kind: local-job
+        where: tools/console/core.py
+        trigger: "on demand: a message a person sends from the console's docked assistant or its Assist page, behind the spend confirm (the assist operation)"
+        runs: ["tools/dash-gen ai-run --source 'console assist' (one session per message)"]
+      reads: [registry, fleet-triage, work-queue, harness-health, harness-registry, lake, loop-runs, harness-library, telemetry]
+      model_from: assistant.model
+      budget_from: {per_run_usd: assistant.budget_usd}
+      switch: {config: assistant.enabled}
+      run_record: ai-ledger
+      local_entry: tools/dash ops run assist question=<text> --confirm
 
 # --------------------------------------------------------------------------- #
 # Harness refinement — JEV capability three: recursive harness refinement after

@@ -39,8 +39,12 @@ What holds (constitution § 10.6, § 13.6; tools/console/README.md "The assistan
               secret field and the console's documents carry credential names
               and presence, never a value.
   audit       one append-only JSONL record per command: when, which session,
-              who asked (the dock's session or a paired one), the action, its
-              target, the mode, the outcome and how long it took (§ 13.5).
+              who asked (the dock's session or a paired one), which kind of
+              page (the console's own or a fleet page, with its origin), the
+              action, its target, the mode, the outcome and how long it took
+              (§ 13.5). The same line goes to the console's stderr, which the
+              log plane ships; fleetcore.assistlog reads the file back for the
+              Assist page, the MCP layer and the lake.
 
   fleet pages a page of another fleet site or app (templates/assistant/
               fleet-assist.js, ADR 0014) opens a session the same way, from its
@@ -49,7 +53,9 @@ What holds (constitution § 10.6, § 13.6; tools/console/README.md "The assistan
               ceiling (assistant.fleet_pages), its own cap, so it cannot crowd
               out the console's dock, and it is bound to the origin that opened
               it. The console starts no session of its own against one: a fleet
-              page is reached by a paired Claude Code session only.
+              page is reached by a paired Claude Code session only. The operator
+              can end one from the Assist page (`end`), by the eight characters
+              the audit log calls it: the id itself never leaves this module.
 
 Stdlib only, no web framework: app.py puts HTTP in front of it and core.py asks
 it whether a session exists; test_page_bridge.py drives it with a fake clock.
@@ -78,6 +84,8 @@ CEILINGS = ("off", "look", "act")
 ASKS = ("click", "fill", "press")
 
 SID_RX = re.compile(r"^[0-9a-f]{32}$")
+#: what the audit log and the operator's view call a session: its first eight characters, never the id
+HANDLE_RX = re.compile(r"^[0-9a-f]{8}$")
 CMD_RX = re.compile(r"^[0-9a-f]{12}$")
 REF_RX = re.compile(r"^e[0-9]{1,5}$")
 # An in-app path: one leading slash (never `//host`), URL-safe characters only.
@@ -107,6 +115,9 @@ KEY_MAX = 200                # a page_data key
 RESULT_MAX_CHARS = 60_000
 SNAPSHOT_MAX_CHARS = 24_000  # the page's own default; a tool may ask for less
 AUDIT_MAX_BYTES = 2_000_000
+ENDED_TTL_S = 10 * 60.0      # how long an ended session's page and its paired session are told WHY it is gone
+ENDED_WHY = ("the operator ended this page's sharing from the console. The person on the page can share it "
+             "again from its panel")
 #: what a fleet page may say about itself (fleet-assist.js `facts`): short strings, shown to the session that pairs
 PAGE_FACTS = ("repo", "branch", "source", "route", "framework", "env", "version", "base", "title", "path", "kit")
 FACT_MAX = 300
@@ -131,6 +142,15 @@ class NoSession(KeyError):
 
 class Busy(RuntimeError):
     """A cap said no: too many sessions, a full queue, or too many commands this minute."""
+
+
+class Ended(NoSession):
+    """The operator ended this session from the console (PageBridge.end): said apart from a session that was
+    closed or dropped, so the page and a paired session can tell the person what happened."""
+
+
+class Ambiguous(RuntimeError):
+    """More than one session answers to that eight-character id: refused, never guessed."""
 
 
 class Refused(PermissionError):
@@ -283,6 +303,9 @@ class PageBridge:
     def __init__(self, audit_path: Path | None = None, clock: Callable[[], float] = time.monotonic,
                  ceiling: Callable[[], str] | None = None):
         self.audit_path = audit_path
+        #: where each audit line is ALSO printed (app.py sets the console's stderr, which the log plane
+        #: ships); None in tests and wherever nothing collects it
+        self.audit_stream: Any = None
         self.clock = clock
         #: reads _data/fleet.yml assistant.page_access; app.py wires core.assistant_page_access in
         self.ceiling: Callable[[], str] = ceiling or (lambda: "act")
@@ -290,18 +313,28 @@ class PageBridge:
         self.fleet_ceiling: Callable[[], str] = lambda: "off"
         self._cv = threading.Condition()
         self._sessions: dict[str, _Session] = {}
+        #: sessions the operator ended -> until when their callers are told so (ENDED_TTL_S)
+        self._ended: dict[str, float] = {}
         self._pair_fails: deque[float] = deque()
 
     # -- sessions ------------------------------------------------------------
     def _get(self, sid: str) -> _Session:
         s = self._sessions.get(sid) if isinstance(sid, str) and SID_RX.match(sid) else None
         if s is None:
-            raise NoSession("no such page session — it was closed or dropped as idle; reopen the assistant")
+            raise self._gone(sid, "no such page session — it was closed or dropped as idle; reopen the assistant")
         return s
+
+    def _gone(self, sid: Any, why: str) -> NoSession:
+        """The exception for a session that is not here: Ended while the operator's end is still remembered."""
+        if isinstance(sid, str) and self._ended.get(sid, 0.0) > self.clock():
+            return Ended(ENDED_WHY)
+        return NoSession(why)
 
     def _sweep(self, now: float) -> None:
         for sid in [k for k, s in self._sessions.items() if not s.polling and now - s.seen > IDLE_S]:
             self._drop(sid, "the page session was dropped as idle")
+        for sid in [k for k, until in self._ended.items() if until <= now]:
+            del self._ended[sid]
 
     def _drop(self, sid: str, why: str) -> None:
         s = self._sessions.pop(sid, None)
@@ -328,6 +361,31 @@ class PageBridge:
         if not s.origin or s.origin != origin:
             raise NoSession("no such page session — it was closed or dropped as idle; share the page again")
         return s
+
+    def end(self, handle: str) -> dict:
+        """The operator ends one fleet page's sharing from the console (the Assist page's End). The session is
+        named by the eight characters `sessions()` and the audit log show, so its id, which is the capability,
+        is never sent anywhere to do this. Unknown: NoSession. Two sessions with the same eight characters:
+        Ambiguous, never a guess. Whatever a session was waiting on is told why, the page's next poll and a
+        paired session's next tool are told the same for ENDED_TTL_S, and one audit line records it. The
+        console's own tabs are not ended this way: closing the dock does that."""
+        if not (isinstance(handle, str) and HANDLE_RX.match(handle)):
+            raise ValueError("id must be the eight characters the shared pages list shows")
+        with self._cv:
+            now = self.clock()
+            self._sweep(now)
+            hits = [s for s in self._sessions.values() if s.origin and s.sid.startswith(handle)]
+            if not hits:
+                raise NoSession("no fleet page is sharing itself under that id — it was closed or dropped as idle")
+            if len(hits) > 1:
+                raise Ambiguous("more than one shared page answers to that id — nothing was ended; reload the list")
+            s = hits[0]
+            out = {"ended": True, "id": s.sid[:8], "origin": s.origin, "page": dict(s.page), "paired": s.paired,
+                   "commands": s.commands}
+            self._ended[s.sid] = now + ENDED_TTL_S
+            self._drop(s.sid, ENDED_WHY)
+        self._audit(s.sid, "operator", "end", s.origin or "", s.mode, "ok", 0.0, s)
+        return out
 
     def _view(self, s: _Session, now: float, code: bool = False) -> dict:
         ceiling = self._ceiling(s)
@@ -480,7 +538,7 @@ class PageBridge:
             match.code, match.code_until = None, 0.0
             match.paired += 1
             view = self._view(match, now)
-        self._audit(match.sid, "paired", "attach", match.origin or "", view["mode"], "ok", 0.0)
+        self._audit(match.sid, "paired", "attach", match.origin or "", view["mode"], "ok", 0.0, match)
         return view
 
     # -- the page's side -----------------------------------------------------
@@ -505,7 +563,7 @@ class PageBridge:
                     now = self.clock()
                     s.seen = now
                     if sid not in self._sessions:
-                        raise NoSession("the page session was closed")
+                        raise self._gone(sid, "the page session was closed")
                     if s.poll_gen != mine:
                         return {"command": None, "session": self._view(s, now, code=True), "superseded": True}
                     if s.queue:
@@ -596,24 +654,41 @@ class PageBridge:
                                      f"{int(APPROVAL_S)} s, so it was not done" if ask and p.taken else
                                      "the page did not answer in time — it may be busy, asleep or closed")}
         outcome = "ok" if out.get("ok") else str(out.get("kind") or "failed")
-        self._audit(sid, client, action, target_of(action, clean), mode, outcome, time.monotonic() - started)
+        self._audit(sid, client, action, target_of(action, clean), mode, outcome, time.monotonic() - started, s)
         return {**out, "action": action, "mode": mode}
 
     # -- audit ---------------------------------------------------------------
-    def _audit(self, sid: str, client: str, action: str, target: str, mode: str, outcome: str, took_s: float) -> None:
-        path = self.audit_path
-        if path is None:
+    def _audit(self, sid: str, client: str, action: str, target: str, mode: str, outcome: str, took_s: float,
+               session: _Session | None = None) -> None:
+        """One line per command, attach and operator's end. `id` makes a line addressable (the lake keys on it);
+        `kind` says whose page it was, and a fleet page's line names its origin and the repo the page said it
+        is. Never the session id, never typed text (target_of), and the target is scrubbed twice over."""
+        path, stream = self.audit_path, self.audit_stream
+        if path is None and stream is None:
             return
-        row = {"at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "session": sid[:8],
-               "client": client, "action": action,
+        row = {"id": secrets.token_hex(6), "at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+               "session": sid[:8], "client": client, "kind": "fleet" if session is not None and session.origin
+               else "console", "action": action,
                "target": SECRETISH_RX.sub("<redacted>", scrub(target))[:300], "mode": mode,
                "outcome": outcome, "ms": int(took_s * 1000)}
+        if session is not None and session.origin:
+            row["origin"] = session.origin
+            if session.page.get("repo"):
+                row["repo"] = SECRETISH_RX.sub("<redacted>", str(session.page["repo"]))[:120]
+        line = json.dumps(row, ensure_ascii=False)
+        if stream is not None:
+            try:
+                print("page-bridge audit " + line, file=stream, flush=True)
+            except (OSError, ValueError) as exc:
+                print(f"page_bridge: audit line not printed: {exc}", flush=True)
+        if path is None:
+            return
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             if path.exists() and path.stat().st_size > AUDIT_MAX_BYTES:
                 path.replace(path.with_suffix(path.suffix + ".1"))
             with path.open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+                fh.write(line + "\n")
         except OSError as exc:
             # The command already happened on the page; an unwritable audit file must be said, not swallowed.
             print(f"page_bridge: audit line not written to {path}: {exc}", flush=True)

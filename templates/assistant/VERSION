@@ -1,13 +1,19 @@
 kit: assistant
-version: 0.1.0
+version: 0.1.1
 source: bamr87/bamr87 templates/assistant/
 seeded-by: tools/fanout.sh --kit assist --target <name> [--apply]
 files: fleet-assist.js, adapters/jekyll.html, adapters/mkdocs.html, adapters/static.html,
   adapters/django.html, adapters/AssistBridge.tsx, adapters/nextjs.tsx,
   tests/contract.test.mjs, tests/fixture.html, tests/fixture-2.html, test_assistant_kit.py
 spec: specs/ASSIST.md (UPS-AST)
-updated: 2026-11-19
+updated: 2026-11-20
 changelog: |
+  0.1.1 — the panel says when the console's operator ended the sharing.
+
+  * The console's Assist page lists the fleet pages sharing themselves and can
+    end one. The panel then reads "Sharing was ended from the console", apart
+    from a session the console dropped as idle or lost in a restart.
+
   0.1.0 — the console's page bridge, made portable (ADR 0014).
 
   * ONE FILE, THREE LAYERS. fleet-assist.js is `FleetAssistCore` (the page's
