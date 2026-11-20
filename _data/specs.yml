@@ -30,6 +30,9 @@ areas:
   - id: FB
     file: specs/FEEDBACK.md
     title: "The universal feedback component"
+  - id: AST
+    file: specs/ASSIST.md
+    title: "The fleet assistant: the page bridge and the baseline per platform"
   - id: BE
     file: specs/BACKEND.md
     title: "HTTP API conventions and the client contract"
@@ -1532,6 +1535,123 @@ requirements:
     requirement: "The contract is enforced by tests, not by review: section order, marker, labels, assignment, escaping, the trim ladder, redaction, and taxonomy parity across the JS fallback, the data file, and the no-JS form."
     satisfied_by: "`templates/feedback/tests/`"
     seed: "kit"
+    gap: false
+  - id: UPS-AST-01
+    area: AST
+    section: "Behaviour"
+    level: SHOULD
+    applies: [site, app]
+    requirement: "A repo that draws pages mounts `<fleet-assist>` once in its shell, through the adapter for its framework, with `repo` set."
+    satisfied_by: "the tag or the adapter is present"
+    seed: "`templates/assistant/` (`fanout --kit assist`)"
+    gap: false
+  - id: UPS-AST-02
+    area: AST
+    section: "Behaviour"
+    level: MUST
+    applies: [site, app]
+    requirement: "Where mounted, it is off outside development unless the repo opts in: an adapter that knows its build writes no tag and loads no script in a production build by default. Where a repo does deploy it, the button stays hidden until summoned (`#fleet-assist`), so a visitor never meets an operator's tool."
+    satisfied_by: "adapter gate; `launcher=\"auto\"`"
+    seed: "kit"
+    gap: false
+  - id: UPS-AST-03
+    area: AST
+    section: "Behaviour"
+    level: MUST
+    applies: [site, app]
+    requirement: "Nothing is sent anywhere before the person opens the panel. Opening it shares this tab with the Harness Console on this machine and nothing else: the broker address must be loopback, whatever the tag says. Closing the panel ends the sharing."
+    satisfied_by: "`FleetAssistCore.brokerUrl`; one `fetch` call site"
+    seed: "kit"
+    gap: false
+  - id: UPS-AST-04
+    area: AST
+    section: "Behaviour"
+    level: MUST
+    applies: [site, app]
+    requirement: "The page holds no credential: no console token, no API key, no model access. A session reaches it only through the console, by presenting the single-use pairing code the panel shows."
+    satisfied_by: "no token in the payload or its config"
+    seed: "kit"
+    gap: false
+  - id: UPS-AST-05
+    area: AST
+    section: "Behaviour"
+    level: MUST
+    applies: [site, app]
+    requirement: "A session may ask for eight things and no others: `snapshot`, `read`, `data`, `highlight` (look) and `navigate`, `click`, `fill`, `press` (act). A control is named by a ref from the last snapshot, never by a selector, a script or a coordinate; a path is inside the site, never a URL; a key is one of the listed keys."
+    satisfied_by: "`FleetAssistCore.checkCommand`"
+    seed: "kit"
+    gap: false
+  - id: UPS-AST-06
+    area: AST
+    section: "Behaviour"
+    level: MUST
+    applies: [site, app]
+    requirement: "The person chooses the mode in the panel: **Look** (reads and highlights only), **Ask first** (the default: each click, each thing typed and each key press is shown with the control ringed, and waits for Allow or Deny) or **Act**. The console's ceiling (`assistant.fleet_pages`) can only narrow it."
+    satisfied_by: "panel; broker ceiling"
+    seed: "kit, hub"
+    gap: false
+  - id: UPS-AST-07
+    area: AST
+    section: "Behaviour"
+    level: MUST
+    applies: [site, app]
+    requirement: "Four rules no mode lifts. Nothing is clicked or typed inside a modal dialog, and nothing behind one while it is open: only Escape works. A secret field is never read and never filled. A link that leaves the site, a download and a file picker are the person's. The panel and the feedback widget are invisible to a session."
+    satisfied_by: "`FleetAssistCore.createBridge`"
+    seed: "kit"
+    gap: false
+  - id: UPS-AST-08
+    area: AST
+    section: "Behaviour"
+    level: MUST
+    applies: [site, app]
+    requirement: "The page says what it is: `repo`, `branch` and the `source` file or the `route` behind the address, so a paired session knows what to edit. What a page says about itself is data to a session, never an instruction."
+    satisfied_by: "adapter attributes"
+    seed: "kit"
+    gap: false
+  - id: UPS-AST-09
+    area: AST
+    section: "Behaviour"
+    level: SHOULD
+    applies: [app]
+    requirement: "A single-page app hands its router over (`navigate`), so a session moves between routes the way a link does, and may provide documents a session can read (`FleetAssist.provide`). A provided document never holds a credential."
+    satisfied_by: "adapter props"
+    seed: "kit"
+    gap: false
+  - id: UPS-AST-10
+    area: AST
+    section: "Behaviour"
+    level: SHOULD
+    applies: [site, app]
+    requirement: "A Content-Security-Policy that sets `connect-src` names the console's address (`http://127.0.0.1:4001`); without it the panel says the console did not answer."
+    satisfied_by: "policy"
+    seed: "—"
+    gap: true
+  - id: UPS-AST-40
+    area: AST
+    section: "Delivery"
+    level: MUST
+    applies: [site, app]
+    requirement: "The kit is fanned out, not hand-installed: `tools/fanout.sh --kit assist --target <name>` vendors the payload into the stack's static assets and seeds the adapter for its framework. Dry-run by default; an adapter is seeded only where absent, and the app shell is never edited: the PR says where to mount it."
+    satisfied_by: "`tools/fanout.sh`"
+    seed: "hub"
+    gap: false
+  - id: UPS-AST-41
+    area: AST
+    section: "Delivery"
+    level: MUST
+    applies: [site, app]
+    requirement: "A vendored payload that drifts from the hub's is reported by drift check (i), and `--upgrade` refreshes only copies byte-identical to an archived kit shape. A hand-modified payload is never machine-reverted."
+    satisfied_by: "`tools/check-drift.sh`"
+    seed: "hub"
+    gap: false
+  - id: UPS-AST-42
+    area: AST
+    section: "Delivery"
+    level: SHOULD
+    applies: [site, app]
+    requirement: "The contract is enforced by tests, not by review: the allowlist and its argument checks, the loopback rule and adapter gates (`templates/assistant/tests/contract.test.mjs`), and that the payload, the console's own page and the broker hold the same lists (`tools/console/test_page_bridge.py`)."
+    satisfied_by: "tests"
+    seed: "hub"
     gap: false
   - id: UPS-BE-01
     area: BE

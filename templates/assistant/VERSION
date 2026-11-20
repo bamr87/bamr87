@@ -1,0 +1,30 @@
+kit: assistant
+version: 0.1.0
+source: bamr87/bamr87 templates/assistant/
+seeded-by: tools/fanout.sh --kit assist --target <name> [--apply]
+files: fleet-assist.js, adapters/jekyll.html, adapters/mkdocs.html, adapters/static.html,
+  adapters/django.html, adapters/AssistBridge.tsx, adapters/nextjs.tsx,
+  tests/contract.test.mjs, tests/fixture.html, tests/fixture-2.html, test_assistant_kit.py
+spec: specs/ASSIST.md (UPS-AST)
+updated: 2026-11-19
+changelog: |
+  0.1.0 — the console's page bridge, made portable (ADR 0014).
+
+  * ONE FILE, THREE LAYERS. fleet-assist.js is `FleetAssistCore` (the page's
+    rules and its eight actions, usable without the panel), the link to the
+    Harness Console on this machine, and `<fleet-assist>` (the shadow-DOM
+    panel: share, Look / Ask first / Act, Allow and Deny, a pairing code).
+    Zero dependencies; nothing is sent until the person opens the panel.
+  * THE SAME RULES AS THE CONSOLE'S OWN PAGE. A control is a ref from a
+    snapshot, never a selector; nothing is clicked or typed inside a modal
+    dialog or behind an open one; a secret field is never read or filled; a
+    link that leaves the site is the person's. tools/console/
+    test_page_bridge.py holds the kit, the console's page and the broker to
+    one set of lists.
+  * A SITE OF PLAIN PAGES KEEPS ITS SESSION. Navigating loads a new address;
+    the shared session is picked up on the next page (sessionStorage, this tab
+    only), and the broker hands a command to the newest poll only.
+  * ADAPTERS for Jekyll, MkDocs, plain HTML, Django templates, React (Vite)
+    and Next.js. Each is off outside development unless the repo says otherwise.
+  * A fleet page is reached by PAIRING only: a Claude Code session presents
+    the single-use code the panel shows. The page holds no console token.

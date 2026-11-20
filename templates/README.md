@@ -91,6 +91,18 @@ The in-repo Universal Project Standard gate (spec: [`specs/CONFORMANCE.md`](../s
 | `conformance.yml` | caller → `fleet-conformance.yml@v2` with `hub-ref: v2` (`__DEFAULT_BRANCH__` substituted); inputs `kinds`, `tier`, `gate`, `hub-ref` |
 | `VERSION` | Kit provenance + changelog |
 
+## `assistant/`
+
+The fleet assistant kit (spec: [`specs/ASSIST.md`](../specs/ASSIST.md), UPS-AST; decision: [ADR 0014](../docs/adr/0014-fleet-assistant-baseline.md)) — the Harness Console's page bridge as a framework-agnostic web component, so a Claude Code session paired with a page of any fleet site or app can see it and, as far as the person on it allows, use it. See [`assistant/README.md`](assistant/README.md) for how it works, the rules no session can lift and the install. Fanned out with `tools/fanout.sh --kit assist` (CLI only until the standard is ratified); `tools/dash apps assist` lists which adapter each repo gets.
+
+| File | Purpose |
+| --- | --- |
+| `fleet-assist.js` | The payload: `FleetAssistCore` (the rules and the eight actions), the link to the console on this machine, and the `<fleet-assist>` panel |
+| `adapters/` | One adapter per framework family: Jekyll, MkDocs, plain HTML, Django templates, React (Vite), Next.js |
+| `package.json` | npm manifest `@bamr87/fleet-assist` — published by `publish-kits.yml` |
+| `tests/`, `test_assistant_kit.py` | The contract tests and the fixture pages; the Python file holds the kit to its own lists and runs the contract tests in CI |
+| `VERSION` | Kit provenance and changelog |
+
 ## `feedback/`
 
 The universal feedback widget kit (spec: [`specs/FEEDBACK.md`](../specs/FEEDBACK.md), UPS-FB) — the fleet-wide "Improve this page → GitHub issue" component extracted from the zer0-mistakes theme as a framework-agnostic web component. See [`feedback/README.md`](feedback/README.md) for install and the issue contract. Fanned out with `tools/fanout.sh --kit feedback` (dispatch: [`fanout.yml`](../.github/workflows/fanout.yml) (kit `feedback`)); vendored copies are held to the hub's by drift check (i).

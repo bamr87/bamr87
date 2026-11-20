@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fixture — fleet-assist</title>
+  <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebPage", "name": "Fixture"}</script>
+  <style>
+    body { font: 16px/1.5 system-ui, sans-serif; margin: 0; }
+    header, main { padding: 12px 24px; }
+    header nav a { margin-right: 12px; }
+    label { display: block; margin: 8px 0; }
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, .4); }
+    .modal.show { display: block; }
+    .modal > div { background: #fff; margin: 80px auto; padding: 16px; width: 320px; }
+    #out { padding: 8px; background: #f3f3f3; min-height: 1.5em; }
+  </style>
+</head>
+<body>
+  <!-- A page with one of everything the rules are about. tests/browser.test.mjs drives it; so can a person:
+       python3 -m http.server 4777 --bind 127.0.0.1 --directory templates/assistant  →  /tests/fixture.html -->
+  <header>
+    <nav aria-label="Site">
+      <a href="fixture.html" aria-current="page">Home</a>
+      <a href="fixture-2.html">Second page</a>
+      <a href="https://example.com/elsewhere">Elsewhere</a>
+    </nav>
+  </header>
+  <main>
+    <h1>Fixture page</h1>
+    <p>A page of plain HTML, the way a static site serves one.</p>
+
+    <h2>A form</h2>
+    <form id="form">
+      <label>Display name <input id="name" name="display_name" type="text"></label>
+      <label>Password <input id="pw" name="password" type="password" value="hunter2-do-not-read"></label>
+      <label>Colour
+        <select id="colour" name="colour"><option value="r">Red</option><option value="g">Green</option></select>
+      </label>
+      <label><input id="agree" type="checkbox"> I agree</label>
+      <button id="save" type="submit">Save</button>
+      <button id="off" type="button" disabled>Not available</button>
+    </form>
+    <p id="out" role="status"></p>
+
+    <h2>Dialogs</h2>
+    <button id="danger" type="button">Delete everything</button>
+    <button id="soft" type="button">Open the settings dialog</button>
+
+    <h2>A table</h2>
+    <table>
+      <thead><tr><th>Repo</th><th>State</th></tr></thead>
+      <tbody><tr><td>alpha</td><td>green</td></tr><tr><td>beta</td><td>red</td></tr></tbody>
+    </table>
+  </main>
+
+  <dialog id="confirm" aria-label="Confirm deletion">
+    <p>Delete everything? This cannot be undone.</p>
+    <button id="yes" type="button">Yes, delete</button>
+    <button id="no" type="button">Cancel</button>
+  </dialog>
+
+  <div id="settings" class="modal" role="dialog" aria-modal="true" aria-label="Settings">
+    <div>
+      <label>Nickname <input id="nick" type="text"></label>
+      <button id="apply" type="button">Apply</button>
+      <button id="dismiss" type="button">Close</button>
+    </div>
+  </div>
+
+  <script>
+    const out = document.getElementById('out');
+    document.getElementById('form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      out.textContent = 'saved: ' + document.getElementById('name').value + ' / ' + document.getElementById('colour').value +
+        (document.getElementById('agree').checked ? ' / agreed' : '');
+    });
+    const confirmBox = document.getElementById('confirm');
+    document.getElementById('danger').addEventListener('click', () => confirmBox.showModal());
+    document.getElementById('yes').addEventListener('click', () => { out.textContent = 'DELETED'; confirmBox.close(); });
+    document.getElementById('no').addEventListener('click', () => confirmBox.close());
+    const settings = document.getElementById('settings');
+    document.getElementById('soft').addEventListener('click', () => settings.classList.add('show'));
+    document.getElementById('apply').addEventListener('click', () => { out.textContent = 'APPLIED'; settings.classList.remove('show'); });
+    document.getElementById('dismiss').addEventListener('click', () => settings.classList.remove('show'));
+    settings.addEventListener('keydown', (e) => { if (e.key === 'Escape') settings.classList.remove('show'); });
+  </script>
+
+  <fleet-assist id="assist" repo="bamr87/fixture" branch="main" source="templates/assistant/tests/fixture.html" framework="static-html" env="development"></fleet-assist>
+  <script>
+    // A test names its broker once, in the address; it is remembered for this tab so the next page of the
+    // fixture uses the same one. The payload still refuses any host but this machine.
+    (function () {
+      const named = new URLSearchParams(location.search).get('broker');
+      if (named) sessionStorage.setItem('fixture-broker', named);
+      const broker = sessionStorage.getItem('fixture-broker');
+      if (broker) document.querySelector('fleet-assist').setAttribute('broker', broker);
+    })();
+  </script>
+  <script src="../fleet-assist.js"></script>
+</body>
+</html>

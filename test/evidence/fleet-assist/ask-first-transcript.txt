@@ -1,0 +1,28 @@
+
+> page_attach("code": "<the code the panel showed>")
+  {"mode": "ask", "ceiling": "act", "live": true, "kind": "fleet", "origin": "http://127.0.0.1:4777", "page": {"repo": "bamr87/fixture", "branch": "main", "source": "templates/assistant/tests/fixture-2.html", "framework": "static-html", "env": "development", "base": "/", "title": "Second page \u2014 fleet-assist fixture", "path": "/tests/fixture-2.html", "kit": "fleet-assist 0.1.0"}}
+
+> page_snapshot()
+  {"route": "/tests/fixture-2.html", "title": "Second page \u2014 fleet-assist fixture", "mode": "ask", "dialogs": [], "modal_open": false, "refs": 4, "page": {"repo": "bamr87/fixture", "branch": "main", "source": "templates/assistant/tests/fixture-2.html", "framework": "static-html", "env": "development", "base": "/", "title": "Second page \u2014 fleet-assist fixture", "path": "/tests/fixture-2.html", "kit": "fleet-assist 0.1.0"}}
+    == the page ==
+      # Second page [e1]
+      You arrived by loading a new address.
+      [e2] button "Say hello"
+    == the site around the page: header, navigation, sidebars ==
+      [e3] link "Home" → /tests/fixture.html [e4] link "Second page" → /tests/fixture-2.html (current)
+
+> page_click("ref": "@Say hello")
+  REFUSED: declined: the person did not allow it: Click the button "Say hello". That is their answer — do not retry it or look for another way to do the same thing
+
+> page_click("ref": "@Say hello")
+  {"clicked": "Say hello", "route_before": "/tests/fixture-2.html", "route": "/tests/fixture-2.html", "dialogs": []}
+
+> page_snapshot()
+  {"route": "/tests/fixture-2.html", "title": "Second page \u2014 fleet-assist fixture", "mode": "ask", "dialogs": [], "modal_open": false, "refs": 4, "page": {"repo": "bamr87/fixture", "branch": "main", "source": "templates/assistant/tests/fixture-2.html", "framework": "static-html", "env": "development", "base": "/", "title": "Second page \u2014 fleet-assist fixture", "path": "/tests/fixture-2.html", "kit": "fleet-assist 0.1.0"}}
+    == the page ==
+      # Second page [e1]
+      You arrived by loading a new address.
+      [e2] button "Say hello"
+      hello
+    == the site around the page: header, navigation, sidebars ==
+      [e3] link "Home" → /tests/fixture.html [e4] link "Second page" → /tests/fixture-2.html (current)

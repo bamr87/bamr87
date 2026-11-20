@@ -38,6 +38,8 @@ terminal". DASH_CONSOLE_AUTH=off refuses every credential write.
 """
 from __future__ import annotations
 
+import json
+import math
 import os
 import re
 import secrets as _secrets
@@ -49,6 +51,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Web
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, StreamingResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
 import core
 import decision_index
@@ -79,6 +82,7 @@ jobs = core.JobManager()
 # starts a session for it). Its ceiling is _data/fleet.yml assistant.page_access, read on every command.
 page = page_bridge.BRIDGE
 page.ceiling = core.assistant_page_access
+page.fleet_ceiling = core.assistant_fleet_pages
 page.audit_path = core.JOB_DIR / "assist" / "page-audit.jsonl"
 
 
@@ -116,6 +120,10 @@ REMOTE_ORIGINS = {o.strip().rstrip("/").lower() for o in
                   [_PAGES_ORIGIN, *(os.environ.get("DASH_CONSOLE_ALLOWED_ORIGINS") or "").split(",")]
                   if o.strip()}
 tui = tui_bridge.TuiBridge(ALLOWED_HOSTS, REMOTE_ORIGINS)
+
+
+#: where a page of another fleet site talks to the bridge (templates/assistant/fleet-assist.js)
+FLEET_PAGE_PREFIX = "/api/assist/fleet/"
 
 
 def host_refusal(header: str | None) -> str | None:
@@ -219,7 +227,9 @@ async def remote_page(request: Request, call_next):
     the page can read. The refusal is the point: no token configured, no
     remote page."""
     origin = (request.headers.get("origin") or "").rstrip("/")
-    if not origin or origin.lower() not in REMOTE_ORIGINS or not request.url.path.startswith("/api"):
+    # A fleet page's own calls (/api/assist/fleet/…) carry no token by design and answer their own CORS.
+    if (not origin or origin.lower() not in REMOTE_ORIGINS or not request.url.path.startswith("/api")
+            or request.url.path.startswith(FLEET_PAGE_PREFIX)):
         return await call_next(request)
     headers = _cors(origin)
     if request.method == "OPTIONS":
@@ -343,7 +353,9 @@ class PageResult(BaseModel):
 
 
 class PageCommand(BaseModel):
-    """One action a session's page tool asks of one open page: an allowlisted action and its arguments."""
+    """One action a session's page tool asks of one open page: an allowlisted action and its arguments.
+    The page's session id rides here, in the body, never in the address: an access log keeps addresses."""
+    sid: str = Field("", max_length=64)
     action: str = Field(..., max_length=16)
     args: dict = Field(default_factory=dict)
     client: str = Field("dock", max_length=16)
@@ -805,12 +817,12 @@ def page_result(sid: str, req: PageResult) -> dict:
     return {"ok": True}
 
 
-@app.post("/api/assist/page/{sid}/command", dependencies=[Depends(require_token)])
-def page_command(sid: str, req: PageCommand) -> dict:
+@app.post("/api/assist/page-command", dependencies=[Depends(require_token)])
+def page_command(req: PageCommand) -> dict:
     """One allowlisted action on that tab, for a session's page tool; waits for the page (and, in ask mode,
     for the person). Answers {ok, result} or {ok: false, kind, error}: a refusal, a decline and a timeout
     are answers the session reads. 400 a malformed action, 404 no such session, 429 a cap."""
-    return _page(page.command, sid, req.action, req.args, req.client)
+    return _page(page.command, req.sid, req.action, req.args, req.client)
 
 
 @app.post("/api/assist/page-attach", dependencies=[Depends(require_token)])
@@ -818,6 +830,124 @@ def page_attach(req: PageAttach) -> dict:
     """A second Claude Code session presents the pairing code read off a dock. 403 a wrong or spent code,
     429 after too many wrong ones."""
     return _page(page.attach, req.code)
+
+
+# --- pages of the fleet's other sites and apps (templates/assistant, ADR 0014) ----
+# A page that carries the kit's payload shares itself with this console the way
+# the console's own page does, from its own origin. These calls take NO console
+# token, on purpose: a fleet page must never hold one, and a page session is an
+# offer to be driven — holding one grants nothing here. What guards them instead:
+#   - the Origin must be an address the registries declare for a fleet frontend
+#     (fleetcore.apps.target_origins: each frontend's live site and loopback dev
+#     ports), so a stranger's page cannot open sessions or fill the cap;
+#   - every call after `open` names its session, and a session answers only to
+#     the origin that opened it;
+#   - the session id rides in the body, never in the address, so no access log
+#     keeps it; each call is a POST of JSON sent as text/plain, a "simple"
+#     request with no preflight to lose while a page unloads;
+#   - assistant.fleet_pages is the ceiling, and these sessions have their own cap.
+# A session reaches such a page only by pairing (page-attach above).
+_FLEET_VERBS = ("open", "next", "result", "mode", "pair", "close")
+_FLEET_BODY_MAX = 256_000
+_LOOPBACK_ORIGIN = re.compile(r"^(https?)://(127\.0\.0\.1|localhost)(:\d{1,5})?$")
+
+
+def fleet_page_origins() -> set[str]:
+    """The origins a fleet page may share itself from: what the app launcher already names for the page's
+    Content-Security-Policy, with each loopback dev port under both of its names (the registry writes
+    127.0.0.1; a dev server is as often opened as localhost). DASH_CONSOLE_ASSIST_ORIGINS adds more — a
+    fixture or a site not registered yet."""
+    out: set[str] = set()
+    for o in fapps.target_origins(core.REPO_ROOT):
+        o = o.rstrip("/").lower()
+        out.add(o)
+        m = _LOOPBACK_ORIGIN.match(o)
+        if m:
+            out.update(f"{m[1]}://{h}{m[3] or ''}" for h in ("127.0.0.1", "localhost"))
+    out.update(o.strip().rstrip("/").lower()
+               for o in (os.environ.get("DASH_CONSOLE_ASSIST_ORIGINS") or "").split(",") if o.strip())
+    return out
+
+
+def _fleet_origin(request: Request) -> str | None:
+    origin = (request.headers.get("origin") or "").rstrip("/").lower()
+    return origin if origin and origin in fleet_page_origins() else None
+
+
+def _fleet_cors(origin: str) -> dict:
+    return {"Access-Control-Allow-Origin": origin, "Vary": "Origin", "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Max-Age": "600"}
+
+
+@app.options(FLEET_PAGE_PREFIX + "{verb}")
+def fleet_page_preflight(verb: str, request: Request) -> Response:
+    """A preflight, for a browser that sends one (a deployed site reaching loopback asks Private Network
+    Access first). Answered for a registered fleet origin only."""
+    origin = _fleet_origin(request)
+    if origin is None or verb not in _FLEET_VERBS:
+        return Response(status_code=403)
+    headers = _fleet_cors(origin)
+    if request.headers.get("access-control-request-private-network") == "true":
+        headers["Access-Control-Allow-Private-Network"] = "true"
+    return Response(status_code=204, headers=headers)
+
+
+@app.post(FLEET_PAGE_PREFIX + "{verb}")
+async def fleet_page(verb: str, request: Request) -> JSONResponse:
+    """One call from a fleet page's own payload: open (share this tab), next (its long poll), result,
+    mode, pair, close. 403 an origin the registries do not declare, or fleet pages switched off; 404 no such
+    session for this origin; 429 a cap."""
+    origin = _fleet_origin(request)
+    if origin is None:
+        return JSONResponse(status_code=403, content={
+            "detail": "this console shares the assistant with registered fleet pages only: the page's origin "
+                      "must be a frontend entry_url in _data/projects.yml or a dev port in _data/ports.yml"})
+    headers = _fleet_cors(origin)
+
+    def answer(status: int, doc: dict) -> JSONResponse:
+        return JSONResponse(status_code=status, content=doc, headers=headers)
+
+    if verb not in _FLEET_VERBS:
+        return answer(404, {"detail": f"no such call: one of {', '.join(_FLEET_VERBS)}"})
+    raw = await request.body()
+    if len(raw) > _FLEET_BODY_MAX:
+        return answer(413, {"detail": "the body is too large"})
+    try:
+        body = json.loads(raw or b"{}")
+    except ValueError:
+        return answer(400, {"detail": "the body must be JSON"})
+    if not isinstance(body, dict):
+        return answer(400, {"detail": "the body must be a JSON object"})
+    sid = body.get("sid") if isinstance(body.get("sid"), str) else ""
+    try:
+        if verb == "open":
+            doc = page.open(str(body.get("mode") or "ask"), origin, body.get("page"))
+        elif verb == "next":
+            wait = body.get("wait", page_bridge.POLL_MAX_S)
+            if isinstance(wait, bool) or not isinstance(wait, (int, float)) or not math.isfinite(wait):
+                wait = page_bridge.POLL_MAX_S
+            # the long poll blocks on the bridge's condition: off the event loop, like the sync routes above
+            doc = await run_in_threadpool(page.fleet_next, sid, origin, float(wait), body.get("page"))
+        elif verb == "result":
+            error, kind = body.get("error"), body.get("kind")
+            page.fleet_result(sid, origin, body.get("id"), body.get("ok") is True, body.get("result"),
+                              error if isinstance(error, str) else None, kind if isinstance(kind, str) else None)
+            doc = {"ok": True}
+        elif verb == "mode":
+            doc = page.fleet_mode(sid, origin, str(body.get("mode") or ""))
+        elif verb == "pair":
+            doc = page.fleet_pair(sid, origin, body.get("on") is not False)
+        else:
+            doc = {"closed": page.fleet_close(sid, origin)}
+    except page_bridge.NoSession as exc:
+        return answer(404, {"detail": str(exc.args[0] if exc.args else exc)})
+    except ValueError as exc:
+        return answer(400, {"detail": str(exc)})
+    except page_bridge.Refused as exc:
+        return answer(403, {"detail": str(exc)})
+    except page_bridge.Busy as exc:
+        return answer(429, {"detail": str(exc)})
+    return answer(201 if verb == "open" else 200, doc)
 
 
 @app.get("/api/workflows", dependencies=[Depends(require_token)])

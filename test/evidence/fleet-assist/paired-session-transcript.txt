@@ -1,0 +1,190 @@
+
+> page_attach("code": "<the code the panel showed>")
+  {"mode": "act", "ceiling": "act", "live": true, "kind": "fleet", "origin": "http://127.0.0.1:4777", "page": {"repo": "bamr87/fixture", "branch": "main", "source": "templates/assistant/tests/fixture.html", "framework": "static-html", "env": "development", "base": "/", "title": "Fixture \u2014 fleet-assist", "path": "/tests/fixture.html", "kit": "fleet-assist 0.1.0"}}
+
+> page_snapshot()
+  {"route": "/tests/fixture.html", "title": "Fixture \u2014 fleet-assist", "mode": "act", "dialogs": [], "modal_open": false, "refs": 16, "page": {"repo": "bamr87/fixture", "branch": "main", "source": "templates/assistant/tests/fixture.html", "framework": "static-html", "env": "development", "base": "/", "title": "Fixture \u2014 fleet-assist", "path": "/tests/fixture.html", "kit": "fleet-assist 0.1.0"}}
+    == the page ==
+      # Fixture page [e1]
+      A page of plain HTML, the way a static site serves one.
+      ## A form [e2]
+        [e3] textbox "Display name" (empty)
+        [e4] secret field "Password" (never read or filled)
+        [e5] select "Colour" = "Red"
+        [e6] checkbox "I agree" (not checked)
+        [e7] button "Save"
+        [e8] button "Not available" (disabled)
+      ## Dialogs [e9]
+      [e10] button "Delete everything"
+      [e11] button "Open the settings dialog"
+      ## A table [e12]
+      table: 3 rows [e13]
+        Repo | State
+        alpha | green
+        beta | red
+    == the site around the page: header, navigation, sidebars ==
+      [e14] link "Home" → /tests/fixture.html (current) [e15] link "Second page" → /tests/fixture-2.html [e16] link "Elsewhere" (leaves this site: the person opens it)
+
+> page_highlight("ref": "@# Fixture page", "note": "the page title")
+  {"highlighted": "the heading \"Fixture page\""}
+
+> page_fill("ref": "@Display name", "text": "Ada")
+  {"filled": "Display name", "chars": 3, "route": "/tests/fixture.html", "dialogs": []}
+
+> page_fill("ref": "@secret field", "text": "x")
+  REFUSED: page: that is a secret field: it is never filled. The person types a credential themselves
+
+> page_read("ref": "@secret field")
+  REFUSED: page: that is a secret field: it is never read
+
+> page_fill("ref": "@select", "text": "Green")
+  {"selected": "Green", "route": "/tests/fixture.html", "dialogs": []}
+
+> page_click("ref": "@I agree")
+  {"clicked": "I agree", "route_before": "/tests/fixture.html", "route": "/tests/fixture.html", "dialogs": []}
+
+> page_click("ref": "@\"Save\"")
+  {"clicked": "Save", "route_before": "/tests/fixture.html", "route": "/tests/fixture.html", "dialogs": []}
+
+> page_snapshot()
+  {"route": "/tests/fixture.html", "title": "Fixture \u2014 fleet-assist", "mode": "act", "dialogs": [], "modal_open": false, "refs": 16, "page": {"repo": "bamr87/fixture", "branch": "main", "source": "templates/assistant/tests/fixture.html", "framework": "static-html", "env": "development", "base": "/", "title": "Fixture \u2014 fleet-assist", "path": "/tests/fixture.html", "kit": "fleet-assist 0.1.0"}}
+    == the page ==
+      # Fixture page [e1]
+      A page of plain HTML, the way a static site serves one.
+      ## A form [e2]
+        [e3] textbox "Display name" = "Ada"
+        [e4] secret field "Password" (never read or filled)
+        [e5] select "Colour" = "Green"
+        [e6] checkbox "I agree" (checked)
+        [e7] button "Save"
+        [e8] button "Not available" (disabled)
+      saved: Ada / g / agreed
+      ## Dialogs [e9]
+      [e10] button "Delete everything"
+      [e11] button "Open the settings dialog"
+      ## A table [e12]
+      table: 3 rows [e13]
+        Repo | State
+        alpha | green
+        beta | red
+    == the site around the page: header, navigation, sidebars ==
+      [e14] link "Home" → /tests/fixture.html (current) [e15] link "Second page" → /tests/fixture-2.html [e16] link "Elsewhere" (leaves this site: the person opens it)
+
+> page_read("ref": "@table:")
+  {"ref": "e13", "text": "Repo | State\nalpha | green\nbeta | red", "truncated": false}
+
+> page_click("ref": "@Elsewhere")
+  REFUSED: page: that link leaves this site (https://example.com/elsewhere) — the person opens it themselves
+
+> page_click("ref": "@Not available")
+  REFUSED: page: that control is disabled, so it was not clicked
+
+> page_click("ref": "@Delete everything")
+  {"clicked": "Delete everything", "route_before": "/tests/fixture.html", "route": "/tests/fixture.html", "dialogs": ["modal dialog \"Confirm deletion\""]}
+
+> page_snapshot()
+  {"route": "/tests/fixture.html", "title": "Fixture \u2014 fleet-assist", "mode": "act", "dialogs": ["modal dialog \"Confirm deletion\""], "modal_open": true, "refs": 18, "page": {"repo": "bamr87/fixture", "branch": "main", "source": "templates/assistant/tests/fixture.html", "framework": "static-html", "env": "development", "base": "/", "title": "Fixture \u2014 fleet-assist", "path": "/tests/fixture.html", "kit": "fleet-assist 0.1.0"}}
+    == modal dialog "Confirm deletion" — nothing in it can be clicked or typed for the person; Escape closes it ==
+      Delete everything? This cannot be undone.
+      [e1] button "Yes, delete" (in a dialog: the person's to answer)
+      [e2] button "Cancel" (in a dialog: the person's to answer)
+    == the page behind the dialog ==
+      # Fixture page [e3]
+      A page of plain HTML, the way a static site serves one.
+      ## A form [e4]
+        [e5] textbox "Display name" = "Ada"
+        [e6] secret field "Password" (never read or filled)
+        [e7] select "Colour" = "Green"
+        [e8] checkbox "I agree" (checked)
+        [e9] button "Save"
+        [e10] button "Not available" (disabled)
+      saved: Ada / g / agreed
+      ## Dialogs [e11]
+      [e12] button "Delete everything"
+      [e13] button "Open the settings dialog"
+      ## A table [e14]
+      table: 3 rows [e15]
+        Repo | State
+        alpha | green
+        beta | red
+    == the site around the page: header, navigation, sidebars ==
+      [e16] link "Home" → /tests/fixture.html (current) [e17] link "Second page" → /tests/fixture-2.html [e18] link "Elsewhere" (leaves this site: the person opens it)
+
+> page_click("ref": "@Yes, delete")
+  REFUSED: page: that control is inside a modal dialog, and a dialog is the person's to answer — it was not clicked. Say what confirming it will do and stop; Escape closes the dialog
+
+> page_press("key": "Enter")
+  REFUSED: page: a modal dialog is open and waiting for the person, so nothing on the page was used. Say what the dialog asks and stop; Escape closes it without answering
+
+> page_click("ref": "@\"Save\"")
+  REFUSED: page: a modal dialog is open and waiting for the person, so nothing on the page was used. Say what the dialog asks and stop; Escape closes it without answering
+
+> page_fill("ref": "@Display name", "text": "behind the dialog")
+  REFUSED: page: a modal dialog is open and waiting for the person, so nothing on the page was used. Say what the dialog asks and stop; Escape closes it without answering
+
+> page_navigate("path": "/tests/fixture-2.html")
+  REFUSED: page: a modal dialog is open and waiting for the person — the page was not moved from under it
+
+> page_press("key": "Escape")
+  {"pressed": "Escape", "on": "Yes, delete", "effect": "closed the dialog without answering it", "route": "/tests/fixture.html", "dialogs": []}
+
+> page_click("ref": "@Open the settings dialog")
+  {"clicked": "Open the settings dialog", "route_before": "/tests/fixture.html", "route": "/tests/fixture.html", "dialogs": ["modal dialog \"Settings\""]}
+
+> page_snapshot()
+  {"route": "/tests/fixture.html", "title": "Fixture \u2014 fleet-assist", "mode": "act", "dialogs": ["modal dialog \"Settings\""], "modal_open": true, "refs": 19, "page": {"repo": "bamr87/fixture", "branch": "main", "source": "templates/assistant/tests/fixture.html", "framework": "static-html", "env": "development", "base": "/", "title": "Fixture \u2014 fleet-assist", "path": "/tests/fixture.html", "kit": "fleet-assist 0.1.0"}}
+    == modal dialog "Settings" — nothing in it can be clicked or typed for the person; Escape closes it ==
+      [e1] textbox "Nickname" (empty) (in a dialog: the person's to answer)
+      [e2] button "Apply" (in a dialog: the person's to answer)
+      [e3] button "Close" (in a dialog: the person's to answer)
+    == the page behind the dialog ==
+      # Fixture page [e4]
+      A page of plain HTML, the way a static site serves one.
+      ## A form [e5]
+        [e6] textbox "Display name" = "Ada"
+        [e7] secret field "Password" (never read or filled)
+        [e8] select "Colour" = "Green"
+        [e9] checkbox "I agree" (checked)
+        [e10] button "Save"
+        [e11] button "Not available" (disabled)
+      saved: Ada / g / agreed
+      ## Dialogs [e12]
+      [e13] button "Delete everything"
+      [e14] button "Open the settings dialog"
+      ## A table [e15]
+      table: 3 rows [e16]
+        Repo | State
+        alpha | green
+        beta | red
+    == the site around the page: header, navigation, sidebars ==
+      [e17] link "Home" → /tests/fixture.html (current) [e18] link "Second page" → /tests/fixture-2.html [e19] link "Elsewhere" (leaves this site: the person opens it)
+
+> page_fill("ref": "@Nickname", "text": "nope")
+  REFUSED: page: that control is inside a modal dialog, and a dialog is the person's to answer — it was not filled. Say what confirming it will do and stop; Escape closes the dialog
+
+> page_click("ref": "@Apply")
+  REFUSED: page: that control is inside a modal dialog, and a dialog is the person's to answer — it was not clicked. Say what confirming it will do and stop; Escape closes the dialog
+
+> page_press("key": "Escape")
+  {"pressed": "Escape", "on": "Settings", "effect": "sent to the page", "route": "/tests/fixture.html", "dialogs": []}
+
+> page_navigate("path": "//evil.example/x")
+  REFUSED: console POST /api/assist/page/<session>/command -> 400: path must be an in-app path starting with one / (for example /loops), never a URL
+
+> page_navigate("path": "/tests/fixture-2.html")
+  {"navigating_to": "/tests/fixture-2.html", "route_before": "/tests/fixture.html", "base": "/", "note": "the page is loading that address \u2014 take a new page_snapshot"}
+
+> page_snapshot()
+  {"route": "/tests/fixture-2.html", "title": "Second page \u2014 fleet-assist fixture", "mode": "act", "dialogs": [], "modal_open": false, "refs": 4, "page": {"repo": "bamr87/fixture", "branch": "main", "source": "templates/assistant/tests/fixture-2.html", "framework": "static-html", "env": "development", "base": "/", "title": "Second page \u2014 fleet-assist fixture", "path": "/tests/fixture-2.html", "kit": "fleet-assist 0.1.0"}}
+    == the page ==
+      # Second page [e1]
+      You arrived by loading a new address.
+      [e2] button "Say hello"
+    == the site around the page: header, navigation, sidebars ==
+      [e3] link "Home" → /tests/fixture.html [e4] link "Second page" → /tests/fixture-2.html (current)
+
+> page_click("ref": "@Say hello")
+  REFUSED: console POST /api/assist/page/<session>/command -> 429: more than 40 page commands in a minute — slow down
+
+> page_snapshot()
+  REFUSED: console POST /api/assist/page/<session>/command -> 429: more than 40 page commands in a minute — slow down

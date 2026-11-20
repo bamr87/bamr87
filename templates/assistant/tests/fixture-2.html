@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Second page — fleet-assist fixture</title>
+  <style>body { font: 16px/1.5 system-ui, sans-serif; margin: 0; } header, main { padding: 12px 24px; } header nav a { margin-right: 12px; }</style>
+</head>
+<body>
+  <!-- The page a navigation lands on: a site of plain pages moves by loading, and the shared session carries on here. -->
+  <header>
+    <nav aria-label="Site">
+      <a href="fixture.html">Home</a>
+      <a href="fixture-2.html" aria-current="page">Second page</a>
+    </nav>
+  </header>
+  <main>
+    <h1>Second page</h1>
+    <p>You arrived by loading a new address.</p>
+    <button id="hello" type="button">Say hello</button>
+    <p id="out" role="status"></p>
+  </main>
+  <script>document.getElementById('hello').addEventListener('click', () => { document.getElementById('out').textContent = 'hello'; });</script>
+  <fleet-assist repo="bamr87/fixture" branch="main" source="templates/assistant/tests/fixture-2.html" framework="static-html" env="development"></fleet-assist>
+  <script>
+    // A test names its broker once, in the address; it is remembered for this tab so the next page of the
+    // fixture uses the same one. The payload still refuses any host but this machine.
+    (function () {
+      const named = new URLSearchParams(location.search).get('broker');
+      if (named) sessionStorage.setItem('fixture-broker', named);
+      const broker = sessionStorage.getItem('fixture-broker');
+      if (broker) document.querySelector('fleet-assist').setAttribute('broker', broker);
+    })();
+  </script>
+  <script src="../fleet-assist.js"></script>
+</body>
+</html>

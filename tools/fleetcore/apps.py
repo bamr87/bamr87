@@ -348,6 +348,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("list", help="every frontend with its live and local address (the default)")
     sub.add_parser("json", help="the launcher document (fleet-launcher/v1)")
     sub.add_parser("plan", help="every repo's frontend component: its kind, its state and its next step")
+    sub.add_parser("assist", help="the assistant baseline each repo's platform gets (fleetcore.assist, ADR 0014)")
     u = sub.add_parser("url", help="print the address of one app at one target")
     u.add_argument("app")
     u.add_argument("--target", help="live, local or local-<service> (default: the app's first target)")
@@ -360,6 +361,9 @@ def main(argv: list[str] | None = None) -> int:
     if a.cmd == "plan":
         print(plan_table(doc["repos"]))
         return 0
+    if a.cmd == "assist":
+        from . import assist           # assist builds on this module: imported here, not at the top
+        return assist.main([])
     if a.cmd == "url":
         try:
             print(resolve(doc["apps"], a.app, a.target, a.path))

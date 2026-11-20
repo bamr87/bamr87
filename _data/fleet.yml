@@ -1376,6 +1376,12 @@ assistant:
   timeout_s: 600
   conversation_messages: 20            # messages one conversation holds before it must start fresh
   page_access: "act"
+  # The same ceiling for pages of the fleet's OTHER sites and apps: one that carries the kit's payload
+  # (templates/assistant/fleet-assist.js, ADR 0014) can share itself with this console, and a Claude Code
+  # session paired with it by a single-use code can then see and use it. "off" refuses every such page,
+  # "look" lets a session read one, "act" lets the person on that page choose Look, Ask first or Act.
+  # Only addresses the registries declare are admitted (frontend entry_url, _data/ports.yml dev ports).
+  fleet_pages: "act"
 
 # --------------------------------------------------------------------------- #
 # Learning — what happened to each loop's output, and where its next slots would

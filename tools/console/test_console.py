@@ -2960,10 +2960,11 @@ def test_assist_op_is_a_capped_read_only_mcp_session_behind_the_spend_gate():
     orig = core.assistant_config
     core.assistant_config = lambda fleet=None: core.AssistConfig(enabled=False, model="claude-sonnet-5-5", max_turns=1,
                                                                  budget_usd=1.0, timeout_s=60, conversation_messages=5,
-                                                                 page_access="act")
+                                                                 page_access="act", fleet_pages="act")
     try:
         assert "off" in (core.assist_unavailable() or "") or core.claude_unavailable()
         assert core.assistant_page_access() == "off", "an assistant that is off shares no page"
+        assert core.assistant_fleet_pages() == "off", "and admits no fleet page"
         try:
             core.build_argv("assist", {"question": "hi"})
         except ValueError as exc:
@@ -2974,14 +2975,15 @@ def test_assist_op_is_a_capped_read_only_mcp_session_behind_the_spend_gate():
         core.assistant_config = orig
     models = {"allowed": {"anthropic": ["claude-sonnet-5-5"]}}
     good = {"enabled": True, "model": "claude-sonnet-5-5", "max_turns": 1, "budget_usd": 1, "timeout_s": 60,
-            "conversation_messages": 5, "page_access": "look"}
+            "conversation_messages": 5, "page_access": "look", "fleet_pages": "off"}
     cfg = core.assistant_config({"assistant": good, "ai_models": models})
-    assert cfg.page_access == "look" and cfg.conversation_messages == 5
+    assert cfg.page_access == "look" and cfg.conversation_messages == 5 and cfg.fleet_pages == "off"
     for change, why in (({"model": "sonnet"}, "exact id"), ({"enabled": "yes"}, "boolean"), ({"max_turns": 0}, "max_turns"),
                         ({"budget_usd": 0}, "budget_usd"), ({"conversation_messages": 0}, "conversation_messages"),
                         ({"conversation_messages": True}, "conversation_messages"),
                         # a bare `off` in YAML is the boolean False: refused, and told to quote it
                         ({"page_access": False}, "quoted"), ({"page_access": "write"}, "page_access"),
+                        ({"fleet_pages": False}, "quoted"), ({"fleet_pages": "all"}, "fleet_pages"),
                         ({"surprise": 1}, "unknown")):
         bad = {"assistant": {**good, **change}, "ai_models": models}
         try:
@@ -3266,7 +3268,7 @@ def test_page_bridge_routes_carry_one_command_to_the_page_and_its_answer_back():
         got: dict = {}
 
         def session(action, args):
-            got["r"] = client.post(f"/api/assist/page/{sid}/command", json={"action": action, "args": args})
+            got["r"] = client.post("/api/assist/page-command", json={"sid": sid, "action": action, "args": args})
 
         t = threading.Thread(target=session, args=("click", {"ref": "e5"}))
         t.start()
@@ -3283,13 +3285,13 @@ def test_page_bridge_routes_carry_one_command_to_the_page_and_its_answer_back():
                                                                     "action": "click", "mode": "ask"}, got["r"].text
         # the person's mode travels; Look refuses an action as an ANSWER the session reads, not an HTTP error
         assert client.put(f"/api/assist/page/{sid}/mode", json={"mode": "look"}).json()["mode"] == "look"
-        refused = client.post(f"/api/assist/page/{sid}/command", json={"action": "navigate", "args": {"path": "/jobs"}})
+        refused = client.post("/api/assist/page-command", json={"sid": sid, "action": "navigate", "args": {"path": "/jobs"}})
         assert refused.status_code == 200 and refused.json()["kind"] == "refused", refused.text
         assert client.put(f"/api/assist/page/{sid}/mode", json={"mode": "root"}).status_code == 400
         # a malformed action is a 400 before the page ever hears of it
         for body in ({"action": "eval", "args": {}}, {"action": "click", "args": {"selector": "button"}},
                      {"action": "navigate", "args": {"path": "https://example.com"}}):
-            assert client.post(f"/api/assist/page/{sid}/command", json=body).status_code == 400, body
+            assert client.post("/api/assist/page-command", json={"sid": sid, **body}).status_code == 400, body
         # pairing: off until switched on, the code shown to the page only, spent by one attach
         assert client.post("/api/assist/page-attach", json={"code": "ABCDEFGH"}).status_code == 403
         code = client.put(f"/api/assist/page/{sid}/pair", json={"on": True}).json()["code"]
@@ -3304,7 +3306,7 @@ def test_page_bridge_routes_carry_one_command_to_the_page_and_its_answer_back():
         page_bridge.BRIDGE._pair_fails.clear()
     assert client.get(f"/api/assist/page/{sid}").status_code == 404
     assert client.get(f"/api/assist/page/{sid}/next?wait=0").status_code == 404
-    assert client.post(f"/api/assist/page/{sid}/command", json={"action": "snapshot", "args": {}}).status_code == 404
+    assert client.post("/api/assist/page-command", json={"sid": sid, "action": "snapshot", "args": {}}).status_code == 404
     assert client.get("/api/assist/page/not-a-session").status_code == 404
     assert client.delete(f"/api/assist/page/{sid}").json() == {"closed": False}
     # the ceiling: off refuses to open at all
@@ -3363,6 +3365,119 @@ def test_the_assistant_stand_in_is_not_a_model_and_stays_out_of_the_real_ledger(
         got = subprocess.run([sys.executable, str(script), "-p"], input="# THE QUESTION\nhi\n# THE PAGE\n",
                              capture_output=True, text=True, env=e, timeout=30)
         assert got.returncode == 2 and "DASH_AI_LEDGER" in got.stderr and not got.stdout.strip(), (ledger, got)
+
+
+def test_a_fleet_page_shares_itself_without_a_token_and_only_from_a_registered_origin():
+    """A page of another fleet site (templates/assistant/fleet-assist.js, ADR 0014) talks to the bridge at
+    /api/assist/fleet/<verb>. It holds no console token, so these routes take none; what admits it is its
+    Origin — an address the registries declare for a fleet frontend — and a session answers only to the
+    origin that opened it. The session id rides in the body, never in the address."""
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("  (fastapi not installed — fleet page route test skipped)")
+        return
+    import json as _json
+    import app as console_app
+    import page_bridge
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    registered = sorted(o for o in console_app.fleet_page_origins() if o.startswith("http://127.0.0.1:"))
+    assert registered, "the launcher names at least one local dev port (fleetcore.apps.target_origins)"
+    origin = registered[0]
+    twin = origin.replace("127.0.0.1", "localhost")
+    assert twin in console_app.fleet_page_origins(), "a dev port answers under both of its names"
+
+    def post(verb, body, origin=origin):
+        headers = {"Content-Type": "text/plain;charset=UTF-8"}
+        if origin:
+            headers["Origin"] = origin
+        return client.post(f"/api/assist/fleet/{verb}", content=_json.dumps(body), headers=headers)
+
+    orig_ceiling = console_app.page.fleet_ceiling
+    had_token = os.environ.get("DASH_CONSOLE_TOKEN")
+    os.environ["DASH_CONSOLE_TOKEN"] = "a-console-token-no-fleet-page-holds"
+    try:
+        console_app.page.fleet_ceiling = lambda: "act"
+        assert client.get("/api/assist").status_code == 401, "the console's own routes still need its token"
+        # a stranger's page, and a caller with no Origin at all, are refused before anything is read
+        for stranger in ("https://evil.example", "http://127.0.0.1:1", None):
+            r = post("open", {"mode": "ask"}, stranger)
+            assert r.status_code == 403 and "access-control-allow-origin" not in r.headers, (stranger, r.text)
+        r = post("open", {"mode": "ask", "page": {"repo": "bamr87/x", "source": "pages/about.md", "nope": "dropped"}})
+        assert r.status_code == 201 and r.headers["access-control-allow-origin"] == origin, r.text
+        view = r.json()
+        sid = view["sid"]
+        assert (view["kind"], view["origin"], view["mode"]) == ("fleet", origin, "ask")
+        assert view["page"] == {"repo": "bamr87/x", "source": "pages/about.md"}
+        # the session answers to the origin that opened it, and to no other registered one
+        assert post("mode", {"sid": sid, "mode": "act"}, twin).status_code == 404
+        assert post("mode", {"sid": sid, "mode": "act"}).json()["mode"] == "act"
+        # it is not a console session: the token routes do not serve it to a fleet page, and no job attaches it
+        assert client.get(f"/api/assist/page/{sid}").status_code == 401
+        assert not page_bridge.BRIDGE.has(sid), "core._assist starts no session against a fleet page"
+        # the poll says where the page is now; pairing tells the session that attaches
+        r = post("next", {"sid": sid, "wait": 0, "page": {"repo": "bamr87/x", "source": "pages/posts.md"}})
+        assert r.status_code == 200 and r.json()["command"] is None, r.text
+        code = post("pair", {"sid": sid, "on": True}).json()["code"]
+        auth = {"Authorization": "Bearer a-console-token-no-fleet-page-holds"}
+        attached = client.post("/api/assist/page-attach", json={"code": code}, headers=auth).json()
+        assert (attached["kind"], attached["origin"], attached["page"]["source"]) == ("fleet", origin, "pages/posts.md")
+        # the operator can see which fleet pages are shared, and the listing carries no session id
+        doc = client.get("/api/assist", headers=auth).json()["fleet_pages"]
+        assert doc["access"] == "act" and doc["kit"] == "templates/assistant"
+        assert [(s["origin"], s["paired"]) for s in doc["sessions"]] == [(origin, 1)] and sid not in _json.dumps(doc)
+        # a preflight is answered for a registered origin (a deployed site reaching loopback asks first)
+        r = client.options("/api/assist/fleet/open", headers={"Origin": origin, "Access-Control-Request-Method": "POST",
+                                                              "Access-Control-Request-Private-Network": "true"})
+        assert r.status_code == 204 and r.headers["access-control-allow-private-network"] == "true"
+        assert client.options("/api/assist/fleet/open", headers={"Origin": "https://evil.example"}).status_code == 403
+        # malformed calls are told so; no call reads a session id from the address
+        assert client.post("/api/assist/fleet/open", content="{", headers={"Origin": origin}).status_code == 400
+        assert post("steal", {"sid": sid}).status_code == 404
+        assert post("next", {"wait": 0}).status_code == 404, "no session id in the body, no session"
+        assert not any("{sid}" in route.path for route in console_app.app.routes if route.path.startswith("/api/assist/fleet"))
+        assert post("close", {"sid": sid}).json() == {"closed": True} and post("close", {"sid": sid}).status_code == 404
+        # the ceiling switches every fleet page off at once
+        console_app.page.fleet_ceiling = lambda: "off"
+        r = post("open", {"mode": "ask"})
+        assert r.status_code == 403 and "fleet_pages" in r.json()["detail"], r.text
+    finally:
+        console_app.page.fleet_ceiling = orig_ceiling
+        if had_token is None:
+            os.environ.pop("DASH_CONSOLE_TOKEN", None)
+        else:
+            os.environ["DASH_CONSOLE_TOKEN"] = had_token
+    assert console_app.page.fleet_ceiling() == core.assistant_config().fleet_pages, "the bridge reads fleet.yml's ceiling"
+
+
+def test_the_pages_site_reaches_a_fleet_route_without_the_remote_page_refusal():
+    """https://bamr87.github.io is both the public console page's origin (admitted to /api only with a token)
+    and a fleet site. Its fleet-page calls carry no token by design, so the remote-page gate stands aside for
+    them and for nothing else."""
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("  (fastapi not installed — fleet page route test skipped)")
+        return
+    import app as console_app
+    pages = "https://bamr87.github.io"
+    if pages not in console_app.REMOTE_ORIGINS or pages not in console_app.fleet_page_origins():
+        print("  (the Pages origin is not both a remote and a fleet origin here — skipped)")
+        return
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    had_token = os.environ.pop("DASH_CONSOLE_TOKEN", None)
+    orig_ceiling = console_app.page.fleet_ceiling
+    try:
+        console_app.page.fleet_ceiling = lambda: "look"
+        r = client.get("/api/state", headers={"Origin": pages})
+        assert r.status_code == 403 and "token" in r.json()["detail"], "the remote page is still refused without a token"
+        r = client.post("/api/assist/fleet/open", content='{"mode": "act"}', headers={"Origin": pages})
+        assert r.status_code == 201 and r.json()["mode"] == "look", r.text
+        client.post("/api/assist/fleet/close", content='{"sid": "%s"}' % r.json()["sid"], headers={"Origin": pages})
+    finally:
+        console_app.page.fleet_ceiling = orig_ceiling
+        if had_token is not None:
+            os.environ["DASH_CONSOLE_TOKEN"] = had_token
 
 
 if __name__ == "__main__":
