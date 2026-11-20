@@ -37,9 +37,12 @@ makes the declaration real.
           the fleet — aborting a secret's fan-out if the hub refuses it. The
           file is PARSED, never exported, so its other keys (a local
           GITHUB_TOKEN above all, which would swap the credential `gh` writes
-          with) never reach a subprocess. Dry-run by default; `--apply`
-          writes; `--hub-only` stops at the hub and leaves the fan-out to the
-          weekly `rotate`.
+          with) never reach a subprocess. A multi-line secret (the release
+          app's PEM key) is named by path: `NAME_FILE=~/keys/app.pem` supplies
+          NAME from that file. A value that is not shaped like its credential
+          (`value_prefixes`, `value_pattern`) stops the push before any repo
+          is written. Secrets go out in contract order. Dry-run by default; `--apply` writes; `--hub-only` stops at
+          the hub and leaves the fan-out to the weekly `rotate`.
   rotate  The weekly loop that brings the fleet into line with the HUB, for
           both halves of the contract:
             secrets   audit every repo's AGE from GitHub's own `updated_at`,
@@ -727,6 +730,44 @@ def read_env_file(path: Path) -> dict[str, str]:
     return out
 
 
+FILE_SUFFIX = "_FILE"
+
+
+def file_backed_values(values: dict[str, str], names,
+                       base: Path) -> tuple[dict[str, str], list[str]]:
+    """Fill `names` from their `NAME_FILE=path` entries: (values, errors).
+
+    A dotenv line holds one line and a PEM private key is thirty. Pasted into
+    the file, a key keeps only the line it started on, and that line still
+    looks like a key. So a multi-line secret is named by path instead:
+    `NAME_FILE=~/keys/app.pem` supplies NAME from the file's contents, read
+    here as data and never exported. A relative path is relative to the dotenv
+    file. NAME and NAME_FILE both set is an error, not a guess.
+    """
+    out, errors = dict(values), []
+    for name in sorted(names):
+        ref = values.get(name + FILE_SUFFIX)
+        if not ref:
+            continue
+        if values.get(name):
+            errors.append(f"{name} and {name}{FILE_SUFFIX} are both set: keep one")
+            continue
+        path = Path(ref).expanduser()
+        if not path.is_absolute():
+            path = base / path
+        try:
+            content = path.read_text().strip()
+        except (OSError, UnicodeDecodeError) as exc:
+            why = getattr(exc, "strerror", None) or "not a text file"
+            errors.append(f"{name}{FILE_SUFFIX}: cannot read {ref} ({why})")
+            continue
+        if not content:
+            errors.append(f"{name}{FILE_SUFFIX}: {ref} is empty")
+            continue
+        out[name] = content
+    return out, errors
+
+
 def push_plan(tokens: list[dict], values: dict[str, str],
               only: list[str] | None = None) -> dict:
     """Which contract secrets the file can supply — names only, never values."""
@@ -735,10 +776,12 @@ def push_plan(tokens: list[dict], values: dict[str, str],
     unknown = sorted(set(only or []) - set(contract)
                      - {t["name"] for t in tokens if t.get("managed_by")})
     names = [n for n in contract if not only or n in only]
+    # A contract secret's NAME_FILE is how its value got here, not a stray key.
+    pointers = {n + FILE_SUFFIX for n in contract}
     return {
         "push": [n for n in names if values.get(n)],
         "absent": [n for n in names if not values.get(n)],
-        "ignored": sorted(set(values) - set(contract) - managed),
+        "ignored": sorted(set(values) - set(contract) - managed - pointers),
         "managed": sorted(managed & set(values)),
         "unknown": unknown,
         "scope": {n: contract[n].get("scope") for n in names},
@@ -766,8 +809,14 @@ def cmd_push(args: argparse.Namespace) -> int:
     if not path.is_file():
         sys.stderr.write(f"no env file at {path}\n")
         return 2
-    values = read_env_file(path)
-    plan = push_plan(cfg.get("tokens") or [], values, args.only)
+    tokens = cfg.get("tokens") or []
+    wanted = [t["name"] for t in tokens if not args.only or t["name"] in args.only]
+    values, file_errors = file_backed_values(read_env_file(path), wanted, path.parent)
+    if file_errors:
+        sys.stderr.write("cannot read a secret's file — nothing was written:\n  "
+                         + "\n  ".join(file_errors) + "\n")
+        return 2
+    plan = push_plan(tokens, values, args.only)
     if plan["unknown"]:
         sys.stderr.write(f"not in the token contract: {', '.join(plan['unknown'])}\n")
         return 1
@@ -803,6 +852,22 @@ def cmd_push(args: argparse.Namespace) -> int:
     if not plan["push"]:
         print("  nothing to push.\n")
         return 0
+
+    # Shape before anything is written, hub included. `rotate` holds the hub's
+    # copy to the same rule, so a value it would refuse to propagate must not
+    # get as far as the hub from here. One refusal stops the whole push:
+    # secrets pushed together can depend on each other (the release app's
+    # client ID and key), and half of a pair on 40 repos is its own incident.
+    policies = {t["name"]: token_rotation_policy(t) for t in tokens}
+    misshapen = [n for n in plan["push"]
+                 if not value_looks_right(values[n], policies[n].get("value_prefixes") or [],
+                                          policies[n].get("value_pattern") or "")]
+    if misshapen:
+        for name in misshapen:
+            print(f"  {MISSING} {name}: its value is not shaped like this credential "
+                  f"(expected {shape_hint(policies[name])})")
+        print(f"\n  nothing was written. Fix {shown} and run it again.\n")
+        return 1
 
     present_cache: dict[str, set[str] | None] = {}
 
@@ -1362,6 +1427,7 @@ TOKEN_ROTATION_DEFAULTS = {
     "lifetime_days": 365,
     "renew_before_days": 30,
     "value_prefixes": [],
+    "value_pattern": "",
 }
 
 # States a repo's copy of a rotating secret can be in. `unreachable` is
@@ -1426,7 +1492,12 @@ def mask(value: str) -> None:
     of accident; outside Actions it is a no-op.
     """
     if value and os.environ.get("GITHUB_ACTIONS") == "true":
-        print(f"::add-mask::{value}", flush=True)
+        # One command per line. `::add-mask::` reads to the end of its own
+        # line, so a multi-line value (a PEM key) handed over whole would mask
+        # its first line and PRINT the rest.
+        for line in value.splitlines():
+            if line.strip():
+                print(f"::add-mask::{line}", flush=True)
 
 
 def set_output(pairs: dict[str, object]) -> None:
@@ -1497,7 +1568,7 @@ def oauth_refresh(policy: dict, refresh_token: str) -> tuple[dict | None, str]:
     return None, "; ".join(problems) or "no endpoint responded"
 
 
-def value_looks_right(value: str, prefixes: list[str]) -> bool:
+def value_looks_right(value: str, prefixes: list[str], pattern: str = "") -> bool:
     """Refuse to distribute something that isn't shaped like the credential.
 
     The fleet has ~41 call sites reading this one secret. A malformed value
@@ -1507,7 +1578,18 @@ def value_looks_right(value: str, prefixes: list[str]) -> bool:
     """
     if not value or value.strip() != value:
         return False
-    return not prefixes or any(value.startswith(p) for p in prefixes)
+    if prefixes and not any(value.startswith(p) for p in prefixes):
+        return False
+    # A prefix says how a value starts, not that all of it arrived. A PEM key
+    # cut off after its first line still starts like one; `value_pattern` is
+    # the whole-value shape for a credential where that can happen.
+    return not pattern or re.fullmatch(pattern, value, re.S) is not None
+
+
+def shape_hint(pol: dict) -> str:
+    """How a policy describes its credential's shape, for a refusal message."""
+    hint = " or ".join(pol.get("value_prefixes") or []) or "non-empty"
+    return hint + (", and the whole value" if pol.get("value_pattern") else "")
 
 
 # --------------------------------------------------------------------------- #
@@ -1964,12 +2046,12 @@ def cmd_rotate(args: argparse.Namespace) -> int:
             attention_any = attention_any or bool(attention)
             continue
 
-        if not value_looks_right(value, pol.get("value_prefixes") or []):
+        if not value_looks_right(value, pol.get("value_prefixes") or [],
+                                 pol.get("value_pattern") or ""):
             # Fail this token, not the whole run: another token in the contract
             # may still be rotatable, and half a rotation beats none.
             print(f"  {MISSING} refusing to distribute {name}: value does not match "
-                  f"the contract's expected shape "
-                  f"({', '.join(pol.get('value_prefixes') or []) or 'non-empty'})")
+                  f"the contract's expected shape ({shape_hint(pol)})")
             attention.append("bad-value")
             entries.append(ledger_entry(t, rows, source, minted, [], [], attention))
             attention_any = True

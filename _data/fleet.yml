@@ -2266,19 +2266,68 @@ tokens:
     used_by: [fleet-pm.yml]
     rotation:
       enabled: false
+  # The release app: the credential release-please.yml opens the release PR
+  # and tags with. A GitHub App (Contents + Pull requests, read and write)
+  # installed on every owner in `hub.owners`. Each release job mints an
+  # installation token for its own repo, good for an hour, from the two
+  # secrets below. Nothing here expires and nothing is re-minted by hand, which
+  # is what the PAT it replaces could not offer; and one app serves all four
+  # owners, where a fine-grained PAT serves one. Both halves are fleet-scoped
+  # so `dash secrets push` and the weekly rotation carry them like any other
+  # contract secret. docs/RELEASES.md "The release app" is the runbook.
+  - name: RELEASE_APP_CLIENT_ID
+    scope: fleet
+    required: false
+    purpose: >-
+      Client ID of the release app (GitHub shows it on the app's settings
+      page). Not a secret by nature, but held as one, so a workflow tests both
+      halves' presence the same way and one command fans both out. Inert on
+      its own: the KEY arms the app. It is declared BEFORE the key because
+      `dash secrets push` and the weekly rotation write in this order, and a
+      repo that holds the key without the client ID fails its release run.
+    used_by: [release-please.yml]
+    rotation:
+      enabled: true
+      # The propagation heartbeat: pulls a newly adopting repo into line and
+      # re-heals a copy someone deleted.
+      max_age_days: 45
+      # An app's client ID does not expire, so nobody is ever asked to re-mint.
+      lifetime_days: 0
+      value_prefixes: ["Iv"]
+  - name: RELEASE_APP_PRIVATE_KEY
+    scope: fleet
+    required: false
+    purpose: >-
+      A private key of the release app, in PEM form. Whoever holds it can mint
+      a token for any repo the app is installed on, with the app's two
+      permissions and no more; release-please.yml asks for its own repo only.
+      Keep the downloaded .pem outside the repo and point the hub's `.env` at
+      it (`RELEASE_APP_PRIVATE_KEY_FILE=`). To rotate, generate a second key
+      on the app, push it, then delete the first: both are valid in between.
+    used_by: [release-please.yml]
+    rotation:
+      enabled: true
+      max_age_days: 45
+      # A key is valid until it is deleted on the app.
+      lifetime_days: 0
+      value_prefixes: ["-----BEGIN "]
+      # The whole key, not its first line: a PEM pasted into a dotenv file
+      # keeps only the line it started on, and that line alone passes the
+      # prefix. Real newlines or `\n` escapes (the token action takes both).
+      value_pattern: '-----BEGIN [A-Z ]*PRIVATE KEY-----.+-----END [A-Z ]*PRIVATE KEY-----(\\n)?'
   - name: RELEASE_PLEASE_TOKEN
     scope: fleet
     required: false
     purpose: >-
-      Lets release-please.yml open its release PR, and lets that PR's commits
-      trigger CI (a PR pushed with GITHUB_TOKEN fires no workflow events).
-      Fine-grained PAT, contents + pull_requests write on every repo that
-      releases. Mandatory on any repo whose Actions setting
-      `can_approve_pull_request_reviews` is off: there GITHUB_TOKEN cannot open
-      the release PR at all, so without this no release is ever cut
-      (bamr87/bamr87#406 and siblings). Declared fleet-scoped so the weekly
-      rotation can carry the hub's copy to the fleet; until a value exists on
-      the hub the loop reports it and writes nothing.
+      LEGACY: the release app above replaces it, and release-please.yml reads
+      it only on a repo where the app is not provisioned. A fine-grained PAT,
+      contents + pull_requests write on every repo that releases, which did
+      the same job (open the release PR, and have that PR's commits trigger
+      CI) until it expired, for one owner at a time. Still declared and still
+      propagated so no repo loses its release PR while the app rolls out.
+      Retire it once every repo's release runs report "the release app":
+      delete the secret fleet-wide, then this entry and its line in
+      token-rotation.yml (bamr87/bamr87#406 is the history).
     used_by: [release-please.yml]
     rotation:
       enabled: true

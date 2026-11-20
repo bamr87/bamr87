@@ -493,7 +493,7 @@ features:
       - .github/scripts/dash-gen/test_harness_registry.py
   - id: HUB-033
     title: "The fleet's one release-please workflow, degrading to a warning without a PR credential"
-    description: "Every fleet repo's Release workflow is a thin caller of .github/workflows/release-please.yml (SDLC kit templates/sdlc/release/): release-please computes the version from Conventional Commits, rewrites CHANGELOG.md on a release PR, and tags plus publishes the GitHub Release when that PR merges. Opening the release PR needs a credential allowed to create one (RELEASE_PLEASE_TOKEN, or the repo's Actions setting letting GITHUB_TOKEN open PRs); with neither, GitHub refuses POST /pulls. The workflow runs the tagging pass strictly and guards only the PR pass, so that one denial is a warning with the two remedies in the run summary instead of a red run on every push, and strict-pr-creation: true turns it back into a failure where the credential is provisioned."
+    description: "Every fleet repo's Release workflow is a thin caller of .github/workflows/release-please.yml (SDLC kit templates/sdlc/release/): release-please computes the version from Conventional Commits, rewrites CHANGELOG.md on a release PR, and tags plus publishes the GitHub Release when that PR merges. Opening the release PR needs a credential allowed to create one: the fleet's release app (a GitHub App; each job mints an installation token for its own repo from RELEASE_APP_CLIENT_ID and RELEASE_APP_PRIVATE_KEY, so nothing expires and the PR runs CI), the legacy RELEASE_PLEASE_TOKEN, or the repo's Actions setting letting GITHUB_TOKEN open PRs; with none, GitHub refuses POST /pulls. The workflow runs the tagging pass strictly and guards only the PR pass, so that one denial is a warning with the two remedies in the run summary instead of a red run on every push, and strict-pr-creation: true turns it back into a failure where the credential is provisioned."
     implemented: true
     status: shipped
     prd: [FR3, FR6]
@@ -504,6 +504,7 @@ features:
     date: 2026-10-29
     tests:
       - templates/sdlc/test_sdlc_kit.py
+      - tools/test_release_please.py
   - id: HUB-034
     title: "Workflow atlas: maintain and design the hub's GitHub Actions"
     description: "Every hub workflow and composite action read as one model (triggers, crons and their fleet.yml keys, dispatch inputs, jobs, actions used, secrets, kill switch, Claude call sites with cap and usage-limit mode) at /workflows, held to the README standards and AGENTS.md standing rules by 17 lint rules that each name their incident and gate. Run health per workflow from the local lake classifies every failure as capacity, config, transient, dependency or defect, with ghosts and green-but-429 runs; a Retire tab lists dead schedules, unused actions and README orphans; a Design tab scaffolds a workflow of five kinds that passes every rule and lints any draft. The console's dispatch form and allowlist read each workflow's inputs from its file. Supplies FR21's triggers, schedule and last run as a page rather than map nodes. Also tools/dash workflows and the fleet_workflows / workflow_lint MCP tools."

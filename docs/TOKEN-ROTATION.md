@@ -103,7 +103,7 @@ variables  read the hub's live values ─→ diff each repo ─→ write only wh
 
 **Survey ages from `updated_at`.** The secrets API returns names and timestamps but never values — exactly the shape an audit needs, and the reason no separate rotation clock exists. Each repo lands in one of four states, and `unreachable` is deliberately kept distinct from `missing`: *I cannot see it* and *it is not there* are different findings, and conflating them sends you chasing secrets that are already set.
 
-**Validate the shape before writing anything.** A candidate value must match one of the token's declared `value_prefixes`. The fleet has ~41 call sites reading this one secret; a malformed value breaks all of them simultaneously, and the repo that would have to fix it is the hub, whose own agent needs the same credential. A cheap prefix check against a very expensive failure mode.
+**Validate the shape before writing anything.** A candidate value must match one of the token's declared `value_prefixes`. The fleet has ~41 call sites reading this one secret; a malformed value breaks all of them simultaneously, and the repo that would have to fix it is the hub, whose own agent needs the same credential. A cheap prefix check against a very expensive failure mode. A prefix says how a value starts, not that all of it arrived, so a credential that can arrive cut short also declares a `value_pattern` the whole value must match: the release app's private key is a PEM file, and its first line alone still looks like a key.
 
 **Hub first, always.** If the hub cannot take the new credential, the fleet must not either — the fan-out aborts and everything stays on the credential it already has.
 
@@ -218,6 +218,8 @@ dash secrets push --env-file ~/secrets/fleet.env    # a different file
 ```
 
 Parsing matters more than it looks. The same `.env` carries a `GITHUB_TOKEN` for local tools, and `set -a; source .env` exports it — after which `gh` writes secrets **with that token** instead of your login, and it usually lacks `secrets:write`. `push` hands values only to `gh secret set`'s stdin, so the rest of the file never reaches a subprocess. A name missing from the contract is listed as _ignored_ and is never sent anywhere; to make a new key rotatable, declare it in `tokens:` (and in `token-rotation.yml`'s `env:` — see drift check (l)).
+
+**A multi-line secret is named by path.** A dotenv line holds one line, so a PEM key pasted into `.env` keeps only the line it started on. `NAME_FILE=<path>` supplies `NAME` from that file instead (`RELEASE_APP_PRIVATE_KEY_FILE=~/.config/bamr87/release-app.pem`); a relative path is relative to the dotenv file, and setting both `NAME` and `NAME_FILE` is an error. `push` also holds every value to its token's declared shape before it writes anything, the hub included: a value that `rotate` would refuse to propagate stops the push with nothing written, because secrets pushed together can depend on each other.
 
 **`ANTHROPIC_API_KEY` is not rotated here.** Each repo holds its Console workspace's key, and [`dash keys`](AI-INTEGRATION.md#anthropic-api-keys-per-workspace) owns every write (`managed_by: keys` in the token contract). The weekly loop, `dash secrets push` and `dash secrets sync` all skip it, because propagating the hub's single copy would overwrite every workspace's key. Its expiry is watched daily by `api-keys.yml`.
 
