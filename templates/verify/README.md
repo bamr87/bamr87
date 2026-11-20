@@ -14,7 +14,7 @@
 | `verifier.template.md` | `.claude/agents/verifier.md` | The acceptance-tester subagent persona that follows the skill and never claims what it did not observe. |
 | `EVIDENCE-README.template.md` | (reference) | The shape of a `test/evidence/<slug>/README.md`. |
 | `VERSION` | — | Kit provenance + changelog. |
-| `archive/` | — | The shapes earlier kit versions seeded (`verify-0.1.0.yml`, `verify-0.2.0.yml`, `verify.template-0.1.0.yml`, `runner-0.1.0.mjs`), so `--upgrade` can tell an untouched seed from a hand-edited copy. Snapshot the outgoing shape here before editing `verify.yml`, `verify.template.yml` or `runner.mjs`, or bumping `VERSION`. |
+| `archive/` | — | The shapes earlier kit versions seeded (`verify-0.1.0.yml`, `verify-0.2.0.yml`, `verify.template-0.1.0.yml`, `runner-0.1.0.mjs`), so `--upgrade` can tell an untouched seed from a hand-edited copy. It also holds the `verify-<version>-oauth*.yml` variants: the comment-only shapes the 2026-11-15 OAuth-only sweep left in every deployed copy (bamr87/bamr87#829). `tools/test_fanout_upgrade.py` holds each variant to a comment-only difference from its base. Snapshot the outgoing shape here before editing `verify.yml`, `verify.template.yml` or `runner.mjs`, or bumping `VERSION`. |
 
 ## Seed it
 
@@ -26,7 +26,7 @@ tools/dash verify deploy --target <name> [--apply]      # same, via the CLI
 
 Additive-only: a repo that already has `features/features.yml`, `verify/`, or a `verify.yml` workflow keeps its own. The `.claude/` artifacts are dedicated kit artifacts (the agent-context 0.4.0 exception), seeded only when absent.
 
-`--upgrade` refreshes `.github/workflows/verify.yml`, `verify/verify.yml` and `verify/runner.mjs` only where the copy is byte-identical to a shape in `archive/`, which proves nobody edited it. A hand-edited copy is reported and left alone. Since 0.2.0 that is the way to move a repo onto the new triggers: `tools/fanout.sh --kit verify --target <name> --upgrade` (dry run), then `--apply`.
+`--upgrade` refreshes `.github/workflows/verify.yml`, `verify/verify.yml` and `verify/runner.mjs` only where the copy is byte-identical to a shape in `archive/`, which proves nobody edited it. An archive that keeps `__KIT_VERSION__` is rendered with the version in its filename (the stamp that version seeded), then with the current one. A hand-edited copy is reported and left alone. Since 0.2.0 that is the way to move a repo onto the new triggers: `tools/fanout.sh --kit verify --target <name> --upgrade` (dry run), then `--apply`.
 
 ## Triggers
 

@@ -277,8 +277,12 @@ render_kit_template() {  # $1 template, $2 repo name, $3 default branch, $4 kit 
 # touched, so --upgrade may replace it. Hand-modified copies never match and are
 # always left alone. Archived shapes live beside the template as
 # archive/<template-basename>-<version>[-<variant>].yml.
+# An archive that keeps the __KIT_VERSION__ placeholder is rendered with the
+# version in its own filename (what that kit version stamped), then with the
+# current one: rendered only with the current version, a v0.2.0 seed of a
+# placeholder archive read "v0.3.0" and never matched (bamr87/bamr87#829).
 machine_seeded() {  # $1 file, $2 template, $3 repo name, $4 default branch, $5 version
-  local f="$1" tpl="$2" dir base ext cand tmp
+  local f="$1" tpl="$2" dir base ext cand tmp rest ver
   MATCHED_ARCHIVE=""
   # Extension-derived, not hardcoded .yml: the issue-autopilot kit archives .py
   # engine shapes. For a .yml template this is byte-for-byte the old behaviour.
@@ -286,8 +290,12 @@ machine_seeded() {  # $1 file, $2 template, $3 repo name, $4 default branch, $5 
   tmp="$(mktemp)"
   for cand in "$dir/archive/$base"-*."$ext"; do
     [[ -f "$cand" ]] || continue
-    render_kit_template "$cand" "$3" "$4" "$5" > "$tmp"
-    if cmp -s "$f" "$tmp"; then rm -f "$tmp"; MATCHED_ARCHIVE="$cand"; return 0; fi
+    rest="$(basename "$cand" ".$ext")"; rest="${rest#"$base"-}"; rest="${rest%%-*}"
+    [[ "$rest" =~ ^[0-9]+(\.[0-9]+)*$ ]] || rest="$5"
+    for ver in "$rest" "$5"; do
+      render_kit_template "$cand" "$3" "$4" "$ver" > "$tmp"
+      if cmp -s "$f" "$tmp"; then rm -f "$tmp"; MATCHED_ARCHIVE="$cand"; return 0; fi
+    done
   done
   rm -f "$tmp"
   return 1
