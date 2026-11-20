@@ -2,15 +2,15 @@
   "schema": "deep-dive/v1",
   "owner": "bamr87",
   "label": "deep-dive",
-  "refreshed_at": "2026-11-19T12:26:03Z",
+  "refreshed_at": "2026-11-20T12:26:01Z",
   "summary": {
-    "as_of": "2026-11-19",
+    "as_of": "2026-11-20",
     "cycle": 1,
     "cycle_start": "2026-10-30",
     "cycle_end": "2026-12-10",
     "cycle_days": 42,
     "total": 38,
-    "day": 21,
+    "day": 22,
     "processed": 13,
     "counts": {
       "pending": 25,
@@ -20,20 +20,20 @@
     },
     "progress": 0.3421,
     "today": {
-      "date": "2026-11-19",
-      "cycle": 1,
-      "day": 21,
-      "cycle_days": 42,
-      "kind": "scheduled",
-      "repo": "rewind-arcade"
-    },
-    "next": {
       "date": "2026-11-20",
       "cycle": 1,
       "day": 22,
       "cycle_days": 42,
       "kind": "scheduled",
       "repo": "godotgo"
+    },
+    "next": {
+      "date": "2026-11-21",
+      "cycle": 1,
+      "day": 23,
+      "cycle_days": 42,
+      "kind": "scheduled",
+      "repo": "outbox"
     },
     "last": "ocrmd",
     "last_date": "2026-11-18",
