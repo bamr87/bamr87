@@ -3165,3 +3165,39 @@ features:
     - test/evidence/overview-story
     prd:
     - FR140
+  - id: HUB-127
+    title: 'The fleet assistant baseline: any fleet page can be shared with a Claude Code session, through
+      one page bridge with an adapter per platform'
+    description: 'A page of any fleet site or app that carries the kit''s payload (templates/assistant/fleet-assist.js)
+      can be shared with the Harness Console on the same machine from a small panel on the page. A Claude
+      Code session paired with it by a single-use code then reads what the person has open, learns which
+      repo and source file it came from, points at things and, in the mode the person chooses (Look, Ask
+      first or Act), navigates, clicks and types. The rules are the console page''s own: nothing is clicked
+      or typed inside a modal dialog, a secret field is never read or filled, and the page holds no token.
+      tools/dash apps assist says which baseline each repo''s platform gets: the page bridge for the 19
+      repos that draw pages (Jekyll, MkDocs, plain HTML, Django templates, React, Next.js), the agent-context
+      baseline for the 22 that do not. Fanned out as pull requests with tools/fanout.sh --kit assist.'
+    implemented: true
+    status: shipped
+    surface: infra
+    link: templates/assistant/README.md
+    docs: docs/adr/0014-fleet-assistant-baseline.md
+    tags:
+    - assistant
+    - kit
+    - page-bridge
+    - mcp
+    - claude-code
+    - fleet
+    date: 2026-11-19
+    tests:
+    - templates/assistant/test_assistant_kit.py
+    - templates/assistant/tests/contract.test.mjs
+    - tools/console/test_page_bridge.py
+    - tools/console/test_console.py
+    - tools/test_fleetcore_assist.py
+    scenarios: []
+    evidence:
+    - test/evidence/fleet-assist
+    prd:
+    - FR141

@@ -21,7 +21,7 @@
 
 ## 1. Specs — the Universal Project Standard
 
-[`specs/README.md`](specs/README.md) is the spec index (UPS 1.0, draft); [`_data/specs.yml`](_data/specs.yml) is its generated twin. 240 requirements: 162 MUST, 69 SHOULD, 4 MAY; 69 still lack a seed kit.
+[`specs/README.md`](specs/README.md) is the spec index (UPS 1.0, draft); [`_data/specs.yml`](_data/specs.yml) is its generated twin. 253 requirements: 171 MUST, 73 SHOULD, 4 MAY; 70 still lack a seed kit.
 
 | Area | Spec | Ids | MUST / SHOULD / MAY | Gaps | Governs |
 | --- | --- | --- | --- | --- | --- |
@@ -30,6 +30,7 @@
 | QA | [`QUALITY.md`](specs/QUALITY.md) | UPS-QA-01…63 | 25 / 11 / 0 | 17 | Quality gates |
 | FE | [`FRONTEND.md`](specs/FRONTEND.md) | UPS-FE-01…73 | 34 / 14 / 2 | 6 | Frontend: design system, core components, UX standards |
 | FB | [`FEEDBACK.md`](specs/FEEDBACK.md) | UPS-FB-01…42 | 18 / 4 / 1 | 3 | The universal feedback component |
+| AST | [`ASSIST.md`](specs/ASSIST.md) | UPS-AST-01…42 | 9 / 4 / 0 | 1 | The fleet assistant: the page bridge and the baseline per platform |
 | BE | [`BACKEND.md`](specs/BACKEND.md) | UPS-BE-01…51 | 15 / 7 / 0 | 13 | HTTP API conventions and the client contract |
 | OPS | [`OPERATIONS.md`](specs/OPERATIONS.md) | UPS-OPS-01…42 | 18 / 8 / 1 | 16 | Configuration, observability, security, data |
 | WORK | [`WORK.md`](specs/WORK.md) | UPS-WORK-01…17 | 9 / 8 / 0 | 2 | Planning & delivery: SDLC profile, backlog, Definition of Done, ADRs, changelog, pinning |
@@ -46,6 +47,7 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 | [`agent-context/`](templates/agent-context/) | 0.7.0 | 2026-11-15 | .github/workflows/fanout.yml (kit standardize or harness; artifacts agent-context, claude… | `CLAUDE.template.md`, `agent-auditor.template.md`, `claude.yml`, `quarantine.template.md`, `settings.template.json` |
 | [`ai-ready/`](templates/ai-ready/) | 0.1.0 | 2026-11-15 | not yet; no fan-out is wired for this kit. | `README.md`, `agent-card.template.json`, `test_ai_ready_kit.py` |
 | [`ai-runner/`](templates/ai-runner/) | 0.4.1 | 2026-11-17 | consumed BY REFERENCE (uses: bamr87/bamr87/.github/actions/claude-run@v2, or the reusable… | `README.md`, `ai-lane.template.yml`, `tests/contract.sh` |
+| [`assistant/`](templates/assistant/) | 0.1.0 | 2026-11-19 | tools/fanout.sh --kit assist --target <name> [--apply] | `README.md`, `adapters/AssistBridge.tsx`, `adapters/django.html`, `adapters/jekyll.html`, `adapters/mkdocs.html`, `adapters/nextjs.tsx`, `adapters/static.html`, `fleet-assist.js`, `package.json`, `te… |
 | [`community/`](templates/community/) | 0.1.0 | 2026-10-03 | Distribution is by INHERITANCE first: the PR template, the issue forms, CONTRIBUTING.md,… | `.github/CODEOWNERS`, `.github/ISSUE_TEMPLATE/bug_report.yml`, `.github/ISSUE_TEMPLATE/config.yml`, `.github/ISSUE_TEMPLATE/documentation.yml`, `.github/ISSUE_TEMPLATE/feature_request.yml`, `.github/… |
 | [`conformance/`](templates/conformance/) | 0.2.0 | 2026-11-14 | tools/fanout.sh --kit standardize --artifacts conformance (fanout.yml, kit standardize) | `README.md`, `conformance.yml` |
 | [`elk/`](templates/elk/) | 0.2.0 | 2026-11-10 | tools/fanout.sh --kit elk --target <name> [--apply] | `README.md`, `SCHEMA.md`, `adapters/django-logging.py`, `adapters/node-pino.mjs`, `adapters/python-logging.py`, `adapters/rails-lograge.rb`, `compose.elk.yml`, `compose.labels.yml`, `filebeat.fleet.y… |
@@ -216,6 +218,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_docs_index.py`](tools/test_docs_index.py) | Fixture tests for `docs_index.py` — run by `run-all-tests.sh` |
 | [`test_evals.py`](tools/test_evals.py) | Tests for `evals.py`: the committed sets pass, the JSON shape, and a deliberately wrong expectation, a missing field, a duplicate id or too few cases each exit non-zero;… |
 | [`test_fanout_preflight.py`](tools/test_fanout_preflight.py) | Tests for tools/fanout.sh's hub-pin pre-flight (FF-0037, bamr87/bamr87#610). |
+| [`test_fanout_upgrade.py`](tools/test_fanout_upgrade.py) | Tests for tools/fanout.sh's --upgrade matcher, `machine_seeded` (bamr87/bamr87#829). |
 | [`test_features_index.py`](tools/test_features_index.py) | Fixture tests for `features_index.py` — run by `run-all-tests.sh` |
 | [`test_fleet_ci_gate.py`](tools/test_fleet_ci_gate.py) | Fixture tests for UPS-QA-20 in tools/conformance.py: `ci.yml` is a thin caller of the ONE shared gate, bamr87/bamr87's standard-ci.yml. |
 | [`test_fleet_config.py`](tools/test_fleet_config.py) | Fixture tests for tools/fleet-config.py — the per-repo AI auth order (`ai_auth:`) and the per-workspace Anthropic API keys (`api_keys:`, `dash keys`). |
@@ -223,6 +226,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_fleet_snapshots.py`](tools/test_fleet_snapshots.py) | Fixture tests for tools/fleet_snapshots.py, the shrink guard of the weekly fleet-snapshots writer (bamr87/bamr87#775), and for the shape of the workflow that runs it. |
 | [`test_fleetcore.py`](tools/test_fleetcore.py) | Fixture tests for tools/fleetcore's shared contracts — keys v1, the theme, the console client. |
 | [`test_fleetcore_apps.py`](tools/test_fleetcore_apps.py) | Tests for tools/fleetcore/apps.py — the app portal's launcher: every registry frontend joined to its live address and its local dev stack's (ADR 0005). |
+| [`test_fleetcore_assist.py`](tools/test_fleetcore_assist.py) | Tests for tools/fleetcore/assist.py — the assistant baseline each repo's platform gets (ADR 0014): page (the kit's payload mounts through an adapter), context (no page:… |
 | [`test_fleetcore_graph.py`](tools/test_fleetcore_graph.py) | Tests for tools/fleetcore/graph.py — the fleet graph: the model, the builders over a fixture checkout, the surface parsers, the checks, and the hub's own graph (no dangl… |
 | [`test_fleetcore_host.py`](tools/test_fleetcore_host.py) | Fixture tests for tools/fleetcore/host.py — live Docker inventory matched onto registry rows. |
 | [`test_fleetcore_learn.py`](tools/test_fleetcore_learn.py) | Tests for tools/fleetcore/learn.py — outcome learning in shadow: how an output is sorted into an outcome, the estimate and its decay, the Thompson plan, the replay skill… |
