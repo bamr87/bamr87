@@ -418,6 +418,133 @@ def test_the_activity_block_references_the_one_redaction_list():
     assert isinstance(prefixes, list) and prefixes and all(isinstance(p, str) and p for p in prefixes), prefixes
 
 
+# --------------------------------------------------------------------------- #
+# push — file-backed values and the shape check (`dash secrets push`)
+#
+# The release app's private key is a PEM file: many lines, where a dotenv value
+# is one. The key text is assembled here rather than written out, so no file in
+# the repo holds something a secret scanner reads as a private key.
+# --------------------------------------------------------------------------- #
+import contextlib  # noqa: E402
+import io  # noqa: E402
+import os  # noqa: E402
+import tempfile  # noqa: E402
+
+
+def _pem(kind: str = "RSA ", lines: int = 3, sep: str = "\n") -> str:
+    body = sep.join("QUJD" * 16 for _ in range(lines))
+    return f"-----BEGIN {kind}PRIVATE KEY-----{sep}{body}{sep}-----END {kind}PRIVATE KEY-----"
+
+
+def _live_policy(name: str) -> dict:
+    token = next(t for t in fc.load(fc.FLEET)["tokens"] if t["name"] == name)
+    return fc.token_rotation_policy(token)
+
+
+def _key_ok(value: str) -> bool:
+    pol = _live_policy("RELEASE_APP_PRIVATE_KEY")
+    return fc.value_looks_right(value, pol["value_prefixes"], pol["value_pattern"])
+
+
+def test_a_secret_named_by_file_is_read_from_the_file():
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        (base / "app.pem").write_text(_pem() + "\n")
+        got, errors = fc.file_backed_values({"KEY_FILE": "app.pem", "OTHER": "x"}, ["KEY", "OTHER"], base)
+        assert not errors, errors
+        assert got["KEY"] == _pem(), "the file's contents, without the trailing newline"
+        assert got["OTHER"] == "x" and got["KEY_FILE"] == "app.pem"
+        # An absolute path is taken as written.
+        got, errors = fc.file_backed_values({"KEY_FILE": str(base / "app.pem")}, ["KEY"], Path("/nonexistent"))
+        assert not errors and got["KEY"] == _pem(), errors
+
+
+def test_a_file_pointer_that_cannot_supply_a_value_is_an_error_not_a_skip():
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        (base / "empty.pem").write_text("\n")
+        (base / "app.pem").write_text(_pem())
+        _, errors = fc.file_backed_values({"KEY_FILE": "missing.pem"}, ["KEY"], base)
+        assert len(errors) == 1 and "missing.pem" in errors[0], errors
+        _, errors = fc.file_backed_values({"KEY_FILE": "empty.pem"}, ["KEY"], base)
+        assert len(errors) == 1 and "empty" in errors[0], errors
+        got, errors = fc.file_backed_values({"KEY": "inline", "KEY_FILE": "app.pem"}, ["KEY"], base)
+        assert len(errors) == 1 and "both set" in errors[0], errors
+        assert got["KEY"] == "inline", "an ambiguous pair must not be resolved either way"
+        assert all(_pem() not in e for e in errors), "an error never quotes a value"
+        # A name nobody asked for is left alone, broken pointer and all.
+        _, errors = fc.file_backed_values({"KEY_FILE": "missing.pem"}, ["OTHER"], base)
+        assert not errors, errors
+
+
+def test_a_file_pointer_is_not_reported_as_a_stray_key():
+    tokens = [{"name": "RELEASE_APP_PRIVATE_KEY", "scope": "fleet"}]
+    values = {"RELEASE_APP_PRIVATE_KEY": _pem(), "RELEASE_APP_PRIVATE_KEY_FILE": "app.pem", "JEKYLL_PORT": "4000"}
+    plan = fc.push_plan(tokens, values)
+    assert plan["push"] == ["RELEASE_APP_PRIVATE_KEY"], plan
+    assert plan["ignored"] == ["JEKYLL_PORT"], plan
+
+
+def test_a_key_cut_off_after_its_first_line_is_not_a_key():
+    assert _key_ok(_pem()), "a whole key, real newlines"
+    assert _key_ok(_pem(kind="")), "PKCS#8 has no algorithm in its header"
+    assert _key_ok(_pem(sep="\\n")), "one line with \\n escapes: the token action unescapes it"
+    assert _key_ok(_pem(sep="\\n") + "\\n"), "the escaped form often ends in an escape"
+    first_line = _pem().splitlines()[0]
+    assert not _key_ok(first_line), "what a dotenv parser keeps of a pasted key"
+    assert not _key_ok('"' + first_line), "the same paste, with its opening quote"
+    assert not _key_ok(_pem().rsplit("-----END", 1)[0].rstrip()), "a key missing its last line"
+    assert not _key_ok("github_pat_x"), "another credential in the key's place"
+
+
+def test_a_client_id_is_shaped_like_one_and_a_pat_still_is():
+    pol = _live_policy("RELEASE_APP_CLIENT_ID")
+    assert fc.value_looks_right("Iv23liABCDEF", pol["value_prefixes"], pol["value_pattern"])
+    assert fc.value_looks_right("Iv1.0123456789abcdef", pol["value_prefixes"], pol["value_pattern"])
+    assert not fc.value_looks_right("1234567", pol["value_prefixes"], pol["value_pattern"]), \
+        "the numeric App ID is the deprecated input"
+    # No pattern declared: the prefix check alone decides, as it always did.
+    assert fc.value_looks_right("github_pat_x", ["github_pat_", "ghp_"])
+    assert not fc.value_looks_right(" github_pat_x", ["github_pat_"])
+    assert "whole value" in fc.shape_hint({"value_prefixes": ["-----BEGIN "], "value_pattern": "x"})
+    assert fc.shape_hint({"value_prefixes": []}) == "non-empty"
+
+
+def test_the_release_app_never_asks_for_a_re_mint_and_always_propagates():
+    """An app's client ID and key do not expire: `lifetime_days: 0` is what
+    keeps the weekly loop from opening a "needs-mint" issue a year from now."""
+    live = fc.load(fc.FLEET)
+    rotating = {t["name"]: t for t in fc.rotating_tokens(live)}
+    for name in ("RELEASE_APP_CLIENT_ID", "RELEASE_APP_PRIVATE_KEY"):
+        assert name in rotating, f"{name} must ride the weekly rotation"
+        assert rotating[name]["scope"] == "fleet" and not rotating[name].get("required"), name
+        pol = rotating[name]["_rotation"]
+        old = [{"nwo": "bamr87/bamr87", "state": fc.S_OK, "age_days": 4000}]
+        assert not fc.needs_human_mint(old, pol, "bamr87/bamr87", False), name
+    wf = (fc.REPO_ROOT / ".github" / "workflows" / "token-rotation.yml").read_text()
+    for name in ("RELEASE_APP_CLIENT_ID", "RELEASE_APP_PRIVATE_KEY"):
+        assert f"{name}: ${{{{ secrets.{name} }}}}" in wf, f"{name} is never handed to the rotation"
+
+
+def test_a_multi_line_value_is_masked_line_by_line():
+    """`::add-mask::` reads one line. A PEM key handed over whole would mask
+    its first line and print every other line into the Actions log."""
+    value = _pem()
+    before = os.environ.get("GITHUB_ACTIONS")
+    os.environ["GITHUB_ACTIONS"] = "true"
+    try:
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            fc.mask(value + "\n\n")
+    finally:
+        if before is None:
+            del os.environ["GITHUB_ACTIONS"]
+        else:
+            os.environ["GITHUB_ACTIONS"] = before
+    printed = out.getvalue().splitlines()
+    assert printed == [f"::add-mask::{line}" for line in value.splitlines()], printed
+
+
 def main() -> int:
     failures = 0
     for name, fn in sorted(globals().items()):

@@ -197,6 +197,12 @@ jobs:
           # for now (2026-11-15), and ai_auth `oauth` sends the key to no repo.
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CLAUDE_CODE_OAUTH_REFRESH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_REFRESH_TOKEN }}
+          # The release app (docs/RELEASES.md): its client ID and private key
+          # arm it together, so both ride the loop. The key is a multi-line
+          # value; it reaches the tool whole, as an environment variable.
+          RELEASE_APP_CLIENT_ID: ${{ secrets.RELEASE_APP_CLIENT_ID }}
+          RELEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          # Legacy PAT the app replaces; propagated until it is retired.
           RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           # Dispatch inputs reach the shell as environment variables, never
           # spliced into the command line: `${{ }}` interpolation inside `run:`

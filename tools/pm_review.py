@@ -738,7 +738,7 @@ def align_releases(model: dict, cfg: dict, add: Callable, now: datetime) -> list
                     f"the release PR has been open {age} days{tail}", "merging it tags and publishes the release: that merge is yours", url=pr.get("url"))
         elif state == "blocked":
             add("release", "release_blocked", repo, repo, repo, f"{what}, release-please is adopted, and no release PR is open{tail}",
-                "docs/RELEASES.md \"When the release PR cannot be opened\": RELEASE_PLEASE_TOKEN or the Actions PR permission")
+                "docs/RELEASES.md \"When the release PR cannot be opened\": the release app's two secrets, or the Actions PR permission")
         elif state == "unreleased" and releasable >= int(th["unreleased_commits"]):
             how = "cut the next tag (docs/WORKFLOW-VERSIONING.md)" if engine == "hand-cut" else f"tools/adopt-release.sh {repo.split('/')[1]}"
             add("release", "release_unreleased", repo, repo, repo, f"{what} ({un.get('bump')} bump), engine {engine}{tail}", how)

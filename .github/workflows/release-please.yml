@@ -16,18 +16,34 @@ name: release-please
 # that publish chain their own job off the `release_created` output (same run,
 # so no PAT is needed to trigger it).
 #
-# Opening the release PR needs a credential allowed to create one: either a
-# RELEASE_PLEASE_TOKEN secret, or the repo's Actions setting "Allow GitHub
-# Actions to create and approve pull requests" (Settings > Actions > General >
-# Workflow permissions) so GITHUB_TOKEN may. With neither, GitHub refuses
-# `POST /pulls` and release-please exits 1 — on every push, forever, while
-# nothing else about the run is wrong (bamr87/bamr87#406). That one denial is
-# therefore a WARNING here, not a failure: the tagging pass stays strict, the
-# PR pass is guarded, and `strict-pr-creation: true` turns the warning back
-# into a failure on a repo whose credential is provisioned.
+# THE CREDENTIAL. Opening the release PR needs one that may create a pull
+# request, and the job's own GITHUB_TOKEN usually may not: a repo's Actions
+# setting "Allow GitHub Actions to create and approve pull requests" is off by
+# default, and where it is on, a PR opened by GITHUB_TOKEN waits for a person
+# to approve its workflow runs. So the release is made by the fleet's RELEASE
+# APP, a GitHub App with contents + pull-requests write installed on the repo.
+# Each job mints an installation token for THIS repo, good for an hour and
+# revoked when the job ends, from two secrets: RELEASE_APP_CLIENT_ID and
+# RELEASE_APP_PRIVATE_KEY (docs/RELEASES.md "The release app"). Nothing
+# expires, nothing is re-minted by hand, and one app serves every owner it is
+# installed on. The order, first one present wins:
+#
+#   1. the release app                    the PR runs CI, the tag fires workflows
+#   2. RELEASE_PLEASE_TOKEN (legacy PAT)  the same, until the PAT expires
+#   3. GITHUB_TOKEN                       only where the Actions setting is on
+#
+# With none that can open a PR, GitHub refuses `POST /pulls` and release-please
+# exits 1 — on every push, forever, while nothing else about the run is wrong
+# (bamr87/bamr87#406). That one denial is therefore a WARNING here, not a
+# failure: the tagging pass stays strict, the PR pass is guarded, and
+# `strict-pr-creation: true` turns the warning back into a failure on a repo
+# whose credential is provisioned. An app that IS provisioned and cannot mint
+# (not installed on the repo, a wrong key) always fails the run and says why.
 #
 # Callers pin a tag, never @main (UPS-WORK-10; tag scheme in
-# docs/WORKFLOW-VERSIONING.md):
+# docs/WORKFLOW-VERSIONING.md), and pass the credential BY NAME: GitHub hands
+# `secrets: inherit` only to a reusable workflow of the caller's own owner, so
+# an inheriting caller under another owner would arrive here with nothing.
 #
 #   on:
 #     push:
@@ -36,9 +52,11 @@ name: release-please
 #     contents: read
 #   jobs:
 #     release:
-#       uses: bamr87/bamr87/.github/workflows/release-please.yml@v1
+#       uses: bamr87/bamr87/.github/workflows/release-please.yml@v2
 #       permissions: { contents: write, pull-requests: write }
-#       secrets: inherit
+#       secrets:
+#         RELEASE_APP_CLIENT_ID: ${{ secrets.RELEASE_APP_CLIENT_ID }}
+#         RELEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
 #
 # Home (decision D3): shared workflows live in the hub. This is the hub copy of
 # the logic that bamr87/.github's release-please.yml carries today; retiring or
@@ -68,23 +86,39 @@ on:
         description: >
           Fail the run when the release PR cannot be created. Default false: the
           run warns instead, because the one cause a caller cannot fix from a PR
-          is a repo with no RELEASE_PLEASE_TOKEN whose Actions setting forbids
+          is a repo with no release credential whose Actions setting forbids
           GITHUB_TOKEN from opening PRs (bamr87/bamr87#406). Set true on a repo
           whose credential is provisioned and whose releases must therefore
           never silently stop.
         type: boolean
         default: false
     secrets:
+      RELEASE_APP_CLIENT_ID:
+        description: >
+          Client ID of the fleet's release app, a GitHub App with contents +
+          pull-requests write that is installed on the caller's repo. With
+          RELEASE_APP_PRIVATE_KEY it is the credential every job here mints its
+          token from, so the release PR's commits trigger CI and the tag fires
+          the workflows that listen for it. Not a secret by nature; it is held
+          as one so both halves travel the same road (`dash secrets push`, the
+          weekly rotation). Inert without the key.
+        required: false
+      RELEASE_APP_PRIVATE_KEY:
+        description: >
+          A private key of the release app, in PEM form: a multi-line value,
+          or one line with `\n` escapes. Its presence arms the app, so a key
+          without RELEASE_APP_CLIENT_ID fails the run.
+        required: false
       RELEASE_PLEASE_TOKEN:
         description: >
-          PAT (contents + pull-requests write) so the release PR's commits
-          trigger CI; commits made with the default GITHUB_TOKEN do not trigger
-          other workflows. Falls back to GITHUB_TOKEN when unset, which is
+          LEGACY, used only when the release app is not provisioned: a PAT
+          (contents + pull-requests write) that does the app's job until it
+          expires. With neither, the run falls back to GITHUB_TOKEN, which is
           enough only where the repo's Actions setting "Allow GitHub Actions to
-          create and approve pull requests" is on. Where it is off this secret
-          is MANDATORY (docs/RELEASES.md): without it GitHub refuses POST /pulls
-          and no release PR is ever opened. The PR step below downgrades that
-          one denial to a warning rather than a red run.
+          create and approve pull requests" is on. Where it is off and nothing
+          else is provisioned, GitHub refuses POST /pulls and no release PR is
+          ever opened; the PR step below downgrades that one denial to a
+          warning rather than a red run.
         required: false
     outputs:
       releases_created:
@@ -124,11 +158,66 @@ jobs:
       version: ${{ steps.rp.outputs.version }}
       prs_created: ${{ steps.rp_pr.outputs.prs_created }}
       pr: ${{ steps.rp_pr.outputs.pr }}
+      # true | false, never a value: tells `relock` to mint its own token.
+      app: ${{ steps.cred.outputs.app }}
     steps:
+      # Which credential? The KEY arms the app. The client ID alone is inert,
+      # which is what lets a fan-out write it to every repo first and the key
+      # second without one red release run in between (the token contract
+      # lists them in that order, and `dash secrets push` follows it). A key
+      # with no client ID is a setup someone left half done, and falling
+      # through to the PAT or GITHUB_TOKEN would hide it behind a green run.
+      - name: Find the release credential
+        id: cred
+        env:
+          # Comparisons, never the values: each prints true or false.
+          HAVE_ID: ${{ secrets.RELEASE_APP_CLIENT_ID != '' }}
+          HAVE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY != '' }}
+          HAVE_PAT: ${{ secrets.RELEASE_PLEASE_TOKEN != '' }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ "$HAVE_KEY" = "true" ] && [ "$HAVE_ID" != "true" ]; then
+            echo "::error title=The release app has a key and no client ID::$REPO holds RELEASE_APP_PRIVATE_KEY without RELEASE_APP_CLIENT_ID. Set the client ID, or remove the key to release without the app. A caller under another owner than this workflow's must pass both by name; \`secrets: inherit\` does not cross owners."
+            exit 1
+          fi
+          if [ "$HAVE_ID" = "true" ] && [ "$HAVE_KEY" != "true" ]; then
+            echo "::warning title=The release app is not armed yet::$REPO holds RELEASE_APP_CLIENT_ID and no RELEASE_APP_PRIVATE_KEY. The key is what arms the app; this run uses the next credential in the order."
+          fi
+          echo "app=$HAVE_KEY" >> "$GITHUB_OUTPUT"
+          if [ "$HAVE_KEY" = "true" ]; then
+            echo "Release credential: the release app."
+          elif [ "$HAVE_PAT" = "true" ]; then
+            echo "Release credential: RELEASE_PLEASE_TOKEN (legacy PAT). The release app replaces it: docs/RELEASES.md."
+          else
+            echo "Release credential: GITHUB_TOKEN. It opens the release PR only where the repo lets Actions create pull requests."
+          fi
+
+      # An installation token for this repo alone, cut down to the two
+      # permissions a release needs whatever the app itself holds. The action
+      # revokes it when the job ends.
+      #
+      # `app-id` carries the CLIENT ID. The action renamed the input to
+      # `client-id` in v3.1.0 and reads either into the same value, but
+      # actionlint 1.7.12, which gates this file with no exemptions
+      # (drift-check.yml), does not know the new name yet. The cost is a
+      # deprecation notice on the run. Rename both steps when actionlint does.
+      - name: Mint the release app's token
+        id: app
+        if: steps.cred.outputs.app == 'true'
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
       # Two passes over the same config, because the two halves of what
       # release-please does have different failure modes. Tagging a merged
-      # release PR only needs `contents: write`, which GITHUB_TOKEN always has,
-      # so a failure there is a real defect and must stay red. OPENING the
+      # release PR only needs `contents: write`, which every credential in the
+      # order has, so a failure there is a real defect and must stay red. (The
+      # app or the PAT still matters to it: a tag pushed by GITHUB_TOKEN fires
+      # no `push: tags` or `release` workflow.) OPENING the
       # release PR additionally needs permission to create a PR, which a repo
       # can withhold from Actions entirely — the `GitHub Actions is not
       # permitted to create or approve pull requests` denial of
@@ -138,7 +227,7 @@ jobs:
         id: rp
         uses: googleapis/release-please-action@v5
         with:
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ steps.app.outputs.token || secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
           config-file: ${{ inputs.config-file }}
           manifest-file: ${{ inputs.manifest-file }}
           target-branch: ${{ inputs.target-branch || github.event.repository.default_branch }}
@@ -149,7 +238,7 @@ jobs:
         continue-on-error: true
         uses: googleapis/release-please-action@v5
         with:
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ steps.app.outputs.token || secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
           config-file: ${{ inputs.config-file }}
           manifest-file: ${{ inputs.manifest-file }}
           target-branch: ${{ inputs.target-branch || github.event.repository.default_branch }}
@@ -164,22 +253,27 @@ jobs:
       - name: Guard the release-PR denial
         if: steps.rp_pr.outcome == 'failure'
         env:
-          # A comparison, never the value: this prints true/false only.
+          # Comparisons, never the values: these print true/false only.
+          HAVE_APP: ${{ steps.cred.outputs.app }}
           HAVE_PAT: ${{ secrets.RELEASE_PLEASE_TOKEN != '' }}
           STRICT: ${{ inputs.strict-pr-creation }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           detail="see the \"Open or update the release PR\" step above for the error"
+          if [ "$HAVE_APP" = "true" ]; then
+            echo "::error title=release-please could not open the release PR::The release app minted a token for $REPO, so this is not the known PR-creation denial — $detail. Check that the app holds Contents and Pull requests read and write."
+            exit 1
+          fi
           if [ "$HAVE_PAT" = "true" ]; then
-            echo "::error title=release-please could not open the release PR::RELEASE_PLEASE_TOKEN is set on $REPO, so this is not the known PR-creation denial — $detail."
+            echo "::error title=release-please could not open the release PR::RELEASE_PLEASE_TOKEN is set on $REPO, so this is not the known PR-creation denial — $detail. An expired PAT fails exactly here; the release app (docs/RELEASES.md) does not expire."
             exit 1
           fi
           if [ "$STRICT" = "true" ]; then
-            echo "::error title=release-please could not open the release PR::strict-pr-creation is on and no RELEASE_PLEASE_TOKEN is set on $REPO — $detail."
+            echo "::error title=release-please could not open the release PR::strict-pr-creation is on and no release credential is set on $REPO — $detail."
             exit 1
           fi
-          echo "::warning title=No release PR — release-please has no way to open one::$REPO has no RELEASE_PLEASE_TOKEN, and GITHUB_TOKEN may not create pull requests unless Settings > Actions > General > Workflow permissions > \"Allow GitHub Actions to create and approve pull requests\" is on. Versioning is paused, not broken: nothing else in this run failed."
+          echo "::warning title=No release PR — release-please has no way to open one::$REPO has no release credential, and GITHUB_TOKEN may not create pull requests unless Settings > Actions > General > Workflow permissions > \"Allow GitHub Actions to create and approve pull requests\" is on. Versioning is paused, not broken: nothing else in this run failed."
           {
             echo "### Release PR not opened"
             echo
@@ -187,11 +281,33 @@ jobs:
             echo
             echo "Give it one of these on \`$REPO\` and the next push to the default branch opens the PR:"
             echo
-            echo "1. A \`RELEASE_PLEASE_TOKEN\` secret — a PAT with \`contents: write\` + \`pull requests: write\`. Preferred: the release PR then runs CI."
-            echo "2. Settings > Actions > General > Workflow permissions > \"Allow GitHub Actions to create and approve pull requests\". The release PR then runs no CI."
+            echo "1. The release app: install it on this repo and set the \`RELEASE_APP_CLIENT_ID\` and \`RELEASE_APP_PRIVATE_KEY\` secrets (from the hub: \`tools/dash secrets push\`). Preferred: the release PR then runs CI, and nothing expires."
+            echo "2. Settings > Actions > General > Workflow permissions > \"Allow GitHub Actions to create and approve pull requests\". The release PR's CI then waits for a person to approve it."
             echo
             echo "Tracked in [bamr87/bamr87#406](https://github.com/bamr87/bamr87/issues/406); background in [docs/RELEASES.md](https://github.com/bamr87/bamr87/blob/main/docs/RELEASES.md)."
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # The app was armed and could not mint, so nothing above ran. The
+      # action's own message is one line of HTTP; these are the causes behind
+      # it. Never a fallback to the PAT: an armed app that is broken has to
+      # show, or it stays broken until the PAT under it expires.
+      - name: Explain a failed mint
+        if: failure() && steps.app.conclusion == 'failure'
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          {
+            echo "### The release app could not mint a token for \`$REPO\`"
+            echo
+            echo "The app's key and client ID are both set here, so the app is armed, but GitHub refused the token. Nothing was tagged and no release PR was touched; the next green run catches up."
+            echo
+            echo "- **The app is not installed on this repo.** Open the app's page, Install App, and include \`$REPO\` (or all repositories of its owner)."
+            echo "- **The key does not belong to the app.** \`RELEASE_APP_PRIVATE_KEY\` must be a key generated on the app whose client ID is in \`RELEASE_APP_CLIENT_ID\`, whole, from \`-----BEGIN\` to \`-----END\`."
+            echo "- **The app lacks a permission.** It needs Contents and Pull requests, both read and write."
+            echo
+            echo "Setup and repair: [docs/RELEASES.md](https://github.com/bamr87/bamr87/blob/main/docs/RELEASES.md#the-release-app). To fall back to the legacy PAT or GITHUB_TOKEN on purpose, remove both app secrets."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error title=The release app could not mint a token::See the run summary for the three causes and the fix."
 
   # release-please bumps the version file on the release PR, but not lockfiles
   # that carry the project's own version (a path-gem in Gemfile.lock, the root
@@ -207,10 +323,23 @@ jobs:
     permissions:
       contents: write
     steps:
+      # A job of its own, so a token of its own: the one the release job
+      # minted was revoked when that job ended. The lockfile commit is the
+      # release PR's new head, so it has to be pushed by a credential whose
+      # pushes trigger CI, or the PR would show checks for the commit before.
+      - name: Mint the release app's token
+        id: app
+        if: needs.release-please.outputs.app == 'true'
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.RELEASE_APP_CLIENT_ID }}   # the client ID; see the release job
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+
       - uses: actions/checkout@v7
         with:
           ref: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ steps.app.outputs.token || secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Set up Ruby
         if: hashFiles('Gemfile.lock') != ''
