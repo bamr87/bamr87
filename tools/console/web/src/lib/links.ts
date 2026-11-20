@@ -40,6 +40,7 @@ export const to = {
     return `/apps/${enc(id)}${s ? `?${s}` : ''}`;
   },
   inbox: (kind?: string) => `/inbox${kind ? `?kind=${enc(kind)}` : ''}`,
+  prs: () => '/prs',
   containers: () => '/containers',
   nodes: () => '/nodes',
   ghProjects: (f: { project?: string; view?: 'table' | 'board' } = {}) => {

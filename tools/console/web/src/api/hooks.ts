@@ -11,12 +11,21 @@ import type {
   ProjectDetail, StateDoc, TuiStatus, Dict, GithubStatus, GhRepo, GhRepoDetail, GhAction, GhIssue,
   SiteIndex, SitePage, SitePost, GithubFleet, PullSpecs, WorkBoard, WorkItemDetail, WorkPlan,
   WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint, RefineDoc, EvidenceDoc, TextFile, AssistDoc, JobTail, PrQueue, NodesDoc, SprintsDoc, VoicesDoc,
-  GhProjectsDoc, GhProjectItemsDoc,
+  GhProjectsDoc, GhProjectItemsDoc, DecisionsDoc,
 } from './types';
 
 const minute = 60_000;
 
 export const useStateDoc = () => useQuery({ queryKey: ['state'], queryFn: () => api<StateDoc>('/api/state'), staleTime: minute });
+/** What waits on the maintainer, counts only (the decision index; docs/DECISION-INDEX.md). `refresh=never`:
+ *  the front door never spends a GitHub read, the index refreshes on its own TTL. Never on the published page. */
+export const useDecisionCounts = (enabled = true) =>
+  useQuery({
+    queryKey: ['decisions', 'counts'],
+    enabled: enabled && !STATIC,
+    queryFn: () => api<DecisionsDoc>('/api/decisions?limit=0&refresh=never'),
+    staleTime: minute,
+  });
 export const useCaps = () => useQuery({ queryKey: ['caps'], queryFn: () => api<Capabilities>('/api/capabilities'), staleTime: 5 * minute });
 export const useOps = () => useQuery({ queryKey: ['ops'], queryFn: () => api<Op[]>('/api/ops'), staleTime: Infinity });
 export const useKeys = () =>

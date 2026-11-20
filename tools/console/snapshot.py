@@ -75,7 +75,7 @@ LOCAL_ONLY = ("runs on the operator's machine and is never published — "
 # list equal to the <Route path> table in web/src/main.tsx.
 STATIC_ROUTES: dict[str, tuple[str, str]] = {
     "": ("Home", ""),  # empty: Home says _data/profile.yml site.description
-    "overview": ("Overview", "Fleet attention queue, KPIs and signal freshness."),
+    "overview": ("Overview", "The fleet in one screen: health, budget direction, what waits on the maintainer, the harness standard, flow, the attention queue by lever and signal freshness."),
     "about": ("About", ""),
     "experience": ("Experience", ""),
     "services": ("Services", ""),

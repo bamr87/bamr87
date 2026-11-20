@@ -1538,7 +1538,7 @@ def test_loop_run_op_is_validated_dry_run_only_and_one_per_loop():
 
 def test_state_document_degrades_without_signals(monkeypatch_dir=None):
     state = core.load_state()
-    for key in ("sources", "contract", "registry", "harnesses", "loops", "git", "usage", "tokens"):
+    for key in ("sources", "contract", "registry", "harnesses", "loops", "git", "usage", "tokens", "history"):
         assert key in state, key
     assert state["registry"]["count"] > 0
     # `inbox` is the Overview's preview; the sidebar's count reads the whole list.
@@ -3367,3 +3367,52 @@ def test_the_assistant_stand_in_is_not_a_model_and_stays_out_of_the_real_ledger(
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def test_registry_history_is_the_file_s_own_git_log():
+    """The Overview's trends are the registry file's git history (core.registry_history): one point per committed
+    day, oldest first, the later commit of a day winning, the totals/trends blocks sliced out by text before YAML
+    parses them — so a 200 KB file costs a slice, not a load — and cached per HEAD. No new file is committed."""
+    docs = {
+        "aaa": "schema: x\ntotals:\n  attention: 5\n  harnesses_conformant: 1\ntrends:\n  ai_cost_usd:\n"
+               "    projected_monthly: 10.5\n  actions_minutes:\n    projected_monthly: 100\nrepos: []\n",
+        "bbb": "totals:\n  attention: 7\n  harnesses_conformant: 2\ntrends: {}\n",
+        "ccc": "totals:\n  attention: 9\n",
+    }
+    calls = []
+
+    def fake(argv, timeout=15, cwd=None):
+        calls.append(argv)
+        if argv[:3] == ["git", "log", "-1"]:
+            return 0, "ccc\n"
+        if argv[:2] == ["git", "log"]:
+            return 0, ("ccc 2026-11-12T06:00:00+00:00\nbbb 2026-11-11T18:00:00+00:00\n"
+                       "aaa 2026-11-11T06:00:00+00:00\n")
+        if argv[:2] == ["git", "show"]:
+            return 0, docs[argv[2].split(":")[0]]
+        return 1, ""
+
+    core._HISTORY.clear()
+    try:
+        with mock.patch.object(core, "run_quiet", side_effect=fake):
+            h = core.registry_history()
+            again = core.registry_history()
+        assert h["source"] == "git" and h["days"] == 2
+        assert [p["at"] for p in h["points"]] == ["2026-11-11", "2026-11-12"], h["points"]
+        assert [p["attention"] for p in h["points"]] == [7, 9]  # the later commit of 11-11 wins; aaa is never shown
+        assert h["points"][0]["harnesses_conformant"] == 2 and h["points"][1]["ai_projected_monthly"] is None
+        assert not any(a[:2] == ["git", "show"] and a[2].startswith("aaa") for a in calls)
+        assert again is h and sum(1 for a in calls if a[:2] == ["git", "show"]) == 2, "cached per HEAD"
+        # the slicer: a block, a scalar where a mapping was expected, nothing
+        assert core._top_block(docs["aaa"], "trends")["ai_cost_usd"]["projected_monthly"] == 10.5
+        assert core._top_block(docs["aaa"], "totals") == {"attention": 5, "harnesses_conformant": 1}
+        assert core._top_block("totals: 3\n", "totals") == {} and core._top_block("", "totals") == {}
+        with mock.patch.object(core, "run_quiet", return_value=(128, "")):
+            core._HISTORY.clear()
+            assert core.registry_history()["source"] == "none"
+    finally:
+        core._HISTORY.clear()
+    # the state document carries it, and the live tree's history (this is a git checkout) parses
+    live = core.load_state()["history"]
+    assert live["source"] in ("git", "none") and isinstance(live["points"], list)
+    assert all(p["at"] <= q["at"] for p, q in zip(live["points"], live["points"][1:])), "oldest first"

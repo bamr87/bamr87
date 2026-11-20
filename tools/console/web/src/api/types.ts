@@ -93,11 +93,45 @@ export interface ScheduleEntry {
 export interface Trend {
   status?: string;
   window_total?: number | null;
+  daily_avg?: number | null;
   last7?: number | null;
   prior7?: number | null;
   wow_delta_pct?: number | null;
   projected_monthly?: number | null;
   budget_monthly?: number | null;
+  /** Claude spend: how much of the window is measured vs estimated. */
+  measured_total?: number | null;
+  estimated_total?: number | null;
+  estimated_share_pct?: number | null;
+  cost_basis?: string | null;
+  /** Actions minutes: the billing meter's own month-to-date and last month. */
+  source?: string | null;
+  billed_this_month?: number | null;
+  billed_previous_month?: number | null;
+  mom_delta_pct?: number | null;
+}
+
+/** One day of the registry file's git history (core.registry_history): the Overview's trends. */
+export interface HistoryPoint {
+  at: string;
+  commit: string;
+  attention?: number | null;
+  harnesses_graded?: number | null;
+  harnesses_conformant?: number | null;
+  baseline_ok?: number | null;
+  ai_projected_monthly?: number | null;
+  actions_projected_monthly?: number | null;
+}
+
+/** The decision index's counts (/api/decisions?limit=0): what waits on the maintainer, by kind. */
+export interface DecisionsDoc {
+  status: string;
+  complete?: boolean;
+  source?: string;
+  age_s?: number | null;
+  counts: Dict<number>;
+  total: number;
+  warnings?: string[];
 }
 
 export interface Throughput {
@@ -221,8 +255,10 @@ export interface StateDoc {
   harnesses: HarnessRegistry;
   health: { generated_at?: string; scorecard?: Dict<ScoreMetric>; trip_wires?: TripWire[]; note?: string };
   /** `inbox` is the top of the list; `inbox_total` counts all of it. */
-  triage: { generated_at?: string; totals: Dict<number>; inbox: Dict<unknown>[]; inbox_total?: number };
+  triage: { generated_at?: string; repos_scanned?: number | null; totals: Dict<number>; inbox: Dict<unknown>[]; inbox_total?: number };
   pipeline: { generated_at?: string; totals: Dict<unknown> };
+  /** The registry file's git history, one point per committed day, oldest first; `source` is git or none. */
+  history?: { source: string; points: HistoryPoint[]; days?: number; note?: string; reason?: string };
   rotation: {
     generated_at?: string;
     tokens: { name: string; scope?: string; oldest_age_days?: number; max_age_days?: number; counts?: Dict<number> }[];

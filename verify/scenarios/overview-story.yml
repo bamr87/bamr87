@@ -1,0 +1,29 @@
+# The Overview tells the fleet's story: a status strip first, the budgets' direction, the harnesses against the standard, flow, health, a cron heat strip, the attention queue by lever, and one freshness timeline.
+id: overview-story
+feature: HUB-NEW:overview-story
+title: "The Overview reads as a story: health, budget direction, what waits, the standard, flow, and one freshness timeline"
+description: "The strip at the top answers its four questions before any scrolling; both budgets carry a sparkline; the cron heat strip has a cell for every weekday and UTC hour; the attention queue groups the findings one lever clears and can be read flat; every stamped signal sits on one timeline; the published page says the decision index is read on a console; nothing scrolls sideways at phone width."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_"]
+steps:
+  - goto: /overview
+  - wait: { selector: "[data-status-strip]" }
+  - expect: { visible: "[data-cell='Fleet health']" }
+  - expect: { visible: "[data-cell='Attention']" }
+  - expect: { visible: "[data-cell='Budgets']" }
+  - expect: { visible: "[data-cell='Waiting on you']:has-text('published page never carries it')" }
+  - expect: { visible: "[data-cell='Signals']" }
+  - eval: { name: strip_above_the_fold, script: "(() => { const r = document.querySelector(\"[data-status-strip]\").getBoundingClientRect(); if (r.top > window.innerHeight) throw new Error(`the strip starts at y=${r.top}`); return Math.round(r.top); })()" }
+  - screenshot: overview-top
+  - expect: { visible: "[data-budget='Claude spend'] svg" }
+  - expect: { visible: "[data-budget='Actions minutes'] svg" }
+  - expect: { count: { selector: "[role='table'] [role='cell']", min: 168, max: 168 } }
+  - expect: { visible: "[data-lever-group]" }
+  - eval: { name: grouped_by_lever, script: "(() => { const g = document.querySelectorAll('[data-lever-group]').length; const rows = document.querySelectorAll('[data-lever-group] tbody tr').length; if (!g || rows < g) throw new Error(`${g} groups, ${rows} rows`); return `${g} groups, ${rows} findings`; })()" }
+  - screenshot: overview-full
+    full_page: true
+  - click: "label:has-text('Flat')"
+  - expect: { visible: "table th:has-text('sev')" }
+  - eval: { name: flat_is_one_table, script: "(() => { if (document.querySelectorAll('[data-lever-group]').length) throw new Error('groups still shown'); return document.querySelectorAll('table tbody tr').length; })()" }
+  - expect: { count: { selector: "#freshness [role='img'][aria-label$=' old']", min: 1 } }
+  - expect: { no_horizontal_scroll: true }
