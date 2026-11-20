@@ -1595,7 +1595,7 @@ requirements:
     section: "Behaviour"
     level: MUST
     applies: [site, app]
-    requirement: "Four rules no mode lifts. Nothing is clicked or typed inside a modal dialog, and nothing behind one while it is open: only Escape works. A secret field is never read and never filled. A link that leaves the site, a download and a file picker are the person's. The panel and the feedback widget are invisible to a session."
+    requirement: "Four rules no mode lifts. Nothing is clicked or typed inside a modal dialog, and nothing behind one while it is open: only Escape works. A secret field is never read and never filled. A link that leaves the site, a download and a file picker are the person's. The panel and the feedback widget are invisible to a session. No configuration narrows these: a site may name more of its own dialogs as modal, never fewer."
     satisfied_by: "`FleetAssistCore.createBridge`"
     seed: "kit"
     gap: false

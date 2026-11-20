@@ -102,6 +102,17 @@ test('the payload sends nothing until the panel is opened, and only to the broke
   assert.equal(/\/api\/assist\/fleet\/[^']*sid/.test(js), false, 'a session id rides in the body, never in an address');
 });
 
+test('no setting narrows the modal rule: a site may name more dialogs as modal, never fewer', () => {
+  const js = read('fleet-assist.js');
+  // The built-in list is always part of what is matched. A browser run against tests/fixture.html proves the
+  // behaviour (test/evidence/fleet-assist/); this holds the one line that decides it.
+  assert.match(js, /get modal\(\) \{ return alsoModal\(doc, env\.modal\) \? MODAL \+ ',' \+ env\.modal : MODAL; \}/);
+  assert.equal(/env\.modal \|\| MODAL/.test(js), false, 'a host selector must never REPLACE the built-in modal list');
+  for (const form of ['dialog[open]', '[aria-modal="true"]', '[role="alertdialog"]', '.modal.show']) {
+    assert.ok(/const MODAL = '([^']+)'/.exec(js)[1].includes(form), `${form} is a modal dialog`);
+  }
+});
+
 test('the kit agrees with itself: one version, every file listed, every adapter mounts the tag', () => {
   const version = /^version: (\S+)$/m.exec(read('VERSION'))[1];
   assert.equal(Core.version, version);

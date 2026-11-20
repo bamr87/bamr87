@@ -11,7 +11,7 @@
 | `adapters/django.html` | Django template include (translate 1:1 to ERB for Rails). On with `settings.DEBUG`. |
 | `adapters/AssistBridge.tsx` | React wrapper for Vite and Next client components: hands the app's router over, and `provideDocument()` for documents a session may read. `enabled` has no default. |
 | `adapters/nextjs.tsx` | `AssistBridgeNext`: the App Router wired in. |
-| `tests/contract.test.mjs` | 10 contract tests. `npm test` — `node:test`, no dependencies. |
+| `tests/contract.test.mjs` | 11 contract tests. `npm test` — `node:test`, no dependencies. |
 | `tests/fixture.html` · `tests/fixture-2.html` | A page with one of everything the rules are about, and the page a navigation lands on. |
 | `test_assistant_kit.py` | Holds this table and `VERSION` to the tree, and runs the contract tests where Node is installed (the hub's CI discovers it). |
 | `VERSION` · `package.json` | Kit provenance and changelog; the npm manifest `@bamr87/fleet-assist`. |
@@ -63,7 +63,8 @@ The panel has three modes. **Look**: the session reads and points. **Ask first**
 
 ```js
 FleetAssist.open();  FleetAssist.close();  FleetAssist.state();   // { open, mode, shared, paired }
-FleetAssist.configure({ navigate, base, root, pages, modal });     // a single-page app hands its router over
+FleetAssist.configure({ navigate, base, root, pages });            // a single-page app hands its router over
+FleetAssist.configure({ modal: '.my-sheet' });                     // ALSO a modal dialog on this site (adds; never removes)
 FleetAssist.provide('cart', () => store.getState().cart);          // a document page_data can read
 FleetAssistCore.createBridge(env).run(command);                    // the rules, without the panel
 ```
@@ -75,7 +76,7 @@ No cookies, no analytics and no request of any kind until the panel is opened. A
 ## Limits
 
 - A snapshot reads the page's own DOM. It does not read inside an iframe, an open or closed shadow root, or a canvas.
-- The modal rule is deliberately broad: a search box or a menu drawn as a modal dialog cannot be used by a session either.
+- The modal rule is deliberately broad: a search box or a menu drawn as a modal dialog cannot be used by a session either. No setting narrows it: `configure({ modal })` can only name more dialogs as modal.
 - On a deployed `https` site, a browser may ask before letting the page reach an address on your machine. On a dev server it does not.
 - A fleet page is reached by pairing only. The console's docked assistant is not started against one yet (ADR 0014, phase 3).
 

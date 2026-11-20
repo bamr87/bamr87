@@ -27,6 +27,8 @@ Nothing here spent Claude budget: the "session" is the console's real MCP layer 
 
 Running it for real turned up one loss the unit tests had not: after a page navigates, its last long poll is still waiting in the console with nobody behind it, and it took the next command, which then timed out. The broker now hands a command to a session's newest poll only (`test_only_the_newest_poll_of_a_session_is_handed_a_command`). The same loss was possible on the console's own page after a reload.
 
+A review of the payload after the pull request opened found that `FleetAssist.configure({ modal })` replaced the built-in list of what counts as a modal dialog, so a site could have switched the dialog rule off with one call. It is additive now: a site can name more of its own dialogs as modal, never fewer. Checked in the browser against the fixture's confirm dialog with no setting, with a selector that matches nothing and with a broken selector: in all three the click inside the dialog and the fill behind it were refused and nothing was deleted; naming `#form` as a dialog made its fields the person's too.
+
 Two snapshot faults were fixed on the way: a checkbox wrapped in its label was missing from the outline, and a select wrapped in its label was named with its own options.
 
 ## Not shown

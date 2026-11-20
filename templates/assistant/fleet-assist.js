@@ -38,7 +38,8 @@
  * position ("left" | "right"), label.
  *
  * JS API: FleetAssist.open() / close() / state()
- *         FleetAssist.configure({ navigate, base, root, pages, modal })   // an SPA hands over its router
+ *         FleetAssist.configure({ navigate, base, root, pages })          // an SPA hands over its router
+ *         FleetAssist.configure({ modal: '.my-sheet' })                   // ALSO a modal dialog on this site; never fewer
  *         FleetAssist.provide('cart', () => store.getState().cart)        // a document page_data can read
  *         FleetAssistCore.createBridge(env).run(command)                  // the rules, without the panel
  */
@@ -165,6 +166,17 @@
     return out;
   }
 
+  /** True when `selector` is a usable CSS selector to ADD to the modal list; anything else is ignored. */
+  function alsoModal(doc, selector) {
+    if (typeof selector !== 'string' || !selector.trim()) return false;
+    try {
+      doc.querySelector(selector);
+      return true;
+    } catch (e) {
+      return false; // a broken selector must not break every snapshot, nor quietly drop the built-in list
+    }
+  }
+
   /** ABCD-EFGH, as a person reads a pairing code aloud. */
   function pairingCode(code) {
     const c = String(code || '').replace(/[\s-]/g, '').toUpperCase();
@@ -182,7 +194,8 @@
    *
    * env: mode() -> 'look'|'ask'|'act'; approve(approval) -> Promise<boolean>;
    *      and optionally navigate(path) (an SPA's router — without it navigating
-   *      loads the address), base, root, chrome, modal, pages(), facts(),
+   *      loads the address), base, root, chrome, modal (MORE selectors that are
+ *      modal dialogs here; the built-in ones always apply), pages(), facts(),
    *      data {list(), get(key)}, site, window.
    */
   function createBridge(env) {
@@ -193,7 +206,9 @@
       get base() { return trimBase(env.base); },
       get root() { return env.root || 'main,[role="main"],#main'; },
       get chrome() { return env.chrome !== false; },
-      get modal() { return env.modal || MODAL; },
+      // A site can NAME MORE dialogs as modal (a sheet or a lightbox of its own). It cannot name fewer:
+      // the built-in list always applies, so no setting unprotects a confirmation.
+      get modal() { return alsoModal(doc, env.modal) ? MODAL + ',' + env.modal : MODAL; },
       get site() { return env.site || 'this site'; }
     };
     const providers = env.providers || new Map();
@@ -1278,7 +1293,8 @@
 
   root.FleetAssist = Object.assign(root.FleetAssist || {}, {
     version: VERSION,
-    /** An SPA hands over its router and frame: configure({ navigate, base, root, pages, modal, chrome }) BEFORE the tag mounts. */
+    /** An SPA hands over its router and frame: configure({ navigate, base, root, pages, chrome }). `modal` ADDS selectors that are
+     *  modal dialogs on this site; nothing here can make the built-in modal rule narrower. */
     configure(options) {
       Object.keys(options || {}).forEach((k) => { if (k in settings) settings[k] = options[k]; });
     },
