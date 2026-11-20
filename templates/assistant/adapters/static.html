@@ -1,0 +1,17 @@
+<!--
+  FLEET-ASSIST — the adapter for a page of plain HTML (no build step, or any stack not listed in the kit).
+  Spec: bamr87/bamr87 specs/ASSIST.md (UPS-AST). Kit: templates/assistant.
+
+  Paste before </body> and vendor fleet-assist.js next to the page's other scripts.
+  A hand-written page has no development build to gate on, so the tag is always there:
+  on a loopback address it shows its button, and on the deployed site it stays hidden
+  until the address ends in #fleet-assist (launcher="auto", the default). Nothing is
+  sent anywhere until someone opens the panel, and then only to the console on their
+  own machine. To keep it off the deployed page entirely, add the two lines only to
+  the copy you serve locally.
+
+  `base` is the site's path prefix when it is served under one (GitHub Pages project
+  sites: "/repo-name"); `source` is this file's path in the repo.
+-->
+<script src="js/fleet-assist.js" defer></script>
+<fleet-assist repo="owner/name" branch="main" source="index.html" base="" framework="static-html"></fleet-assist>

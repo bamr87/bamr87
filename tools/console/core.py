@@ -1858,7 +1858,7 @@ def _refine_evidence(params: dict) -> list[str]:
 
 class AssistConfig(dict):
     """`_data/fleet.yml` `assistant:` as a dict with attribute access (enabled, model, max_turns,
-    budget_usd, timeout_s, conversation_messages, page_access), validated on every read."""
+    budget_usd, timeout_s, conversation_messages, page_access, fleet_pages), validated on every read."""
 
     __getattr__ = dict.__getitem__
 
@@ -1868,7 +1868,8 @@ def assistant_config(fleet: dict | None = None) -> AssistConfig:
     raw = fleet.get("assistant") if isinstance(fleet, dict) else None
     if not isinstance(raw, dict):
         raise ValueError("_data/fleet.yml has no `assistant:` block (tools/console/README.md, The assistant)")
-    want = {"enabled", "model", "max_turns", "budget_usd", "timeout_s", "conversation_messages", "page_access"}
+    want = {"enabled", "model", "max_turns", "budget_usd", "timeout_s", "conversation_messages", "page_access",
+            "fleet_pages"}
     missing, unknown = want - set(raw), set(raw) - want
     if missing or unknown:
         raise ValueError(f"_data/fleet.yml assistant: missing {sorted(missing)} / unknown {sorted(map(str, unknown))}")
@@ -1886,13 +1887,15 @@ def assistant_config(fleet: dict | None = None) -> AssistConfig:
     b = raw["budget_usd"]
     if isinstance(b, bool) or not isinstance(b, (int, float)) or not math.isfinite(b) or b <= 0:
         raise ValueError("_data/fleet.yml assistant.budget_usd: a finite positive number")
-    if raw["page_access"] not in ASSIST_PAGE_ACCESS:
-        # YAML reads a bare `off` as false: the value is quoted in fleet.yml, and a boolean is said plainly here
-        raise ValueError(f"_data/fleet.yml assistant.page_access: one of {', '.join(ASSIST_PAGE_ACCESS)} "
-                         f"(quoted — a bare off is a YAML boolean), got {raw['page_access']!r}")
+    for key in ("page_access", "fleet_pages"):
+        if raw[key] not in ASSIST_PAGE_ACCESS:
+            # YAML reads a bare `off` as false: the value is quoted in fleet.yml, and a boolean is said plainly here
+            raise ValueError(f"_data/fleet.yml assistant.{key}: one of {', '.join(ASSIST_PAGE_ACCESS)} "
+                             f"(quoted — a bare off is a YAML boolean), got {raw[key]!r}")
     return AssistConfig(enabled=raw["enabled"], model=str(raw["model"]), max_turns=int(raw["max_turns"]),
                         budget_usd=float(b), timeout_s=int(raw["timeout_s"]),
-                        conversation_messages=int(raw["conversation_messages"]), page_access=str(raw["page_access"]))
+                        conversation_messages=int(raw["conversation_messages"]), page_access=str(raw["page_access"]),
+                        fleet_pages=str(raw["fleet_pages"]))
 
 
 def assistant_page_access() -> str:
@@ -1903,6 +1906,17 @@ def assistant_page_access() -> str:
     except ValueError:
         return "off"
     return cfg.page_access if cfg.enabled else "off"
+
+
+def assistant_fleet_pages() -> str:
+    """The same ceiling for pages of the fleet's other sites and apps (templates/assistant/fleet-assist.js,
+    ADR 0014): `off` refuses every such page, `look` lets a paired session read one, `act` lets the person
+    on that page choose. Off when the assistant is off or its configuration cannot be read."""
+    try:
+        cfg = assistant_config()
+    except ValueError:
+        return "off"
+    return cfg.fleet_pages if cfg.enabled else "off"
 
 
 def assist_unavailable() -> str | None:
@@ -4218,4 +4232,9 @@ def assist_doc(*, local: bool = True) -> dict:
             # apart from `unavailable`, which is only about the session this console can start itself.
             "page": {"access": (assistant_page_access() if local else "off"), "look": list(page_bridge.LOOK),
                      "act": list(page_bridge.ACT), "modes": list(page_bridge.MODES),
-                     "approval_s": int(page_bridge.APPROVAL_S)}}
+                     "approval_s": int(page_bridge.APPROVAL_S)},
+            # Pages of the fleet's other sites and apps that carry the kit's payload (templates/assistant):
+            # their ceiling, and which of them share themselves with this console right now. No session id.
+            "fleet_pages": {"access": (assistant_fleet_pages() if local else "off"), "kit": "templates/assistant",
+                            "sessions": ([s for s in page_bridge.BRIDGE.sessions() if s["kind"] == "fleet"]
+                                         if local else [])}}

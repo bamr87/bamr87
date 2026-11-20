@@ -42,6 +42,15 @@ What holds (constitution § 10.6, § 13.6; tools/console/README.md "The assistan
               who asked (the dock's session or a paired one), the action, its
               target, the mode, the outcome and how long it took (§ 13.5).
 
+  fleet pages a page of another fleet site or app (templates/assistant/
+              fleet-assist.js, ADR 0014) opens a session the same way, from its
+              own origin. It gets no token and needs none: a session is an offer
+              to be driven, and holding one grants nothing. It has its own
+              ceiling (assistant.fleet_pages), its own cap, so it cannot crowd
+              out the console's dock, and it is bound to the origin that opened
+              it. The console starts no session of its own against one: a fleet
+              page is reached by a paired Claude Code session only.
+
 Stdlib only, no web framework: app.py puts HTTP in front of it and core.py asks
 it whether a session exists; test_page_bridge.py drives it with a fake clock.
 """
@@ -80,6 +89,7 @@ CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 CODE_LEN = 8
 
 MAX_SESSIONS = 6
+MAX_FLEET_SESSIONS = 12      # pages of other fleet sites: their own cap, so they cannot crowd out the dock
 MAX_QUEUE = 4
 COMMANDS_PER_MIN = 40
 POLL_MAX_S = 25.0            # one long poll; the page asks again at once
@@ -97,6 +107,10 @@ KEY_MAX = 200                # a page_data key
 RESULT_MAX_CHARS = 60_000
 SNAPSHOT_MAX_CHARS = 24_000  # the page's own default; a tool may ask for less
 AUDIT_MAX_BYTES = 2_000_000
+#: what a fleet page may say about itself (fleet-assist.js `facts`): short strings, shown to the session that pairs
+PAGE_FACTS = ("repo", "branch", "source", "route", "framework", "env", "version", "base", "title", "path", "kit")
+FACT_MAX = 300
+ORIGIN_RX = re.compile(r"^https?://[A-Za-z0-9.\-]+(:\d{1,5})?$|^https?://\[[0-9A-Fa-f:.]+\](:\d{1,5})?$")
 
 # Credential SHAPES, scrubbed from every result a page sends: GitHub, Anthropic, Slack and AWS key forms, a
 # JWT, a bearer credential, a private key header. Deliberately not "any long run": a page is full of run ids,
@@ -132,6 +146,19 @@ def scrub(obj: Any) -> Any:
     if isinstance(obj, (list, tuple)):
         return [scrub(v) for v in obj]
     return obj
+
+
+def page_facts(page: Any) -> dict:
+    """What a fleet page says about itself, cut down to PAGE_FACTS: short, single-line, scrubbed strings.
+    It is the page's word, so it is data for the session that reads it, never an instruction."""
+    if not isinstance(page, dict):
+        return {}
+    out = {}
+    for key in PAGE_FACTS:
+        value = page.get(key)
+        if isinstance(value, str) and value.strip():
+            out[key] = scrub(" ".join(value.split())[:FACT_MAX])
+    return out
 
 
 def _int(value: Any, name: str, low: int, high: int, default: int) -> int:
@@ -229,12 +256,17 @@ class _Pending:
 
 
 class _Session:
-    def __init__(self, mode: str, now: float):
+    def __init__(self, mode: str, now: float, origin: str | None = None, page: dict | None = None):
         self.sid = secrets.token_hex(16)
         self.mode = mode
+        #: None for the console's own page; the origin a fleet page opened it from
+        self.origin = origin
+        self.page = page or {}
         self.created = dt.datetime.now(dt.timezone.utc)
         self.seen = now
         self.polling = 0
+        #: counts this session's long polls; only the newest one is handed a command (see PageBridge.next)
+        self.poll_gen = 0
         self.queue: deque[_Pending] = deque()
         self.pending: dict[str, _Pending] = {}
         self.stamps: deque[float] = deque()
@@ -254,6 +286,8 @@ class PageBridge:
         self.clock = clock
         #: reads _data/fleet.yml assistant.page_access; app.py wires core.assistant_page_access in
         self.ceiling: Callable[[], str] = ceiling or (lambda: "act")
+        #: the same for pages of other fleet sites (assistant.fleet_pages); off until app.py wires it
+        self.fleet_ceiling: Callable[[], str] = lambda: "off"
         self._cv = threading.Condition()
         self._sessions: dict[str, _Session] = {}
         self._pair_fails: deque[float] = deque()
@@ -281,35 +315,61 @@ class PageBridge:
     def _live(self, s: _Session, now: float) -> bool:
         return s.polling > 0 or now - s.seen < LIVE_S
 
+    def _ceiling(self, s: _Session) -> str:
+        ceiling = self.fleet_ceiling() if s.origin else self.ceiling()
+        return ceiling if ceiling in CEILINGS else "off"
+
+    def _setting(self, s: _Session) -> str:
+        return "assistant.fleet_pages" if s.origin else "assistant.page_access"
+
+    def _get_fleet(self, sid: str, origin: str) -> _Session:
+        """A fleet page's session, for the origin that opened it. Another origin is told what a stranger is."""
+        s = self._get(sid)
+        if not s.origin or s.origin != origin:
+            raise NoSession("no such page session — it was closed or dropped as idle; share the page again")
+        return s
+
     def _view(self, s: _Session, now: float, code: bool = False) -> dict:
-        ceiling = self.ceiling()
+        ceiling = self._ceiling(s)
         out = {"sid": s.sid, "mode": s.mode, "ceiling": ceiling, "live": self._live(s, now),
                "created": s.created.isoformat(timespec="seconds"), "commands": s.commands, "paired": s.paired,
                "pairing": bool(s.code and now < s.code_until), "poll_s": POLL_MAX_S, "approval_s": APPROVAL_S}
+        if s.origin:
+            out.update(kind="fleet", origin=s.origin, page=dict(s.page))
+        else:
+            out["kind"] = "console"
         if code and out["pairing"]:
             out["code"] = s.code
             out["code_ttl_s"] = int(s.code_until - now)
         return out
 
-    def open(self, mode: str = "ask") -> dict:
-        """A page starts listening. Refused while the ceiling is off; a mode above the ceiling opens as look."""
+    def open(self, mode: str = "ask", origin: str | None = None, page: Any = None) -> dict:
+        """A page starts listening. Refused while its ceiling is off; a mode above the ceiling opens as look.
+        `origin` marks a page of another fleet site (app.py has already checked it against the fleet's
+        registered addresses): it is held to assistant.fleet_pages and counted against its own cap."""
         if mode not in MODES:
             raise ValueError(f"mode must be one of {', '.join(MODES)}")
-        ceiling = self.ceiling()
+        if origin is not None and not (isinstance(origin, str) and ORIGIN_RX.match(origin)):
+            raise ValueError("origin must be a plain scheme://host[:port]")
+        fleet = origin is not None
+        ceiling = self.fleet_ceiling() if fleet else self.ceiling()
         if ceiling not in CEILINGS or ceiling == "off":
-            raise Refused("page access is off: _data/fleet.yml assistant.page_access is off")
+            raise Refused("fleet pages are off: _data/fleet.yml assistant.fleet_pages is off" if fleet else
+                          "page access is off: _data/fleet.yml assistant.page_access is off")
         if ceiling == "look":
             mode = "look"
+        cap = MAX_FLEET_SESSIONS if fleet else MAX_SESSIONS
         with self._cv:
             now = self.clock()
             self._sweep(now)
-            if len(self._sessions) >= MAX_SESSIONS:
+            mine = [s for s in self._sessions.values() if bool(s.origin) == fleet]
+            if len(mine) >= cap:
                 # the least recently seen page that is not listening makes room; a wall of live ones does not
-                idle = sorted((s for s in self._sessions.values() if not self._live(s, now)), key=lambda s: s.seen)
+                idle = sorted((s for s in mine if not self._live(s, now)), key=lambda s: s.seen)
                 if not idle:
-                    raise Busy(f"{MAX_SESSIONS} pages already share themselves with the assistant — close one")
+                    raise Busy(f"{cap} pages already share themselves with the assistant — close one")
                 self._drop(idle[0].sid, "the page session made room for a newer one")
-            s = _Session(mode, now)
+            s = _Session(mode, now, origin, page_facts(page) if fleet else None)
             self._sessions[s.sid] = s
             return self._view(s, now)
 
@@ -321,8 +381,55 @@ class PageBridge:
             return True
 
     def has(self, sid: str) -> bool:
+        """True for an open session of the console's own page: the only kind the docked assistant is started
+        against (core._assist). A fleet page's session is reached by pairing, never handed to a job."""
         with self._cv:
-            return isinstance(sid, str) and sid in self._sessions
+            s = self._sessions.get(sid) if isinstance(sid, str) else None
+            return s is not None and not s.origin
+
+    def sessions(self) -> list[dict]:
+        """Every open session, for the operator's eyes: which pages are shared right now. No session id: the
+        first eight characters are what the audit log calls it."""
+        with self._cv:
+            now = self.clock()
+            self._sweep(now)
+            return [{"id": s.sid[:8], "kind": "fleet" if s.origin else "console", "origin": s.origin,
+                     "page": dict(s.page), "mode": s.mode, "live": self._live(s, now), "paired": s.paired,
+                     "commands": s.commands, "created": s.created.isoformat(timespec="seconds")}
+                    for s in sorted(self._sessions.values(), key=lambda s: s.created)]
+
+    # -- a fleet page's own calls: every one names the origin it came from ---------
+    def fleet_close(self, sid: str, origin: str) -> bool:
+        with self._cv:
+            self._get_fleet(sid, origin)
+            self._drop(sid, "the person closed the assistant on that page")
+            return True
+
+    def fleet_mode(self, sid: str, origin: str, mode: str) -> dict:
+        with self._cv:
+            self._get_fleet(sid, origin)
+        return self.set_mode(sid, mode)
+
+    def fleet_pair(self, sid: str, origin: str, on: bool = True) -> dict:
+        with self._cv:
+            self._get_fleet(sid, origin)
+        return self.pair(sid, on)
+
+    def fleet_next(self, sid: str, origin: str, wait_s: float = POLL_MAX_S, page: Any = None) -> dict:
+        """A fleet page's long poll. It says where it is now on each one: a site of plain pages moves by
+        loading a new address, and the same session carries on there."""
+        with self._cv:
+            s = self._get_fleet(sid, origin)
+            facts = page_facts(page)
+            if facts:
+                s.page = facts
+        return self.next(sid, wait_s)
+
+    def fleet_result(self, sid: str, origin: str, cmd_id: str, ok: bool, result: Any = None,
+                     error: str | None = None, kind: str | None = None) -> None:
+        with self._cv:
+            self._get_fleet(sid, origin)
+        self.result(sid, cmd_id, ok, result, error, kind)
 
     def describe(self, sid: str) -> dict:
         """What the page's own dock shows about its session, the pairing code included while one is on."""
@@ -334,8 +441,8 @@ class PageBridge:
             raise ValueError(f"mode must be one of {', '.join(MODES)}")
         with self._cv:
             s = self._get(sid)
-            if mode != "look" and self.ceiling() != "act":
-                raise Refused("page actions are off: _data/fleet.yml assistant.page_access is not act")
+            if mode != "look" and self._ceiling(s) != "act":
+                raise Refused(f"page actions are off: _data/fleet.yml {self._setting(s)} is not act")
             s.mode = mode
             return self._view(s, self.clock(), code=True)
 
@@ -373,17 +480,25 @@ class PageBridge:
             match.code, match.code_until = None, 0.0
             match.paired += 1
             view = self._view(match, now)
-        self._audit(match.sid, "paired", "attach", "", view["mode"], "ok", 0.0)
+        self._audit(match.sid, "paired", "attach", match.origin or "", view["mode"], "ok", 0.0)
         return view
 
     # -- the page's side -----------------------------------------------------
     def next(self, sid: str, wait_s: float = POLL_MAX_S) -> dict:
         """The page's long poll: the next command for it, or none after `wait_s`. Being asked is what keeps a
-        session live."""
+        session live.
+
+        Only the newest poll of a session is handed a command. A page that reloads, or loads its next address
+        (a site of plain pages moves that way and keeps its session), leaves its last poll waiting here with
+        nobody on the other end; a command handed to that one would be lost. So an older poll stands down the
+        moment a newer one arrives."""
         wait_s = max(0.0, min(float(wait_s), POLL_MAX_S))
         with self._cv:
             s = self._get(sid)
             s.polling += 1
+            s.poll_gen += 1
+            mine = s.poll_gen
+            self._cv.notify_all()
             try:
                 deadline = self.clock() + wait_s
                 while True:
@@ -391,6 +506,8 @@ class PageBridge:
                     s.seen = now
                     if sid not in self._sessions:
                         raise NoSession("the page session was closed")
+                    if s.poll_gen != mine:
+                        return {"command": None, "session": self._view(s, now, code=True), "superseded": True}
                     if s.queue:
                         p = s.queue.popleft()
                         p.taken = True
@@ -432,12 +549,12 @@ class PageBridge:
         with self._cv:
             s = self._get(sid)
             now = self.clock()
-            mode, ceiling = s.mode, self.ceiling()
+            mode, ceiling = s.mode, self._ceiling(s)
             refusal = None
             if ceiling == "off":
-                refusal = "page access is off: _data/fleet.yml assistant.page_access is off"
+                refusal = f"page access is off: _data/fleet.yml {self._setting(s)} is off"
             elif action in ACT and ceiling != "act":
-                refusal = "page actions are off: _data/fleet.yml assistant.page_access is look"
+                refusal = f"page actions are off: _data/fleet.yml {self._setting(s)} is look"
             elif action in ACT and mode == "look":
                 refusal = (f"the person set this page to Look only, so {action} is not allowed. Say what you "
                            "would do and where, and let them do it or switch the dock to Ask or Act")

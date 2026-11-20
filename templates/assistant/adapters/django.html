@@ -1,0 +1,30 @@
+{# templates/includes/fleet-assist.html — Django adapter for the fleet's page bridge (ERB: translate 1:1). #}
+{# Spec: bamr87/bamr87 specs/ASSIST.md (UPS-AST). Kit: templates/assistant.                                #}
+{#                                                                                                        #}
+{#   {% include 'includes/fleet-assist.html' %}        once, before </body> in templates/base.html         #}
+{#                                                                                                        #}
+{# Requires static/js/fleet-assist.js vendored from the kit, and a context processor supplying             #}
+{# FLEET_ASSIST (settings.DEBUG or settings.FLEET_ASSIST_DEPLOYED — settings values, not per-request       #}
+{# state), FLEET_REPO, FLEET_BRANCH and FLEET_VERSION, the same three the feedback include reads:          #}
+{#                                                                                                        #}
+{#   def fleet(request):                                                                                  #}
+{#       return {"FLEET_ASSIST": settings.DEBUG or getattr(settings, "FLEET_ASSIST_DEPLOYED", False),     #}
+{#               "FLEET_REPO": settings.FLEET_REPO, "FLEET_BRANCH": "main", "FLEET_VERSION": __version__} #}
+{#                                                                                                        #}
+{# It is a tool for whoever runs the app: off unless DEBUG. A staff-only deployed panel is                 #}
+{# {% if FLEET_ASSIST and request.user.is_staff %}. `source` names the template when the view sets         #}
+{# `fleet_source`; `route` is the URL name, which is what a session greps the urls.py for.                 #}
+{# A Content-Security-Policy with connect-src must name the console: http://127.0.0.1:4001.                #}
+{% if FLEET_ASSIST %}
+{% load static %}
+<script src="{% static 'js/fleet-assist.js' %}" defer></script>
+<fleet-assist
+  repo="{{ FLEET_REPO }}"
+  branch="{{ FLEET_BRANCH|default:'main' }}"
+  source="{{ fleet_source|default:'' }}"
+  route="{{ request.resolver_match.view_name|default:request.path }}"
+  framework="django"
+  app-version="{{ FLEET_VERSION }}"
+  env="{% if debug %}development{% else %}production{% endif %}"
+  {% if FLEET_ASSIST_BROKER %}broker="{{ FLEET_ASSIST_BROKER }}"{% endif %}></fleet-assist>
+{% endif %}

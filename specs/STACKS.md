@@ -13,6 +13,7 @@ Kinds: `site` (static/Jekyll/MkDocs), `app` (browser or server-rendered UI), `ap
 | QA | ● | ● | ● | ● | ● | ● | 05, 30–34, 40 | ○ |
 | FE | ● | ● | — | — | — | ● (tokens, contract, a11y) | — | — |
 | FB | ● | ● | — | — | — | ● (inline, proxy) | — | — |
+| AST | ● | ● | — | — | — | — | — | — |
 | BE | — | ● (client, 40–43) | ● | — | — | — | — | — |
 | OPS | 03, 33, 40 | ● | ● | 12, 20 | ● (01–03, 10, 12) | 12, 20, 23 | 33 | — |
 

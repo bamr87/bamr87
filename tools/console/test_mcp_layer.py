@@ -1337,7 +1337,7 @@ class PageTools(unittest.TestCase):
         return mock.patch.dict(os.environ, {**base, **kw})
 
     def console(self, answer=None):
-        return FakeConsole({("POST", f"/api/assist/page/{SID}/command"):
+        return FakeConsole({("POST", "/api/assist/page-command"):
                             answer or (lambda body: {"ok": True, "result": {"echo": body}, "action": body["action"]})})
 
     def test_no_page_tool_unless_the_server_is_local_or_was_started_for_a_page(self):
@@ -1394,7 +1394,8 @@ class PageTools(unittest.TestCase):
             res, text = call(s, tool, args)
             self.assertFalse(res.is_error if hasattr(res, "is_error") else res.isError, f"{tool}: {text}")
             method, path, _, body = fc.calls[-1]
-            self.assertEqual((method, path), ("POST", f"/api/assist/page/{SID}/command"))
+            self.assertEqual((method, path), ("POST", "/api/assist/page-command"))
+            self.assertEqual(body["sid"], SID, "the session id rides in the body, never in the address")
             self.assertEqual((body["action"], body["args"], body["client"]), (*want, "dock"), tool)
             wait = fc.timeouts[-1]
             self.assertEqual(wait, srv.PAGE_ACT_WAIT_S if tool in ACT_TOOLS else srv.PAGE_LOOK_WAIT_S, tool)
@@ -1410,10 +1411,22 @@ class PageTools(unittest.TestCase):
             self.assertIn(f"{kind}: {why}", text)
             self.assertNotIn("s3cret-token", text)
 
+    def test_pairing_with_a_fleet_page_says_which_repo_and_source_file_it_is(self):
+        facts = {"repo": "bamr87/it-journey", "source": "pages/about.md", "title": "About"}
+        fc = FakeConsole({("POST", "/api/assist/page-attach"): lambda body: {
+            "sid": SID, "mode": "ask", "ceiling": "act", "live": True, "paired": 1, "kind": "fleet",
+            "origin": "http://127.0.0.1:4010", "page": facts}})
+        with self.env():
+            s = srv.build_server(fc, page=True)
+        res, text = call(s, "page_attach", {"code": "ABCD-EFGH"})
+        got = payload(res, text)
+        self.assertEqual((got["kind"], got["origin"], got["page"]), ("fleet", "http://127.0.0.1:4010", facts))
+        self.assertNotIn(SID, text, "the session id stays in the server process")
+
     def test_pairing_binds_the_session_the_console_answers_and_never_returns_it(self):
         fc = FakeConsole({("POST", "/api/assist/page-attach"): lambda body: {"sid": SID, "mode": "ask", "ceiling": "act",
                                                                              "live": True, "paired": 1},
-                          ("POST", f"/api/assist/page/{SID}/command"): lambda body: {"ok": True, "result": {"route": "/loops"}}})
+                          ("POST", "/api/assist/page-command"): lambda body: {"ok": True, "result": {"route": "/loops"}}})
         with self.env():
             s = srv.build_server(fc, page=True)
         res, text = call(s, "page_snapshot")
@@ -1421,7 +1434,7 @@ class PageTools(unittest.TestCase):
         self.assertIn("no page is attached", text)
         self.assertIn("page_attach", text)
         res, text = call(s, "page_attach", {"code": "ABCD-EFGH"})
-        self.assertEqual(payload(res, text), {"mode": "ask", "ceiling": "act", "live": True})
+        self.assertEqual(payload(res, text), {"mode": "ask", "ceiling": "act", "live": True, "kind": "console"})
         self.assertNotIn(SID, text, "the session id is a capability: it stays inside the server process")
         self.assertEqual(fc.calls[-1][3], {"code": "ABCD-EFGH"})
         self.assertEqual(payload(*call(s, "page_snapshot")), {"route": "/loops"})
@@ -1436,7 +1449,7 @@ class PageTools(unittest.TestCase):
         self.assertTrue(res.is_error if hasattr(res, "is_error") else res.isError)
         self.assertIn("pairing code", text)
         fc.routes[("POST", "/api/assist/page-attach")] = lambda body: {"sid": SID, "mode": "look", "ceiling": "act", "live": True}
-        fc.routes[("POST", f"/api/assist/page/{SID}/command")] = gone
+        fc.routes[("POST", "/api/assist/page-command")] = gone
         call(s, "page_attach", {"code": "ABCDEFGH"})
         res, text = call(s, "page_snapshot")
         self.assertIn("no such page session", text)

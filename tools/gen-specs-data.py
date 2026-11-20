@@ -27,6 +27,7 @@ AREAS = {
     "QA": ("QUALITY.md", "Quality gates"),
     "FE": ("FRONTEND.md", "Frontend: design system, core components, UX standards"),
     "FB": ("FEEDBACK.md", "The universal feedback component"),
+    "AST": ("ASSIST.md", "The fleet assistant: the page bridge and the baseline per platform"),
     "BE": ("BACKEND.md", "HTTP API conventions and the client contract"),
     "OPS": ("OPERATIONS.md", "Configuration, observability, security, data"),
     "WORK": ("WORK.md", "Planning & delivery: SDLC profile, backlog, Definition of Done, ADRs, changelog, pinning"),

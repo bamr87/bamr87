@@ -822,8 +822,8 @@ def _fe_tokens(r, k):
     if r.zer0_theme() or r.is_theme_repo():
         return _ok("theme-provided (zer0 consumes the fleet tokens)")
     hit = r.grep(FE_TOKEN_RX, {".css", ".scss", ".json", ".ts", ".tsx", ".js", ".html", ".kt", ".gd", ".toml", ".yml"})
-    if hit and Path(hit).name.startswith("fleet-feedback"):
-        hit = None  # the feedback widget's own fallback tokens are not adoption
+    if hit and Path(hit).name.startswith(("fleet-feedback", "fleet-assist")):
+        hit = None  # a vendored kit payload's own fallback tokens are not adoption
     return _fe_verdict(fe, bool(hit), hit or "no fleet design-token reference (@bamr87/fleet-tokens or --fleet-color-*)")
 
 

@@ -123,6 +123,17 @@
 #                zer0-mistakes theme consumers are detected and told to set
 #                `page_feedback.enabled: true` instead: the theme already ships
 #                the widget, it is just switched off.
+#   assist       branch feat/fleet-assist; vendors the fleet's page bridge
+#                (templates/assistant: fleet-assist.js) and seeds the adapter
+#                for the detected framework — Jekyll, MkDocs, Django templates,
+#                React, Next.js or plain HTML — so a Claude Code session paired
+#                with a page of this repo can see it and, as far as the person
+#                on it allows, use it (specs/ASSIST.md, ADR 0014). Every adapter
+#                is off outside development. Mounting stays a human one-liner,
+#                as for feedback. A repo with no page (a library, a CLI, an
+#                extension's webview) gets nothing from this kit: its baseline
+#                is the agent-context kit, and `tools/dash apps assist` says
+#                which a repo is.
 #   deps-latest  branch chore/deps-latest; converts the repo to the fleet's
 #                ALWAYS-LATEST dependency policy via tools/unpin-deps.sh —
 #                strips exact pins (package.json/requirements*.txt/Gemfile),
@@ -222,6 +233,7 @@ CI_VERSION="$(kit_version standard-ci)"
 CONF_VERSION="$(kit_version conformance)"
 VERIFY_VERSION="$(kit_version verify)"
 FB_VERSION="$(kit_version feedback)"
+AST_VERSION="$(kit_version assistant)"
 IA_VERSION="$(kit_version issue-autopilot)"
 ELK_VERSION="$(kit_version elk)"
 SQ_VERSION="$(kit_version site-quality)"
@@ -321,8 +333,8 @@ seed_workflow_artifact() {  # $1 label, $2 dest, $3 template, $4 name, $5 branch
 }
 
 case "$KIT" in
-  standardize|schema|prose|deps-latest|docker|feedback|elk|verify|pr-review|site-quality|community|sdlc|spec-driven|agent-context|governance|backlog) ;;
-  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|docker|feedback|elk|verify|pr-review|site-quality|community|sdlc|spec-driven|agent-context|governance|backlog> --target <name|all> [--artifacts csv] [--apply]" >&2
+  standardize|schema|prose|deps-latest|docker|feedback|assist|elk|verify|pr-review|site-quality|community|sdlc|spec-driven|agent-context|governance|backlog) ;;
+  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|docker|feedback|assist|elk|verify|pr-review|site-quality|community|sdlc|spec-driven|agent-context|governance|backlog> --target <name|all> [--artifacts csv] [--apply]" >&2
      exit 2 ;;
 esac
 [[ -n "$TARGET" ]] || { echo "--target is required (submodule name, or 'all')" >&2; exit 2; }
@@ -351,6 +363,12 @@ case "$KIT" in
     COMMIT_MSG="feat(feedback): adopt the universal page-feedback widget (kit v${FB_VERSION})"
     PR_TITLE="feat(feedback): universal \"Improve this page\" → GitHub issue widget"
     PR_BODY="$(printf 'Automated by bamr87 fanout.yml (tools/fanout.sh --kit feedback): vendors the universal feedback widget so a reader can file a well-formed issue against this repo from any page — request type, description, page context, environment, and the console/error lines that led up to the report.\n\nSeeded (additive — nothing existing is overwritten):\n- the widget + the early capture buffer, vendored into the static assets of this stack\n- `.github/ISSUE_TEMPLATE/page_feedback.yml`, the no-JS twin carrying the same sections\n- the adapter for the detected stack, ready to mount\n\n**One human line is left**: mount the adapter in the shell — the fan-out log names the exact line, and `templates/feedback/README.md` has the detail. The fan-out never edits a hand-written shell.\n\nIssues filed this way carry the `fleet-feedback` marker comment and labels from the fleet taxonomy, so they enter the three-tier issue pipeline on the next scan. Spec: bamr87/bamr87 specs/FEEDBACK.md (UPS-FB).')"
+    ;;
+  assist)
+    BRANCH="feat/fleet-assist"
+    COMMIT_MSG="feat(assist): adopt the fleet page bridge (kit v${AST_VERSION})"
+    PR_TITLE="feat(assist): let an assistant session see and use this repo's pages"
+    PR_BODY="$(printf 'Automated by bamr87 fanout.yml (tools/fanout.sh --kit assist): vendors the fleet page bridge, so a Claude Code session paired with a page of this repo can read what you have open and, as far as you allow on that page, navigate, click and type.\n\nSeeded (additive — nothing existing is overwritten):\n- `fleet-assist.js`, vendored into the static assets of this stack\n- the adapter for the detected framework, ready to mount\n\n**One human line is left**: mount the adapter in the shell — the fan-out log names the exact line, and `templates/assistant/README.md` has the detail. The fan-out never edits a hand-written shell.\n\nWhat it is: a tool for whoever runs this repo, not for its visitors. The adapter is off outside development. Nothing is sent until you open the panel, and then only to the Harness Console on your own machine; the page holds no token. You choose Look, Ask first (the default: each click and each thing typed waits for your yes) or Act. Nothing is ever clicked or typed inside a modal dialog, and a secret field is never read or filled.\n\nSpec: bamr87/bamr87 specs/ASSIST.md (UPS-AST). Decision: docs/adr/0014-fleet-assistant-baseline.md.')"
     ;;
   elk)
     BRANCH="feat/fleet-logging"
@@ -839,6 +857,80 @@ seed_feedback() {
 # pipeline. Creating them is therefore part of making the widget work, not a
 # nicety — the one place this kit writes to a target outside its own PR, and
 # only under --apply.
+# The assistant kit (templates/assistant, specs/ASSIST.md): the page bridge
+# payload and the adapter for this repo's framework. Detection is the feedback
+# kit's (one place decides what a stack is), plus plain HTML, which has no
+# marker file of its own.
+assist_stack() {
+  local stack
+  stack="$(feedback_stack)"
+  if [[ "$stack" == "unknown" ]] && [[ -f index.html || -f public/index.html || -f docs/index.html || -f static/index.html ]]; then
+    stack="static"
+  fi
+  echo "$stack"
+}
+
+seed_assist() {
+  # cwd = target clone; $1 = repo name, $2 = default branch.
+  local name="$1" def="$2" kit="$HUB/templates/assistant" stack dir
+  stack="$(assist_stack)"
+  echo "assist: detected stack '${stack}'"
+  case "$stack" in
+    ext)
+      echo "assist: an extension's webview has no page the console can admit — nothing to seed (the agent-context kit is this repo's baseline)"
+      return ;;
+    unknown)
+      echo "assist: no page found in this repo — nothing to seed (the agent-context kit is its baseline; tools/dash apps assist)"
+      return ;;
+  esac
+
+  # MkDocs serves what sits under docs/; every other stack keeps the feedback kit's rule.
+  if [[ "$stack" == "mkdocs" ]]; then dir="docs/assets/js"; else dir="$(feedback_asset_dir)"; fi
+  # A hand-written site with none of those folders keeps scripts beside its pages, not in a build's public/.
+  if [[ "$stack" == "static" && ! -d "$dir" ]]; then dir="assets/js"; fi
+  seed_vendored_asset "$dir/fleet-assist.js" "$kit/fleet-assist.js" "fleet-assist.js" "$AST_VERSION" js
+
+  # The adapter is seeded as a file and mounted by a human, as for feedback:
+  # every app shell in the fleet is hand-written.
+  case "$stack" in
+    next|react)
+      mkdir -p components
+      [[ -f components/AssistBridge.tsx ]] || cp "$kit/adapters/AssistBridge.tsx" components/AssistBridge.tsx
+      if [[ "$stack" == "next" ]]; then
+        [[ -f components/AssistBridgeNext.tsx ]] || cp "$kit/adapters/nextjs.tsx" components/AssistBridgeNext.tsx
+        echo "assist: MOUNT — <AssistBridgeNext enabled={process.env.NODE_ENV !== 'production'} repo=\"bamr87/${name}\" /> once inside <body> in app/layout.tsx"
+      else
+        echo "assist: MOUNT — <AssistBridge enabled={import.meta.env.DEV} repo=\"bamr87/${name}\" navigate={navigate} /> once in the app shell, inside the router"
+      fi
+      ;;
+    zer0-theme|jekyll)
+      mkdir -p _includes/custom
+      [[ -f _includes/custom/fleet-assist.html ]] || cp "$kit/adapters/jekyll.html" _includes/custom/fleet-assist.html
+      echo "assist: MOUNT — {% include custom/fleet-assist.html %} before </body> (zer0-mistakes: in _includes/custom/body-end.html)"
+      echo "assist: ADD TO _config.yml:"
+      echo "assist:     fleet_assist:"
+      echo "assist:       enabled: true"
+      ;;
+    mkdocs)
+      if [[ -f overrides/main.html ]]; then
+        echo "assist: overrides/main.html exists — add the {% block scripts %} from templates/assistant/adapters/mkdocs.html to it"
+      else
+        mkdir -p overrides
+        cp "$kit/adapters/mkdocs.html" overrides/main.html
+        echo "assist: MOUNT — theme.custom_dir: overrides, and extra.fleet_assist in mkdocs.yml (the adapter's header has the keys)"
+      fi
+      ;;
+    django|rails)
+      mkdir -p templates/includes
+      [[ -f templates/includes/fleet-assist.html ]] || cp "$kit/adapters/django.html" templates/includes/fleet-assist.html
+      echo "assist: MOUNT — {% include 'includes/fleet-assist.html' %} before </body> in base.html, and FLEET_ASSIST in the context processor"
+      ;;
+    static)
+      echo "assist: MOUNT — the two lines of templates/assistant/adapters/static.html before </body>, with src pointing at ${dir}/fleet-assist.js"
+      ;;
+  esac
+}
+
 feedback_ensure_labels() {  # $1 = owner/repo
   local slug="$1" spec name color desc
   for spec in \
@@ -1121,6 +1213,7 @@ run_one() {
                    "${PYTHON:-python3}" "$HUB/tools/docker_harmonize.py" apply . --project "$name" ;;
       feedback)    seed_feedback "$(basename "${url%.git}")" "$def"
                    [[ "$APPLY" -eq 1 ]] && feedback_ensure_labels "$slug" || true ;;
+      assist)      seed_assist "$(basename "${url%.git}")" "$def" ;;
       elk)         seed_elk "$(basename "${url%.git}")" "$def" ;;
       pr-review)   seed_pr_review "$(basename "${url%.git}")" "$def" ;;
       site-quality) seed_site_quality "$(basename "${url%.git}")" "$def" ;;

@@ -554,6 +554,7 @@ if [[ -d "$ROOT/projects" ]]; then
     "tools/schema_lint.py|schema_lint.py|3" \
     "tools/docs_index.py|docs_index.py|3" \
     "templates/feedback/fleet-feedback.js|fleet-feedback.js|5" \
+    "templates/assistant/fleet-assist.js|fleet-assist.js|5" \
     "templates/elk/filebeat.fleet.yml|filebeat.fleet.yml|3"; do
     IFS='|' read -r vsrc vname vdepth <<< "$spec"
     [[ -f "$ROOT/$vsrc" ]] || continue
@@ -580,6 +581,7 @@ if [[ -d "$ROOT/projects" ]]; then
     warn "  schema_lint.py    → upstream the change to bamr87/SCHEMA first, then re-vendor (templates/schema/VERSION)"
     warn "  docs_index.py     → copy tools/docs_index.py over the drifted copy (specs/DOCS.md UPS-DOC-03)"
     warn "  fleet-feedback.js → tools/fanout.sh --kit feedback --target <name> --upgrade"
+    warn "  fleet-assist.js   → tools/fanout.sh --kit assist --target <name> --upgrade"
     warn "  filebeat.fleet.yml → edit tools/observability/filebeat/filebeat.yml, re-vendor, then tools/fanout.sh --kit elk --target <name> --upgrade"
   fi
 fi

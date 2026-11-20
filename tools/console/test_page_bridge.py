@@ -320,5 +320,153 @@ class Bridge(unittest.TestCase):
         self.assertEqual(mine, pb.SECRETISH_RX.pattern)
 
 
+class NewestPoll(unittest.TestCase):
+    """A page that reloads, or loads its next address, leaves its last poll waiting with nobody behind it."""
+
+    def test_only_the_newest_poll_of_a_session_is_handed_a_command(self):
+        b = pb.PageBridge()
+        sid = b.open("act")["sid"]
+        got: dict = {}
+        old = threading.Thread(target=lambda: got.update(old=b.next(sid, 5.0)), daemon=True)
+        old.start()
+        for _ in range(200):                        # until the old poll is waiting
+            if b._sessions[sid].polling:
+                break
+            threading.Event().wait(0.01)
+        new = threading.Thread(target=lambda: got.update(new=b.next(sid, 5.0)), daemon=True)
+        new.start()
+        old.join(2.0)
+        self.assertFalse(old.is_alive(), "the older poll stood down as soon as a newer one arrived")
+        self.assertIsNone(got["old"]["command"])
+        self.assertTrue(got["old"]["superseded"])
+        asked: dict = {}
+        ask = threading.Thread(target=lambda: asked.update(out=b.command(sid, "snapshot")), daemon=True)
+        ask.start()
+        new.join(2.0)
+        self.assertEqual(got["new"]["command"]["action"], "snapshot", "the command went to the poll that has a page")
+        b.result(sid, got["new"]["command"]["id"], True, {"outline": "x"})
+        ask.join(2.0)
+        self.assertTrue(asked["out"]["ok"])
+
+
+class FleetPages(unittest.TestCase):
+    """Pages of the fleet's other sites (templates/assistant/fleet-assist.js): the same bridge, held apart."""
+
+    ORIGIN = "http://127.0.0.1:4010"
+
+    def setUp(self):
+        self.audit = Path(tempfile.mkdtemp(prefix="page-bridge-")) / "assist" / "page-audit.jsonl"
+        self.fleet = "act"
+        self.b = pb.PageBridge(audit_path=self.audit, ceiling=lambda: "act")
+        self.b.fleet_ceiling = lambda: self.fleet
+
+    def test_fleet_pages_are_off_until_the_console_wires_their_ceiling(self):
+        b = pb.PageBridge()
+        with self.assertRaises(pb.Refused) as e:
+            b.open("ask", self.ORIGIN)
+        self.assertIn("assistant.fleet_pages", str(e.exception))
+        self.assertEqual(b.open("ask")["kind"], "console", "the console's own page is not held to that ceiling")
+
+    def test_a_fleet_session_says_what_page_it_is_in_short_scrubbed_facts(self):
+        token = "ghp_" + "a" * 36
+        v = self.b.open("ask", self.ORIGIN, {"repo": "bamr87/it-journey", "source": "pages/about.md",
+                                             "title": "About\n  us " + token, "junk": "dropped", "branch": 7,
+                                             "path": "/x" * 400})
+        self.assertEqual((v["kind"], v["origin"], v["mode"]), ("fleet", self.ORIGIN, "ask"))
+        self.assertEqual(set(v["page"]), {"repo", "source", "title", "path"})
+        self.assertEqual(v["page"]["title"], "About us <redacted>")
+        self.assertEqual(len(v["page"]["path"]), pb.FACT_MAX)
+        for bad in ("javascript:alert(1)", "http://host/path", "http://user@host", "ftp://host", ""):
+            with self.assertRaises(ValueError, msg=bad):
+                self.b.open("ask", bad)
+
+    def test_a_session_answers_only_to_the_origin_that_opened_it(self):
+        sid = self.b.open("ask", self.ORIGIN)["sid"]
+        other = "http://127.0.0.1:9999"
+        for call in (lambda: self.b.fleet_next(sid, other, 0), lambda: self.b.fleet_mode(sid, other, "look"),
+                     lambda: self.b.fleet_pair(sid, other), lambda: self.b.fleet_result(sid, other, "0" * 12, True),
+                     lambda: self.b.fleet_close(sid, other)):
+            with self.assertRaises(pb.NoSession):
+                call()
+        mine = self.b.open("ask")["sid"]              # the console's own page is no fleet page
+        with self.assertRaises(pb.NoSession):
+            self.b.fleet_pair(mine, self.ORIGIN)
+        self.assertEqual(self.b.fleet_mode(sid, self.ORIGIN, "act")["mode"], "act")
+        self.assertTrue(self.b.fleet_close(sid, self.ORIGIN))
+
+    def test_the_docked_assistant_is_never_started_against_a_fleet_page(self):
+        sid = self.b.open("ask", self.ORIGIN, {"repo": "bamr87/x"})["sid"]
+        self.assertFalse(self.b.has(sid), "core._assist asks has() before it hands a session a page")
+        self.assertTrue(self.b.has(self.b.open("ask")["sid"]))
+        listed = self.b.sessions()
+        self.assertEqual([s["kind"] for s in listed], ["fleet", "console"])
+        self.assertNotIn(sid, json.dumps(listed), "the listing is for the operator's eyes: no session id")
+        self.assertEqual(listed[0]["id"], sid[:8])
+
+    def test_fleet_pages_and_the_dock_have_separate_caps(self):
+        for _ in range(pb.MAX_SESSIONS):
+            self.b.open("ask")
+        fleet = [self.b.open("ask", self.ORIGIN)["sid"] for _ in range(pb.MAX_FLEET_SESSIONS)]
+        with self.assertRaises(pb.Busy):
+            self.b.open("ask", self.ORIGIN)
+        with self.assertRaises(pb.Busy):
+            self.b.open("ask")
+        self.b.fleet_close(fleet[0], self.ORIGIN)
+        self.assertEqual(self.b.open("ask", self.ORIGIN)["kind"], "fleet")
+
+    def test_the_fleet_ceiling_is_its_own_setting(self):
+        self.fleet = "look"
+        sid = self.b.open("act", self.ORIGIN)["sid"]
+        self.assertEqual(self.b.describe(sid)["mode"], "look")
+        with self.assertRaises(pb.Refused) as e:
+            self.b.fleet_mode(sid, self.ORIGIN, "act")
+        self.assertIn("assistant.fleet_pages", str(e.exception))
+        out = self.b.command(sid, "click", {"ref": "e1"})
+        self.assertEqual((out["ok"], out["kind"]), (False, "refused"))
+        self.assertIn("assistant.fleet_pages", out["error"])
+        self.fleet = "off"
+        self.assertIn("is off", self.b.command(sid, "snapshot")["error"])
+
+    def test_a_page_says_where_it_is_on_every_poll_and_pairing_tells_the_session(self):
+        sid = self.b.open("ask", self.ORIGIN, {"repo": "bamr87/x", "source": "index.md"})["sid"]
+        self.b.fleet_next(sid, self.ORIGIN, 0, {"repo": "bamr87/x", "source": "pages/about.md", "path": "/about/"})
+        code = self.b.fleet_pair(sid, self.ORIGIN)["code"]
+        view = self.b.attach(code)
+        self.assertEqual((view["kind"], view["origin"]), ("fleet", self.ORIGIN))
+        self.assertEqual(view["page"]["source"], "pages/about.md", "a site of plain pages keeps its session across loads")
+        line = json.loads(self.audit.read_text().splitlines()[-1])
+        self.assertEqual((line["action"], line["target"]), ("attach", self.ORIGIN))
+
+
+class OneContract(unittest.TestCase):
+    """The broker, the console's page and the kit's payload each hold the lists the others rely on."""
+
+    HERE = Path(__file__).resolve().parent
+    KIT = HERE.parents[1] / "templates" / "assistant" / "fleet-assist.js"
+    TS = HERE / "web" / "src" / "assist" / "pageBridge.ts"
+
+    @staticmethod
+    def js_list(text: str, name: str) -> tuple:
+        m = re.search(rf"const {name}(?::[^=]+)? = \[([^\]]*)\]", text)
+        assert m, name
+        return tuple(re.findall(r"'([^']+)'", m.group(1)))
+
+    def test_the_kit_payload_and_the_broker_agree_on_every_list(self):
+        kit = self.KIT.read_text()
+        for name, want in (("LOOK", pb.LOOK), ("ACT", pb.ACT), ("ASKS", pb.ASKS), ("MODES", pb.MODES), ("KEYS", pb.KEYS)):
+            self.assertEqual(self.js_list(kit, name), tuple(want), name)
+        takes = re.search(r"const TAKES = \{(.*?)\};", kit, re.S).group(1)
+        for action in pb.ACTIONS:
+            self.assertIn(f"{action}: [", takes)
+        self.assertIn(f"const TEXT_MAX = {pb.TEXT_MAX};", kit)
+        self.assertIn(f"const SNAPSHOT_MAX = {pb.SNAPSHOT_MAX_CHARS};", kit)
+
+    def test_the_two_pages_name_a_secret_field_the_same_way(self):
+        rx = r"const SECRET_NAME = (/.+?/i);"
+        self.assertEqual(re.search(rx, self.KIT.read_text()).group(1), re.search(rx, self.TS.read_text()).group(1))
+        self.assertEqual(self.js_list(self.TS.read_text(), "ASKS"), tuple(pb.ASKS))
+        self.assertEqual(self.js_list(self.TS.read_text(), "ACTS"), tuple(pb.ACT))
+
+
 if __name__ == "__main__":
     unittest.main()

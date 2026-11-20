@@ -1,0 +1,32 @@
+{#- overrides/main.html — MkDocs (Material) adapter for the fleet's page bridge.                -#}
+{#- Spec: bamr87/bamr87 specs/ASSIST.md (UPS-AST). Kit: templates/assistant.                    -#}
+{#-                                                                                             -#}
+{#- mkdocs.yml:                                                                                 -#}
+{#-   theme: { name: material, custom_dir: overrides }                                          -#}
+{#-   extra:                                                                                    -#}
+{#-     fleet_assist:                                                                           -#}
+{#-       enabled: !ENV [FLEET_ASSIST, false]   # FLEET_ASSIST=1 mkdocs serve — off in the build -#}
+{#-       repo: owner/name                                                                      -#}
+{#-       branch: main                                                                          -#}
+{#-       base: /README                         # the site's path prefix, when it has one       -#}
+{#-                                                                                             -#}
+{#- MkDocs has no development flag of its own, so the switch is an environment variable: the    -#}
+{#- published site is built without it and carries nothing. Vendor fleet-assist.js into         -#}
+{#- docs/assets/js/. If the site already overrides main.html, add this block to that file.      -#}
+{% extends "base.html" %}
+{% block scripts %}
+  {{ super() }}
+  {% set fa = config.extra.fleet_assist %}
+  {% if fa and fa.enabled %}
+  <script src="{{ 'assets/js/fleet-assist.js' | url }}" defer></script>
+  <fleet-assist
+    repo="{{ fa.repo }}"
+    branch="{{ fa.branch | default('main') }}"
+    source="{{ fa.docs_dir | default('docs') }}/{{ page.file.src_uri if page and page.file else '' }}"
+    page-title="{{ page.title if page else config.site_name }}"
+    base="{{ fa.base | default('') }}"
+    framework="mkdocs"
+    root="article, main"
+    {% if fa.broker %}broker="{{ fa.broker }}"{% endif %}></fleet-assist>
+  {% endif %}
+{% endblock %}

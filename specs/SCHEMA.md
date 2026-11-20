@@ -22,6 +22,7 @@ coverage: listed
 | `AGENT-CONTEXT.md` | file | UPS-AGENT: agent context files, `.claude/` baseline, SCHEMA pyramid, guardrails | required |
 | `QUALITY.md` | file | UPS-QA: lint/format/test/CI/commits/releases/dependencies | required |
 | `FRONTEND.md` | file | UPS-FE: design tokens, core components, accessibility, SEO, analytics, UX gate | required |
+| `ASSIST.md` | file | UPS-AST: the fleet assistant — the page bridge payload, what it must never do on a session's word, and the baseline per platform | required |
 | `FEEDBACK.md` | file | UPS-FB: the universal feedback → GitHub issue component contract | required |
 | `BACKEND.md` | file | UPS-BE: HTTP API conventions and the client contract | required |
 | `OPERATIONS.md` | file | UPS-OPS: config, logging, error reporting, security, secrets, data | required |

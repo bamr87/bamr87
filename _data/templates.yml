@@ -23,6 +23,9 @@
 - name: SDLC kit
   path: https://github.com/bamr87/bamr87/tree/main/templates/sdlc
   description: The per-repo delivery loop — .github/sdlc.yml profile and its JSON Schema, canonical AGENTS.md with a CLAUDE.md pointer, ADR log, and release-please (caller at @v1, configs per release type) so every repo, content included, has a generated CHANGELOG.
+- name: Fleet assistant kit
+  path: https://github.com/bamr87/bamr87/tree/main/templates/assistant
+  description: fleet-assist — the page bridge, so a Claude Code session paired with a page of any fleet site or app can see it and, as far as the person allows, use it. One payload, an adapter per framework. Seeded with tools/fanout.sh --kit assist.
 - name: Feedback widget kit
   path: https://github.com/bamr87/bamr87/tree/main/templates/feedback
   description: fleet-feedback — "Improve this page" → prefilled GitHub issue carrying page context, environment and captured console errors, in any stack. Fanned out with tools/fanout.sh --kit feedback.
@@ -43,7 +46,7 @@
   description: "The AO-SDLC loop law-ai and gitorio run, consumed by reference: the spec-driven Claude Code plugin (/spec-driven:specify … :evolve, backlog-triager, the gate hook), the reusable spec-gate.yml workflow, and fleet-kit.sh for make lint-specs; the stdlib tools (spec validator, backlog lint, id minter, evolve picker, discovery audit) and spec/BACKLOG/constitution seeds. Doc: docs/SPEC-DRIVEN.md."
 - name: Seedable kits
   path: https://github.com/bamr87/bamr87/tree/main/templates
-  description: standard-ci, agent-context, prose, schema, release-pipeline, feedback, elk, verify, site-quality — versioned kits fanned out by tools/fanout.sh; ai-runner is consumed by reference instead.
+  description: standard-ci, agent-context, prose, schema, release-pipeline, feedback, assistant, elk, verify, site-quality — versioned kits fanned out by tools/fanout.sh; ai-runner is consumed by reference instead.
 - name: Skill template
   path: https://github.com/bamr87/bamr87/tree/main/.claude/skills
   description: Author new skills with the skill-creator skill.
