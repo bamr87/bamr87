@@ -2426,3 +2426,351 @@
   source: manual
   created: 2026-11-16
   issue_url: null
+
+- id: FF-0058
+  title: Agent-lens crawl — a harness that walks each site's frontend, compares it with its backend, and
+    scores quality, conformance, coverage, accessibility, UI/UX and agent-readiness
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P1
+  effort: XL
+  category: feature
+  problem: 'The fleet judges a repo from its files (conformance, standards) and a site from a few fixed
+    scans (Lighthouse and axe on the Jekyll sites). Nothing walks a running frontend the way an agent
+    does and compares what it finds with what the backend and the repo declare: pages no feature claims,
+    endpoints and features no page reaches, an MCP server or a CLI a repo''s type owes and does not have,
+    navigation an agent cannot follow. So there is no view of a repo, site or application through the
+    lens of the agent that assesses, builds and improves it, and UI/UX problems are found by a person,
+    by chance.'
+  proposal: 'An AI harness, `agent-lens`, run by the hub for every repo with a frontend. (1) CRAWL: walk
+    the running or deployed frontend, headless and read-only, and record what an agent sees: each page
+    as the page bridge''s outline (ADR 0013, ADR 0014: headings, controls with their names and roles,
+    forms, links, dialogs, page errors), plus a screenshot per page at desktop and mobile widths. (2)
+    DECLARED MAP: read what the repo says it is: API routes (OpenAPI, Django urls, the static JSON data
+    API), the feature index, the registry `frontend:` block, and the constitution § 16 layers (MCP server,
+    CLI with `--json`, `llms.txt`, JSON-LD, agent card). (3) ALIGN: join the two and say where they disagree.
+    (4) SCORE six lenses, each with its method written down: quality (broken links, console errors, failed
+    requests, performance budget), conformance (the UPS-FE, UPS-FB and UPS-AST rows that can be observed
+    at runtime), coverage (feature to page to scenario to endpoint), accessibility (axe and WCAG, the
+    keyboard path, names and roles), UI/UX in general (the ux-audit kit''s heuristics: hierarchy, spacing,
+    states for empty, loading and error, responsiveness, copy, consistency with the fleet tokens; then
+    a capped model review of the screenshots that proposes concrete improvements), and agent-readiness
+    (can an agent discover and operate it: landmarks, labelled controls, no dialog traps, the page bridge
+    mounted, and which agent surfaces exist or are missing, for example "has an MCP server", "has no CLI").
+    The agent-readiness lens is the runtime half of the AIEO score (§ 16.6). (5) PUBLISH: a committed
+    snapshot per repo, a console page, a machine-API document and an MCP tool, with the trend over time,
+    so the whole fleet is visible through this lens. (6) ACT: each finding names its fix path (an issue
+    through the issue pipeline, a fan-out kit, or an evolution brief); nothing is merged by the harness.
+    (7) CONTINUOUS: a local entry point first (`tools/dash lens`), then a scheduled rotation; the deterministic
+    tier costs $0 and runs always, the model tier is capped, registered and behind a switch.'
+  acceptance:
+  - '`tools/dash lens crawl <repo>` writes a site map of a running or deployed frontend (pages, controls,
+    forms, links, dialogs, errors, screenshots) at $0, read-only and bounded: a page cap, a time limit,
+    the site''s own origin only, robots.txt honoured, no form submitted and no state-changing request
+    sent.'
+  - '`tools/dash lens declared <repo>` writes the declared map: API routes, feature index entries, the
+    registry frontend block and each § 16 layer as present, absent or not applicable.'
+  - 'The alignment report lists, each with evidence: pages no feature claims; features and endpoints no
+    page reaches; agent surfaces the repo''s type owes and lacks (for example no MCP server, no CLI `--json`,
+    no `llms.txt`); navigation or interaction an agent cannot follow.'
+  - Each repo gets a score per lens (quality, conformance, coverage, accessibility, UI/UX, agent-readiness).
+    Deterministic checks and model-judged ones are reported apart, and a model-judged figure is labelled
+    as one, with its cost as API-equivalent (estimate).
+  - The UI/UX lens proposes general improvements a person would recognise (layout, hierarchy, states,
+    responsiveness, copy), each with a screenshot and the page it is on, not only agent-specific findings.
+  - A console page, a committed snapshot under `_data/`, a machine-API document and an MCP tool show the
+    report for every repo and its trend; the public site shows it for public repos only.
+  - A finding becomes at most one issue (the fleet's dedup marker), a fan-out, or an evolution brief;
+    the harness opens no pull request it could merge and merges nothing.
+  - The harness is registered in `_data/agents.yml` under the efficacy contract, with an exact model,
+    a cap, a kill switch that a manual dispatch bypasses, and a local entry point before any CI step.
+  - The model-judged lenses have an eval set before any score can fail a build (constitution § 13); until
+    then every score is advisory.
+  scope:
+    in:
+    - Every repo the registry gives a browser frontend (19 today), crawled at its dev stack locally and
+      at its live address on a schedule.
+    - 'Reuse of what exists: the page bridge''s outline, the verify kit''s runner and scenarios, the site-quality
+      and ux-audit kits'' checks, `tools/conformance.py`, the feature index, the issue pipeline.'
+    - The agent-readiness lens as the runtime input to the AIEO score and the § 16 `ai-ready` check.
+    - 'A context-only report for a repo with no page: which agent surfaces it owes and has (MCP server,
+      CLI `--json`, agent docs).'
+    out:
+    - 'Fixing what it finds: the issue pipeline, the fan-out and repo-evolution do that.'
+    - Crawling behind a login with real credentials, or any site the fleet does not own.
+    - Submitting forms, or any request that changes state.
+    - 'A second accessibility or performance engine: axe, Lighthouse and pa11y stay the engines.'
+  risks:
+  - 'Crawl safety: a GET that changes state, or an app that needs a login. Mitigation: same-origin, read-only,
+    an allowlist of addresses from the registry, dev stacks seeded with fixture data.'
+  - 'Cost and noise of the model-judged lenses. Mitigation: deterministic tier first, a per-repo cap,
+    an eval set before anything gates, findings deduplicated before they are filed.'
+  - Overlap with the site-quality, ux-audit and verify kits. The harness must compose them and report
+    once, not add a fourth scan.
+  - The AIEO engine in `tools/aieo/` and the ai-ready kit are still planned; the agent-readiness lens
+    depends on their manifest.
+  - 'Private repos: their reports stay local and out of the public site.'
+  - The fleet already opens work faster than it closes it; this must rank findings and cap what it files,
+    or it adds to the backlog it measures.
+  source: manual
+  created: 2026-11-19
+  issue_url: https://github.com/bamr87/bamr87/issues/934
+
+- id: FF-0059
+  title: Give the console assistant an eval set and a small capped real-model canary
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P1
+  effort: M
+  category: infra
+  problem: 'The console''s assistant has no eval set, though constitution § 13.1 asks one of every agent
+    role and § 13.2 asks for a rerun after any prompt, tool or model change. Its prompt (tools/console/assist.prompt.txt,
+    tools/console/assist.page.txt) and its tool set changed twice in the session that built it (2026-11-18
+    to 2026-11-19), and evals/ holds sets for two other roles only. Every end-to-end check used a scripted
+    stand-in for the model (tools/console/assist_standin.py) or a script driving the MCP layer, and no
+    real model message has been sent. So the page''s code is known to refuse, and nothing measures what
+    the model does next: whether it stops at a dialog and says so, leaves a secret field to the person,
+    treats page text as data, or cites the fleet data it read.'
+  proposal: 'Add a role for the assistant (console-assist) to the hub''s eval machinery: evals/console-assist/cases.yml
+    and an adapter in tools/evals.py. A case is a question, a recorded page (the outline a snapshot returns
+    and what each page tool answers, refusals included) and what must hold: which tools are and are not
+    called after a refusal, and what the answer must and must not say. The adapter runs the shipped prompt
+    files and tool allowlist against that recorded page, so a run needs no browser; it is the mirror of
+    the stand-in, which scripts the model and keeps the page real. CI validates the set offline with --dry-run.
+    A canary subset of about five cases is the real-model run: local, started by hand, on the model pinned
+    in assistant.model and capped by budget.local_usd, as the t1-intake set''s model run is.'
+  acceptance:
+  - '`python3 tools/evals.py list` names console-assist, and `python3 tools/evals.py run console-assist
+    --dry-run` validates at least 20 cases offline, with no model and no network.'
+  - 'The cases cover at least: a confirming dialog opened by a click (the session stops and says what
+    confirming would do), a secret field, an instruction planted in page text, Look mode, a link that
+    leaves the site, a fleet question whose answer must cite the tool or file it read, and a request to
+    run something (the answer names the operation or page and claims nothing ran).'
+  - Every case names its `source:`; a case written for a rule rather than taken from a real conversation
+    is marked as such, to be replaced as real assistant conversations accumulate.
+  - The adapter reads tools/console/assist.prompt.txt, tools/console/assist.page.txt and the assistant's
+    tool allowlist at run time; it holds no copy of them.
+  - A change to those prompt files, to the page tools in tools/console/mcp_layer/server.py or to `assistant.model`
+    in _data/fleet.yml reruns the set in the eval-regression check.
+  - The canary runs only when started by hand, refuses a model that is not in `ai_models.allowed`, stops
+    at its cap and reports cost as API-equivalent (estimate).
+  - The first canary result (cases passed and failed, cost) is recorded with the role in docs/EVALS.md;
+    evals/README.md and evals/SCHEMA.md carry the role's row.
+  scope:
+    in:
+    - the eval set, its adapter and the recorded-page responder
+    - the offline check in CI and the hand-started canary
+    - the docked assistant and the Assist page's single question, which run the same assist op
+    out:
+    - a model call in CI or on a schedule
+    - grading answer quality beyond the stated rules
+    - eval sets for other roles (docs/EVALS.md lists those still to come)
+    - starting sessions against fleet pages (ADR 0014 P3)
+  risks:
+  - § 13.1 asks for real past tasks and the dock has none yet, so the first set is partly designed; it
+    must say so and be grown from real use.
+  - A recorded page can drift from what the payload really returns; its refusal texts should be taken
+    from the kit's own run (test/evidence/fleet-assist/paired-session-transcript.txt) or held to FleetAssistCore
+    by a test.
+  - The first canary run spends, and that yes is the maintainer's (§ 13.6); nothing here runs it for him.
+  - 'docs/EVALS.md, evals/README.md and the root SCHEMA.md name .github/workflows/evals.yml as the eval-regression
+    check, and no such workflow is in .github/workflows/: where the check runs must be settled before
+    this role''s paths are wired into it.'
+  - ADR 0014 P2 changes the console page's half of the bridge; the set reruns then.
+  source: scout
+  created: 2026-11-19
+  issue_url: https://github.com/bamr87/bamr87/issues/939
+
+- id: FF-0060
+  title: Show the fleet pages shared with the console on the Assist page, and let the operator end one
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P2
+  effort: S
+  category: feature
+  problem: 'Since the assistant kit, a page of another fleet site can open a session on the console through
+    routes that take no token (POST /api/assist/fleet/<verb>). The console''s /api/assist document already
+    lists those sessions (fleet_pages.sessions: origin, repo and source file, mode, paired or not, commands,
+    opened at), but no console page reads the field, so the operator cannot see which pages are sharing
+    themselves right now or whether a session is paired with one. Short of that page''s tab closing or
+    the session going idle, the only way to stop one is to set assistant.fleet_pages to off for every
+    page.'
+  proposal: 'A "Shared pages" section on the console''s Assist page (tools/console/web/src/pages/Assist.tsx)
+    that lists each fleet page sharing itself: origin, repo, source file or route, mode, live or idle,
+    paired or not, commands so far and age, under the ceiling in force. Each row has an End control, served
+    by a new token-guarded route that ends a session by the eight-character id the audit log already uses,
+    so the session id, which is the capability, never leaves the broker. Ending one is written to the
+    page bridge''s audit log, and the page''s panel says the console ended the sharing.'
+  acceptance:
+  - With a fixture page sharing itself, the Assist page lists it with origin, repo, source file or route,
+    mode, paired or not, command count and age, and drops it when the panel closes; with none it says
+    so and names the ceiling (`assistant.fleet_pages`).
+  - 'End removes the session: the row goes, the page''s panel shows that sharing was ended from the console,
+    a paired session''s next page tool is refused with that reason, and one audit line records it.'
+  - The end route needs the console token, is not among the token-free fleet routes, and refuses an unknown
+    or ambiguous id.
+  - No session id beyond its first eight characters appears in the page, the /api/assist document, a URL
+    or a log.
+  - The published build shows no shared pages and no End control (`assist_doc(local=False)` returns none),
+    and verify/scenarios/assist-dock.yml asserts that.
+  - Covered by tools/console/test_page_bridge.py and tools/console/test_console.py, with a feature fragment
+    in features/features.d/ and an evidence bundle under test/evidence/ (docs/VERIFICATION.md).
+  scope:
+    in:
+    - the Assist page section and its refresh
+    - one token-guarded route to end a fleet-page session, and its audit line
+    out:
+    - changing the ceiling or a session's mode from this view (the Config page and the person on the page
+      hold those)
+    - a history of past sessions (the audit log is that)
+    - the same view in the TUI, the CLI or an MCP tool
+    - sessions of the console's own tabs
+  risks:
+  - 'Eight characters are 32 bits of the id: enough under the fleet-page session cap, and an ambiguous
+    match must be refused, never guessed.'
+  - The list should ride the document the page already fetches; a new per-poll call would add load to
+    a console that has saturated on polling before.
+  - ADR 0014 P2 moves the tab routes' session id into the request body; the end route should be written
+    to that shape from the start.
+  - If a second surface later wants the view, its model belongs in tools/fleetcore/, not in the page.
+  source: scout
+  created: 2026-11-19
+  issue_url: https://github.com/bamr87/bamr87/issues/940
+
+- id: FF-0061
+  title: 'Let the container console start an assistant session (decide: the claude CLI in its image, or
+    a runner on the host)'
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P2
+  effort: M
+  category: infra
+  problem: 'The console the maintainer opens every day (:4001) runs in a container whose image (.devcontainer/Dockerfile,
+    shared with devenv) has no claude CLI, so there the docked assistant cannot start a session: the dock
+    says so and offers pairing a terminal session or running a second console on the host. The same missing
+    binary makes every operation that needs claude, the local loop runner included, unavailable from that
+    console. ADR 0013 left putting the CLI in the image as a separate decision (§ 21), and nothing records
+    it as open work.'
+  proposal: 'First a recorded decision, as an ADR or an addendum to ADR 0013, between two routes: carry
+    a versioned claude CLI in the console''s image, or keep the image as it is and have the container
+    console hand the session to a runner on the host. Then build the chosen one. For the image route:
+    the CLI installed in the Dockerfile at a version _data/fleet.yml names, auth by the OAuth token docker-compose.yml
+    already passes to the service by name, a writable place for the CLI''s own state and the run''s ledger
+    row that is not the read-only ~/.claude mount, and the same caps, tool allowlist and redaction dash-gen
+    ai-run applies on the host. Either way the dock''s "no CLI" state stays for a console that still has
+    none.'
+  acceptance:
+  - 'The decision is recorded and accepted by the maintainer before any image or runner change: which
+    route, what the container may hold, and how § 21 (no secret in a layer, pinned bases) and `ai_auth`
+    (OAuth only) are met.'
+  - On the container console a first message in the dock asks the spend question and then starts a session;
+    /api/assist reports `unavailable_kind` as null there, and the operations that need claude stop reporting
+    themselves unavailable.
+  - The session runs through dash-gen ai-run with the per-answer cap from `assistant.budget_usd`, the
+    pinned `assistant.model`, the same allowed and denied tools as on the host, and a ledger row and trace
+    the lake can read.
+  - No credential is in an image layer, a build arg, a label or argv, and the ~/.claude mount stays read-only.
+  - The pull request rebuilds and restarts nothing on the maintainer's machine; the rollout is one documented
+    step he runs, with its undo.
+  - tools/console/README.md (Where it runs), docs/DOCKER.md and the dock's own text say what changed;
+    a console without the CLI still shows the pairing and host-console routes.
+  scope:
+    in:
+    - the decision record
+    - the console service's image or a host-side runner, whichever is chosen
+    - the assist op and the other operations gated on the claude CLI in tools/console/core.py
+    out:
+    - the devenv workspace or any other service gaining the CLI, unless the decision says so
+    - turning ANTHROPIC_API_KEY back on
+    - starting sessions against fleet pages (ADR 0014 P3), which this unblocks on the container console
+      but does not build
+    - scheduled or unattended runs from the container
+  risks:
+  - A model-driven session would run inside the container that also holds the operator's GitHub and console
+    tokens; the decision must say why that is acceptable, or pick the host-runner route.
+  - The console and devenv share one Dockerfile, so an image change reaches both unless a build target
+    separates them.
+  - The fleet's rule is latest dependencies with no exact pins, while the local runner is proven against
+    one CLI version; how the CLI version is declared (a `toolchain:` entry is the existing exception)
+    is part of the decision.
+  - The container can use only the OAuth token passed in from .env; a login kept in the host's keychain
+    does not reach it.
+  - Pairing already works on this console and is the local-first route (§ 10.9), so the gain is convenience
+    and ADR 0014 P3 rather than a missing capability; that may make this a decline.
+  source: scout
+  created: 2026-11-19
+  issue_url: https://github.com/bamr87/bamr87/issues/941
+
+- id: FF-0062
+  title: Run the fleet-assist fixture in a real browser in CI, so the page rules that need a DOM are proven
+    on every change
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P1
+  effort: M
+  category: infra
+  problem: The assistant kit's rules that need a DOM (nothing inside or behind a modal dialog, no secret
+    field, no link that leaves the site, the Ask-first Allow or Deny, a session that survives a navigation)
+    are proven only by hand, in a browser, against templates/assistant/tests/fixture.html, with the result
+    kept in test/evidence/fleet-assist/. CI runs the pure-function contract tests (templates/assistant/tests/contract.test.mjs)
+    and the broker's unit tests (tools/console/test_page_bridge.py), and no browser. The one hand run
+    found a loss those tests had missed (after a navigation the old page's abandoned long poll took the
+    next command) and two snapshot faults, and a later review found a setting that could switch the dialog
+    rule off. The payload is about to be vendored byte-identical into 19 repos, so a regression in a rule
+    would ship to all of them unseen.
+  proposal: Turn the hand run into a scripted one that costs nothing. A test starts a credential-free
+    console as the broker on a loopback port with only the fixture's origin admitted (DASH_CONSOLE_ASSIST_ORIGINS),
+    serves templates/assistant/ from a second loopback origin, opens the fixture in headless Chromium,
+    opens the panel and pairs, then plays the session's side through the real MCP layer's page tools from
+    a script, as the evidence run did. It asserts each refusal and each allowed action against the DOM,
+    in Look, Ask first and Act. It runs as a pull-request check when the kit, the page bridge, the fleet
+    routes or the MCP layer's page tools change, on the Playwright install the hub's verify job already
+    uses rather than a second browser toolchain. No model is called.
+  acceptance:
+  - 'One documented command runs the browser test locally at $0: no Claude session, no model, and the
+    live console on :4001 is never touched.'
+  - 'In a real DOM it asserts at least: Look refuses every act; in Ask first a Deny comes back as declined
+    with the page unchanged and an Allow runs; inside and behind a native modal dialog and a Bootstrap-style
+    one, click, fill, Enter and navigate are refused and the form''s state is unchanged, while Escape
+    closes the dialog; the secret field is neither read nor filled; the link that leaves the site is refused;
+    no `configure({ modal })` value unprotects a dialog.'
+  - 'After a navigation to tests/fixture-2.html the same session carries on and the next command reaches
+    the new page: the abandoned-poll loss found on 2026-11-19 is held by a browser regression test, not
+    only by test_page_bridge.py.'
+  - It runs in CI on pull requests that touch templates/assistant/**, tools/console/page_bridge.py, the
+    fleet routes in tools/console/app.py or tools/console/mcp_layer/**; a broken rule fails the job, and
+    a missing browser, console or MCP dependency fails it too rather than skipping.
+  - 'The check is shown to be able to fail: a self-test with one rule deliberately broken turns it red.'
+  - templates/assistant/README.md (Changing the kit) and test/evidence/fleet-assist/README.md say which
+    rules are now held by the automated run and which are still checked by hand; UPS-AST-42 in specs/ASSIST.md
+    names the test.
+  scope:
+    in:
+    - the kit's fixture pages and payload (templates/assistant/)
+    - the broker's fleet routes and the MCP layer's page tools, driven by a script
+    - one CI job and its local command
+    out:
+    - a real model on the session's side (the assistant eval set is a separate proposal)
+    - real fleet sites and their adapters (ADR 0014 P1), and a deployed https page
+    - the console's own React page (tools/console/web/src/assist/pageBridge.ts) until ADR 0014 P2 makes
+      the rules one implementation
+    - crawling or scoring any site (the agent-lens crawl, bamr87/bamr87#934)
+  risks:
+  - Long polls and the 90-second approval wait make a browser test slow or flaky; the bridge takes an
+    injected clock, and the test needs short waits of its own rather than sleeps.
+  - The python-tests job has little time headroom, so the browser run belongs in its own job or in the
+    verify job.
+  - The console's route tests and the MCP layer test skip silently where FastAPI or the mcp package is
+    missing; this job must install both and treat a skip as a failure.
+  - verify/runner.mjs is a rendered copy of the verify kit; if scenario/v1 needs a new step for a second
+    origin or a session driver, the change goes to templates/verify/runner.mjs first.
+  - The check is advisory until the maintainer makes it required in branch protection; nothing in this
+    entry does that.
+  source: scout
+  created: 2026-11-19
+  issue_url: https://github.com/bamr87/bamr87/issues/938
