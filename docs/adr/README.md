@@ -37,4 +37,4 @@ Add an ADR in the same PR as the change it justifies.
 | 0011 | [One framework, many instances: the stack installs for any owner](0011-one-framework-many-instances.md) | accepted |
 | 0012 | [Merge readiness: every pull request is checked, reviewed and adjusted before it merges, and says so in one place](0012-merge-readiness.md) | accepted |
 | 0013 | [The docked assistant and the page bridge: an agent session may see and use the console page a person has open, and the confirming yes stays theirs](0013-console-page-assistant.md) | accepted |
-| 0014 | [The fleet assistant baseline: one page bridge, an adapter per platform, and the console as the one broker](0014-fleet-assistant-baseline.md) | proposed |
+| 0014 | [The fleet assistant baseline: one page bridge, an adapter per platform, and the console as the one broker](0014-fleet-assistant-baseline.md) | accepted |

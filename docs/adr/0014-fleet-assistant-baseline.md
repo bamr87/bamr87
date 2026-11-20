@@ -1,6 +1,7 @@
 # ADR 0014 — The fleet assistant baseline: one page bridge, an adapter per platform, and the console as the one broker
 
-- **Status**: proposed
+- **Status**: accepted
+- **Accepted in**: https://github.com/bamr87/bamr87/pull/936 (merged 2026-11-20 by @bamr87)
 - **Date**: 2026-11-19
 - **Deciders**: proposed by an agent at the maintainer's request (2026-11-19: turn the console's page assistant into fleet-wide functionality for every repo across the stack, with at a minimum a baseline AI agent integration per platform)
 - **Related**: [ADR 0013](0013-console-page-assistant.md) (the docked assistant and the page bridge, which this makes portable), [ADR 0005](0005-console-as-fleet-portal.md) (the console as the fleet's portal, whose launcher names every frontend's address), constitution § 10.5 to § 10.9 (hands off the Mac, read-only tools, honest cost, prior art, local first), § 13 (risk tiers and spend), § 16 (the AI-ready foundation, sized to a repo's type), § 18 (fleet design consistency), [specs/ASSIST.md](../../specs/ASSIST.md) (UPS-AST), [templates/assistant/](../../templates/assistant/README.md), [specs/FEEDBACK.md](../../specs/FEEDBACK.md) (the delivery pattern this copies)
