@@ -3128,3 +3128,40 @@ features:
     - test/evidence/assist-dock
     prd:
     - FR139
+  - id: HUB-126
+    title: 'The Overview tells the fleet''s story: health, budget direction, what waits on the maintainer,
+      the harness standard, flow, and one freshness timeline'
+    description: 'The console''s front door opens on a status strip that answers four questions before any
+      scrolling: repos by health as one segmented bar; the findings by severity band, how many levers clear
+      them and, when the list stands at the generator''s cap, that it does; both budgets'' projected month
+      against their ceilings with the week-over-week turn and whether that turn is better; what waits on
+      the maintainer from the decision index (read on a console, never on the published page); and the oldest
+      input. Below it the two budgets each carry a fifteen-day sparkline, the harnesses are drawn against
+      the standard (conformant, off, not graded) with the controls they most often miss and scheduled against
+      observed AI runs on the fleet cap, flow shows the issue-pipeline funnel and open pull requests ready
+      against draft, the hub scorecard is a bullet per metric against its threshold beside the trip wires,
+      every AI cron sits on a weekday × UTC-hour heat strip with the crowded cells ringed, the attention
+      queue groups the findings one lever clears (or reads flat) and shows a lever''s job outcome in its
+      row, and every signal sits on one log-scale freshness timeline with its refresh. Trends are the registry
+      file''s own git history, one point per committed day, so no new file is committed. Proven by tools/console/test_console.py
+      (the history reader, the state document), the verify scenario at two viewports and the evidence bundle.'
+    implemented: true
+    status: shipped
+    surface: ui
+    link: /overview
+    docs: tools/console/README.md
+    tags:
+    - console
+    - overview
+    - dataviz
+    - trends
+    date: 2026-11-19
+    tests:
+    - tools/console/test_console.py
+    - tools/console/test_pages.py
+    scenarios:
+    - verify/scenarios/overview-story.yml
+    evidence:
+    - test/evidence/overview-story
+    prd:
+    - FR140

@@ -175,6 +175,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-123](features/features.yml) | Telemetry query tools: prom_query, logs_search and traces_query, read-only and capped | shipped | [`tools/console/telemetry_query.py`](tools/console/telemetry_query.py) · [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md) | FR26 |
 | [HUB-124](features/features.yml) | The Voices editor: the fleet voice model edited in the console and filed back as a draft PR | shipped | [`tools/console/web/src/pages/Voices.tsx`](tools/console/web/src/pages/Voices.tsx) · [`tools/console/README.md`](tools/console/README.md) | TBD |
 | [HUB-125](features/features.yml) | The docked assistant: Claude Code beside every console page, able to see the page a person has open and, in the mode they choose, use it | shipped | route `/assist` · [`docs/adr/0013-console-page-assistant.md`](docs/adr/0013-console-page-assistant.md) | FR139 |
+| [HUB-126](features/features.yml) | The Overview tells the fleet's story: health, budget direction, what waits on the maintainer, the harness standard, flow, and one freshness timeline | shipped | route `/overview` · [`tools/console/README.md`](tools/console/README.md) | FR140 |
 
 **Requirement → feature trace**
 
@@ -350,6 +351,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR137 | HUB-121 |
 | FR138 | HUB-122 |
 | FR139 | HUB-125 |
+| FR140 | HUB-126 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -483,6 +485,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR137: The product must say, on every open pull request and in the PR queue, what is left before it merges and who moves each item, recomputed when the pull request is marked ready, changed or its CI finishes, and must record on the pull request when nothing is left.
 - FR138: Every governed fleet repo must state its purpose in constitution § 1 as one direction statement followed by exactly three numbered missions, adopted only through a numbered amendment ratified when the maintainer merges the PR; the first mission must provide data, tools, resources and transparency for all stakeholders in that repo's domain, including professionals in the field and the general public, unless a ratified amendment records a documented reason it does not apply; the README tagline and AGENTS.md opening one-liner must match that direction and link to constitution § 1; ambition is written as direction, not as a claim of current capability (constitution § 1, § 31; docs/amendments/proposed/mission-and-about-section.md).
 - FR139: The console must let an assistant session see the page a person has open and act on it for them only as far as that person allows: the session reads and points by default, each action is asked of the person unless they chose otherwise, and no session can answer a confirming dialog or read or fill a secret field.
+- FR140: The console's front door must answer, before any scrolling, how healthy the fleet is, which way each budget is moving against its ceiling, what waits on the maintainer and how current its inputs are; it must show a count's cap, a series' direction and a finding's lever rather than a bare number, and every figure must link to the page that explains it.
 
 **Non-functional**
 

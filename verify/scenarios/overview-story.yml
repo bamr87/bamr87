@@ -1,6 +1,6 @@
 # The Overview tells the fleet's story: a status strip first, the budgets' direction, the harnesses against the standard, flow, health, a cron heat strip, the attention queue by lever, and one freshness timeline.
 id: overview-story
-feature: HUB-NEW:overview-story
+feature: HUB-126
 title: "The Overview reads as a story: health, budget direction, what waits, the standard, flow, and one freshness timeline"
 description: "The strip at the top answers its four questions before any scrolling; both budgets carry a sparkline; the cron heat strip has a cell for every weekday and UTC hour; the attention queue groups the findings one lever clears and can be read flat; every stamped signal sits on one timeline; the published page says the decision index is read on a console; nothing scrolls sideways at phone width."
 viewports: [desktop, mobile]
