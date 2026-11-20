@@ -214,6 +214,74 @@ def git_info() -> dict:
         return doc
 
 
+# The Overview's trend is the registry file's own git history: fleet-pulse
+# commits _data/harness_registry.yml once a day, so each commit touching it is
+# one day's reading, and the `totals:` and `trends:` blocks (two flat mappings
+# near the top) are all a sparkline needs. They are sliced out by text before
+# YAML sees them, so thirty 200 KB files cost a quarter of a second, once per
+# HEAD; a shallow clone (the published page's build) yields one point and the
+# page says so. Nothing new is committed: the ledger IS the file's history.
+HISTORY_COMMITS = 45
+HISTORY_TTL = 300.0
+HISTORY_FILE = "_data/harness_registry.yml"
+_HISTORY: dict = {}
+_HISTORY_LOCK = threading.Lock()
+
+
+def _top_block(text: str, key: str) -> dict:
+    """The top-level mapping `key:` of a YAML document, parsed on its own ({} when absent or not a mapping)."""
+    m = re.search(rf"^{re.escape(key)}:[^\n]*\n((?:[ \t][^\n]*\n|[ \t]*\n)*)", text, re.M)
+    if not m:
+        return {}
+    try:
+        doc = yaml.safe_load(f"{key}:\n{m.group(1)}") or {}
+    except yaml.YAMLError:
+        return {}
+    block = doc.get(key) if isinstance(doc, dict) else None
+    return block if isinstance(block, dict) else {}
+
+
+def registry_history(limit: int = HISTORY_COMMITS) -> dict:
+    """One point per day the registry was committed, oldest first (the latest commit of a day wins)."""
+    with _HISTORY_LOCK:
+        rc, head = run_quiet(["git", "log", "-1", "--format=%H", "--", HISTORY_FILE])
+        head = head.strip()
+        if rc != 0 or not head:
+            return {"source": "none", "points": [], "reason": "no git history for the registry here"}
+        cached = _HISTORY.get("doc")
+        if cached and _HISTORY.get("head") == head and time.monotonic() - _HISTORY["at"] < HISTORY_TTL:
+            return cached
+        rc, log = run_quiet(["git", "log", f"-{int(limit)}", "--format=%H %cI", "--", HISTORY_FILE])
+        points: list[dict] = []
+        seen_days: set[str] = set()
+        for line in (log.splitlines() if rc == 0 else []):
+            sha, _, at = line.strip().partition(" ")
+            day = at[:10]
+            if not sha or day in seen_days:
+                continue
+            rc2, text = run_quiet(["git", "show", f"{sha}:{HISTORY_FILE}"], timeout=10)
+            if rc2 != 0:
+                continue
+            seen_days.add(day)
+            totals, trends = _top_block(text, "totals"), _top_block(text, "trends")
+            ai = trends.get("ai_cost_usd") if isinstance(trends.get("ai_cost_usd"), dict) else {}
+            mins = trends.get("actions_minutes") if isinstance(trends.get("actions_minutes"), dict) else {}
+            points.append({
+                "at": day, "commit": sha[:10],
+                "attention": totals.get("attention"),
+                "harnesses_graded": totals.get("harnesses_graded"),
+                "harnesses_conformant": totals.get("harnesses_conformant"),
+                "baseline_ok": totals.get("baseline_ok"),
+                "ai_projected_monthly": ai.get("projected_monthly"),
+                "actions_projected_monthly": mins.get("projected_monthly"),
+            })
+        points.reverse()
+        doc = {"source": "git", "points": points, "days": len(points),
+               "note": f"one point per day {HISTORY_FILE} was committed, oldest first; a shallow clone has one"}
+        _HISTORY.update(at=time.monotonic(), head=head, doc=doc)
+        return doc
+
+
 def describe_cron(cron: str) -> str:
     """Reuse dash-gen's cron helpers when importable (same repo, same math)."""
     try:
@@ -392,10 +460,13 @@ def load_state(now: dt.datetime | None = None) -> dict:
         "health": health,
         "triage": {
             "generated_at": triage.get("generated_at"),
+            "repos_scanned": triage.get("repos_scanned"),
             "totals": triage.get("totals") or {},
             "inbox": (triage.get("inbox") or [])[:20],
             "inbox_total": len(triage.get("inbox") or []),
         },
+        # the Overview's trends: the registry file's git history (registry_history)
+        "history": registry_history(),
         "pipeline": {"generated_at": pipeline.get("generated_at"), "totals": pipeline.get("totals") or {}},
         "rotation": {
             "generated_at": rotation.get("generated_at"),

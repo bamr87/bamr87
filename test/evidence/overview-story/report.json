@@ -1,0 +1,398 @@
+{
+  "id": "overview-story",
+  "title": "The Overview reads as a story: health, budget direction, what waits, the standard, flow, and one freshness timeline",
+  "features": [
+    "HUB-NEW:overview-story"
+  ],
+  "path": "verify/scenarios/overview-story.yml",
+  "started": "2026-11-20T01:12:15.809Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/overview",
+          "ok": true,
+          "ms": 791
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "[data-status-strip]"
+          },
+          "ok": true,
+          "ms": 34
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-cell='Fleet health']"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-cell='Attention']"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-cell='Budgets']"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-cell='Waiting on you']:has-text('published page never carries it')"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-cell='Signals']"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "strip_above_the_fold",
+            "script": "(() => { const r = document.querySelector(\"[data-status-strip]\").getBoundingClientRect(); if (r.top > window.innerHeight) throw new Error(`the strip starts at y=${r.top}`); return Math.round(r.top); })()"
+          },
+          "ok": true,
+          "value": 171,
+          "ms": 2
+        },
+        {
+          "step": "screenshot",
+          "arg": "overview-top",
+          "ok": true,
+          "file": "test/evidence/overview-story/desktop-overview-top.png",
+          "ms": 70
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-budget='Claude spend'] svg"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-budget='Actions minutes'] svg"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "[role='table'] [role='cell']",
+              "min": 168,
+              "max": 168
+            }
+          },
+          "ok": true,
+          "value": 168,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-lever-group]"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "grouped_by_lever",
+            "script": "(() => { const g = document.querySelectorAll('[data-lever-group]').length; const rows = document.querySelectorAll('[data-lever-group] tbody tr').length; if (!g || rows < g) throw new Error(`${g} groups, ${rows} rows`); return `${g} groups, ${rows} findings`; })()"
+          },
+          "ok": true,
+          "value": "7 groups, 20 findings",
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "overview-full",
+          "ok": true,
+          "file": "test/evidence/overview-story/desktop-overview-full.png",
+          "ms": 208
+        },
+        {
+          "step": "click",
+          "arg": "label:has-text('Flat')",
+          "ok": true,
+          "ms": 59
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "table th:has-text('sev')"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "flat_is_one_table",
+            "script": "(() => { if (document.querySelectorAll('[data-lever-group]').length) throw new Error('groups still shown'); return document.querySelectorAll('table tbody tr').length; })()"
+          },
+          "ok": true,
+          "value": 20,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "#freshness [role='img'][aria-label$=' old']",
+              "min": 1
+            }
+          },
+          "ok": true,
+          "value": 8,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/overview-story/desktop-overview-top.png",
+        "test/evidence/overview-story/desktop-overview-full.png"
+      ],
+      "evals": {
+        "strip_above_the_fold": 171,
+        "grouped_by_lever": "7 groups, 20 findings",
+        "flat_is_one_table": 20
+      },
+      "final_url": "http://127.0.0.1:4031/overview/"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/overview",
+          "ok": true,
+          "ms": 697
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "[data-status-strip]"
+          },
+          "ok": true,
+          "ms": 24
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-cell='Fleet health']"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-cell='Attention']"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-cell='Budgets']"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-cell='Waiting on you']:has-text('published page never carries it')"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-cell='Signals']"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "strip_above_the_fold",
+            "script": "(() => { const r = document.querySelector(\"[data-status-strip]\").getBoundingClientRect(); if (r.top > window.innerHeight) throw new Error(`the strip starts at y=${r.top}`); return Math.round(r.top); })()"
+          },
+          "ok": true,
+          "value": 211,
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "overview-top",
+          "ok": true,
+          "file": "test/evidence/overview-story/mobile-overview-top.png",
+          "ms": 21
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-budget='Claude spend'] svg"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-budget='Actions minutes'] svg"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "[role='table'] [role='cell']",
+              "min": 168,
+              "max": 168
+            }
+          },
+          "ok": true,
+          "value": 168,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "[data-lever-group]"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "grouped_by_lever",
+            "script": "(() => { const g = document.querySelectorAll('[data-lever-group]').length; const rows = document.querySelectorAll('[data-lever-group] tbody tr').length; if (!g || rows < g) throw new Error(`${g} groups, ${rows} rows`); return `${g} groups, ${rows} findings`; })()"
+          },
+          "ok": true,
+          "value": "7 groups, 20 findings",
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "overview-full",
+          "ok": true,
+          "file": "test/evidence/overview-story/mobile-overview-full.png",
+          "ms": 164
+        },
+        {
+          "step": "click",
+          "arg": "label:has-text('Flat')",
+          "ok": true,
+          "ms": 48
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "table th:has-text('sev')"
+          },
+          "ok": true,
+          "ms": 13
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "flat_is_one_table",
+            "script": "(() => { if (document.querySelectorAll('[data-lever-group]').length) throw new Error('groups still shown'); return document.querySelectorAll('table tbody tr').length; })()"
+          },
+          "ok": true,
+          "value": 20,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "#freshness [role='img'][aria-label$=' old']",
+              "min": 1
+            }
+          },
+          "ok": true,
+          "value": 8,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 2
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/overview-story/mobile-overview-top.png",
+        "test/evidence/overview-story/mobile-overview-full.png"
+      ],
+      "evals": {
+        "strip_above_the_fold": 211,
+        "grouped_by_lever": "7 groups, 20 findings",
+        "flat_is_one_table": 20
+      },
+      "final_url": "http://127.0.0.1:4031/overview/"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-11-20T01:12:18.159Z",
+  "base": "http://127.0.0.1:4031"
+}

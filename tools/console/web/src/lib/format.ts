@@ -63,6 +63,27 @@ export function cronHours(cron: string | null | undefined): number[] {
   return out;
 }
 
+/** The weekdays a 5-field cron fires on, Monday 0 … Sunday 6. `*` (and a day-of-month rule, which can fall on
+ *  any weekday) counts every day; names and ranges (`MON-FRI`, `1,3,5`) are read; cron's 0 and 7 are both Sunday. */
+export function cronDays(cron: string | null | undefined): number[] {
+  const f = String(cron ?? '').trim().split(/\s+/);
+  if (f.length !== 5) return [];
+  const d = f[4];
+  if (d === '*' || d === '?' || d.startsWith('*/')) return [0, 1, 2, 3, 4, 5, 6];
+  const names: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+  const num = (s: string) => names[s.toLowerCase()] ?? Number(s);
+  const out = new Set<number>();
+  for (const part of d.split(',')) {
+    const m = part.match(/^([a-z]{3}|\d+)(?:-([a-z]{3}|\d+))?$/i);
+    if (!m) continue;
+    const a = num(m[1]);
+    const b = m[2] ? num(m[2]) : a;
+    if (Number.isNaN(a) || Number.isNaN(b)) continue;
+    for (let i = a; i <= b && i <= 7; i++) out.add(((i % 7) + 6) % 7);
+  }
+  return [...out].sort((x, y) => x - y);
+}
+
 /** "owner/name" → "name". */
 export const repoName = (nwo: string | null | undefined): string => String(nwo ?? '').split('/').pop() ?? '';
 

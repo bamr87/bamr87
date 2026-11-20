@@ -1,0 +1,250 @@
+/* The Overview's story pieces (Viz.tsx): every colour is a console role, every
+   dynamic value a CSS custom property set from data (--grow, --pct, --x, --h). */
+
+/* Parts of a whole: one bar, 2px of surface between parts (the dataviz spacer), each part grown by its value. */
+.segments {
+  display: flex;
+  gap: rem(2px);
+  height: var(--h, rem(10px));
+  border-radius: rem(4px);
+  overflow: hidden;
+  background: var(--track);
+}
+
+.segment {
+  display: block;
+  flex: var(--grow) 1 0;
+  min-width: rem(3px);
+  height: 100%;
+  background: var(--muted);
+}
+
+.swatch {
+  display: inline-block;
+  flex: none;
+  width: rem(10px);
+  height: rem(10px);
+  border-radius: rem(2px);
+  background: var(--muted);
+}
+
+.segment[data-tone='good'], .swatch[data-tone='good'], .fill[data-tone='good'], .tlDot[data-tone='good'] { background: var(--good); }
+.segment[data-tone='warn'], .swatch[data-tone='warn'], .fill[data-tone='warn'], .tlDot[data-tone='warn'] { background: var(--warning); }
+.segment[data-tone='crit'], .swatch[data-tone='crit'], .fill[data-tone='crit'], .tlDot[data-tone='crit'] { background: var(--critical); }
+.segment[data-tone='info'], .swatch[data-tone='info'], .fill[data-tone='info'], .tlDot[data-tone='info'] { background: var(--series-1); }
+.segment[data-tone='muted'], .swatch[data-tone='muted'], .fill[data-tone='muted'] { background: var(--muted); }
+
+/* A bullet: label, a track with the value's fill and the threshold's tick, the value, which way is better. */
+.bullet {
+  display: grid;
+  grid-template-columns: minmax(rem(110px), rem(200px)) 1fr auto auto;
+  gap: var(--mantine-spacing-xs);
+  align-items: center;
+  padding: rem(3px) 0;
+}
+
+.bulletLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track {
+  position: relative;
+  height: rem(8px);
+  border-radius: rem(4px);
+  background: var(--track);
+}
+
+.fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--pct);
+  border-radius: rem(4px);
+  background: var(--series-1);
+}
+
+.tick {
+  position: absolute;
+  top: rem(-3px);
+  bottom: rem(-3px);
+  left: var(--pct);
+  width: rem(2px);
+  margin-left: rem(-1px);
+  border-radius: rem(1px);
+  background: var(--ink);
+}
+
+.bulletValue {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.arrow { color: var(--ink-2); }
+
+/* A sparkline: a 2px line in the first series role, a faint area, the last point marked, a cap as a dashed rule. */
+.sparkBox {
+  width: 100%;
+  min-width: 0;
+}
+
+.spark {
+  display: block;
+  overflow: visible;
+}
+
+.sparkLine {
+  fill: none;
+  stroke: var(--series-1);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.sparkArea {
+  fill: var(--series-1);
+  opacity: 0.12;
+}
+
+.sparkDot {
+  fill: var(--series-1);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.sparkCap {
+  stroke: var(--ink-2);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.sparkHit { fill: transparent; }
+.sparkHit:hover { fill: color-mix(in srgb, var(--ink) 7%, transparent); }
+
+/* A delta: arrow, signed percentage, and whether that is better or worse. */
+.delta {
+  display: inline-flex;
+  align-items: center;
+  gap: rem(2px);
+  white-space: nowrap;
+}
+
+.delta[data-tone='good'] { color: var(--good); }
+.delta[data-tone='crit'] { color: var(--critical); }
+
+/* A week of UTC hours: one stepped sequential ramp of the first series role; a crowded cell is ringed. */
+.heat {
+  display: grid;
+  gap: rem(2px);
+  max-width: rem(760px);
+}
+
+.heatHead, .heatRow {
+  display: grid;
+  grid-template-columns: rem(34px) repeat(24, minmax(rem(8px), 1fr));
+  gap: rem(2px);
+  align-items: center;
+}
+
+.heatHour, .heatDay {
+  font-size: var(--mantine-font-size-xs);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.heatCell {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-height: rem(18px);
+  border-radius: rem(3px);
+  background: var(--track);
+}
+
+.heatCell[data-key] {
+  width: rem(12px);
+  height: rem(12px);
+  aspect-ratio: auto;
+}
+
+.heatCell[data-level='1'] { background: color-mix(in srgb, var(--series-1) 25%, transparent); }
+.heatCell[data-level='2'] { background: color-mix(in srgb, var(--series-1) 45%, transparent); }
+.heatCell[data-level='3'] { background: color-mix(in srgb, var(--series-1) 70%, transparent); }
+.heatCell[data-level='4'] { background: var(--series-1); }
+
+.heatCell[data-hot] {
+  outline: rem(2px) solid var(--critical);
+  outline-offset: rem(-2px);
+}
+
+/* The freshness timeline: one log-scale axis, a lane per source with its dot where its age falls. */
+.timeline {
+  display: grid;
+  gap: rem(2px);
+}
+
+.tlRow {
+  display: grid;
+  grid-template-columns: minmax(rem(110px), rem(170px)) 1fr auto;
+  gap: var(--mantine-spacing-sm);
+  align-items: center;
+  min-height: rem(28px);
+}
+
+/* The axis row keeps the lanes' columns so its ticks sit over the tracks; at phone width the tracks take the
+   whole row, and so does the axis (the spacers go). */
+.tlHead {
+  composes: tlRow;
+}
+
+.tlAxis {
+  position: relative;
+  height: rem(16px);
+  min-width: 0;
+}
+
+.tlTick {
+  position: absolute;
+  left: var(--x);
+  transform: translateX(-50%);
+  font-size: var(--mantine-font-size-xs);
+  color: var(--ink-2);
+}
+
+.tlTick:first-child { transform: none; }
+.tlTick:last-child { transform: translateX(-100%); }
+
+.tlTrack {
+  position: relative;
+  height: rem(14px);
+  border-radius: rem(7px);
+  background: var(--track);
+}
+
+.tlDot {
+  position: absolute;
+  top: 50%;
+  left: var(--x);
+  width: rem(12px);
+  height: rem(12px);
+  margin: rem(-6px) 0 0 rem(-6px);
+  border-radius: 50%;
+  border: rem(2px) solid var(--surface);
+  background: var(--muted);
+}
+
+.tlLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tlNote { padding-left: rem(6px); }
+
+@media (max-width: 36em) {
+  .tlRow { grid-template-columns: 1fr auto; }
+  .tlTrack { grid-column: 1 / -1; }
+  .tlHead { grid-template-columns: 1fr; }
+  .tlSpacer { display: none; }
+  .bullet { grid-template-columns: minmax(rem(90px), rem(140px)) 1fr auto auto; }
+}
