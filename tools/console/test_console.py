@@ -3434,6 +3434,10 @@ def test_a_fleet_page_shares_itself_without_a_token_and_only_from_a_registered_o
         # malformed calls are told so; no call reads a session id from the address
         assert client.post("/api/assist/fleet/open", content="{", headers={"Origin": origin}).status_code == 400
         assert post("steal", {"sid": sid}).status_code == 404
+        # reached with no token, the route answers in its own words: nothing a caller sent, and no
+        # exception's text, comes back in a refusal
+        r = post("mode", {"sid": sid, "mode": "<marker-9f3a>"})
+        assert r.status_code == 400 and "marker-9f3a" not in r.text and "mode" in r.json()["detail"], r.text
         assert post("next", {"wait": 0}).status_code == 404, "no session id in the body, no session"
         assert not any("{sid}" in route.path for route in console_app.app.routes if route.path.startswith("/api/assist/fleet"))
         assert post("close", {"sid": sid}).json() == {"closed": True} and post("close", {"sid": sid}).status_code == 404

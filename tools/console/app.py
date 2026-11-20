@@ -896,7 +896,11 @@ def fleet_page_preflight(verb: str, request: Request) -> Response:
 async def fleet_page(verb: str, request: Request) -> JSONResponse:
     """One call from a fleet page's own payload: open (share this tab), next (its long poll), result,
     mode, pair, close. 403 an origin the registries do not declare, or fleet pages switched off; 404 no such
-    session for this origin; 429 a cap."""
+    session for this origin; 429 a cap.
+
+    This route is reached with no token, from another origin, so it answers in its own words and never
+    repeats an exception's text: what went wrong is told by which kind of exception it was and by the
+    ceiling, both of which are this console's to say."""
     origin = _fleet_origin(request)
     if origin is None:
         return JSONResponse(status_code=403, content={
@@ -939,14 +943,18 @@ async def fleet_page(verb: str, request: Request) -> JSONResponse:
             doc = page.fleet_pair(sid, origin, body.get("on") is not False)
         else:
             doc = {"closed": page.fleet_close(sid, origin)}
-    except page_bridge.NoSession as exc:
-        return answer(404, {"detail": str(exc.args[0] if exc.args else exc)})
-    except ValueError as exc:
-        return answer(400, {"detail": str(exc)})
-    except page_bridge.Refused as exc:
-        return answer(403, {"detail": str(exc)})
-    except page_bridge.Busy as exc:
-        return answer(429, {"detail": str(exc)})
+    except page_bridge.NoSession:
+        return answer(404, {"detail": "no such page session: it was closed or dropped as idle. Share the page again"})
+    except ValueError:
+        return answer(400, {"detail": f"that is not a valid `{verb}` call"})
+    except page_bridge.Refused:
+        ceiling = page.fleet_ceiling()
+        why = ("fleet pages are off" if ceiling not in ("look", "act") else "page actions are off")
+        return answer(403, {"detail": f"{why}: _data/fleet.yml assistant.fleet_pages is "
+                                      f"{ceiling if ceiling in page_bridge.CEILINGS else 'off'}"})
+    except page_bridge.Busy:
+        return answer(429, {"detail": "too many pages already share themselves with the assistant, or too many "
+                                      "calls at once: close one, or wait a moment"})
     return answer(201 if verb == "open" else 200, doc)
 
 

@@ -106,7 +106,7 @@ test('the kit agrees with itself: one version, every file listed, every adapter 
   const version = /^version: (\S+)$/m.exec(read('VERSION'))[1];
   assert.equal(Core.version, version);
   assert.equal(JSON.parse(read('package.json')).version, version);
-  assert.match(read('fleet-assist.js'), new RegExp(`fleet-assist v${version.replace(/\./g, '\\.')} `));
+  assert.ok(read('fleet-assist.js').includes(` * fleet-assist v${version} `), 'the payload header carries the kit version');
   const listed = read('VERSION');
   for (const file of readdirSync(join(KIT, 'adapters'))) {
     assert.ok(listed.includes(`adapters/${file}`), `VERSION lists adapters/${file}`);
