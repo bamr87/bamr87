@@ -436,6 +436,15 @@ class ReportTests(unittest.TestCase):
         md = lc.render_markdown(report)
         self.assertIn("### bamr87 (1)", md)
 
+    def test_markdown_caps_rows_per_repo(self):
+        scan = lc.Scan(repos=["big"])
+        for i in range(5):
+            scan.occurrences[f"https://x.dev/{i}"].append(lc.Occurrence("big", "a.md", i + 1))
+            scan.results[f"https://x.dev/{i}"] = lc.Result("broken", 404, "HTTP 404")
+        md = lc.render_markdown(lc.summarize(scan), max_rows=2)
+        self.assertEqual(md.count("https://x.dev/"), 2)
+        self.assertIn("… and 3 more", md)
+
 
 class ContractTests(unittest.TestCase):
     """The hub's own configuration and workflow follow the house rules."""

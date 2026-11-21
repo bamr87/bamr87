@@ -1225,7 +1225,10 @@ def render_text(report: dict, show: Iterable[str] = ("broken", "error", "moved")
     return "\n".join(lines)
 
 
-def render_markdown(report: dict, show: Iterable[str] = ("broken", "error", "moved"), max_sources: int = 5) -> str:
+def render_markdown(report: dict, show: Iterable[str] = ("broken", "error", "moved"), max_sources: int = 5,
+                    max_rows: int = 40) -> str:
+    """The report as Markdown, at most `max_rows` links per repo: a job summary
+    is capped at 1 MiB, and the full list is the JSON report's job."""
     c = report["counts"]
     out = [
         "## Fleet link check",
@@ -1245,11 +1248,13 @@ def render_markdown(report: dict, show: Iterable[str] = ("broken", "error", "mov
         if not rows:
             continue
         out += ["", f"### {repo} ({len(rows)})", "", "| | Link | Why | Where |", "| --- | --- | --- | --- |"]
-        for r in rows:
+        for r in rows[:max_rows]:
             detail = (r.get("detail") or (f"HTTP {r['code']}" if r.get("code") else r["status"])).replace("|", "\\|")
             src = r["sources"]
             where = ", ".join(f"`{s}`" for s in src[:max_sources]) + (f" +{len(src) - max_sources}" if len(src) > max_sources else "")
             out.append(f"| {MARK.get(r['status'], '')} | {r['url'].replace('|', '%7C')} | {detail} | {where} |")
+        if len(rows) > max_rows:
+            out += ["", f"… and {len(rows) - max_rows} more: the full list is in the JSON report (`--json`, the `link-check` artifact)."]
     return "\n".join(out) + "\n"
 
 
