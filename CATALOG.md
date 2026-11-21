@@ -541,7 +541,6 @@ The pages of the public site — the Harness Console built static ([`docs/CONSOL
 
 | Section | Surface | Path | Description |
 | --- | --- | --- | --- |
-| Profile | Home | `/` | who, what the fleet looks like, what the site is for |
 | Profile | About | `/about` | background and stack |
 | Profile | Experience | `/experience` | 15+ years across ERP, finance systems and engineering |
 | Profile | Portfolio | `/portfolio` | every project, featured first |
@@ -550,7 +549,6 @@ The pages of the public site — the Harness Console built static ([`docs/CONSOL
 | Profile | Contact | `/contact` | get in touch |
 | Overview | Overview | `/overview` | attention, KPIs, signal freshness |
 | Fleet | Projects | `/projects` | every registry project — the TUI’s Apps view |
-| Fleet | Desktop | `/desktop` | the bashOS desktop: an icon per app, each in a window with the same controls |
 | Fleet | Apps | `/apps` | every fleet frontend, opened here: the live site or a local stack |
 | Fleet | Inbox | `/inbox` | flagged issues, PRs and failing workflows |
 | Fleet | PR queue | `/prs` | every open pull request, who moves it next, and bulk actions an agent carries out once you confirm |
