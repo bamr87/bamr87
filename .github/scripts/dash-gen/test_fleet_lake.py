@@ -1308,6 +1308,133 @@ def test_every_writer_of_the_lake_waits_the_same_for_its_lock():
     assert content_atlas.DB_NAME == Path(fl.lake_paths(None)[1]).name
 
 
+# --------------------------------------------------------------------------- #
+# the console's assistant: its page audit and ledger rows, and the sessions behind them
+# --------------------------------------------------------------------------- #
+def _page_session(sid: str, tools: list[tuple[str, bool]], days_ago: float = 1.0) -> list[dict]:
+    """A transcript whose assistant turn calls `tools` ((name, is_error) each)."""
+    at = fl.utcnow() - dt.timedelta(days=days_ago)
+
+    def stamp(seconds: int) -> str:
+        return fl.iso(at + dt.timedelta(seconds=seconds))
+
+    recs = [{"type": "user", "timestamp": stamp(0), "sessionId": sid, "cwd": "/w/hub", "entrypoint": "sdk-cli",
+             "message": {"role": "user", "content": "what is on this page"}}]
+    for i, (name, is_error) in enumerate(tools):
+        recs.append({"type": "assistant", "timestamp": stamp(2 * i + 1), "sessionId": sid, "uuid": f"{sid}-u{i}",
+                     "message": {"id": f"{sid}-m{i}", "model": "claude-sonnet-5",
+                                 "content": [{"type": "tool_use", "id": f"{sid}-t{i}", "name": name, "input": {}}],
+                                 "usage": {"input_tokens": 10, "output_tokens": 5}}})
+        recs.append({"type": "user", "timestamp": stamp(2 * i + 2), "sessionId": sid,
+                     "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": f"{sid}-t{i}",
+                                                              "content": "refused" if is_error else "ok",
+                                                              "is_error": is_error}]}})
+    return recs
+
+
+def _audit_rows(*rows: dict) -> list[dict]:
+    at = fl.iso(fl.utcnow() - dt.timedelta(hours=2)).replace("Z", "+00:00")
+    base = {"at": at, "session": "abcd1234", "client": "dock", "kind": "console", "origin": None, "repo": None,
+            "action": "snapshot", "target": "", "mode": "look", "outcome": "ok", "ms": 40}
+    return [{**base, "id": f"line{i:08d}", **r} for i, r in enumerate(rows)]
+
+
+def test_the_assistants_tables_exist_and_status_counts_them():
+    conn = fl.connect(tempfile.mkdtemp())
+    assert {r[1] for r in conn.execute("PRAGMA table_info(page_audit)")} == {
+        "id", "at", "session", "client", "kind", "origin", "repo", "action", "target", "mode", "outcome", "ms",
+        "synced_at"}
+    assert {"session_id", "cost_usd", "cost_source", "outcome"} <= {r[1] for r in conn.execute("PRAGMA table_info(assist_runs)")}
+    assert {"page_audit", "assist_runs"} <= set(fl.TABLES), "status would not count them"
+    conn.close()
+
+
+def test_ingesting_the_assistants_records_is_idempotent():
+    conn = fl.connect(tempfile.mkdtemp())
+    try:
+        audit = _audit_rows({}, {"action": "click", "outcome": "refused"}, {"action": "attach", "client": "paired"})
+        runs = [{"session_id": "sess-dock", "at": "2026-11-20T09:00:00+00:00", "model": "claude-sonnet-5-5",
+                 "outcome": "ok", "cost_usd": 0.16, "cost_source": "reported", "cap_usd": 2.0, "turns": 5,
+                 "duration_s": 12.0, "cli_version": "2.1.308"},
+                {"session_id": None, "at": "2026-11-20T09:05:00+00:00", "model": None, "outcome": "no_result",
+                 "cost_usd": 2.0, "cost_source": "estimated", "cap_usd": 2.0, "turns": None, "duration_s": None,
+                 "cli_version": None}]
+        assert fl.ingest_assist(conn, audit, runs, "now") == (3, 1), "a row with no session cannot be keyed"
+        assert fl.ingest_assist(conn, audit, runs, "later") == (0, 1), "an audit line already held is skipped"
+        assert conn.execute("SELECT COUNT(*) FROM page_audit").fetchone()[0] == 3
+        assert conn.execute("SELECT synced_at FROM page_audit LIMIT 1").fetchone()[0] == "now", "immutable: not rewritten"
+        assert conn.execute("SELECT COUNT(*) FROM assist_runs").fetchone()[0] == 1
+    finally:
+        conn.close()
+
+
+def test_the_assist_report_tells_a_docked_session_from_a_paired_one():
+    """A session the console started is in the ledger (docked); a person's own session that attached with a
+    pairing code is not (paired), and its transcript is the only cost record it has."""
+    conn = fl.connect(tempfile.mkdtemp())
+    try:
+        for sid, tools in (("sess-dock", [("mcp__fleet__page_snapshot", False), ("mcp__fleet__fleet_overview", False)]),
+                           ("sess-pair", [("mcp__fleet__page_snapshot", False), ("mcp__fleet__page_click", True),
+                                          ("mcp__harness__page_read", False)]),
+                           ("sess-none", [("Bash", False), ("mcp__fleet__fleet_overview", False)])):
+            fl.store_session(conn, fl.session_facts(_page_session(sid, tools), f"/x/{sid}.jsonl"))
+        runs = [{"session_id": "sess-dock", "at": fl.iso(fl.utcnow()).replace("Z", "+00:00"), "model": "claude-sonnet-5-5",
+                 "outcome": "ok", "cost_usd": 0.16, "cost_source": "reported", "cap_usd": 2.0, "turns": 5,
+                 "duration_s": 12.0, "cli_version": "2.1.308"}]
+        audit = _audit_rows({}, {"action": "click", "outcome": "refused", "client": "paired"},
+                            {"action": "attach", "client": "paired", "kind": "fleet", "origin": "http://127.0.0.1:4000"},
+                            {"action": "end", "client": "operator", "kind": "fleet", "origin": "http://127.0.0.1:4000"})
+        fl.ingest_assist(conn, audit, runs, "now")
+        conn.commit()
+        doc = fl.assist_report(conn, days=30)
+        assert doc["schema"] == "lake-assist/v1" and doc["agent"] == "local:console-assist"
+        pc = doc["page_commands"]
+        assert (pc["lines"], pc["commands"], pc["attaches"], pc["ended_by_operator"]) == (4, 2, 1, 1), pc
+        assert pc["by_outcome"] == {"ok": 1, "refused": 1} and pc["by_client"] == {"dock": 1, "paired": 1}
+        assert pc["origins"] == {"http://127.0.0.1:4000": 2}
+        m = doc["messages"]
+        assert (m["messages"], m["cost_usd"], m["with_transcript"], m["cost_unreported"]) == (1, 0.16, 1, 0), m
+        ps = doc["page_sessions"]
+        assert (ps["sessions"], ps["docked"], ps["paired"]) == (2, 1, 1), ps
+        how = {x["session"]: x for x in ps["recent"]}
+        assert how["sess-doc"]["how"] == "docked" and how["sess-pai"]["how"] == "paired"
+        assert (how["sess-pai"]["page_calls"], how["sess-pai"]["page_errors"]) == (3, 1), \
+            "a page tool counts under whatever name the server was added as"
+        assert "sess-non" not in how, "a session that never touched a page is not one of these"
+        assert ps["paired_cost_usd"] is not None and "whole" in ps["note"].lower()
+        # a window the records fall outside of is empty, not an error
+        old = fl.assist_report(conn, days=0)
+        assert old["page_commands"]["lines"] == 4
+    finally:
+        conn.close()
+
+
+def test_lake_assist_reads_the_real_readers_files():
+    """The command goes through tools/fleetcore/assistlog.py, the reader the console and the MCP layer use."""
+    tmp = Path(tempfile.mkdtemp())
+    audit = tmp / "page-audit.jsonl"
+    at = fl.iso(fl.utcnow() - dt.timedelta(hours=1)).replace("Z", "+00:00")
+    audit.write_text(json.dumps({"id": "aaaaaaaaaaaa", "at": at, "session": "abcd1234", "client": "dock",
+                                 "kind": "console", "action": "snapshot", "target": "", "mode": "look",
+                                 "outcome": "ok", "ms": 40}) + "\nnot a line\n", encoding="utf-8")
+    ledger = tmp / "ledger.json"
+    ledger.write_text(json.dumps({"version": 2, "runs": {
+        "s1": {"session_id": "s1", "timestamp": at, "source": "console assist", "model": "claude-sonnet-5-5",
+               "outcome": "ok", "cost_source": "reported", "total_cost_usd": 0.2, "usage": {"turns": 3}},
+        "s2": {"session_id": "s2", "timestamp": at, "source": "jev loop repo-scout/scout", "outcome": "ok",
+               "total_cost_usd": 9.0}}}), encoding="utf-8")
+    ap = argparse.ArgumentParser()
+    fl.add_arguments(ap)
+    args = ap.parse_args(["--lake", str(tmp / "lake"), "assist", "--audit", str(audit), "--ledger", str(ledger), "--json"])
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        assert args.func(args) == 0
+    doc = json.loads(out.getvalue())
+    assert doc["ingested"]["audit_new"] == 1 and doc["ingested"]["runs"] == 1, doc["ingested"]
+    assert doc["messages"]["cost_usd"] == 0.2, "another agent's ledger row is not the assistant's"
+    assert doc["page_commands"]["commands"] == 1
+
+
 def main() -> int:
     failures = 0
     for name, fn in sorted(globals().items()):

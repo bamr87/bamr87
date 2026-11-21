@@ -1187,6 +1187,97 @@ export interface AssistDoc {
   page: { access: 'off' | 'look' | 'act'; look: string[]; act: string[]; modes: string[]; approval_s: number };
 }
 
+// --- How the assistant is observed (tools/fleetcore/assistlog.py, /api/assist/activity) ---
+/** One line of the page bridge's audit: what a session did to a page. Never typed text, never a session id. */
+export interface PageAuditRow {
+  id: string;
+  at: string;
+  /** The first eight characters of the page session. */
+  session: string;
+  /** `dock` (the console started the session), `paired` (a person's own Claude Code session) or `operator` (an End). */
+  client: string;
+  kind: 'console' | 'fleet';
+  origin: string | null;
+  repo: string | null;
+  action: string;
+  target: string;
+  mode: string;
+  outcome: string;
+  ms: number;
+}
+/** One assistant message, from the AI ledger. */
+export interface AssistRunRow {
+  at: string;
+  session_id: string | null;
+  model: string | null;
+  outcome: string;
+  cost_usd: number | null;
+  cost_source: string | null;
+  cap_usd: number | null;
+  turns: number | null;
+  duration_s: number | null;
+  cli_version: string | null;
+}
+/** A fleet page sharing itself with this console right now. `id` is what End sends back. */
+export interface SharedPage {
+  id: string;
+  kind: 'fleet' | 'console';
+  origin: string | null;
+  page: Partial<Record<'repo' | 'branch' | 'source' | 'route' | 'framework' | 'env' | 'version' | 'base' | 'title' | 'path' | 'kit', string>>;
+  mode: 'look' | 'ask' | 'act';
+  live: boolean;
+  paired: number;
+  commands: number;
+  created: string;
+}
+/** The assistant's entry in the agent inventory (_data/agents.yml, constitution § 29). */
+export interface AssistAgentEntry {
+  id: string;
+  kind: string | null;
+  category: string | null;
+  owner: string | null;
+  trigger: string | null;
+  switch: Record<string, string> | null;
+  budget: { per_run_usd?: number; monthly_usd?: number } | null;
+  model: string | null;
+  kpis: Record<string, number | null> | null;
+  reads: Record<string, string | null> | null;
+  run_record: string | null;
+  feeds_reflector: boolean | null;
+  local_entry: string | null;
+  gaps: string[] | null;
+}
+export interface AssistActivity {
+  schema: string;
+  agent: string;
+  window_days: number;
+  cost_label: string;
+  generated_at: string | null;
+  local: boolean;
+  page_audit: {
+    path: string | null; exists: boolean; recent: PageAuditRow[];
+    summary: {
+      lines: number; commands: number; attaches: number; ended_by_operator: number; sessions: number;
+      by_outcome: Record<string, number>; by_action: Record<string, number>; by_client: Record<string, number>;
+      by_kind: Record<string, number>; by_mode: Record<string, number>; origins: Record<string, number>;
+      no: number; no_pct: number | null; ok_ms_p50: number | null; ok_ms_p95: number | null;
+      first: string | null; last: string | null;
+    };
+  };
+  messages: {
+    ledger: string | null; exists: boolean; source: string; recent: AssistRunRow[];
+    summary: {
+      messages: number; cost_usd: number | null; cost_label: string; by_outcome: Record<string, number>;
+      by_model: Record<string, number>; by_cost_source: Record<string, number>; cost_unreported: number;
+      not_ok: number; not_ok_pct: number | null; budget_hits: number; turns: number | null;
+      max_cost_usd: number | null; first: string | null; last: string | null;
+    };
+  };
+  shared_pages: { access: 'off' | 'look' | 'act'; setting: string; cap: number; sessions: SharedPage[] };
+  agent_entry: AssistAgentEntry | null;
+  note: string;
+}
+
 // --- The fleet voice model (tools/voices.py, /api/voices; constitution § 23 rule 7) ---
 export type VoiceStyle = Partial<Record<'formality' | 'length' | 'humor' | 'reading_level', string>>;
 export interface VoiceTopics { cover?: string[]; exclude?: string[] }

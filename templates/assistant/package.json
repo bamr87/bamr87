@@ -1,6 +1,6 @@
 {
   "name": "@bamr87/fleet-assist",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The fleet's page bridge: a zero-dependency <fleet-assist> web component that lets an assistant session see the page a person has open and, as far as they allow, use it — through the Harness Console on their own machine. Spec: bamr87/bamr87 specs/ASSIST.md.",
   "license": "MIT",
   "author": "bamr87",
