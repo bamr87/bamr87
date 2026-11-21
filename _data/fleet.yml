@@ -131,6 +131,65 @@ hub:
   owners: [bamr87, bash-365, year-of-ai, ai-world-view]
 
 # --------------------------------------------------------------------------- #
+# Branches — the fleet's branch model, declared once (docs/BRANCHING.md,
+# ADR 0015, UPS-QA-35/36).
+#
+# One long-lived branch per repo; every other branch is short-lived and lands
+# by pull request with a MERGE COMMIT (constitution § 12.2: never squash or
+# rebase). tools/branch_policy.py reads this block to classify a branch name
+# (`classify`), and to plan, apply or audit the default branch's protection as
+# ONE named ruleset per repo (`dash protect`: a dry run unless --apply;
+# `--check` audits). test_branch_policy.py holds every branch name the hub's
+# own tools create to a prefix declared here, and jev ratify's automation
+# prefixes to the `automation` list.
+#
+# A prefix is matched literally against the start of the name; the most
+# specific (longest) declared prefix wins, so `chore/jev-ratify` is automation
+# although `chore/` is a work prefix. A loop that reuses one stable branch
+# under a work prefix (`chore/standardize-baseline`, `ci/pr-review`, …) names
+# it in its own code; jev ratify reads those from the workflows' `branch:`.
+# --------------------------------------------------------------------------- #
+branches:
+  default: main
+  merge_method: merge               # § 12.2, and the only method the ruleset allows
+  # A change someone asked for: a Conventional Commit type (UPS-QA-30), plus the
+  # long-standing feature/. The hub's own fan-outs already use feat/ ci/ style/.
+  work: [feat/, feature/, fix/, docs/, style/, refactor/, perf/, test/, build/, ci/, chore/]
+  # An agent session a person directs and names the branch of; its pull request
+  # is that person's work, so it is reviewed and ratifies like a work branch.
+  sessions:
+    - prefix: claude/
+      owner: Claude Code on the web (the platform names the session's branch)
+  # A loop owns the namespace: it creates, reuses and deletes these branches,
+  # and a person does not push to them.
+  automation:
+    - prefix: agent/issue-
+      owner: issue-pipeline.yml tier 2 (issue_pipeline.branch_prefix)
+    - prefix: ai-evolution/
+      owner: repo-evolution.yml (evolution.branch_prefix)
+    - prefix: chore/jev-
+      owner: jev-number.yml (ids, generated files and ratification records)
+    - prefix: wip/mac/
+      owner: tools/dash weekly confirm --apply (local-only commits saved off the Mac)
+    - prefix: wtd/
+      owner: the wtd agents (bamr87/gitorio)
+    - prefix: dependabot/
+      owner: Dependabot
+    - prefix: release-please--
+      owner: release-please (the release PR's branch)
+  # The default branch's protection, projected by tools/branch_policy.py as one
+  # ruleset per repo. Only the maintainer applies it (constitution § 4): an
+  # agent may plan it and audit it, never apply it.
+  protection:
+    ruleset: fleet-default-branch   # the one ruleset the tool owns; others are left alone
+    approvals: 0                    # the review gate is the needs-amr label (§ 12.3-12.4); agents open pull requests with the maintainer's token, so a required approval is one nobody can give. --approvals N where a repo's constitution asks for one
+    strict: false                   # a merge-commit flow does not need an up-to-date head; JEV merges the base in on a conflict
+    admin_bypass: true              # parity with the old enforce_admins=false: publish-data's sanctioned push keeps working; --enforce-admins drops it
+    block_force_push: true
+    block_deletion: true
+    linear_history: false           # never true: it forbids the merge commit § 12.2 requires
+
+# --------------------------------------------------------------------------- #
 # Loop cadence (UTC) — the hub's SCHEDULE MAP. Every hub workflow that carries
 # a `schedule:` is declared here with the SAME cron; test_schedule.py fails on
 # any divergence in either direction (update_submodules once said weekly here
