@@ -1,0 +1,18 @@
+id: HUB-NEW
+slug: fleet-link-check
+title: "Fleet link check: every live link, checked once"
+description: "tools/link_check.py (tools/dash links; weekly, read-only link-check.yml) finds every link the fleet publishes — each owned repo's tracked Markdown/HTML with code blocks, comments and placeholders skipped, relative links resolved case-sensitively against tracked files, the URL values of the data the profile README is generated from (_data/projects.yml, _data/portfolio.yml), and every live site of the registry and the portfolio crawled from its sitemap — and checks each unique link once: github.com through the GraphQL API in batches (repository, file at a ref, issue or pull request, commit, release, workflow badge; REST follows renames), everything else over HTTP. Broken, error and moved links are listed by the repo or site that publishes them with file:line; settings in _data/fleet.yml links:; off on its schedule until vars.LINK_CHECK_ENABLED is true."
+implemented: true
+status: shipped
+surface: cli
+link: tools/link_check.py
+docs: docs/LINK-CHECK.md
+tags: [ links, quality, loop ]
+date: 2026-11-20
+tests:
+  - tools/test_link_check.py
+prd: ["FR-NEW:fleet-link-check"]
+prd_new:
+  - key: fleet-link-check
+    kind: FR
+    text: "The hub must check every link the fleet publishes — the owned repos' rendered Markdown and HTML, the profile README's data and every live site — and report each broken one with the file and line or page that publishes it, without filing, pushing or failing a scheduled run by default."

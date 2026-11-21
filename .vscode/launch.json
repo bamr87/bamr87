@@ -797,6 +797,14 @@
       "presentation": { "group": "4-generate", "order": 16 }
     },
     {
+      "name": "🔗 Links: check every live link (owned repos + live sites, read-only)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash links",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 16 }
+    },
+    {
       "name": "📐 Spec: UPS conformance for every submodule (--write)",
       "type": "node-terminal",
       "request": "launch",

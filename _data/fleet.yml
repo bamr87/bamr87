@@ -171,6 +171,9 @@ schedule:
                                   # the daily chain's lanes; gated by vars.JEV_CONFLICTS_ENABLED.
   scorecard_sweep: "17 6 * * 0"   # weekly read-only OpenSSF Scorecard sweep → conformance.yml security:
                                   # (docs/SECURITY-POSTURE.md); gated by vars.SCORECARD_SWEEP_ENABLED.
+  link_check: "43 10 * * 3"       # weekly read-only fleet link check (see links:, docs/LINK-CHECK.md): every
+                                  # repo's Markdown/HTML + every live site; job summary + artifact, files nothing;
+                                  # gated by vars.LINK_CHECK_ENABLED.
   fleet_snapshots: "17 4 * * 1"   # weekly conformance.yml + features_index.yml from real submodule checkouts,
                                   # behind a shrink guard (#775): after update_submodules, before fleet_pulse
                                   # (stale-data), build_dash and repo_evolution; gated by vars.FLEET_SNAPSHOTS_ENABLED.
@@ -743,6 +746,42 @@ verification:
   fanout:
     branch: test/agent-verification
     max_targets_per_run: 10         # fanout.yml (kit `verify`) `gaps` opens at most this many PRs per dispatch
+
+# --------------------------------------------------------------------------- #
+# Links — the fleet link check (tools/link_check.py, `tools/dash links`,
+# .github/workflows/link-check.yml; docs/LINK-CHECK.md).
+#
+# Every tracked Markdown/HTML file of the hub and of each checked-out submodule
+# owned by `hub.owners`, the URL values of `data_files` (what the profile README
+# is generated from), and every live site of the registry and the portfolio,
+# crawled from its sitemap. Each unique URL is checked once; github.com links
+# through the GraphQL API in batches.
+#
+# `exclude_paths` are globs against a repo-relative path, `repo:glob` for one
+# repo. What is excluded is a RECORD, not a surface: dated reports and evidence
+# captured on a day, crawled context, and README's aggregated copies of other
+# repos' docs (their originals are scanned, and the rendered copies are reached
+# by crawling bamr87.github.io/README/). `exclude_urls` are regexes.
+# --------------------------------------------------------------------------- #
+links:
+  extensions: [.md, .markdown, .html, .htm]
+  data_files: [_data/projects.yml, _data/portfolio.yml]
+  exclude_paths:
+    - "bamr87:_reports/**"          # dated daily reports: links to runs GitHub has since expired
+    - "bamr87:test/evidence/**"     # evidence bundles captured on the day they prove
+    - "README:context/**"           # the context engine's crawled sources and reports
+    - "README:docs/*/**"            # aggregated copies of other repos' docs (edit the originals)
+    - "it-journey:link-check-results/**"  # that repo's own link-checker output
+    - "**/node_modules/**"
+    - "**/vendor/**"
+    - "**/_site/**"
+  exclude_urls: []
+  workers: 32                       # requests in flight overall
+  per_host: 4                       # … and per host (github.com over HTTP: 2)
+  timeout: 12                       # seconds per request (a timeout gets one GET retry)
+  max_pages: 200                    # pages crawled per live site (the sitemap's shallowest first)
+  cache_hours: 24                   # a local run reuses `ok` answers this young (.fleet/links/); --fresh ignores them
+  github_batch: 80                  # GraphQL fields per query
 
 # Budget — the dollar ceiling on a single headless agent invocation.
 #
@@ -2794,6 +2833,22 @@ switches:
       verified: false
       flip: 'gh variable set SCORECARD_SWEEP_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
       cron: 17 6 * * 0
+      dispatch_bypasses: true
+    hub/link-check:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/link-check.yml
+      group: hub-maintenance
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: LINK_CHECK_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set LINK_CHECK_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
+      cron: 43 10 * * 3
       dispatch_bypasses: true
     hub/fleet-snapshots:
       repo: bamr87/bamr87

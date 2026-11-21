@@ -1,0 +1,105 @@
+name: "🔗 Link check"
+
+# The fleet's weekly link check (tools/link_check.py, docs/LINK-CHECK.md).
+# READ-ONLY: it checks out every submodule at its recorded pointer, reads every
+# tracked Markdown/HTML file of the repos `hub.owners` own, the URL values of
+# the data the profile README is generated from (_data/projects.yml,
+# _data/portfolio.yml), and crawls every live site of the registry and the
+# portfolio from its sitemap; then checks each unique link once — github.com
+# through the GraphQL API with the job's own token (contents: read; GitHub's
+# HTML answers crawlers with 429), everything else over HTTP.
+#
+# Its output is the job summary (broken, error and moved links, grouped by the
+# repo or site that publishes them, with file:line) and the full JSON report as
+# an artifact. It never files an issue (fleet-pulse's doctor is the fleet's one
+# filer), never pushes, and by default never fails on a broken link: a dead
+# third-party page is a finding to fix, not a red run that buries the others.
+# Dispatch with fail_on=broken to make it a gate.
+#
+# Wednesday 10:43 UTC, declared in _data/fleet.yml `schedule.link_check`
+# (test_schedule.py, `tools/dash workflows lint`). New loop: the cron runs only
+# while vars.LINK_CHECK_ENABLED is 'true'; a manual dispatch always runs.
+# Locally: `tools/dash links` (the same tool, your own token, a cache).
+
+on:
+  schedule:
+    - cron: '43 10 * * 3'   # _data/fleet.yml schedule.link_check
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: "Registry name of one repo or live site, or 'all'"
+        type: string
+        default: all
+      sites:
+        description: "Crawl the live sites too"
+        type: boolean
+        default: true
+      fail_on:
+        description: "Fail the run on: never, broken, or error (broken + unreachable)"
+        type: choice
+        options: [never, broken, error]
+        default: never
+
+permissions:
+  contents: read
+
+concurrency:
+  group: link-check
+  cancel-in-progress: false
+
+jobs:
+  links:
+    name: Check every live link
+    if: ${{ github.event_name != 'schedule' || vars.LINK_CHECK_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup/dash-gen
+
+      - name: Check out every submodule at its recorded pointer
+        env:
+          GIT_LFS_SKIP_SMUDGE: '1'
+        run: |
+          set -uo pipefail
+          ok=0
+          failed=0
+          while IFS= read -r p; do
+            if out="$(git submodule update --init --depth 1 -- "$p" 2>&1)"; then
+              ok=$((ok + 1))
+            else
+              failed=$((failed + 1))
+              echo "::warning::could not check out ${p}: $(printf '%s' "$out" | tail -n 1) — its files are not checked this run"
+            fi
+          done < <(git config --file .gitmodules --get-regexp path | awk '{ print $2 }')
+          echo "checked out ${ok} submodule(s); ${failed} failed"
+
+      - name: Check the links
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET: ${{ inputs.repo || 'all' }}
+          SITES: ${{ (github.event_name != 'workflow_dispatch' || inputs.sites) && 'true' || 'false' }}
+          FAIL_ON: ${{ inputs.fail_on || 'never' }}
+        run: |
+          set -euo pipefail
+          args=(scan --fresh --json "$RUNNER_TEMP/links.json" --markdown "$GITHUB_STEP_SUMMARY" --fail-on "$FAIL_ON")
+          if [ "$TARGET" != all ]; then args+=(--repo "$TARGET"); fi
+          if [ "$SITES" != true ]; then args+=(--no-sites); fi
+          python3 tools/link_check.py "${args[@]}" | tee "$RUNNER_TEMP/links.txt"
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: link-check
+          path: |
+            ${{ runner.temp }}/links.json
+            ${{ runner.temp }}/links.txt
+          if-no-files-found: ignore
+          retention-days: 30

@@ -87,6 +87,8 @@ scout-workorders/
 # gate-labelled issue of the fleet, read from GitHub; it can hold a private repo's
 # titles, so it is local, owner-only and never published; docs/DECISION-INDEX.md).
 .fleet/decisions/
+# tools/link_check.py: a cache of recent `ok` answers (links.cache_hours)
+.fleet/links/
 # The console's Django backend state (DASH_CONSOLE_STATE, tools/console/backend/settings.py):
 # the SQLite database and, on loopback, the generated secret key (mode 600).
 .fleet/console/
