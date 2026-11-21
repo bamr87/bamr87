@@ -17,9 +17,9 @@ coverage: listed
 | `.npmrc` | file | `package-lock=false` — npm never writes a lockfile here | required |
 | `.gitignore` | file | Ignores `node_modules/`, the two build outputs (`dist/`, `dist-pages/`) and `*.tsbuildinfo` | required |
 | `tsconfig.json` | file | Strict TypeScript, type-check only (Vite bundles) | required |
-| `vite.config.ts` | file | Build to `dist/` (or `CONSOLE_OUT`) under `CONSOLE_BASE`; the public build's CSP `<meta>`; the dev server's proxy to a running console (HTTP + the `/api/tui` WebSocket) | required |
+| `vite.config.ts` | file | Build to `dist/` (or `CONSOLE_OUT`) under `CONSOLE_BASE`; the public build's CSP `<meta>`; a site build's front door, mark and frame origins (`VITE_FRONT_DOOR`, `VITE_SITE_MARK`, `CONSOLE_FRAME_SRC`, set by `../build-pages.sh`); the dev server's proxy to a running console (HTTP + the `/api/tui` WebSocket) | required |
 | `index.html` | file | The entry document — links `/theme.css` (fleetcore's palette) and the bundle | required |
-| `public/` | dir | Files copied verbatim into the build (`favicon.svg`; `headshot-448.jpg`, the avatar `_data/profile.yml` names, a 448 px copy of the full-size `headshot.jpg` kept beside it; `social-preview.png`, its 1280x640 `site.image` link card, also the repo's GitHub social preview; `readme-hero.jpg`, the profile README's hero screenshot) | terminal |
+| `public/` | dir | Files copied verbatim into the build (`favicon.svg`; `headshot-448.jpg`, the avatar `_data/profile.yml` names, a 448 px copy of the full-size `headshot.jpg` kept beside it; `social-preview.png`, its 1280x640 `site.image` link card, also the repo's GitHub social preview; `readme-hero.jpg`, the profile README's hero screenshot; `bash-365-mark.svg`, the mark `_data/profile.yml` `sites.bash-365` names, an unchanged copy of bash-365.com's `assets/brand/favicon.svg`) | terminal |
 | `src/` | dir | The app: `main.tsx`, `nav.ts`, `theme.ts`, `styles.css`, and `api/`, `lib/`, `components/`, `jobs/`, `github/`, `pages/`, `assist/` (see README) | terminal |
 | `dist/` | generated | Vite's build output — what the console serves; gitignored, rebuilt by `../run.sh` | generated |
 | `dist-pages/` | generated | The public site built locally by `../build-pages.sh` (page + snapshot); gitignored — CI builds into `_site/` | generated |

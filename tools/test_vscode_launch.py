@@ -220,6 +220,12 @@ class Pickers(unittest.TestCase):
     def test_content_site_picker_equals_fleet_yml(self):
         self.assertEqual(set(inputs(LAUNCH)["contentSite"]["options"]), content_sites())
 
+    def test_console_site_picker_equals_profile_sites(self):
+        profile = yaml.safe_load((ROOT / "_data" / "profile.yml").read_text(encoding="utf-8")) or {}
+        picker = inputs(LAUNCH)["consoleSite"]
+        self.assertEqual(set(picker["options"]), set(profile.get("sites") or {}), "consoleSite ≠ _data/profile.yml sites")
+        self.assertIn(picker["default"], picker["options"])
+
     def test_verify_scenario_picker_equals_scenarios_dir(self):
         want = {p.stem for p in (ROOT / "verify" / "scenarios").glob("*.yml")}
         self.assertEqual(set(inputs(LAUNCH)["verifyScenario"]["options"]), want)

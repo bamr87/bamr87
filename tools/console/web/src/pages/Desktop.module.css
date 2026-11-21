@@ -76,6 +76,33 @@ a.pill:hover { color: var(--os-ink); border-color: var(--os-muted); }
   padding: rem(12px) rem(8px);
   overflow: hidden;
 }
+/* A site's dock of every repo: groups under a label, a fixed number of columns,
+   and it scrolls. The windows still start beside it. */
+.icons[data-grouped] {
+  grid-auto-flow: row;
+  grid-template-rows: none;
+  grid-auto-rows: min-content;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  border-right: rem(1px) solid var(--os-line-soft);
+}
+.dockLabel {
+  grid-column: 1 / -1;
+  padding: rem(8px) rem(6px) rem(2px);
+  color: var(--os-muted);
+  font-family: var(--mantine-font-family-monospace);
+  font-size: rem(11px);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dockLabel:first-child { padding-top: 0; }
+.mark { flex: none; border-radius: rem(4px); }
+button.pill { display: inline-flex; align-items: center; gap: rem(5px); cursor: pointer; }
+button.pill:hover { color: var(--os-ink); border-color: var(--os-muted); }
+button.pill:focus-visible { outline: rem(2px) solid var(--os-accent); outline-offset: rem(1px); }
 .stage {
   position: relative;
   flex: 1 1 auto;
@@ -290,6 +317,9 @@ a.pill:hover { color: var(--os-ink); border-color: var(--os-muted); }
 
 /* ------------------------------------------ narrow: a phone's home screen */
 .os[data-narrow] .mode { display: none; }
+/* The site's name keeps its room: the search pill is its icon alone. */
+.os[data-narrow] .pillWord { display: none; }
+.os[data-narrow] .crumbs { flex: 1 1 auto; }
 .os[data-narrow] .surface { display: block; position: relative; overflow: auto; background-size: rem(18px) rem(18px); }
 .home {
   display: grid;

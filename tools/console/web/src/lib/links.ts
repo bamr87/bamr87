@@ -2,11 +2,19 @@
 // operation or a job links the same way from every page (drill-down first,
 // GitHub second).
 
+import { FRONT_DOOR } from '../api/backend';
+
 const HUB = 'bamr87/bamr87';
 const enc = encodeURIComponent;
+// Where the desktop is the front door, it and the profile Home trade places.
+const DESKTOP_FIRST = FRONT_DOOR === 'desktop';
+
+/** True on the bashOS desktop, wherever this build puts it (`/desktop` always answers). */
+export const onDesktop = (pathname: string): boolean =>
+  pathname === '/desktop' || pathname.startsWith('/desktop/') || (DESKTOP_FIRST && pathname === '/');
 
 export const to = {
-  home: () => '/',
+  home: () => (DESKTOP_FIRST ? '/home' : '/'),
   overview: () => '/overview',
   page: (slug: string) => `/${enc(slug)}`,
   portfolio: (category?: string) => `/portfolio${category ? `?category=${enc(category)}` : ''}`,
@@ -29,7 +37,7 @@ export const to = {
   connect: () => '/connect',
   projects: () => '/projects',
   project: (name: string, tab?: string) => `/projects/${enc(name)}${tab ? `?tab=${enc(tab)}` : ''}`,
-  desktop: () => '/desktop',
+  desktop: () => (DESKTOP_FIRST ? '/' : '/desktop'),
   apps: () => '/apps',
   app: (id: string, f: { target?: string; path?: string; device?: string } = {}) => {
     const qs = new URLSearchParams();
