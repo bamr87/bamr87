@@ -3201,3 +3201,50 @@ features:
     - test/evidence/fleet-assist
     prd:
     - FR141
+  - id: HUB-128
+    title: 'The assistant, observed: its messages, what its sessions did to pages, the pages sharing themselves
+      and its inventory entry, from one document on every surface'
+    description: 'The console''s assistant is agent local:console-assist in the agent inventory (owner,
+      switch, cap and model read from _data/fleet.yml assistant:), and every console operation that starts
+      a Claude session names its agent, which a test holds to the inventory. Its two records are read back
+      by one reader, tools/fleetcore/assistlog.py: its rows of the AI ledger (one per message: outcome,
+      cost, turns, model) and the page bridge''s audit (one line per page command, pairing and operator''s
+      end: the dock''s session or a paired one, the console''s page or a fleet page and its origin, the
+      action, its target, the mode, the outcome; never typed text, never a session id), which now lives
+      in the checkout (.fleet/assist/page-audit.jsonl) and is also printed on the console''s log for the
+      log plane. The Assist page shows them (How it is observed), lists the fleet pages sharing themselves
+      with the console and ends one by the eight characters the list shows (the page''s panel and a paired
+      session are both told the console ended it), and shows the inventory entry; GET /api/assist/activity,
+      the MCP tool assist_activity, tools/dash apps assist activity and tools/dash lake assist read the
+      same document. The lake stores both records and tells a session the console started (docked) from
+      a person''s own session that attached with a pairing code (paired), whose transcript is its only cost
+      record. tools/dash-gen ai-run labels each session it starts in Claude Code''s own telemetry (fleet.source,
+      fleet.call_site).'
+    implemented: true
+    status: shipped
+    surface: ui
+    link: /assist
+    docs: tools/console/README.md
+    tags:
+    - console
+    - assistant
+    - observability
+    - agent-inventory
+    - page-bridge
+    - lake
+    - mcp
+    date: 2026-11-20
+    tests:
+    - tools/test_fleetcore_assistlog.py
+    - tools/console/test_page_bridge.py
+    - tools/console/test_console.py
+    - tools/console/test_mcp_layer.py
+    - .github/scripts/dash-gen/test_fleet_lake.py
+    - .github/scripts/dash-gen/test_ai_run.py
+    - .github/scripts/dash-gen/test_agent_inventory.py
+    scenarios: []
+    evidence:
+    - test/evidence/assist-observability
+    prd:
+    - FR92
+    - FR139

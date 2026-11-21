@@ -71,6 +71,7 @@ DASH_GEN = str(TOOLS / "dash-gen")
 DASH_GEN_DIR = REPO_ROOT / ".github" / "scripts" / "dash-gen"
 if str(TOOLS) not in sys.path:  # tools/fleetcore, the core every surface shares
     sys.path.insert(0, str(TOOLS))
+from fleetcore import assistlog  # noqa: E402  (the assistant's records, read back: page audit + ledger)
 from fleetcore import yamlio  # noqa: E402
 JOB_DIR = Path(os.environ.get("DASH_CONSOLE_JOBS") or (Path(tempfile.gettempdir()) / "dash-console"))
 # The local data lake (dash-gen lake) and the Phoenix trace store it exports
@@ -2206,6 +2207,7 @@ OPS: dict[str, dict] = {
                   desc="Today's rotation over the owned, non-archived registry repos + their briefs (no backpressure check without GitHub)."),
     "loop-run": dict(title="Run a loop's agent step locally (dry run, or apply the reviewed preview)", group="plan",
                      argv=_loop_run, needs_token=True, needs="claude", exclusive=_loop_exclusive,
+                     agent="loop:*",
                      remote=lambda p: _flag(p, "apply") or (not _flag(p, "rehearse") and not p.get("run_id")),
                      confirm="spend",
                      # a model attempt's stream is quiet while one tool call (a test suite, a build) runs
@@ -2483,6 +2485,7 @@ OPS: dict[str, dict] = {
                     params=["plan_id", "apply"]),
     "prs-agent": dict(title="PR queue: a capped local Claude Code session per pull request", group="plan",
                       argv=lambda p: _prs_apply(p, "prs-agent"), needs_token=True, needs="claude", exclusive="prs",
+                      agent="local:pr-queue-agent",
                       remote=lambda p: _flag(p, "apply"), confirm="spend",
                       desc="tools/dash prs apply --plan-id <id> for an `agent` plan (local:pr-queue-agent, § 10.9): "
                            "for each pull request, a clone of its head outside the hub, one headless session "
@@ -2563,7 +2566,7 @@ OPS: dict[str, dict] = {
                                       "private (exit 1 otherwise)."),
     "assist": dict(title="Ask the assistant (through the fleet MCP server; no write tool)", group="refine", argv=_assist,
                    needs_token=False, needs="claude", gate=assist_unavailable, exclusive="assist",
-                   remote=lambda p: True, confirm="spend",
+                   remote=lambda p: True, confirm="spend", agent=assistlog.AGENT,
                    desc="One headless Claude Code session (tools/console/assist.prompt.txt) with the `fleet` MCP "
                         "server attached, reading the hub checkout, answering the question from the fleet's own "
                         "data and citing its sources. Capped per answer by _data/fleet.yml assistant.budget_usd "
@@ -2651,6 +2654,9 @@ def list_ops() -> list[dict]:
             # a per-parameter key is reported by its family (`loop`): the key itself needs the params
             "exclusive": exclusive.__name__.lstrip("_").split("_")[0] if callable(exclusive) else exclusive,
             "unavailable": op_unavailable(op_id),
+            # an operation that starts a Claude session names its entry in the agent inventory
+            # (_data/agents.yml, constitution § 29); `loop:*` is whichever loop step the parameters pick
+            "agent": op.get("agent"),
             # extra data the form needs (loop-run: the agent steps); never a local path or a value
             **(op["meta"]() if "meta" in op else {}),
         })
@@ -4245,3 +4251,56 @@ def assist_doc(*, local: bool = True) -> dict:
             "fleet_pages": {"access": (assistant_fleet_pages() if local else "off"), "kit": "templates/assistant",
                             "sessions": ([s for s in page_bridge.BRIDGE.sessions() if s["kind"] == "fleet"]
                                          if local else [])}}
+
+
+def page_audit_path() -> Path:
+    """Where this console's page bridge writes its audit: `.fleet/assist/page-audit.jsonl` in the hub checkout
+    (DASH_CONSOLE_PAGE_AUDIT overrides it). In the checkout, not the job directory: a restart keeps it, and
+    the lake and a terminal on the host read the same file (fleetcore.assistlog)."""
+    return assistlog.audit_path(REPO_ROOT)
+
+
+def assist_agent() -> dict | None:
+    """The assistant's entry in the agent inventory (_data/agents.yml, constitution § 29): who owns it, its
+    switch, cap and model, the KPIs its kind declares, where its run records land and its contract gaps.
+    None while the inventory has no such entry. Committed, public data: the published build shows it too."""
+    doc = load_yaml(DATA / "agents.yml")
+    for entry in (doc.get("agents") if isinstance(doc, dict) else None) or []:
+        if isinstance(entry, dict) and entry.get("id") == assistlog.AGENT:
+            keys = ("id", "kind", "category", "owner", "trigger", "switch", "budget", "model", "kpis", "reads",
+                    "run_record", "feeds_reflector", "local_entry", "gaps")
+            return {k: entry.get(k) for k in keys}
+    return None
+
+
+def _shown(path: str | None) -> str | None:
+    """A path for a person: relative to the hub checkout, or to the home directory, never the bare absolute."""
+    if not path:
+        return None
+    p = Path(path)
+    for base, prefix in ((REPO_ROOT, ""), (Path.home(), "~/")):
+        try:
+            return prefix + str(p.relative_to(base))
+        except ValueError:
+            continue
+    return str(p)
+
+
+def assist_activity_doc(days: int = assistlog.DAYS_DEFAULT, limit: int = assistlog.RECENT_DEFAULT, *,
+                        local: bool = True) -> dict:
+    """How the assistant is observed, in one document (`assist-activity/v1`, fleetcore.assistlog): its messages
+    from the AI ledger, what its sessions did to pages from the page audit, the fleet pages sharing
+    themselves with this console right now, and its entry in the agent inventory. The published build
+    carries the inventory entry only: activity is one machine's record, not the fleet's."""
+    import page_bridge  # noqa: PLC0415 — stdlib only
+    doc = assistlog.activity(REPO_ROOT, days=days, limit=limit) if local else assistlog.blank(days)
+    doc["page_audit"]["path"] = _shown(doc["page_audit"]["path"])
+    doc["messages"]["ledger"] = _shown(doc["messages"]["ledger"])
+    doc["local"] = local
+    doc["agent_entry"] = assist_agent()
+    # No session id: a row is named by its first eight characters, which is what End sends back
+    doc["shared_pages"] = {"access": (assistant_fleet_pages() if local else "off"),
+                           "setting": "assistant.fleet_pages", "cap": page_bridge.MAX_FLEET_SESSIONS,
+                           "sessions": ([x for x in page_bridge.BRIDGE.sessions() if x["kind"] == "fleet"]
+                                        if local else [])}
+    return doc

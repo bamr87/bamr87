@@ -100,6 +100,9 @@ scout-workorders/
 # The MCP layer's scoped-write audit (audit.jsonl: one line per job_dispatch,
 # job_cancel and work_apply call, values scrubbed; tools/console/docs/mcp-layer.md).
 .fleet/mcp/
+# The console's page bridge audit (page-audit.jsonl: one line per page command an assistant session
+# sent, pairing and operator's end; no typed text, no session id; tools/console/README.md).
+.fleet/assist/
 # Evidence sandboxes built by tools/issue-evidence.sh.
 .evidence/
 # Tier-1 handoffs written by `dash-gen issues handoff record` (issue-pipeline.yml's

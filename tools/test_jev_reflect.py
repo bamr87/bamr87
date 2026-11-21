@@ -897,8 +897,8 @@ def test_the_schedule_job_calls_main_entry_points_and_guards_reflect():
     base = tmp()
     root = fake_root(base / "a", reflect=False, enabled=True)
     out, calls = run_job(root)
-    assert calls == ["dash-gen lake sessions --days 2", "dash-gen lake sync --days 2 --jobs ai --logs ai",
-                     "dash-gen lake review --days 7 --json"], calls
+    assert calls == ["dash-gen lake sessions --days 2", "dash-gen lake assist --days 7",
+                     "dash-gen lake sync --days 2 --jobs ai --logs ai", "dash-gen lake review --days 7 --json"], calls
     assert "reflect: skipped (refine reflect is not in this checkout yet)" in out
     assert json.loads((root / ".fleet" / "refine" / "review-latest.json").read_text()) == {"present": True}
     root = fake_root(base / "b", reflect=True, enabled=False)

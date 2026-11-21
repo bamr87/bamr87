@@ -992,6 +992,33 @@ def parse_meta(items: list[str]) -> dict[str, str]:
     return meta
 
 
+#: the telemetry labels ai-run gives the session it starts (Claude Code attaches OTEL_RESOURCE_ATTRIBUTES to
+#: every metric datapoint and event record): which fleet caller this session is, in the ledger's own words
+TELEMETRY_ENV = "OTEL_RESOURCE_ATTRIBUTES"
+_LABEL_RX = re.compile(r"[^a-z0-9._/:-]+")
+
+
+def telemetry_label(value) -> str:
+    """One label value in the form OTEL_RESOURCE_ATTRIBUTES allows: no spaces, commas, quotes, semicolons,
+    backslashes or `=`. A source such as `console assist` reads `console-assist`."""
+    return re.sub(r"-{2,}", "-", _LABEL_RX.sub("-", str(value or "").strip().lower())).strip("-")[:80]
+
+
+def telemetry_attributes(existing: str | None, *, source: str, call_site: str | None, meta: dict) -> str:
+    """OTEL_RESOURCE_ATTRIBUTES for one ai-run session: what the environment already set, then
+    `fleet.source` (the ledger row's `source`), `fleet.call_site`, and the loop and step when the caller
+    named them. A key the environment already carries is left as it is: the operator's label wins."""
+    pairs = [p.strip() for p in str(existing or "").split(",") if "=" in p]
+    have = {p.split("=", 1)[0].strip() for p in pairs}
+    mine = {"fleet.source": source, "fleet.call_site": call_site or "local",
+            "fleet.loop": meta.get("loop"), "fleet.step": meta.get("step")}
+    for key, value in mine.items():
+        label = telemetry_label(value)
+        if label and key not in have:
+            pairs.append(f"{key}={label}")
+    return ",".join(pairs)
+
+
 def run_headless(args: argparse.Namespace) -> int:
     """Run `claude -p` under a dollar cap and record what it cost.
 
@@ -1117,6 +1144,12 @@ def run_headless(args: argparse.Namespace) -> int:
         else:
             env = hl.with_one_credential(os.environ, choice, value)
     redactor = hl.Redactor(os.environ, extra_secrets)
+    # Label the session in Claude Code's own telemetry, so a capped fleet run can be told from any other
+    # local session there (docs/OBSERVABILITY.md). An isolated run takes none of the caller's OTEL_*
+    # (tools/jev/headless.py agent_env), so its labels are these alone.
+    labels = telemetry_attributes(None if args.isolate else os.environ.get(TELEMETRY_ENV), source=args.source,
+                                  call_site=args.call_site, meta=meta)
+    env = {**(os.environ if env is None else env), TELEMETRY_ENV: labels}
 
     cmd = [claude, *hl.run_prefix(budget, stream=args.stream), *added_session, *passthrough]
     sys.stderr.write(f"  $ {redactor.text(' '.join(cmd))}\n  cap: ${budget:,.2f}"

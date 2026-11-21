@@ -348,7 +348,13 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("list", help="every frontend with its live and local address (the default)")
     sub.add_parser("json", help="the launcher document (fleet-launcher/v1)")
     sub.add_parser("plan", help="every repo's frontend component: its kind, its state and its next step")
-    sub.add_parser("assist", help="the assistant baseline each repo's platform gets (fleetcore.assist, ADR 0014)")
+    h = sub.add_parser("assist", help="the assistant: the baseline each repo's platform gets (fleetcore.assist, "
+                                      "ADR 0014), or `assist activity` — what the console's assistant did "
+                                      "(fleetcore.assistlog)")
+    h.add_argument("what", nargs="?", default="plan", choices=("plan", "json", "activity"))
+    h.add_argument("--days", type=int, default=None, help="activity: the window in days (0 is all time)")
+    h.add_argument("--limit", type=int, default=None, help="activity: how many recent rows of each record")
+    h.add_argument("--json", action="store_true", help="activity: the document (assist-activity/v1)")
     u = sub.add_parser("url", help="print the address of one app at one target")
     u.add_argument("app")
     u.add_argument("--target", help="live, local or local-<service> (default: the app's first target)")
@@ -362,8 +368,12 @@ def main(argv: list[str] | None = None) -> int:
         print(plan_table(doc["repos"]))
         return 0
     if a.cmd == "assist":
+        if a.what == "activity":
+            from . import assistlog    # read-only: the page audit and the assistant's ledger rows
+            rest = [x for flag, v in (("--days", a.days), ("--limit", a.limit)) if v is not None for x in (flag, str(v))]
+            return assistlog.main(rest + (["--json"] if a.json else []))
         from . import assist           # assist builds on this module: imported here, not at the top
-        return assist.main([])
+        return assist.main([a.what])
     if a.cmd == "url":
         try:
             print(resolve(doc["apps"], a.app, a.target, a.path))

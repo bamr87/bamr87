@@ -223,6 +223,7 @@ def documents() -> dict[str, object]:
         "sprints": core.sprints_doc(),
         "refine": core.refine_doc(local=False),
         "assist": core.assist_doc(local=False),
+        "assist/activity": core.assist_activity_doc(local=False),
         "lake": lake(),
         "lake/runs": [],
         "lake/lines": [],

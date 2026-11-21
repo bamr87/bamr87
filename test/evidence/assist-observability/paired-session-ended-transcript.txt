@@ -1,0 +1,43 @@
+
+> page_attach("code": "<the code the panel showed>")
+  {"mode": "act", "ceiling": "act", "live": true, "kind": "fleet", "origin": "http://127.0.0.1:4777", "page": {"repo": "bamr87/fixture", "branch": "main", "source": "templates/assistant/tests/fixture.html", "framework": "static-html", "env": "development", "base": "/", "title": "Fixture \u2014 fleet-assist", "path": "/tests/fixture.html?broker=http://127.0.0.1:4011", "kit": "fleet-assist 0.1.1"}}
+
+> page_snapshot()
+  {"route": "/tests/fixture.html?broker=http://127.0.0.1:4011", "title": "Fixture \u2014 fleet-assist", "mode": "act", "dialogs": ["modal dialog \"Confirm deletion\""], "modal_open": true, "refs": 18, "page": {"repo": "bamr87/fixture", "branch": "main", "source": "templates/assistant/tests/fixture.html", "framework": "static-html", "env": "development", "base": "/", "title": "Fixture \u2014 fleet-assist", "path": "/tests/fixture.html?broker=http://127.0.0.1:4011", "kit": "fleet-assist 0.1.1"}}
+    == modal dialog "Confirm deletion" — nothing in it can be clicked or typed for the person; Escape closes it ==
+      Delete everything? This cannot be undone.
+      [e1] button "Yes, delete" (in a dialog: the person's to answer)
+      [e2] button "Cancel" (in a dialog: the person's to answer)
+    == the page behind the dialog ==
+
+> page_click("ref": "@Yes, delete")
+  REFUSED: page: that control is inside a modal dialog, and a dialog is the person's to answer — it was not clicked. Say what confirming it will do and stop; Escape closes the dialog
+
+> page_press("key": "Escape")
+  {"pressed": "Escape", "on": "Yes, delete", "effect": "closed the dialog without answering it", "route": "/tests/fixture.html?broker=http://127.0.0.1:4011", "dialogs": []}
+
+> page_snapshot()
+  {"route": "/tests/fixture.html?broker=http://127.0.0.1:4011", "title": "Fixture \u2014 fleet-assist", "mode": "act", "dialogs": [], "modal_open": false, "refs": 16, "page": {"repo": "bamr87/fixture", "branch": "main", "source": "templates/assistant/tests/fixture.html", "framework": "static-html", "env": "development", "base": "/", "title": "Fixture \u2014 fleet-assist", "path": "/tests/fixture.html?broker=http://127.0.0.1:4011", "kit": "fleet-assist 0.1.1"}}
+    == the page ==
+      # Fixture page [e1]
+      A page of plain HTML, the way a static site serves one.
+      ## A form [e2]
+        [e3] textbox "Display name" = "Ada"
+
+> page_fill("ref": "@Display name", "text": "Grace")
+  {"filled": "Display name", "chars": 5, "route": "/tests/fixture.html?broker=http://127.0.0.1:4011", "dialogs": []}
+
+> page_fill("ref": "@secret field", "text": "x")
+  REFUSED: page: that is a secret field: it is never filled. The person types a credential themselves
+
+> page_click("ref": "@\"Save\"")
+  {"clicked": "Save", "route_before": "/tests/fixture.html?broker=http://127.0.0.1:4011", "route": "/tests/fixture.html?broker=http://127.0.0.1:4011", "dialogs": []}
+
+> page_click("ref": "@Elsewhere")
+  REFUSED: page: that link leaves this site (https://example.com/elsewhere) — the person opens it themselves
+
+> page_snapshot()
+  REFUSED: console POST /api/assist/page-command -> 404: the operator ended this page's sharing from the console. The person on the page can share it again from its panel
+
+> page_navigate("path": "/tests/fixture-2.html")
+  REFUSED: no page is attached: ask the person to open the assistant on the page they want you to see (the sparkle button in the console's header, or the Assistant button on a fleet site), switch pairing on, and give you the code; then call page_attach(code)
