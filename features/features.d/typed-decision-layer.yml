@@ -1,0 +1,38 @@
+id: HUB-NEW
+slug: typed-decision-layer
+title: "Cheap typed-decision layer for JEV loops"
+description: "A cheap, typed, confidence-routed decision slot in existing JEV loops: Choice, Score and Noul questions with a required other-or-none exit, two calibrated confidence bands with abstention in the middle, a code-then-cheap-model-then-reason-model-then-human cascade, deterministic done-checks before any typed is-done judge, and shadow mode that promotes one band at a time on a Wilson lower bound. Off by default. Does not replace tools/jev/classify.py. The hub's JEV engine is not TypeSafe AI's Jev model. Design: docs/TYPED-DECISION-LAYER.md."
+implemented: false
+status: planned
+surface: infra
+link: tools/jev
+docs: docs/TYPED-DECISION-LAYER.md
+tags: [jev, decisions, calibration, loops, governance]
+date: 2026-11-21
+tests:
+  - {na: "design-only draft; nothing implemented yet"}
+prd:
+  - FR86
+  - FR87
+  - FR88
+  - NFR17
+  - FR133
+prd_new:
+  - key: typed-decision-schema
+    kind: FR
+    text: "A pick-from-a-list step in a JEV loop must be asked as a versioned, hashed Choice, Score or Noul question against a trimmed state pack, with written criteria, field pointers, speculative fan-out of related questions in one call, and a required other or none exit; other is never auto-routed."
+  - key: calibrated-confidence-bands
+    kind: FR
+    text: "The cheap typed-decision layer must return a full distribution and a score that is calibrated on labelled fleet data so that answers given 90% are right about 90% of the time, route on two thresholds with abstention in the middle, and keep a decision in shadow until that target holds on a held-out slice."
+  - key: confidence-cascade-loops
+    kind: FR
+    text: "A loop decision must fall through code, then a pinned cheap typed model, then a stronger model that writes a reason, then a human, stopping at the first layer that is sure; irreversible actions never enter the cascade (constitution § 11, § 12, § 13); when both model layers are unsure or disagree, both answers are shown."
+  - key: shadow-band-promotion
+    kind: FR
+    text: "The typed-decision layer must ship off by default, then log silent labels beside the current path, and may promote only one confidence band at a time when a 95% Wilson lower bound on precision still clears the declared target with a minimum sample size; a prompt, model-id or criteria change returns that decision to shadow; a miss demotes the band and adds an eval case."
+  - key: deterministic-done-checks
+    kind: FR
+    text: "After each loop turn the runner must first apply deterministic done-checks (tests, lint, acceptance criteria that can be checked in code) and stop or refuse to stop without a further model call when those checks are decisive; only when the result is ambiguous may it ask a typed done / not_done / other question and route on confidence; turn and dollar caps remain the backstop."
+  - key: typed-decision-layer-opt-in
+    kind: NFR
+    text: "The cheap typed-decision layer must not change current loop behaviour while its mode is off; it must not add a model to ai_models.allowed except by a gated change (constitution § 12.3, § 13.3); a fleet-wide mandate that every pick-from-list call use a calibrated classifier requires a constitution amendment."
