@@ -10,6 +10,7 @@ import { hasConsole } from '../api/backend';
 import { useAssist, useJobTail, useJobs } from '../api/hooks';
 import type { Job } from '../api/types';
 import { Banner, Load, LocalOnly, Mono, PageHeader, Section } from '../components/ui';
+import { AssistObserved } from '../assist/Observed';
 import { setOpen } from '../assist/session';
 import { AssistAnswer } from '../jobs/AssistAnswer';
 import { useRunner } from '../jobs/JobRunner';
@@ -86,6 +87,7 @@ export function Assist() {
             <Section title="Answers" description="Every question asked here, newest first. Each is a job: its full session log, tool calls and cost are on the job's page.">
               {mine.length ? <Stack gap="sm">{mine.map((j) => <Thread key={j.id} job={j} />)}</Stack> : <Text size="sm" c="dimmed">Nothing asked yet.</Text>}
             </Section>
+            <AssistObserved />
           </>
         )}
       </Load>

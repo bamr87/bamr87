@@ -59,7 +59,23 @@ name: 🐍 Python Tests
 # Markdown outside docs/ and _data/ are NOT skippable: 17 files read prompts and
 # templates, and 54 read _data/. It reads the merge commit with git, so it spends
 # no API quota, and it fails open. drift-check.yml and markdown-oneline.yml still
-# run on those PRs, and the push and nightly runs below always run everything.
+# run on those PRs, and the nightly run below always runs everything.
+#
+# DOCS-ONLY PUSHES
+# ----------------
+# The same three directories, as a `paths:` filter on the push trigger, so a
+# docs-only push to main starts no run at all. Not starting matters more than
+# the minutes: a push that starts a run joins the concurrency group and cancels
+# the run before it. On 2026-11-20 four code merges landed in six minutes and
+# the jev-number ratify job then merged its record PR (#945: two lines in
+# docs/adr/) 167 s after the last of them. That outlasted the 110 s wait below,
+# so #945's push cancelled #933's run after its shards had booted, then ran
+# every shard itself (run 977) on a tree whose only difference was those two
+# lines. With the filter #945 starts nothing and #933's run tests the burst.
+# The positive lines after the `!docs/**` exclusion re-include the docs the
+# `changes` case statement names; test_python_tests_paths.py holds the two
+# lists equal. A filter, not a step in `changes`: a step cannot stop the run
+# from entering the group and cancelling its predecessor.
 #
 # Triggers: every PR, every push to main, and nightly. The console's
 # dependencies float (UPS-QA-40: always-latest, no pins, no lockfiles — the
@@ -92,6 +108,16 @@ on:
   pull_request:
   push:
     branches: [main]
+    # DOCS-ONLY PUSHES (header): order matters; a later line overrides an
+    # earlier one, so the three docs tests read come back after `!docs/**`.
+    paths:
+      - '**'
+      - '!docs/**'
+      - '!changelog.d/**'
+      - '!features/features.d/**'
+      - 'docs/JEV.md'
+      - 'docs/FRONTEND-PLATFORM.md'
+      - 'docs/SCHEMA-FRAMEWORK.md'
   schedule:
     - cron: '17 9 * * *'  # nightly 09:17 UTC (_data/fleet.yml schedule.python_tests)
   workflow_dispatch:

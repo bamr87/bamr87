@@ -339,15 +339,38 @@ def test_installers_parse_into_launch_agents_and_a_hook_installer_is_not_one():
 def test_the_harness_review_agent_is_discovered_from_its_installer():
     """PR #772 landed tools/install-harness-review.sh, so harness.agents no longer
     declares local:harness-review: its facts are read from the installer, and they
-    are the ones the declaration held (the trigger and all four commands)."""
+    are the ones the declaration held (the trigger and its commands; `lake assist`
+    joined them when the console assistant's records started going to the lake)."""
     fleet = yaml.safe_load((ai.REPO_ROOT / "_data" / "fleet.yml").read_text())
     assert "declare" not in fleet["harness"]["agents"]["local:harness-review"]
     review = {i["name"]: i for i in ai.discover_installers(ai.REPO_ROOT / "tools")}["harness-review"]
     assert review["schedule"] == "daily 06:23 local", review["schedule"]
     assert review["runs"] == ["tools/dash-gen lake sessions --days 2",
+                              "tools/dash-gen lake assist --days 7",
                               "tools/dash-gen lake sync --days 2 --jobs ai --logs ai",
                               "tools/dash-gen lake review --days 7 --json",
                               "tools/dash refine reflect --scheduled"], review["runs"]
+
+
+def test_the_consoles_assistant_is_a_registered_agent_with_its_numbers_read_from_the_config():
+    """The console's assistant spends a model call for every message, so it is an agent (§ 29). It has no
+    workflow, step spec or installer to be discovered from, so harness.agents declares it, the way the PR
+    queue's agent is declared; its model, cap and switch are references into `assistant:`, never copies."""
+    fleet = yaml.safe_load((ai.REPO_ROOT / "_data" / "fleet.yml").read_text())
+    overlay = fleet["harness"]["agents"]["local:console-assist"]
+    assert overlay["declare"]["kind"] == "local-job" and overlay["declare"]["where"] == "tools/console/core.py"
+    assert overlay["model_from"] == "assistant.model" and overlay["budget_from"] == {"per_run_usd": "assistant.budget_usd"}
+    assert overlay["switch"] == {"config": "assistant.enabled"} and overlay["run_record"] == "ai-ledger"
+    committed = yaml.safe_load((ai.REPO_ROOT / "_data" / "agents.yml").read_text())
+    entry = {a["id"]: a for a in committed["agents"]}["local:console-assist"]
+    assert entry["model"] == fleet["assistant"]["model"]
+    assert entry["budget"] == {"per_run_usd": float(fleet["assistant"]["budget_usd"])}
+    assert entry["owner"] and entry["trigger"] and entry["kpis"] and entry["local_entry"]
+    assert not [g for g in entry["gaps"] if g.startswith(("R1", "R3", "R4", "R6"))], entry["gaps"]
+    # its page-level record is a catalogued source with a writer and an SLO, and the lake's writer reads it
+    src = fleet["harness"]["sources"]["assist-page-audit"]
+    assert src["writer"] and src["slo"] == "on-change"
+    assert "assist-page-audit" in fleet["harness"]["agents"]["local:harness-review"]["reads"]
 
 
 # --------------------------------------------------------------------------- #

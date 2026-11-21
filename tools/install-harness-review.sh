@@ -5,13 +5,15 @@
 # Installs a per-user macOS LaunchAgent (com.bamr87.harness-review) that runs
 # once a day, off the hour, against the hub checkout at --root:
 #   1. tools/dash-gen lake sessions --days 2    this machine's Claude Code transcripts into the lake ($0, local)
-#   2. tools/dash-gen lake sync --days 2 --jobs ai --logs ai
+#   2. tools/dash-gen lake assist --days 7      the console assistant's page audit and AI-ledger rows into the
+#                                               lake, joined to the sessions step 1 read ($0, local)
+#   3. tools/dash-gen lake sync --days 2 --jobs ai --logs ai
 #                                               the CI agent runs of the last two days (GitHub reads)
-#   3. tools/dash-gen lake review --days 7 --json > .fleet/refine/review-latest.json
-#   4. tools/dash refine reflect --scheduled   the incident reflector — GUARDED: skipped quietly while
+#   4. tools/dash-gen lake review --days 7 --json > .fleet/refine/review-latest.json
+#   5. tools/dash refine reflect --scheduled   the incident reflector — GUARDED: skipped quietly while
 #                                               `refine reflect` does not exist in the checkout or
 #                                               _data/fleet.yml harness_refinement.enabled is not true
-# Step 4 runs daily but reflects weekly: the engine waits reflect.every_days
+# Step 5 runs daily but reflects weekly: the engine waits reflect.every_days
 # after the last scheduled run that spent, stops at budget.loops'
 # scheduled_stop_pct, and never files — it previews, posts a notification,
 # and a person files with `tools/dash refine reflect publish <stamp> --apply`
@@ -105,6 +107,7 @@ step() {
 }
 echo "=== harness-review \$(date) ==="
 step tools/dash-gen lake sessions --days 2
+step tools/dash-gen lake assist --days 7
 step tools/dash-gen lake sync --days 2 --jobs ai --logs ai
 mkdir -p .fleet/refine
 if tools/dash-gen lake review --days 7 --json > .fleet/refine/review-latest.json.tmp; then
