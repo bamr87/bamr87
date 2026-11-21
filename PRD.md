@@ -178,6 +178,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-126](features/features.yml) | The Overview tells the fleet's story: health, budget direction, what waits on the maintainer, the harness standard, flow, and one freshness timeline | shipped | route `/overview` · [`tools/console/README.md`](tools/console/README.md) | FR140 |
 | [HUB-127](features/features.yml) | The fleet assistant baseline: any fleet page can be shared with a Claude Code session, through one page bridge with an adapter per platform | shipped | [`templates/assistant/README.md`](templates/assistant/README.md) · [`docs/adr/0014-fleet-assistant-baseline.md`](docs/adr/0014-fleet-assistant-baseline.md) | FR141 |
 | [HUB-128](features/features.yml) | The assistant, observed: its messages, what its sessions did to pages, the pages sharing themselves and its inventory entry, from one document on every surface | shipped | route `/assist` · [`tools/console/README.md`](tools/console/README.md) | FR92, FR139 |
+| [HUB-129](features/features.yml) | Fleet link check: every live link, checked once | shipped | [`tools/link_check.py`](tools/link_check.py) · [`docs/LINK-CHECK.md`](docs/LINK-CHECK.md) | FR142 |
 
 **Requirement → feature trace**
 
@@ -355,6 +356,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR139 | HUB-125, HUB-128 |
 | FR140 | HUB-126 |
 | FR141 | HUB-127 |
+| FR142 | HUB-129 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -490,6 +492,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR139: The console must let an assistant session see the page a person has open and act on it for them only as far as that person allows: the session reads and points by default, each action is asked of the person unless they chose otherwise, and no session can answer a confirming dialog or read or fill a secret field.
 - FR140: The console's front door must answer, before any scrolling, how healthy the fleet is, which way each budget is moving against its ceiling, what waits on the maintainer and how current its inputs are; it must show a count's cap, a series' direction and a finding's lever rather than a bare number, and every figure must link to the page that explains it.
 - FR141: Every repo in the fleet must have a baseline way for an AI agent to work with it, sized to its platform: where a repo draws pages, an agent session the person paired with a page can see that page and act on it only as far as the person allows, under the same rules on every stack; where it does not, the agent works in its checkout on the fleet's agent context.
+- FR142: The hub must check every link the fleet publishes — the owned repos' rendered Markdown and HTML, the profile README's data and every live site — and report each broken one with the file and line or page that publishes it, without filing, pushing or failing a scheduled run by default.
 
 **Non-functional**
 
