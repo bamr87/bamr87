@@ -89,8 +89,8 @@ FLEET_DEFAULT = REPO_ROOT / "_data" / "fleet.yml"
 LAKE_DIR_DEFAULT = Path(os.environ.get("DASH_LAKE_DIR") or (REPO_ROOT / ".dash-lake"))
 DB_NAME = "fleet.sqlite"
 # 3: agent_runs.agent_calls + cost_unread; 4: issues.state_reason + merged_at (each added in place by connect);
-# 5: workflow_reads (a new table, created in place by connect)
-SCHEMA_VERSION = 5
+# 5: workflow_reads (a new table, created in place by connect); 6: page_audit + assist_runs (the same)
+SCHEMA_VERSION = 6
 PHOENIX_DEFAULT = os.environ.get("PHOENIX_COLLECTOR_ENDPOINT") or "http://127.0.0.1:6006"
 PHOENIX_UI_DEFAULT = os.environ.get("PHOENIX_UI_URL") or PHOENIX_DEFAULT
 CLAUDE_DIR_DEFAULT = Path(os.environ.get("CLAUDE_CONFIG_DIR") or (Path.home() / ".claude")) / "projects"
@@ -174,6 +174,19 @@ CREATE TABLE IF NOT EXISTS workflow_reads (
   nwo TEXT PRIMARY KEY, ok INTEGER, attempted_at TEXT, read_at TEXT, reason TEXT, files INTEGER,
   listed INTEGER, truncated INTEGER, archived INTEGER, default_branch TEXT, paths TEXT, checks TEXT,
   calls INTEGER);
+-- The console's assistant (agent local:console-assist), read by `lake assist` through tools/fleetcore/
+-- assistlog.py, the one reader of both records. page_audit: one row per page command, pairing and
+-- operator's end from the page bridge's audit (.fleet/assist/page-audit.jsonl): `session` is the first
+-- eight characters of the page session, never its id; a fill is its length, never its text. assist_runs:
+-- the assistant's rows of the AI ledger (source `console assist`), keyed by the Claude Code session id,
+-- which is also `sessions.session_id` — the join between a message's cost and its transcript.
+CREATE TABLE IF NOT EXISTS page_audit (
+  id TEXT PRIMARY KEY, at TEXT, session TEXT, client TEXT, kind TEXT, origin TEXT, repo TEXT,
+  action TEXT, target TEXT, mode TEXT, outcome TEXT, ms INTEGER, synced_at TEXT);
+CREATE TABLE IF NOT EXISTS assist_runs (
+  session_id TEXT PRIMARY KEY, at TEXT, model TEXT, outcome TEXT, cost_usd REAL, cost_source TEXT,
+  cap_usd REAL, turns INTEGER, duration_s REAL, cli_version TEXT, synced_at TEXT);
+CREATE INDEX IF NOT EXISTS page_audit_at ON page_audit (at);
 CREATE INDEX IF NOT EXISTS runs_nwo_created ON runs (nwo, created_at);
 CREATE INDEX IF NOT EXISTS runs_ai_created ON runs (ai, created_at);
 CREATE INDEX IF NOT EXISTS jobs_run ON jobs (run_id);
@@ -183,7 +196,7 @@ CREATE INDEX IF NOT EXISTS session_tools_name ON session_tools (name);
 
 TABLES = ["repos", "workflows", "factory_files", "runs", "jobs", "steps", "logs",
           "agent_runs", "issues", "sessions", "session_turns", "session_tools", "exports",
-          "shipments", "syncs", "workflow_reads"]
+          "shipments", "syncs", "workflow_reads", "page_audit", "assist_runs"]
 
 
 # --------------------------------------------------------------------------- #
@@ -1952,6 +1965,160 @@ def cmd_sessions(args: argparse.Namespace) -> int:
 
 
 # --------------------------------------------------------------------------- #
+# assist — the console's assistant: its two records, and the sessions behind them
+# --------------------------------------------------------------------------- #
+ASSIST_SCHEMA = "lake-assist/v1"
+#: a tool call that drove a page: the MCP layer's page tools, under whatever name the server was added as
+PAGE_TOOL_LIKE = "mcp\\_\\_%\\_\\_page\\_%"
+
+
+def _assistlog():
+    """tools/fleetcore/assistlog.py — the one reader of the page audit and the assistant's ledger rows. The
+    console, the MCP layer and a terminal read through it too, so the lake stores what they show."""
+    tools = str(REPO_ROOT / "tools")
+    if tools not in sys.path:
+        sys.path.insert(0, tools)
+    from fleetcore import assistlog  # noqa: PLC0415
+    return assistlog
+
+
+def ingest_assist(conn: sqlite3.Connection, audit_rows: list[dict], run_rows: list[dict], now: str) -> tuple[int, int]:
+    """Store the page-audit lines and the assistant's ledger rows. Idempotent: an audit line is immutable and
+    keyed by its id, so a line the lake holds is skipped; a ledger row is replaced, since its session may
+    have been re-recorded. Returns (new audit lines, ledger rows stored)."""
+    new = 0
+    for r in audit_rows:
+        cur = conn.execute(
+            "INSERT OR IGNORE INTO page_audit (id, at, session, client, kind, origin, repo, action, target, mode, "
+            "outcome, ms, synced_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (r["id"], r["at"], r["session"], r["client"], r["kind"], r["origin"], r["repo"], r["action"],
+             r["target"], r["mode"], r["outcome"], r["ms"], now))
+        new += cur.rowcount
+    stored = 0
+    for r in run_rows:
+        if not r.get("session_id"):
+            continue  # a row with no session cannot be joined to its transcript, and a second one would collide
+        upsert(conn, "assist_runs", {
+            "session_id": r["session_id"], "at": r["at"], "model": r["model"], "outcome": r["outcome"],
+            "cost_usd": r["cost_usd"], "cost_source": r["cost_source"], "cap_usd": r["cap_usd"],
+            "turns": r["turns"], "duration_s": r["duration_s"], "cli_version": r["cli_version"],
+            "synced_at": now}, ["session_id"])
+        stored += 1
+    return new, stored
+
+
+def assist_report(conn: sqlite3.Connection, days: int = 30, limit: int = 20) -> dict:
+    """What the lake knows about the assistant over `days` days (0 = all time), offline.
+
+    `page_commands` counts the audit; `messages` the ledger rows; `page_sessions` are the Claude Code
+    sessions whose TRANSCRIPT shows a page tool call (`lake sessions` reads those), each with its cost as
+    the lake estimates it from the transcript's tokens. A session that is also in the ledger is `docked`
+    (the console started it, under a cap); one that is not is `paired`: a person's own session that
+    attached with a pairing code. That is the only cost record a paired session has."""
+    cutoff = iso(utcnow() - dt.timedelta(days=days)) if days else None
+    when = (" AND at >= ?", [cutoff]) if cutoff else ("", [])
+
+    def grouped(column: str) -> dict:
+        rows = conn.execute(f"SELECT {column} AS k, COUNT(*) AS n FROM page_audit WHERE action NOT IN ('attach', 'end')"
+                            f"{when[0]} GROUP BY {column} ORDER BY n DESC", when[1]).fetchall()
+        return {str(r["k"] or "unknown"): r["n"] for r in rows}
+
+    def scalar(sql: str, args: list):
+        return conn.execute(sql, args).fetchone()[0]
+
+    commands = scalar(f"SELECT COUNT(*) FROM page_audit WHERE action NOT IN ('attach', 'end'){when[0]}", when[1])
+    audit = {
+        "lines": scalar(f"SELECT COUNT(*) FROM page_audit WHERE 1=1{when[0]}", when[1]),
+        "commands": commands,
+        "attaches": scalar(f"SELECT COUNT(*) FROM page_audit WHERE action='attach'{when[0]}", when[1]),
+        "ended_by_operator": scalar(f"SELECT COUNT(*) FROM page_audit WHERE action='end'{when[0]}", when[1]),
+        "sessions": scalar(f"SELECT COUNT(DISTINCT session) FROM page_audit WHERE 1=1{when[0]}", when[1]),
+        "by_outcome": grouped("outcome"), "by_client": grouped("client"), "by_kind": grouped("kind"),
+        "by_action": grouped("action"),
+        "origins": {r["k"]: r["n"] for r in conn.execute(
+            f"SELECT origin AS k, COUNT(*) AS n FROM page_audit WHERE origin IS NOT NULL{when[0]} "
+            "GROUP BY origin ORDER BY n DESC", when[1]).fetchall()},
+        "last": scalar(f"SELECT MAX(at) FROM page_audit WHERE 1=1{when[0]}", when[1]),
+    }
+    runs = conn.execute(f"SELECT * FROM assist_runs WHERE 1=1{when[0]} ORDER BY at DESC", when[1]).fetchall()
+    costs = [r["cost_usd"] for r in runs if r["cost_usd"] is not None]
+    outcomes: dict[str, int] = {}
+    for r in runs:
+        outcomes[r["outcome"] or "unknown"] = outcomes.get(r["outcome"] or "unknown", 0) + 1
+    messages = {"messages": len(runs), "cost_usd": round(sum(costs), 4) if costs else None, "by_outcome": outcomes,
+                "cost_unreported": sum(1 for r in runs if r["cost_source"] not in ("reported", "no-spend")),
+                "last": runs[0]["at"] if runs else None}
+    since_sql, since_args = (" AND s.started_at >= ?", [cutoff]) if cutoff else ("", [])
+    rows = conn.execute(
+        "SELECT s.session_id, s.key, s.entrypoint, s.repo, s.started_at, s.cost_usd, s.turns, s.tool_errors, "
+        "COUNT(*) AS page_calls, SUM(COALESCE(t.is_error, 0)) AS page_errors, "
+        "(SELECT COUNT(*) FROM assist_runs a WHERE a.session_id = s.session_id) AS ledgered "
+        "FROM session_tools t JOIN sessions s ON s.key = t.key "
+        f"WHERE t.name LIKE ? ESCAPE '\\'{since_sql} GROUP BY s.key ORDER BY s.started_at DESC",
+        [PAGE_TOOL_LIKE, *since_args]).fetchall()
+    sessions = [{"session": (r["session_id"] or "")[:8], "how": "docked" if r["ledgered"] else "paired",
+                 "entrypoint": r["entrypoint"], "repo": r["repo"], "started_at": r["started_at"],
+                 "cost_usd": round(r["cost_usd"], 4) if r["cost_usd"] is not None else None,
+                 "turns": r["turns"], "page_calls": r["page_calls"], "page_errors": r["page_errors"],
+                 "tool_errors": r["tool_errors"]} for r in rows]
+    paired = [x for x in sessions if x["how"] == "paired"]
+    paired_costs = [x["cost_usd"] for x in paired if x["cost_usd"] is not None]
+    # a ledgered message whose transcript the lake has: where the reflector's review can read its tool errors
+    with_transcript = scalar("SELECT COUNT(*) FROM assist_runs a WHERE EXISTS (SELECT 1 FROM sessions s "
+                             "WHERE s.session_id = a.session_id)" + (" AND a.at >= ?" if cutoff else ""), when[1])
+    return {
+        "schema": ASSIST_SCHEMA, "agent": "local:console-assist", "window_days": days,
+        "cost_label": "API-equivalent (estimate)", "page_commands": audit,
+        "messages": {**messages, "with_transcript": with_transcript},
+        "page_sessions": {"sessions": len(sessions), "docked": len(sessions) - len(paired), "paired": len(paired),
+                          "paired_cost_usd": round(sum(paired_costs), 4) if paired_costs else None,
+                          "note": "a paired session's cost is its WHOLE session, estimated from its transcript's "
+                                  "tokens: it is the person's own session, of which the page was one part",
+                          "recent": sessions[:max(0, limit)]},
+    }
+
+
+def cmd_assist(args: argparse.Namespace) -> int:
+    al = _assistlog()
+    audit = Path(args.audit).expanduser() if args.audit else al.audit_path(REPO_ROOT)
+    ledger = Path(args.ledger).expanduser() if args.ledger else al.ledger_path()
+    conn = connect(args.lake)
+    try:
+        new, stored = ingest_assist(conn, al.read_audit(audit), al.read_runs(ledger), iso(utcnow()))
+        conn.commit()
+        doc = assist_report(conn, days=args.days, limit=args.limit)
+    finally:
+        conn.close()
+    doc["ingested"] = {"audit": str(audit), "audit_exists": audit.is_file(), "audit_new": new,
+                       "ledger": str(ledger), "ledger_exists": ledger.is_file(), "runs": stored}
+    if args.json:
+        print(json.dumps(doc, indent=2))
+        return 0
+    pc, m, ps = doc["page_commands"], doc["messages"], doc["page_sessions"]
+    span = f"last {args.days} day(s)" if args.days else "all time"
+
+    def counts(d: dict) -> str:
+        return ", ".join(f"{n} {k}" for k, n in d.items()) or "none"
+
+    sys.stderr.write(f"lake assist: {new} new audit line(s) from {audit}"
+                     f"{'' if audit.is_file() else ' (no such file)'}, {stored} ledger row(s) from {ledger}\n")
+    print(f"The console's assistant in the lake, {span}")
+    print(f"  messages       {m['messages']} · {_usd(m['cost_usd'])} {doc['cost_label']} · {counts(m['by_outcome'])} · "
+          f"{m['with_transcript']} with a transcript in the lake")
+    print(f"  page commands  {pc['commands']} on {pc['sessions']} page session(s) · {counts(pc['by_outcome'])} · "
+          f"asked by {counts(pc['by_client'])} · pages: {counts(pc['by_kind'])}"
+          f"{' · ' + str(pc['ended_by_operator']) + ' ended from the console' if pc['ended_by_operator'] else ''}")
+    print(f"  page sessions  {ps['sessions']} Claude Code session(s) drove a page: {ps['docked']} docked, "
+          f"{ps['paired']} paired ({_usd(ps['paired_cost_usd'])} for the paired sessions' whole length)")
+    for x in ps["recent"]:
+        print(f"    {x['started_at']}  {x['how']:<6} {x['session']}  {_usd(x['cost_usd']):>8}  "
+              f"{x['page_calls']} page call(s), {x['page_errors']} refused or failed  {x['repo'] or ''}")
+    if not ps["sessions"]:
+        print("    (none in the lake: `tools/dash-gen lake sessions` reads this machine's transcripts)")
+    return 0
+
+
+# --------------------------------------------------------------------------- #
 # review — the ANALYSIS layer over both planes, offline
 # --------------------------------------------------------------------------- #
 # Why an AI workflow run's Claude cost is unknown, in the review's words.
@@ -2570,6 +2737,18 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     p_sessions.add_argument("--force", action="store_true", help="re-read transcripts whose mtime is unchanged")
     p_sessions.add_argument("--json", action="store_true")
     p_sessions.set_defaults(func=cmd_sessions)
+
+    p_assist = sub.add_parser("assist", help="the console's assistant: read its page audit and its AI-ledger rows "
+                                             "into the lake, then report them with the sessions that drove a "
+                                             "page, docked or paired (offline, $0)")
+    p_assist.add_argument("--audit", default=None, help="the page bridge's audit (default: .fleet/assist/page-audit.jsonl, "
+                                                        "or DASH_CONSOLE_PAGE_AUDIT)")
+    p_assist.add_argument("--ledger", default=None, help="the AI ledger (default: ~/.claude/ai-activity-ledger.json, "
+                                                         "or DASH_AI_LEDGER)")
+    p_assist.add_argument("--days", type=int, default=30, help="the report's window (0 = all time; ingestion is never windowed)")
+    p_assist.add_argument("--limit", type=int, default=20, help="page sessions to list")
+    p_assist.add_argument("--json", action="store_true", help="the lake-assist/v1 document")
+    p_assist.set_defaults(func=cmd_assist)
 
     p_review = sub.add_parser("review", help="analyze local sessions + CI agent runs from the lake (offline)")
     p_review.add_argument("--days", type=int, default=30)

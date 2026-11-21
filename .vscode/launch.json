@@ -139,6 +139,14 @@
       "presentation": { "group": "0-fleet", "order": 8 }
     },
     {
+      "name": "🧭 Fleet: apps assist (the assistant baseline each repo's platform gets)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash apps assist",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "0-fleet", "order": 8 }
+    },
+    {
       "name": "📜 Fleet: dev logs (pick a project)",
       "type": "node-terminal",
       "request": "launch",
@@ -457,6 +465,22 @@
       "type": "node-terminal",
       "request": "launch",
       "command": "tools/dash lake sessions",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "3-observe", "order": 2 }
+    },
+    {
+      "name": "🌊 Lake: assist (the console assistant's page audit and ledger rows, and the sessions behind them)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash lake assist --days ${input:lakeDays}",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "3-observe", "order": 2 }
+    },
+    {
+      "name": "✨ Assistant: activity (its messages and what its sessions did to pages, read-only)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash apps assist activity",
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "3-observe", "order": 2 }
     },

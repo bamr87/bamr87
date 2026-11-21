@@ -5,19 +5,21 @@ coverage: listed
 
 # SCHEMA — evals
 
-> The agent eval sets (constitution § 13.1): one directory per agent role, each holding real past tasks with their expected output, run by `tools/evals.py` and checked by `.github/workflows/evals.yml`.
+> The agent eval sets (constitution § 13.1): one directory per agent role, each holding the role's tasks with their expected output, run by `tools/evals.py` and checked offline by `tools/test_evals.py` in the `python-tests` workflow.
 
 ## Conventions
 
 - One directory per role, named as `tools/evals.py` `ADAPTERS` names it; the directory holds exactly one `cases.yml` (`schema: evals/v1`).
-- Every case has `id`, `source` (the real task it came from), `input`, `expected` and `pass`; a set may add `rubric` for an LLM judge and `min_cases` as a floor the runner enforces.
-- A model-backed set names its `model`, which must be an id in `_data/fleet.yml` `ai_models.allowed`.
+- Every case has `id`, `source`, `input`, `expected` and `pass`; a set may add `rubric` for an LLM judge and `min_cases` as a floor the runner enforces.
+- `source` is the real task a case came from: an issue, a pull request, a ledger row, a conversation. A role with no history yet may hold a case written for one stated rule of its prompt instead, on three conditions: `source` says so and quotes the rule, the set's header says that its cases were written this way and are to be replaced (the runner reports how many there are), and a real task replaces the case once one exists. `console-assist` is the first such role: it was written when its model had answered two messages, neither on a page that was recorded.
+- A model-backed set names its `model`, an id in `_data/fleet.yml` `ai_models.allowed`, or, where the role's own configuration pins one, `model_from` naming that key.
 
 ## Structure
 
 | entry | kind | purpose | rules |
 | --- | --- | --- | --- |
 | `README.md` | file | What an eval set is, the case format, and how to run and grow one | required |
+| `console-assist/` | dir | The console's assistant (`assist` op): a question, a recorded page and deterministic rules; validated offline, model-run by hand on a canary subset | required |
 | `jev-classify/` | dir | JEV's deterministic conflict classifier (`tools/jev/classify.py`), run fully offline | required |
 | `t1-intake/` | dir | Issue-pipeline tier 1 intake: ready / blocked and the type label; schema-checked offline, model-run locally | required |
 
@@ -29,4 +31,4 @@ coverage: listed
 ## Forbidden
 
 - No secrets, tokens or private issue text in a case — `input` is a summary of a public issue.
-- No case invented to make a set pass: every case names the real task it came from in `source`.
+- No case invented to make a set pass. A case written for a rule is held to the convention above: it names the rule it tests, and it is never tuned to what a model happened to answer.

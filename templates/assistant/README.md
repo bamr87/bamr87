@@ -71,7 +71,7 @@ FleetAssistCore.createBridge(env).run(command);                    // the rules,
 
 ## Privacy
 
-No cookies, no analytics and no request of any kind until the panel is opened. After that the page talks to one address, on the same machine, and holds no token. The session id lives in `sessionStorage`, for this tab only, so that a site of plain pages keeps its session when a navigation loads the next page. Closing the panel ends the session. What a snapshot contains is what is on screen, minus secret fields; the console scrubs credential shapes from every answer as a backstop.
+No cookies, no analytics and no request of any kind until the panel is opened. After that the page talks to one address, on the same machine, and holds no token. The session id lives in `sessionStorage`, for this tab only, so that a site of plain pages keeps its session when a navigation loads the next page. Closing the panel ends the session, and so can the console's operator, from its Assist page: the panel then says the sharing was ended from the console, and you can share again. What a snapshot contains is what is on screen, minus secret fields; the console scrubs credential shapes from every answer as a backstop.
 
 ## Limits
 

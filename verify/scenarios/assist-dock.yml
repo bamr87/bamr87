@@ -2,7 +2,7 @@
 id: assist-dock
 feature: "HUB-125"
 title: "The published page offers no assistant dock, and says the assistant runs on a console"
-description: "On the public build the header has no assistant button on any page, nothing can open a dock, and /assist says the assistant runs on a console; nothing scrolls sideways. On a running console the sparkle button opens the dock beside the page: a conversation whose sessions can see the page, point at it and, in the mode the person picks, use it, with each click asked first by default and no way to answer a confirming dialog. That pass needs a console and a Claude Code CLI, so it is recorded by hand in the evidence README (it ran end to end on tools/console/assist_standin.py, a scripted stand-in for the model, at $0)."
+description: "On the public build the header has no assistant button on any page, nothing can open a dock, and /assist says the assistant runs on a console, lists no shared page, offers no End and shows no activity, only the assistant's entry in the agent inventory; nothing scrolls sideways. On a running console the sparkle button opens the dock beside the page: a conversation whose sessions can see the page, point at it and, in the mode the person picks, use it, with each click asked first by default and no way to answer a confirming dialog. That pass needs a console and a Claude Code CLI, so it is recorded by hand in the evidence README (it ran end to end on tools/console/assist_standin.py, a scripted stand-in for the model, at $0)."
 viewports: [desktop, mobile]
 ignore_console: ["Failed to load resource", "net::ERR_"]
 steps:
@@ -13,6 +13,13 @@ steps:
   - expect: { count: { selector: "[data-testid='assist-toggle']", max: 0 } }
   - expect: { count: { selector: "[data-testid='assist-open-dock']", max: 0 } }
   - expect: { count: { selector: "[data-assist-dock]", max: 0 } }
+  # One machine's records are not the fleet's: the published page lists no shared page, offers no End
+  # and shows no activity. It does show the assistant's entry in the agent inventory, which is committed.
+  - expect: { count: { selector: "[data-testid='assist-shared-pages']", max: 0 } }
+  - expect: { count: { selector: "[data-testid^='assist-shared-end-']", max: 0 } }
+  - expect: { count: { selector: "[data-testid='assist-activity']", max: 0 } }
+  - wait: { selector: "[data-testid='assist-agent-entry']" }
+  - expect: { text: "local:console-assist" }
   - expect: { no_horizontal_scroll: true }
   - screenshot: assist-public
   - goto: /loops

@@ -83,7 +83,10 @@ jobs = core.JobManager()
 page = page_bridge.BRIDGE
 page.ceiling = core.assistant_page_access
 page.fleet_ceiling = core.assistant_fleet_pages
-page.audit_path = core.JOB_DIR / "assist" / "page-audit.jsonl"
+# The audit: a file in the hub checkout (.fleet/assist/, where a restart keeps it and the lake reads it)
+# and the same line on stderr, which the console container's log keeps and the log plane ships.
+page.audit_path = core.page_audit_path()
+page.audit_stream = sys.stderr
 
 
 @asynccontextmanager
@@ -363,6 +366,11 @@ class PageCommand(BaseModel):
 
 class PageAttach(BaseModel):
     code: str = Field(..., max_length=32)
+
+
+class SharedPageEnd(BaseModel):
+    #: the eight characters the shared pages list and the audit log call a session — never its id
+    id: str = Field(..., pattern=r"^[0-9a-f]{8}$")
 
 
 class WorkflowDraft(BaseModel):
@@ -754,6 +762,31 @@ def assist() -> dict:
     return core.assist_doc()
 
 
+@app.get("/api/assist/activity", dependencies=[Depends(require_token)])
+def assist_activity(days: int = Query(default=7, ge=0, le=365), limit: int = Query(default=50, ge=0, le=500)) -> dict:
+    """How the assistant is observed: its messages (the AI ledger), what its sessions did to pages (the page
+    bridge's audit), the fleet pages sharing themselves right now, and its entry in the agent inventory.
+    Read-only; `days` 0 is all time. No session id, no typed text, no prompt."""
+    return core.assist_activity_doc(days, limit)
+
+
+@app.post("/api/assist/shared-pages/end", dependencies=[Depends(require_token)])
+def shared_page_end(req: SharedPageEnd) -> dict:
+    """The operator ends one fleet page's sharing, by the eight characters the list shows. Token-guarded, and
+    not one of the token-free fleet routes: a page cannot end another page's session. 404 no such session,
+    409 when two sessions answer to the id (nothing is ended). The answers are fixed sentences."""
+    try:
+        return page.end(req.id)
+    except page_bridge.NoSession:
+        raise HTTPException(status_code=404, detail="no fleet page is sharing itself under that id: it was "
+                                                    "closed or dropped as idle")
+    except page_bridge.Ambiguous:
+        raise HTTPException(status_code=409, detail="more than one shared page answers to that id: nothing "
+                                                    "was ended. Reload the list")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="id must be the eight characters the shared pages list shows")
+
+
 # --- the page bridge (page_bridge.py) ----------------------------------------
 # Two sides share these routes. The PAGE's side — open, close, mode, pair, next,
 # result — is what the dock calls for its own tab. The SESSION's side — command,
@@ -943,6 +976,10 @@ async def fleet_page(verb: str, request: Request) -> JSONResponse:
             doc = page.fleet_pair(sid, origin, body.get("on") is not False)
         else:
             doc = {"closed": page.fleet_close(sid, origin)}
+    except page_bridge.Ended:
+        # said apart from a session that went idle, so the page's panel can tell the person who ended it
+        return answer(404, {"detail": "the console ended this page's sharing. Share the page again to carry on",
+                            "ended": "console"})
     except page_bridge.NoSession:
         return answer(404, {"detail": "no such page session: it was closed or dropped as idle. Share the page again"})
     except ValueError:

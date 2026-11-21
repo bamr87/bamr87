@@ -431,6 +431,25 @@ class RefineTools(unittest.TestCase):
         names = tool_names(srv.build_server(FakeConsole(), allow_writes=False))
         self.assertTrue({"refine_status", "refine_library", "refine_reviews"} <= names)
 
+    def test_the_assistants_activity_is_one_read_tool_over_the_consoles_document(self):
+        """assist_activity reads /api/assist/activity: the same document the Assist page shows
+        (tools/fleetcore/assistlog.py). Read-only, listed without writes, and its window and row count are bounded."""
+        doc = {"schema": "assist-activity/v1", "agent": "local:console-assist", "window_days": 7,
+               "messages": {"summary": {"messages": 2, "cost_usd": 0.32}, "recent": []},
+               "page_audit": {"summary": {"commands": 9}, "recent": [{"session": "abcd1234", "action": "click"}]},
+               "shared_pages": {"access": "act", "sessions": []}, "agent_entry": {"id": "local:console-assist"}}
+        fc = FakeConsole({"/api/assist/activity": doc})
+        server = srv.build_server(fc, allow_writes=False)
+        self.assertIn("assist_activity", tool_names(server))
+        res, text = call(server, "assist_activity")
+        self.assertFalse(res.is_error, text)
+        self.assertEqual(payload(res, text)["messages"]["summary"]["messages"], 2)
+        self.assertEqual(fc.calls[-1][:3], ("GET", "/api/assist/activity", {"days": 7, "limit": 30}))
+        call(server, "assist_activity", {"days": 9999, "limit": 9999})
+        self.assertEqual(fc.calls[-1][2], {"days": 365, "limit": 200}, "the window and the rows are bounded")
+        call(server, "assist_activity", {"days": 0, "limit": 5})
+        self.assertEqual(fc.calls[-1][2], {"days": 0, "limit": 5}, "days 0 is all time, and it is sent as 0")
+
     def test_job_log_cuts_the_routes_text_field(self):
         fc = FakeConsole({"/api/jobs/j1": {"job": {"id": "j1"}, "text": "x" * 50, "offset": 50, "done": True}})
         res, text = call(srv.build_server(fc), "job_log", {"job_id": "j1", "tail_chars": 10})

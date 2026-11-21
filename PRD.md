@@ -177,6 +177,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-125](features/features.yml) | The docked assistant: Claude Code beside every console page, able to see the page a person has open and, in the mode they choose, use it | shipped | route `/assist` · [`docs/adr/0013-console-page-assistant.md`](docs/adr/0013-console-page-assistant.md) | FR139 |
 | [HUB-126](features/features.yml) | The Overview tells the fleet's story: health, budget direction, what waits on the maintainer, the harness standard, flow, and one freshness timeline | shipped | route `/overview` · [`tools/console/README.md`](tools/console/README.md) | FR140 |
 | [HUB-127](features/features.yml) | The fleet assistant baseline: any fleet page can be shared with a Claude Code session, through one page bridge with an adapter per platform | shipped | [`templates/assistant/README.md`](templates/assistant/README.md) · [`docs/adr/0014-fleet-assistant-baseline.md`](docs/adr/0014-fleet-assistant-baseline.md) | FR141 |
+| [HUB-128](features/features.yml) | The assistant, observed: its messages, what its sessions did to pages, the pages sharing themselves and its inventory entry, from one document on every surface | shipped | route `/assist` · [`tools/console/README.md`](tools/console/README.md) | FR92, FR139 |
 
 **Requirement → feature trace**
 
@@ -290,7 +291,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR90 | HUB-090 |
 | NFR18 | HUB-090 |
 | FR91 | HUB-091 |
-| FR92 | HUB-092 |
+| FR92 | HUB-092, HUB-128 |
 | NFR19 | HUB-092 |
 | FR93 | HUB-093 |
 | FR94 | HUB-093 |
@@ -351,7 +352,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR136 | HUB-118 |
 | FR137 | HUB-121 |
 | FR138 | HUB-122 |
-| FR139 | HUB-125 |
+| FR139 | HUB-125, HUB-128 |
 | FR140 | HUB-126 |
 | FR141 | HUB-127 |
 <!-- features:end -->

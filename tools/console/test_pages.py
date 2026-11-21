@@ -34,6 +34,8 @@ HERE = Path(__file__).resolve().parent
 # container — the console's own Tests job does — that was the RUNNING
 # console's index. core reads this at import, so it is set before any import.
 os.environ["DASH_CONSOLE_JOBS"] = tempfile.mkdtemp(prefix="console-test-jobs-")
+# Nor the checkout's page audit (.fleet/assist/): a test's page commands are not what a person did.
+os.environ["DASH_CONSOLE_PAGE_AUDIT"] = str(Path(os.environ["DASH_CONSOLE_JOBS"]) / "assist" / "page-audit.jsonl")
 
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
