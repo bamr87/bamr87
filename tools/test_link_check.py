@@ -62,6 +62,19 @@ class ExtractTests(unittest.TestCase):
             "https://e.dev/f", "https://g.dev/h", "https://i.dev/j?q=1&r=2",
         ]))
 
+    def test_a_url_ends_at_a_paren_it_did_not_open_and_at_fullwidth_punctuation(self):
+        text = ("[fcitx](https://fcitx-im.org/)-Dienst and [1p](https://1password.com/)\ub294 "
+                "and https://a.dev/x\u3002next and https://ja.wikipedia.org/wiki/\u65e5\u672c")
+        self.assertEqual(sorted(urls(lc.extract(text, "md"))), sorted([
+            "https://fcitx-im.org/", "https://1password.com/", "https://a.dev/x",
+            "https://ja.wikipedia.org/wiki/\u65e5\u672c",
+        ]))
+
+    def test_an_iri_is_percent_encoded_before_it_is_sent(self):
+        self.assertEqual(lc.to_uri("https://ja.wikipedia.org/wiki/\u65e5?q=\u00e9"),
+                         "https://ja.wikipedia.org/wiki/%E6%97%A5?q=%C3%A9")
+        self.assertEqual(lc.to_uri("https://a.dev/x?y=1"), "https://a.dev/x?y=1")
+
     def test_relative_file_links_only(self):
         text = "\n".join([
             "[a](docs/A.md) [b](../img/b.png \"title\") [c](#anchor) [d](/abs/path.md)",
@@ -72,9 +85,12 @@ class ExtractTests(unittest.TestCase):
         self.assertEqual(sorted(rels(lc.extract(text, "md"))),
                          ["../img/b.png", "./notes/ref.txt", "docs/A.md", "pics/c.svg"])
 
-    def test_html_strips_script_and_pre(self):
-        text = '<a href="https://ok.dev/">x</a>\n<script>fetch("https://api.script.dev/")</script>\n<pre>https://pre.dev/</pre>'
-        self.assertEqual(urls(lc.extract(text, "html")), ["https://ok.dev/"])
+    def test_html_strips_script_pre_and_connection_hints(self):
+        text = ('<a href="https://ok.dev/">x</a>\n<script>fetch("https://api.script.dev/")</script>\n<pre>https://pre.dev/</pre>\n'
+                '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n<link rel="icon" href="%BASE_URL%favicon.svg">')
+        found = lc.extract(text, "html")
+        self.assertEqual(urls(found), ["https://ok.dev/"])
+        self.assertEqual(rels(found), [])
 
     def test_yaml_reads_url_values_with_their_line(self):
         text = "- name: x\n  repo_url: https://github.com/bamr87/x\n  live_url: \"https://bamr87.github.io/x/\"  # site\n  description: see https://not.a.value.dev too\n"
@@ -121,6 +137,8 @@ class GitHubParseTests(unittest.TestCase):
         self.assertEqual(P("https://github.com/o/r/pull/12/files").leaf, ("issue", 12))
         self.assertEqual(P("https://github.com/o/r/issues/7").leaf, ("issue", 7))
         self.assertEqual(P("https://github.com/o/r/commit/abc123").leaf, ("obj", ("abc123",)))
+        self.assertEqual(P("https://github.com/o/r/commits/main/docs/a.md").leaf[1][0], "main:docs/a.md")
+        self.assertEqual(P("https://github.com/bamr87.png"), lc.GhRef("bamr87", None))
         self.assertEqual(P("https://github.com/o/r/releases/tag/v1.0").leaf, ("release", "v1.0"))
         self.assertEqual(P("https://github.com/o/r/actions/workflows/ci.yml/badge.svg").leaf,
                          ("obj", ("HEAD:.github/workflows/ci.yml",)))
@@ -216,6 +234,23 @@ class GitHubCheckerTests(unittest.TestCase):
         self.assertEqual({u: r.status for u, r in out.items()}, self.URLS)
         self.assertGreater(len(fake.queries), 3)
 
+    def test_a_rename_graphql_follows_is_moved_unless_the_file_is_gone(self):
+        def call(query):
+            import re
+            data = {}
+            for alias, body in re.findall(r'(r\d+): repository\(owner: "knsv", name: "mermaid"\) \{ (.*?) \}(?= r\d+:| \}$)', query):
+                node = {"nameWithOwner": "mermaid-js/mermaid"}
+                for leaf, expr in re.findall(r'(l\d+_\d+): object\(expression: "([^"]+)"\)', body):
+                    node[leaf] = {"__typename": "Blob"} if expr == "develop:README.md" else None
+                data[alias] = node
+            return {"data": data}
+        refs = {u: lc.parse_github(u) for u in (
+            "https://github.com/knsv/mermaid", "https://github.com/knsv/mermaid/blob/develop/README.md",
+            "https://github.com/knsv/mermaid/tree/master/src/themes")}
+        out = lc.GitHubChecker(call, lambda n: (404, None)).check(refs)
+        self.assertEqual([out[u].status for u in refs], ["moved", "moved", "broken"])
+        self.assertIn("mermaid-js/mermaid", out["https://github.com/knsv/mermaid"].detail)
+
     def test_rate_limit_is_unverified_not_broken(self):
         fake = FakeGitHub()
         fake.limited = True
@@ -248,6 +283,12 @@ class HttpTests(unittest.TestCase):
         for fetched, status in cases:
             self.assertEqual(lc.classify(fetched).status, status, fetched)
 
+    def test_a_429_is_waited_out_then_retried(self):
+        seq = [lc.Fetched(429, retry_after=0.0), lc.Fetched(429, retry_after=0.0), lc.Fetched(200)]
+        f = lambda url, method, timeout, read=0: seq.pop(0)
+        self.assertEqual(lc.check_http("https://busy.dev/", lc.HostGate(2), 5, f).status, "ok")
+        self.assertEqual(seq, [])
+
     def test_dns_failure_is_not_retried(self):
         f, calls = self.fetcher({"https://gone.dev/": lc.Fetched(None, error="DNS", dns=True)})
         self.assertEqual(lc.check_http("https://gone.dev/", lc.HostGate(2), 5, f).status, "broken")
@@ -261,7 +302,7 @@ class HttpTests(unittest.TestCase):
 
     def test_host_limits_match_suffixes(self):
         gate = lc.HostGate(4, lc.HOST_LIMITS)
-        self.assertEqual(gate.limit_for("bamr87.github.io"), 8)
+        self.assertEqual(gate.limit_for("bamr87.github.io"), 4)
         self.assertEqual(gate.limit_for("github.com"), 2)
         self.assertEqual(gate.limit_for("lifehacker.dev"), 4)
 
@@ -286,8 +327,9 @@ class RepoScanTests(unittest.TestCase):
                 "docs/img/a.png": "x",
                 "_reports/old.md": "https://expired.dev/run/1\n",
                 "_data/portfolio.yml": "extra:\n  - repo_url: https://github.com/bamr87/gone\n",
+                "templates/kit/AGENTS.md": "[the repo's own](../PRD.md) https://kit.dev/x\n",
             })
-            cfg = {**CFG, "exclude_paths": ["bamr87:_reports/**"]}
+            cfg = {**CFG, "exclude_paths": ["bamr87:_reports/**"], "relative_skip_paths": ["bamr87:templates/**"]}
             scan = lc.Scan()
             lc.scan_repos(scan, [lc.Repo("bamr87", "bamr87/bamr87", root)], cfg, lc.TrackedIndex())
             files = {k: r.status for k, r in scan.results.items() if k.startswith("file:")}
@@ -303,6 +345,8 @@ class RepoScanTests(unittest.TestCase):
             self.assertIn("https://github.com/bamr87/gone", scan.occurrences)
             self.assertEqual(scan.occurrences["https://github.com/bamr87/gone"][0].label(), "_data/portfolio.yml:2")
             self.assertNotIn("https://expired.dev/run/1", scan.occurrences)
+            self.assertIn("https://kit.dev/x", scan.occurrences)  # a template's URLs are still checked …
+            self.assertFalse(any("PRD.md" in k for k in scan.results))  # … its relative links are not
 
     def test_scoped_and_global_excludes(self):
         self.assertTrue(lc._excluded("README", "context/x/y.md", ["README:context/**"]))

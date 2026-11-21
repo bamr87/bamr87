@@ -24,7 +24,7 @@ tools/dash links url https://github.com/bamr87/zer0-demo-cookbook
 tools/dash links targets                          # the repos and sites a scan reads
 ```
 
-It exits 1 when a link is broken (`--fail-on error` also counts unreachable links; `--fail-on never` always exits 0). A local run reuses `ok` answers younger than `links.cache_hours` (24); `--fresh` asks every link again. github.com links need a GitHub token: `GH_TOKEN`, `GITHUB_TOKEN` or `gh auth token`, read-only use of public data; without one they are checked over HTTP and mostly come back `unverified`.
+It exits 1 when a link is broken (`--fail-on error` also counts unreachable links; `--fail-on never` always exits 0). A local run reuses `ok` HTTP answers younger than `links.cache_hours` (24); `--fresh` asks every link again. github.com links need a GitHub token: `GH_TOKEN`, `GITHUB_TOKEN` or `gh auth token`, read-only use of public data; without one they are checked over HTTP and mostly come back `unverified`.
 
 ## What it reads
 
@@ -32,18 +32,18 @@ It exits 1 when a link is broken (`--fail-on error` also counts unreachable link
 2. **Profile data.** The URL values of `links.data_files` in the hub — `_data/projects.yml` and `_data/portfolio.yml`, which `dash-gen readme` turns into the profile README's portfolio. A link there is reported at its line in the data, which is where it is fixed.
 3. **Live sites.** The `live_url` and `docs_url` of every owned, non-archived registry entry and every `live_url` in the portfolio's `extra:`. Each site's own `sitemap.xml` (sitemap indexes followed) gives its pages, shallowest first, up to `links.max_pages` (200); a site with no sitemap is crawled breadth-first from its home page instead. Every `<a href>`, `<img src>`, `<script src>`, `<source src>`, `<iframe src>` and `<link href>` (not `preconnect`/`dns-prefetch`) on those pages is a link, internal ones included — a broken permalink shows up here even when the source file looks right. A site whose home page does not answer is one broken link and is not crawled.
 
-Not links: anything that is not `http(s)`, placeholders (`your-username`, `<owner>`, `{{ … }}`, `${…}`), local and private addresses (`localhost`, `127.*`, `10.*`, `192.168.*`, `*.test`, `*.local`, a host with no dot), `example.com/.org/.net` and `links.exclude_urls`. They are counted, not checked.
+Not links: anything that is not `http(s)`, a `preconnect`/`dns-prefetch` hint (it names an origin, not a page), placeholders (`your-username`, `<owner>`, `{{ … }}`, `${…}`, `%BASE_URL%`), local and private addresses (`localhost`, `127.*`, `10.*`, `192.168.*`, `*.test`, `*.local`, a host with no dot), `example.com/.org/.net` and `links.exclude_urls`. They are counted, not checked.
 
 ### What is excluded, and why
 
-`links.exclude_paths` holds records, not surfaces: the hub's dated `_reports/` (links to runs GitHub has since expired) and `test/evidence/`, the README context engine's crawled `context/`, and README's `docs/<repo>/` folders, which are aggregated copies of other repos' docs — their originals are scanned, and the rendered copies are reached by crawling bamr87.github.io/README/. A pattern is a glob against a repo-relative path; `repo:glob` limits it to one repo.
+`links.exclude_paths` holds records, not surfaces: the hub's dated `_reports/` (links to runs GitHub has since expired) and `test/evidence/`, the README context engine's crawled `context/`, and README's `docs/<repo>/` folders, which are aggregated copies of other repos' docs — their originals are scanned, and the rendered copies are reached by crawling bamr87.github.io/README/. A pattern is a glob against a repo-relative path; `repo:glob` limits it to one repo. `links.relative_skip_paths` keeps a file's URLs but skips its relative links, for files whose relative links resolve somewhere else: the hub's `templates/` (a kit's links resolve in the repo it is copied into) and test `fixtures/`.
 
 ## How each link is checked
 
 Every link is checked once, however many files carry it, and the report lists every place it appears.
 
 - **github.com and raw.githubusercontent.com** go to the GraphQL API in batches (`links.github_batch` fields per query, four queries in flight), because github.com's HTML answers a crawler with 429. One `repository` node per repo, one aliased field per thing a link names inside it: a file or folder at a ref (`blob`, `tree`, `raw`, `blame`, `edit`; a branch with a slash in its name is tried at each split), an issue or pull request, a commit, a release tag, a workflow file behind an `actions/workflows/x.yml` badge, a discussion. Any other page of a repo (`actions/runs/…`, `compare`, `wiki`) is answered by the repo existing. A user or organization link asks `repositoryOwner`. A repository GraphQL cannot see is asked again over REST, which follows a rename: a renamed repo is `moved`, with its new name. The whole fleet costs a few hundred GraphQL points.
-- **Everything else** is an HTTP `HEAD`, then a `GET` when `HEAD` does not answer `ok` (enough servers mishandle `HEAD` that only a `GET` may call a link broken), and one more `GET` after a 5xx. At most `links.per_host` (4) requests are in flight per host — 8 on `*.github.io`, 2 on github.com's HTML — and `links.workers` (32) overall, interleaved across hosts.
+- **Everything else** is an HTTP `HEAD`, then a `GET` when `HEAD` does not answer `ok` (enough servers mishandle `HEAD` that only a `GET` may call a link broken), one more `GET` after a 5xx, and a 429 waited out (its `Retry-After`, at most 30 seconds) before the next try. At most `links.per_host` (4) requests are in flight per host — 2 on github.com's HTML — and `links.workers` (32) overall, interleaved across hosts so no thread waits on one busy host while others are idle. A local run caches only these HTTP answers; the GitHub ones are asked fresh each time, so a rename shows up as `moved`.
 
 | Status | Meaning | Exit 1? |
 | --- | --- | --- |

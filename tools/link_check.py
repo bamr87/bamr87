@@ -82,6 +82,7 @@ DEFAULTS: dict = {
     "data_files": ["_data/projects.yml", "_data/portfolio.yml"],
     "exclude_paths": [],
     "exclude_urls": [],
+    "relative_skip_paths": [],
     "workers": 16,
     "per_host": 4,
     "timeout": 15,
@@ -186,6 +187,7 @@ URL_RE = re.compile(r"""https?://[^\s<>"'`\[\]{}|\\^]+""")
 FENCE_RE = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
 INLINE_CODE_RE = re.compile(r"(`+)[^`\n]+?\1")
 COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
+HINT_LINK_RE = re.compile(r"<link\b[^>]*\brel\s*=\s*[\"']?(?:preconnect|dns-prefetch)\b[^>]*>", re.I)
 HTML_CODE_RE = re.compile(r"<(pre|code|script|style)\b[^>]*>.*?</\1\s*>", re.S | re.I)
 LIQUID_CODE_RE = re.compile(r"{%-?\s*(raw|highlight|comment)\b.*?%}.*?{%-?\s*end\1\s*-?%}", re.S)
 MD_TARGET_RE = re.compile(r"\]\(\s*<?([^)\s>]+)>?(?:\s+[\"'(][^)]*)?\)")
@@ -220,13 +222,31 @@ def strip_code(text: str, markdown: bool = True) -> str:
         text = "\n".join(out)
         text = INLINE_CODE_RE.sub(_blank, text)
     text = COMMENT_RE.sub(_blank, text)
+    text = HINT_LINK_RE.sub(_blank, text)  # a connection hint names an origin, not a page
     text = HTML_CODE_RE.sub(_blank, text)
     text = LIQUID_CODE_RE.sub(_blank, text)
     return text
 
 
+FULLWIDTH_STOP = re.compile(r"[\u3000-\u303f\uff01-\uff0f\uff1a-\uff20\uff3b-\uff40\uff5b-\uff65]")
+
+
 def clean_url(url: str) -> str:
     url = re.sub(r"\\([_*\[\]()#~\-.!])", r"\1", url)
+    # A URL ends at the first `)` it did not open — `[x](https://a.dev/)-word`
+    # and CJK text set without a space — and at fullwidth punctuation.
+    depth = 0
+    for i, ch in enumerate(url):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            if depth == 0:
+                url = url[:i]
+                break
+            depth -= 1
+    m = FULLWIDTH_STOP.search(url)
+    if m:
+        url = url[:m.start()]
     if "&amp;" in url or "&#" in url:
         url = html.unescape(url)
     while url:
@@ -278,8 +298,8 @@ def is_relative_file(target: str) -> bool:
     low = target.lower()
     if low.startswith(("mailto:", "tel:", "data:", "javascript:", "http:", "https:")):
         return False
-    if "{{" in target or "{%" in target or "%7b%7b" in low:
-        return False
+    if "{{" in target or "{%" in target or "%7b%7b" in low or re.search(r"%[A-Z_]+%", target):
+        return False  # Liquid, or a build-time placeholder such as Vite's %BASE_URL%
     path = target.split("#", 1)[0].split("?", 1)[0]
     if not path or path.endswith("/"):
         return False
@@ -472,9 +492,12 @@ def scan_repos(scan: Scan, repos: list[Repo], cfg: dict, index: TrackedIndex) ->
                 continue
             scan.files += 1
             kind = "yaml" if is_data else ("html" if low.endswith((".html", ".htm")) else "md")
+            skip_rel = _excluded(repo.name, rel, cfg.get("relative_skip_paths") or [])
             for line, target, what in extract(text, kind):
                 if what == "url":
                     scan.add(target, Occurrence(repo.name, rel, line), cfg)
+                    continue
+                if skip_rel:
                     continue
                 resolved = resolve_relative(repo.path, rel, target)
                 key = f"file:{repo.name}:{resolved or target}"
@@ -515,9 +538,10 @@ class HostGate:
             return self.gates[host]
 
 
-# GitHub Pages serves most of the fleet's sites from one host and takes far
-# more than a generic server; github.com's HTML answers crawlers with 429.
-HOST_LIMITS = {".github.io": 8, "github.com": 2, "www.github.com": 2}
+# github.com's HTML answers crawlers with 429 well before any other host. (GitHub
+# Pages serves most of the fleet's sites from one host, and 8 in flight there
+# drew 429s too, so it keeps the default.)
+HOST_LIMITS = {"github.com": 2, "www.github.com": 2}
 
 
 def interleave(urls: list[str]) -> list[str]:
@@ -546,6 +570,7 @@ class Fetched:
     ctype: str = ""
     error: str = ""
     dns: bool = False
+    retry_after: float | None = None
 
 
 def _opener() -> urllib.request.OpenerDirector:
@@ -555,7 +580,24 @@ def _opener() -> urllib.request.OpenerDirector:
     )
 
 
+def to_uri(url: str) -> str:
+    """An IRI as a request line can carry it: IDNA host, percent-encoded rest."""
+    if url.isascii() and not re.search(r"[\s\x00-\x1f]", url):
+        return url
+    parts = urllib.parse.urlsplit(url)
+    host = parts.hostname or ""
+    try:
+        host = host.encode("idna").decode("ascii")
+    except UnicodeError:
+        pass
+    netloc = host + (f":{parts.port}" if parts.port else "")
+    safe = "/:@!$&'()*+,;=%~-._"
+    return urllib.parse.urlunsplit((parts.scheme, netloc, urllib.parse.quote(parts.path, safe=safe),
+                                    urllib.parse.quote(parts.query, safe=safe + "?"), ""))
+
+
 def fetch(url: str, method: str, timeout: float, read: int = 0) -> Fetched:
+    url = to_uri(url)
     req = urllib.request.Request(url, method=method, headers={
         "User-Agent": UA,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -566,7 +608,9 @@ def fetch(url: str, method: str, timeout: float, read: int = 0) -> Fetched:
             body = resp.read(read) if read else (resp.read(1) if method == "GET" else b"")
             return Fetched(resp.status, resp.geturl(), body, resp.headers.get("Content-Type", ""))
     except urllib.error.HTTPError as exc:
-        return Fetched(exc.code, exc.geturl() if hasattr(exc, "geturl") else None, error=str(exc.reason))
+        wait = (exc.headers or {}).get("Retry-After") if exc.code == 429 else None
+        return Fetched(exc.code, exc.geturl() if hasattr(exc, "geturl") else None, error=str(exc.reason),
+                       retry_after=float(wait) if wait and str(wait).isdigit() else (5.0 if exc.code == 429 else None))
     except urllib.error.URLError as exc:
         reason = exc.reason
         if isinstance(reason, socket.gaierror):
@@ -606,7 +650,15 @@ def check_http(url: str, gate: HostGate, timeout: float, fetcher: Callable = fet
             return result
         # HEAD is refused or mishandled by enough servers that only a GET may
         # call a link broken, and a GET is also the one retry a timeout gets.
-        result = classify(fetcher(url, "GET", timeout))
+        # A 429 is waited out first (Retry-After, at most 30s), holding the
+        # host's gate so the rest of its queue waits too.
+        if first.code == 429:
+            time.sleep(min(5.0 if first.retry_after is None else first.retry_after, 30.0))
+        second = fetcher(url, "GET", timeout)
+        if second.code == 429:
+            time.sleep(min(5.0 if second.retry_after is None else second.retry_after, 30.0))
+            second = fetcher(url, "GET", timeout)
+        result = classify(second)
         if result.status == "error" and (result.code or 0) >= 500:
             time.sleep(2)
             result = classify(fetcher(url, "GET", timeout))
@@ -673,16 +725,18 @@ def parse_github(url: str) -> GhRef | None:
         return None
     if segs[0].lower() in RESERVED or segs[0].startswith((".", "-")):
         return None
-    if len(segs) == 1:
-        return GhRef(segs[0], None)
+    if len(segs) == 1:  # a user or organization; `<login>.png` is its avatar
+        return GhRef(segs[0].removesuffix(".png"), None)
     owner, repo = segs[0], segs[1].removesuffix(".git")
     if len(segs) == 2:
         return GhRef(owner, repo)
     kind, rest = segs[2].lower(), segs[3:]
     if kind in ("blob", "tree", "raw", "blame", "edit") and rest:
         return GhRef(owner, repo, ("obj", _exprs(rest)))
-    if kind in ("commit", "commits") and rest:
-        return GhRef(owner, repo, ("obj", ("/".join(rest),)))
+    if kind == "commit" and rest:
+        return GhRef(owner, repo, ("obj", (rest[0],)))
+    if kind == "commits" and rest:
+        return GhRef(owner, repo, ("obj", _exprs(rest) if len(rest) > 1 else (rest[0],)))
     if kind in ("pull", "issues") and rest and rest[0].isdigit() and int(rest[0]) < 2**31:
         return GhRef(owner, repo, ("issue", int(rest[0])))
     if kind == "discussions" and rest and rest[0].isdigit() and int(rest[0]) < 2**31:
@@ -867,11 +921,14 @@ class GitHubChecker:
                 out[url] = Result("moved", detail=f"repository renamed to {detail}", final=f"https://github.com/{detail}", how="github")
             elif st == "unverified":
                 out[url] = Result("unverified", detail=detail, how="github")
-            elif ref.leaf is None:
-                out[url] = Result("ok", how="github")
             else:
-                ls = leaf_state.get((nwo, ref.leaf), "unverified")
-                out[url] = Result(ls, detail="" if ls == "ok" else _leaf_detail(ref.leaf), how="github")
+                ls = "ok" if ref.leaf is None else leaf_state.get((nwo, ref.leaf), "unverified")
+                renamed = detail and detail.lower() != nwo
+                if ls == "ok" and renamed:
+                    out[url] = Result("moved", detail=f"repository renamed to {detail}",
+                                      final=f"https://github.com/{detail}", how="github")
+                else:
+                    out[url] = Result(ls, detail="" if ls == "ok" else _leaf_detail(ref.leaf), how="github")
         return out
 
 
@@ -1039,7 +1096,7 @@ def check_all(scan: Scan, cfg: dict, *, use_github: bool = True, fresh: bool = F
     todo = []
     for u in pending:
         hit = cache.get(u)
-        if hit and hit.get("status") == "ok" and hit.get("at", 0) >= horizon:
+        if hit and hit.get("status") == "ok" and hit.get("how") == "http" and hit.get("at", 0) >= horizon:
             scan.results[u] = Result("ok", hit.get("code"), how=hit.get("how", "http") + " (cached)")
         else:
             todo.append(u)
@@ -1071,7 +1128,7 @@ def check_all(scan: Scan, cfg: dict, *, use_github: bool = True, fresh: bool = F
             return
         now = time.time()
         for u, r in list(scan.results.items()):
-            if r.status == "ok" and not u.startswith("file:") and "(cached)" not in r.how:
+            if r.status == "ok" and r.how == "http":
                 cache[u] = {"status": "ok", "code": r.code, "how": r.how, "at": now}
         save_cache(cache, cache_path)
 

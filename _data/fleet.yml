@@ -776,6 +776,9 @@ links:
     - "**/vendor/**"
     - "**/_site/**"
   exclude_urls: []
+  relative_skip_paths:              # files whose RELATIVE links resolve somewhere else (their URLs are still checked)
+    - "bamr87:templates/**"         # kits: their links resolve in the repo the kit is copied into
+    - "**/fixtures/**"              # test fixtures that stand in for another repo
   workers: 32                       # requests in flight overall
   per_host: 4                       # … and per host (github.com over HTTP: 2)
   timeout: 12                       # seconds per request (a timeout gets one GET retry)
