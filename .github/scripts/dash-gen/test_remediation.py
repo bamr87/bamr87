@@ -447,14 +447,29 @@ def main() -> int:
            or {}).get("productive_schedule_pct") is not None)
 
     # The regression this issue is: run the guard against the COMMITTED
-    # analytics snapshot, which is the detector's own real input.
+    # analytics snapshot, which is the detector's own real input. Assert the
+    # guard's promise for every row that qualifies, not a workflow name: the
+    # snapshot is refreshed daily, and when zer0-mistakes nightly-extended.yml
+    # started failing (2026-11-21: 3 of 14 runs, 42 waste-min) it stopped being
+    # a productive schedule and was rightly queued as flaky, which a name check
+    # read as this regression returning and turned every hub PR red.
     live_usage = remediation.load_yaml(remediation.USAGE_DEFAULT)
     live_cfg = remediation.load_config(remediation.FLEET_DEFAULT)
     live_keys = remediation.usage_candidates(live_usage, live_cfg, OWNER)
-    check("the committed snapshot no longer queues nightly-extended.yml",
-          not any("nightly-extended.yml" in k for k in live_keys))
-    check("…nor quest-fix-loop.yml",
-          not any("quest-fix-loop.yml" in k for k in live_keys))
+    productive_keys = {
+        f"{actions_analytics.owner_repo(w.get('repo_url') or '')}:{w.get('path')}"
+        for w in live_usage.get("workflows", [])
+        if remediation.is_productive_schedule(w, live_cfg)
+    }
+    leaked = {k: sorted(live_keys[k]["signals"] & (remediation.PRODUCTIVE_SUPPRESSES | {"slow"}))
+              for k in productive_keys & set(live_keys)}
+    check(f"the committed snapshot queues none of its {len(productive_keys)} productive "
+          "schedule(s) as slow, costly or cron-heavy",
+          not any(leaked.values()))
+    for name in ("nightly-extended.yml", "quest-fix-loop.yml"):
+        if any(k.endswith(f"/{name}") for k in productive_keys):
+            check(f"…{name}, a productive schedule in this snapshot, is not queued",
+                  not any(k.endswith(f"/{name}") for k in live_keys))
 
     # --- stale reds (bamr87/bamr87#200) ------------------------------------- #
     # The live case: bamr87/gitorio `Factory: Gitorio Factory 1`. Three failures
