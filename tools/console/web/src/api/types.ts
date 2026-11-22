@@ -812,9 +812,29 @@ export interface GhAction {
 }
 
 // --- The site (tools/console/site_docs.py) ---------------------------------
+/**
+ * The site this build renders (_data/profile.yml `site:`; in a site build,
+ * with its `sites.<key>` entry laid over it by site_docs.site_settings).
+ */
+export interface SiteSettings {
+  title?: string; url?: string; description?: string; image?: string | null;
+  /** Who the site is by, where that is not the profile's own name. */
+  name?: string;
+  /** The tab icon and header mark, a file the app ships. */
+  mark?: string;
+  /** What `/` is in this build. */
+  front_door?: 'home' | 'desktop';
+  desktop?: {
+    /** `repos`: an icon for every repo (its frontend, else the repo app); `apps`: the framed frontends only. */
+    icons?: 'apps' | 'repos';
+    /** Registry ids shown first and offered on Welcome. */
+    pinned?: string[];
+    welcome?: string;
+  };
+}
 export interface Profile {
   name?: string; handle?: string; title?: string; tagline?: string; location?: string; email?: string; avatar?: string; summary?: string;
-  site?: { title?: string; url?: string; description?: string };
+  site?: SiteSettings;
   links?: { label: string; icon?: string; url: string }[];
 }
 export interface SitePageMeta { slug: string; title: string; description: string; order: number; icon: string }

@@ -64,6 +64,7 @@ ROOT = _HERE.parents[1]
 #: (ADR 0014 P2 changes the console page's half; a recording is held to whichever of the two says its words)
 PAGE_SOURCES = ("tools/console/web/src/assist/pageBridge.ts", "templates/assistant/fleet-assist.js")
 NAV_SOURCE = "tools/console/web/src/nav.ts"
+LINKS_SOURCE = "tools/console/web/src/lib/links.ts"
 #: what each action may be matched on in a rule (page_bridge.check holds the wire's own list)
 RULE_ARGS = {"read": ("ref",), "data": ("key",), "highlight": ("ref",), "navigate": ("path",),
              "click": ("ref",), "fill": ("ref", "text"), "press": ("key", "ref")}
@@ -265,13 +266,30 @@ def said_by_page(text: str, sentences: list[re.Pattern]) -> bool:
     return any(p.fullmatch(concrete) for p in sentences)
 
 
+def link_paths(root: Path = ROOT) -> dict[str, str]:
+    """`to.<name>()` → its path in the default build (web/src/lib/links.ts): a constant, or the `else` branch of a
+    build-time ternary such as `(DESKTOP_FIRST ? '/home' : '/')`, since the default front door is `home`."""
+    try:
+        text = (Path(root) / LINKS_SOURCE).read_text(encoding="utf-8")
+    except OSError:
+        return {}
+    out = {name: path for name, path in re.findall(r"^\s+(\w+): \(\) => '([^']+)',?$", text, re.M)}
+    out.update(re.findall(r"^\s+(\w+): \(\) => \(\w+ \? '[^']+' : '([^']+)'\),?$", text, re.M))
+    return out
+
+
 def nav_pairs(root: Path = ROOT) -> set[str]:
-    """`Label /path` for every page of the console's navigation (web/src/nav.ts), as a snapshot's `pages` says it."""
+    """`Label /path` for every page of the console's navigation (web/src/nav.ts), as a snapshot's `pages` says it;
+    a `to: to.<name>()` entry resolves through lib/links.ts to its default-build path."""
     try:
         text = (Path(root) / NAV_SOURCE).read_text(encoding="utf-8")
     except OSError:
         return set()
-    return {f"{label} {to}" for label, to in re.findall(r"label: '([^']+)', to: '([^']+)'", text)}
+    pairs = {f"{label} {to}" for label, to in re.findall(r"label: '([^']+)', to: '([^']+)'", text)}
+    links = link_paths(root)
+    pairs |= {f"{label} {links[name]}" for label, name in re.findall(r"label: '([^']+)', to: to\.(\w+)\(\)", text)
+              if name in links}
+    return pairs
 
 
 def recorded_refusals(inp: dict, defaults: dict | None = None) -> list[tuple[str, str]]:

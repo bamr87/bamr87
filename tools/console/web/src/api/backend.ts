@@ -22,6 +22,18 @@ export const BASE = import.meta.env.BASE_URL;
 /** For React Router: BASE without its trailing slash ('' at the root). */
 export const BASENAME = BASE.replace(/\/$/, '');
 
+/**
+ * What `/` is. The profile Home everywhere, except in a site build whose
+ * settings make the bashOS desktop its front door (_data/profile.yml `sites:`,
+ * `front_door: desktop`, compiled in by build-pages.sh): there `/` is the
+ * desktop and Home answers at /home. Routes exist before any document is read,
+ * so this is a build setting; everything else about a site (its title, who it
+ * is by, what the desktop shows) is read from the site document.
+ */
+export const FRONT_DOOR: 'home' | 'desktop' = import.meta.env.VITE_FRONT_DOOR === 'desktop' ? 'desktop' : 'home';
+/** The site's mark, a file the app ships: the console's own unless the build names one. */
+export const MARK: string = import.meta.env.VITE_SITE_MARK || 'favicon.svg';
+
 const REMOTE_KEY = 'console_remote_url';
 const GH_KEY = 'gh_direct_token';
 

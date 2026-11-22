@@ -185,6 +185,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`install-weekly.sh`](tools/install-weekly.sh) | Installs the weekly routine's LaunchAgent (`com.bamr87.weekly`: Friday, Saturday and Sunday slots from `weekly.schedule`, each running `tools/dash weekly auto --schedule… |
 | [`install-workspace-sync.sh`](tools/install-workspace-sync.sh) | Installs the `com.bamr87.workspace-sync` LaunchAgent (macOS) that runs `update-submodules.sh --no-commit --no-push` daily and at login, keeping the local clone on `main`… |
 | [`issue-evidence.sh`](tools/issue-evidence.sh) | Builds one issue's **evidence bundle** in an isolated virtual environment — fresh clone, own toolchain (`venv`/`node_modules`/`vendor/bundle`), the project's own lint/te… |
+| [`link_check.py`](tools/link_check.py) | **The fleet link check** (`tools/dash links`, weekly `link-check.yml`): finds every link the fleet publishes — each owned repo's tracked Markdown/HTML (fenced and inline… |
 | [`macos-register-nerd-fonts.swift`](tools/macos-register-nerd-fonts.swift) | One-shot CoreText helper for `setup-terminal.sh` — registers the MesloLGS Nerd Font `.ttf`s with the user's font registry so Terminal.app can see them without a logout/l… |
 | [`mcp_servers_lint.py`](tools/mcp_servers_lint.py) | Warn-then-fail lint for MCP client configs, the hub MCP |
 | [`pg-major-upgrade.sh`](tools/pg-major-upgrade.sh) | Upgrade a compose service's Postgres across a MAJOR without losing data (`dash dev db-upgrade`; `--check` is the `dash up` and `dash dev up` preflight): backs up the raw… |
@@ -260,6 +261,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_jev_sprints.py`](tools/test_jev_sprints.py) | Fixture tests for tools/jev/sprints.py — an expedite sprint's ceiling and circuit breaker (constitution § 27.3, § 27.4, § 27.6; #689). |
 | [`test_jev_surface.py`](tools/test_jev_surface.py) | Fixture tests for tools/jev/surface.py — the harness surface (JEV capability three, docs/HARNESS-REFINEMENT.md). |
 | [`test_jev_workspace.py`](tools/test_jev_workspace.py) | Fixture tests for tools/jev/workspace.py — the local loop engine's throwaway workspaces (#486, ADR 0002 P1). |
+| [`test_link_check.py`](tools/test_link_check.py) | Offline tests for tools/link_check.py — what counts as a link |
 | [`test_loop_switches.py`](tools/test_loop_switches.py) | Validate `_data/fleet.yml` `switches:` (constitution § 17, HUB-057 / FR54). |
 | [`test_mcp_servers_lint.py`](tools/test_mcp_servers_lint.py) | Fixture tests for tools/mcp_servers_lint.py (constitution § 25, and § 16.4's server.json).""" from __future__ import annotations |
 | [`test_pin_policy.py`](tools/test_pin_policy.py) | Fixture tests for the UPS-QA-40 pin policy in tools/conformance.py. |
@@ -316,6 +318,7 @@ The control-plane automation; standards and the full table in [`.github/workflow
 | [`issue-pipeline.yml`](.github/workflows/issue-pipeline.yml) | 🧭 Issue Pipeline | daily 07:37, dispatch | **The issue loop.** `scan` derives each open fleet issue's stage from its labels and writes one work order per tier. |
 | [`jev-conflicts.yml`](.github/workflows/jev-conflicts.yml) | 🧩 JEV — conflict triage | every 6 h at :23, push `main`, `repository_dispatch` `jev-c… | **JEV conflict triage** (HUB-035): lists open fleet PRs GitHub reports as CONFLICTING, reproduces each with a trial merge, classifies it into tiers 0–3 and resolves at t… |
 | [`jev-number.yml`](.github/workflows/jev-number.yml) | 🔢 JEV — assign numbers at merge | push `main`, `issues` closed (ratify only), dispatch (dry r… | **JEV numbering at merge** (HUB-035, amendment 0002): `python3 -m tools.jev number apply` under `concurrency: jev-number` assigns HUB/FR/NFR/amendment numbers to fragmen… |
+| [`link-check.yml`](.github/workflows/link-check.yml) | 🔗 Link check | Wed 10:43, dispatch (`repo`, `sites`, `fail_on`, default ne… | **The fleet link check**: checks out every submodule at its recorded pointer and runs `tools/link_check.py` over every owned repo's Markdown/HTML, the profile's data fil… |
 | [`markdown-oneline.yml`](.github/workflows/markdown-oneline.yml) | markdown-oneline | PR, push `main` (Markdown) | One paragraph per line (`tools/unwrap-prose.py`): on a same-repo PR it pushes the unwrap to the branch itself; on a fork PR or `main` it fails with the command to run. |
 | [`pr-review.yml`](.github/workflows/pr-review.yml) | PR review (reusable) | `workflow_run` of every workflow, `workflow_call` | The fleet's one PR comment (constitution § 19): every CI failure on a PR summarized in a sticky comment, deleted when nothing is failing, and each repo check's `fleet-fi… |
 | [`publish-kits.yml`](.github/workflows/publish-kits.yml) | publish-kits | push `main` (kit `package.json` / `VERSION`), dispatch | Packs and verifies every `templates/*/package.json`; publishes new versions to npm `@bamr87/*` with `NPM_TOKEN`, skipping versions already on the registry. |
@@ -494,6 +497,7 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`ISSUE-PIPELINE.md`](docs/ISSUE-PIPELINE.md) | The three-tier loop that turns an open issue into a merge-ready PR: label state machine, evidence bundles, caps, autonomy gates and the two human brakes. |
 | [`JEV.md`](docs/JEV.md) | The fleet's harness-level AI agent logic engine: conflict-free numbering (ids assigned at merge, never in a pull request), tiered pull-request conflict triage and resolu… |
 | [`LEARNING.md`](docs/LEARNING.md) | What happened to each loop's output, one estimate per loop and per repo of how likely the next output is to land, and where the next slots would pay. |
+| [`LINK-CHECK.md`](docs/LINK-CHECK.md) | Every link the fleet publishes — in the owned repos' Markdown and HTML, in the data the profile README is generated from, and on every live site — checked once, and each… |
 | [`MACHINE-API.md`](docs/MACHINE-API.md) | The agent-facing JSON the site publishes (`/api/v1/*.json`, `llms.txt`) and how to start from it. |
 | [`MCP-SERVERS.md`](docs/MCP-SERVERS.md) | Status: **proposed** (constitution § 25, amendment `mcp-lifecycle`; epic [#683](https://github.com/bamr87/bamr87/issues/683), backlog [#684](https://github.com/bamr87/ba… |
 | [`OBSERVABILITY.md`](docs/OBSERVABILITY.md) | The local log, metrics and trace planes joined on one `trace.id`: retention, redaction, the console's Observe portal and the code index. |
@@ -537,7 +541,6 @@ The pages of the public site — the Harness Console built static ([`docs/CONSOL
 
 | Section | Surface | Path | Description |
 | --- | --- | --- | --- |
-| Profile | Home | `/` | who, what the fleet looks like, what the site is for |
 | Profile | About | `/about` | background and stack |
 | Profile | Experience | `/experience` | 15+ years across ERP, finance systems and engineering |
 | Profile | Portfolio | `/portfolio` | every project, featured first |
@@ -546,7 +549,6 @@ The pages of the public site — the Harness Console built static ([`docs/CONSOL
 | Profile | Contact | `/contact` | get in touch |
 | Overview | Overview | `/overview` | attention, KPIs, signal freshness |
 | Fleet | Projects | `/projects` | every registry project — the TUI’s Apps view |
-| Fleet | Desktop | `/desktop` | the bashOS desktop: an icon per app, each in a window with the same controls |
 | Fleet | Apps | `/apps` | every fleet frontend, opened here: the live site or a local stack |
 | Fleet | Inbox | `/inbox` | flagged issues, PRs and failing workflows |
 | Fleet | PR queue | `/prs` | every open pull request, who moves it next, and bulk actions an agent carries out once you confirm |

@@ -11,7 +11,7 @@ import { ModalsProvider } from '@mantine/modals';
 import { Notifications } from '@mantine/notifications';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-import { BASENAME, hasConsole } from './api/backend';
+import { BASENAME, FRONT_DOOR, hasConsole } from './api/backend';
 import { ApiError } from './api/errors';
 import { LEGACY_ROUTES } from './lib/legacy';
 import { PROFILE_PAGES } from './nav';
@@ -75,6 +75,11 @@ const queryClient = new QueryClient({
 
 const colorSchemeManager = localStorageColorSchemeManager({ key: 'console_theme' });
 
+// The OS shell is its own chrome: the desktop, not a page inside the console's frame.
+const desktop = <ErrorBoundary resetKey="desktop"><Desktop /></ErrorBoundary>;
+// A site build may make the desktop the front door; the profile Home is then at /home.
+const desktopFirst = FRONT_DOOR === 'desktop';
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
@@ -87,10 +92,10 @@ createRoot(document.getElementById('root')!).render(
               <GlobalKeys />
               <CommandCenter />
               <Routes>
-                {/* The OS shell is its own chrome: the desktop, not a page inside the console's frame. */}
-                <Route path="desktop" element={<ErrorBoundary resetKey="desktop"><Desktop /></ErrorBoundary>} />
+                <Route path="desktop" element={desktop} />
+                {desktopFirst ? <Route index element={desktop} /> : null}
                 <Route element={<Shell />}>
-                  <Route index element={<Home />} />
+                  {desktopFirst ? <Route path="home" element={<Home />} /> : <Route index element={<Home />} />}
                   {PROFILE_PAGES.map((slug) => <Route key={slug} path={slug} element={<ProfilePage key={slug} slug={slug} />} />)}
                   <Route path="portfolio" element={<Portfolio />} />
                   <Route path="blog" element={<Blog />} />

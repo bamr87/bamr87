@@ -402,6 +402,22 @@
       "presentation": { "group": "2-site", "order": 1 }
     },
     {
+      // One of the other sites _data/profile.yml declares under `sites:`: the same
+      // console under that site's title and mark, with its own front door.
+      "name": "🌐 Site: build + serve another site of this console (CONSOLE_SITE; :4000)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash serve",
+      "cwd": "${workspaceFolder}",
+      "env": { "CONSOLE_SITE": "${input:consoleSite}" },
+      "serverReadyAction": {
+        "pattern": "dash serve: (http://\\S+)",
+        "uriFormat": "http://127.0.0.1:4000/",
+        "action": "openExternally"
+      },
+      "presentation": { "group": "2-site", "order": 1 }
+    },
+    {
       "name": "🌐 Site: debug in Edge (:4000)",
       "type": "msedge",
       "request": "launch",
@@ -817,6 +833,14 @@
       "type": "node-terminal",
       "request": "launch",
       "command": "tools/dash reconcile",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 16 }
+    },
+    {
+      "name": "🔗 Links: check every live link (owned repos + live sites, read-only)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash links",
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "4-generate", "order": 16 }
     },
@@ -1804,6 +1828,14 @@
       "type": "pickString",
       "options": ["lifehacker.dev", "it-journey", "bash-365.com", "year-of-ai.github.io", "ai-world-view.github.io", "irony-works", "wargames", "2005", "china"],
       "default": "it-journey"
+    },
+    {
+      // _data/profile.yml `sites:` (tools/console/build-pages.sh CONSOLE_SITE).
+      "id": "consoleSite",
+      "description": "Site build of the console (profile.yml sites)",
+      "type": "pickString",
+      "options": ["bash-365"],
+      "default": "bash-365"
     },
     {
       // verify/scenarios/*.yml (tools/dash verify --list).

@@ -10,7 +10,10 @@ Home, Portfolio and Writing pages locally), and snapshot.py writes them as
 static JSON for GitHub Pages.
 
 Inputs, all committed:
-  _data/profile.yml        identity (name, title, links, avatar)
+  _data/profile.yml        identity (name, title, links, avatar), and under
+                           `sites:` the other public builds of this console:
+                           each entry is laid over `site:` for that build only
+                           (site_settings; docs/CONSOLE-PAGES.md "Site builds")
   pages/profile/*.md       long-form pages — front matter: title, description,
                            order, icon; the body is Markdown, rendered by the page
   pages/posts/*.md         dated writing, YYYY-MM-DD-slug.md — front matter: title,
@@ -96,8 +99,70 @@ def _split(path: Path) -> tuple[dict, str]:
     return (front if isinstance(front, dict) else {}), m.group(2).lstrip("\n")
 
 
-def profile() -> dict:
-    return _plain(_load(DATA / "profile.yml") or {})
+# What `/` may be, and what the desktop may show an icon for.
+FRONT_DOORS = ("home", "desktop")
+DESKTOP_ICONS = ("apps", "repos")
+SITE_KEY_RX = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
+# A mark is a file of web/public/ named in an HTML attribute: a plain name only.
+MARK_RX = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,80}\.(svg|png)$")
+PUBLIC = REPO_ROOT / "tools" / "console" / "web" / "public"
+
+
+def site_settings(site: str | None = None) -> dict:
+    """The `site:` block one build renders. With no key it is profile.yml's
+    own `site:`, untouched. With a key it is that block with `sites.<key>` laid
+    over it, checked: an unknown key, a front door or icon set that does not
+    exist and a mark that is not a file of web/public/ are refused here, at
+    build time, instead of becoming a page that half works."""
+    raw = _load(DATA / "profile.yml") or {}
+    base = dict(raw.get("site") or {})
+    if not site:
+        return _plain(base)
+    sites = raw.get("sites") if isinstance(raw.get("sites"), dict) else {}
+    if not SITE_KEY_RX.match(site) or not isinstance(sites.get(site), dict):
+        raise KeyError(f"_data/profile.yml declares no site {site!r} (sites: {', '.join(sorted(sites)) or 'none'})")
+    out = base | sites[site]
+    out["key"] = site
+    door = out.setdefault("front_door", "home")
+    if door not in FRONT_DOORS:
+        raise ValueError(f"sites.{site}.front_door is {door!r}; it is one of {', '.join(FRONT_DOORS)}")
+    mark = out.get("mark")
+    if mark is not None and not (isinstance(mark, str) and MARK_RX.match(mark) and (PUBLIC / mark).is_file()):
+        raise ValueError(f"sites.{site}.mark {mark!r} is not an .svg or .png file in tools/console/web/public/")
+    desk = out.get("desktop")
+    if desk is not None:
+        if not isinstance(desk, dict):
+            raise ValueError(f"sites.{site}.desktop is a mapping (icons, pinned, welcome)")
+        if desk.get("icons", "apps") not in DESKTOP_ICONS:
+            raise ValueError(f"sites.{site}.desktop.icons is {desk.get('icons')!r}; it is one of {', '.join(DESKTOP_ICONS)}")
+        pinned = desk.get("pinned", [])
+        if not (isinstance(pinned, list) and all(isinstance(x, str) and x for x in pinned)):
+            raise ValueError(f"sites.{site}.desktop.pinned is a list of registry ids")
+    return _plain(out)
+
+
+def profile(site: str | None = None) -> dict:
+    """Who the site is about. `sites:` is build configuration, never part of
+    the document: a build publishes its own `site:` block and no other's."""
+    doc = dict(_load(DATA / "profile.yml") or {})
+    doc.pop("sites", None)
+    if site:
+        doc["site"] = site_settings(site)
+    return _plain(doc)
+
+
+def build_env(site: str) -> dict[str, str]:
+    """What build-pages.sh needs to know about a site before it builds the
+    page: the front door and the mark are compiled into the page (the routes
+    and the tab icon exist before any document is read); the address is the
+    default SITE_URL, and the path it is served under is that address's path."""
+    from urllib.parse import urlsplit
+
+    s = site_settings(site)
+    url = str(s.get("url") or "").rstrip("/")
+    path = urlsplit(url).path.strip("/")
+    return {"SITE_FRONT_DOOR": s["front_door"], "SITE_MARK": str(s.get("mark") or ""),
+            "SITE_DEFAULT_URL": url, "SITE_DEFAULT_BASE": f"/{path}/" if path else "/"}
 
 
 def _page_meta(path: Path, front: dict) -> dict:
@@ -181,12 +246,35 @@ def post(slug: str, include_drafts: bool = False) -> dict:
     raise KeyError(slug)
 
 
-def site_index(include_drafts: bool = False) -> dict:
+def site_index(include_drafts: bool = False, site: str | None = None) -> dict:
     """Everything the shell needs to draw the Profile section and the Home page."""
-    return {"profile": profile(), "pages": pages(), "posts": posts(include_drafts)}
+    return {"profile": profile(site), "pages": pages(), "posts": posts(include_drafts)}
 
 
 def data(name: str):
     if name not in PUBLIC_DATA:
         raise KeyError(name)
     return _plain(_load(DATA / PUBLIC_DATA[name]))
+
+
+def main(argv: list[str] | None = None) -> int:
+    """`site_docs.py build-env <site>`: that site's build settings as shell
+    assignments, for build-pages.sh to eval. Values are quoted for the shell."""
+    import shlex
+
+    args = list(sys.argv[1:] if argv is None else argv)
+    if len(args) != 2 or args[0] != "build-env":
+        print("usage: site_docs.py build-env <site>", file=sys.stderr)
+        return 2
+    try:
+        env = build_env(args[1])
+    except (KeyError, ValueError) as exc:
+        print(f"site_docs: {exc.args[0] if exc.args else exc}", file=sys.stderr)
+        return 2
+    for key, value in env.items():
+        print(f"{key}={shlex.quote(value)}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

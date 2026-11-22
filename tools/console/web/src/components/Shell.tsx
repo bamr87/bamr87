@@ -12,7 +12,7 @@ import {
 } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { EMBEDDED, asset, consoleOrigin, hasConsole, mode } from '../api/backend';
+import { EMBEDDED, MARK, asset, consoleOrigin, hasConsole, mode } from '../api/backend';
 import { useCaps, useGithubStatus, useJobs, useManifest, useSite, useStateDoc } from '../api/hooks';
 import { clearSnapshotCache } from '../api/static';
 import { AssistDock } from '../assist/AssistDock';
@@ -173,9 +173,10 @@ export function Shell() {
   // The page's own name once it has said it; the sidebar's until then.
   const item = FLAT[active];
   const pageTitle = named?.path === pathname ? named.title : item?.label;
-  const atHome = pathname === '/';
+  const atHome = pathname === to.home();
   useEffect(() => {
-    document.title = pageTitle && !atHome ? `${pageTitle} · ${brand}` : `${brand}${site.data?.profile.name ? ` — ${site.data.profile.name}` : ''}`;
+    const by = site.data?.profile.site?.name ?? site.data?.profile.name;
+    document.title = pageTitle && !atHome ? `${pageTitle} · ${brand}` : `${brand}${by ? ` — ${by}` : ''}`;
   }, [pageTitle, atHome, brand, site.data]);
   useEffect(() => {
     if (item && pageTitle && !atHome && !EMBEDDED) rememberPage({ path: pathname, label: pageTitle });
@@ -227,7 +228,7 @@ export function Shell() {
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Menu" aria-expanded={opened} aria-controls="console-nav" />
             <UnstyledButton component={Link} to="/">
               <Group gap={8} wrap="nowrap">
-                <img src={asset('favicon.svg')} width={24} height={24} alt="" />
+                <img src={asset(MARK)} width={24} height={24} alt="" />
                 <Text fw={650} fz={16} className={u.nowrap}>{brand}</Text>
                 <Text size="xs" c="dimmed" visibleFrom="lg" className={u.nowrap}>Harness Console</Text>
               </Group>

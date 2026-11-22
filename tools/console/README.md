@@ -252,7 +252,7 @@ The refinement is a read for agents too: `refine_status` (the whole document, or
 
 ## The public site
 
-`build-pages.sh` builds this page a second way — base `/bamr87/`, `VITE_STATIC=1` — and `snapshot.py` writes every GET document the page reads as a file beside it, rendered by the same functions the routes above call. That is what `build-dash.yml` publishes. It also adds the profile: Home, About, Experience, Portfolio, Writing, Services and Contact (`site_docs.py`, from `_data/profile.yml` and `pages/`), served here too at `/api/site*` and `/api/data/{name}`.
+`build-pages.sh` builds this page a second way — base `/bamr87/`, `VITE_STATIC=1` — and `snapshot.py` writes every GET document the page reads as a file beside it, rendered by the same functions the routes above call. That is what `build-dash.yml` publishes. It also adds the profile: Home, About, Experience, Portfolio, Writing, Services and Contact (`site_docs.py`, from `_data/profile.yml` and `pages/`), served here too at `/api/site*` and `/api/data/{name}`. `CONSOLE_SITE=<key>` builds one of the other sites `_data/profile.yml` declares under `sites:` — the same page under that site's title and mark, with the bashOS desktop as its front door where its settings say so ([docs/CONSOLE-PAGES.md](../../docs/CONSOLE-PAGES.md#site-builds-the-same-console-at-another-address)).
 
 On that page, `/connect` lets a visitor add:
 
