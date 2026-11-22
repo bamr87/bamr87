@@ -30,7 +30,7 @@ totals:
     local-job: 6
   with_gaps: 134
   gaps_by_rule:
-    R1: 115
+    R1: 60
     R2: 134
     R3: 0
     R4: 0
@@ -568,8 +568,9 @@ agents:
   repo: bamr87/README
   where: .github/workflows/aggregate-docs.yaml
   owner: bamr87
-  trigger: schedule Mon 03:00 UTC weekly; workflow_dispatch
-  switch: null
+  trigger: schedule Mon 03:23 UTC weekly; workflow_dispatch
+  switch:
+    variable: AGGREGATE_DOCS_ENABLED
   budget: null
   model: null
   kpis:
@@ -588,7 +589,6 @@ agents:
   gaps:
   - R1:budget
   - R1:model
-  - R1:switch
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
 - id: ci:README:claude
@@ -600,8 +600,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -616,8 +617,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:SCHEMA:claude
   kind: ci-mention
@@ -832,8 +831,10 @@ agents:
   where: .github/workflows/ai-content-review.yml
   owner: bamr87
   trigger: pull_request; workflow_dispatch
-  switch: null
-  budget: null
+  switch:
+    variable: AI_CONTENT_REVIEW_ENABLED
+  budget:
+    per_run_usd: 10.0
   model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: 0.1
@@ -849,8 +850,6 @@ agents:
   local_entry: null
   first_seen: '2026-11-11'
   gaps:
-  - R1:budget
-  - R1:switch
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
 - id: ci:ai-world-view.github.io:claude
@@ -862,8 +861,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -878,8 +878,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-11'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:ai-world-view.github.io:framework-pr-reviewer
   kind: ci-event
@@ -888,8 +886,10 @@ agents:
   where: .github/workflows/framework-pr-reviewer.yml
   owner: bamr87
   trigger: pull_request; workflow_dispatch
-  switch: null
-  budget: null
+  switch:
+    variable: FRAMEWORK_PR_REVIEWER_ENABLED
+  budget:
+    per_run_usd: 10.0
   model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: 0.1
@@ -905,8 +905,6 @@ agents:
   local_entry: null
   first_seen: '2026-11-11'
   gaps:
-  - R1:budget
-  - R1:switch
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
 - id: ci:ai-world-view.github.io:grow-lineage
@@ -917,7 +915,8 @@ agents:
   owner: bamr87
   trigger: workflow_dispatch
   switch: null
-  budget: null
+  budget:
+    per_run_usd: 15.0
   model: null
   kpis:
     accepted_per_usd: 0.1
@@ -933,7 +932,6 @@ agents:
   local_entry: null
   first_seen: '2026-11-11'
   gaps:
-  - R1:budget
   - R1:model
   - R1:switch
   - R2:missing:cost_source,tool_errors
@@ -946,7 +944,8 @@ agents:
   owner: bamr87
   trigger: workflow_dispatch
   switch: null
-  budget: null
+  budget:
+    per_run_usd: 10.0
   model: null
   kpis:
     accepted_per_usd: 0.1
@@ -962,7 +961,6 @@ agents:
   local_entry: null
   first_seen: '2026-11-11'
   gaps:
-  - R1:budget
   - R1:model
   - R1:switch
   - R2:missing:cost_source,tool_errors
@@ -976,7 +974,8 @@ agents:
   trigger: schedule daily 13:10 UTC; workflow_dispatch
   switch:
     variable: SECRET_EXPIRY_WATCH_ENABLED
-  budget: null
+  budget:
+    per_run_usd: 10.0
   model: claude-haiku-5-5
   kpis:
     accepted_per_usd: 0.05
@@ -992,7 +991,6 @@ agents:
   local_entry: null
   first_seen: '2026-11-11'
   gaps:
-  - R1:budget
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
 - id: ci:amrchy:claude
@@ -1004,8 +1002,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -1020,8 +1019,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-09'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:amrchy:upstream-sync
   kind: ci-scheduled
@@ -1061,8 +1058,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -1077,8 +1075,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:bash-365-apex:claude
   kind: ci-mention
@@ -1089,8 +1085,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -1105,8 +1102,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-11'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:bash-365.com:claude
   kind: ci-mention
@@ -1117,8 +1112,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -1133,8 +1129,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-11'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:bash-365.com:content-gardener
   kind: ci-scheduled
@@ -1145,8 +1139,9 @@ agents:
   trigger: schedule Mon 14:23 UTC weekly; workflow_dispatch
   switch:
     variable: CONTENT_GARDENER_ENABLED
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 10.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: 0.05
     accepted_per_actions_min: 0.02
@@ -1161,8 +1156,6 @@ agents:
   local_entry: null
   first_seen: '2026-11-11'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
 - id: ci:bash-365.com:content-loop
@@ -1174,7 +1167,8 @@ agents:
   trigger: schedule daily 14:11 UTC; workflow_dispatch
   switch:
     variable: CONTENT_LOOP_ENABLED
-  budget: null
+  budget:
+    per_run_usd: 10.0
   model: null
   kpis:
     accepted_per_usd: 0.05
@@ -1190,7 +1184,6 @@ agents:
   local_entry: null
   first_seen: '2026-11-11'
   gaps:
-  - R1:budget
   - R1:model
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
@@ -1203,8 +1196,9 @@ agents:
   trigger: schedule Thu 14:37 UTC weekly; workflow_dispatch
   switch:
     variable: CONTENT_REVIEW_ENABLED
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 10.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: 0.05
     accepted_per_actions_min: 0.02
@@ -1219,8 +1213,6 @@ agents:
   local_entry: null
   first_seen: '2026-11-11'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
 - id: ci:bash-365.com:linkedin-revisit
@@ -1232,8 +1224,9 @@ agents:
   trigger: schedule Wed 15:41 UTC weekly; workflow_dispatch
   switch:
     variable: LINKEDIN_REVISIT_ENABLED
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 10.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: 0.05
     accepted_per_actions_min: 0.02
@@ -1248,8 +1241,6 @@ agents:
   local_entry: null
   first_seen: '2026-11-11'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
 - id: ci:bash-365.com:linkedin-weekly
@@ -1261,8 +1252,9 @@ agents:
   trigger: schedule Fri 15:23 UTC weekly; workflow_dispatch
   switch:
     variable: LINKEDIN_WEEKLY_ENABLED
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 10.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: 0.05
     accepted_per_actions_min: 0.02
@@ -1277,8 +1269,6 @@ agents:
   local_entry: null
   first_seen: '2026-11-11'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
 - id: ci:bash-365.com:preacher
@@ -1290,8 +1280,9 @@ agents:
   trigger: schedule Sat 14:42 UTC weekly; workflow_dispatch
   switch:
     variable: PREACHER_ENABLED
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 10.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: 0.05
     accepted_per_actions_min: 0.02
@@ -1306,8 +1297,6 @@ agents:
   local_entry: null
   first_seen: '2026-11-11'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
 - id: ci:bashcrawl:claude
@@ -1319,8 +1308,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -1335,8 +1325,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:bashos:claude
   kind: ci-mention
@@ -1347,8 +1335,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -1363,8 +1352,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:csv-vscoode:claude
   kind: ci-mention
@@ -1403,8 +1390,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -1419,8 +1407,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:djangoerp:claude
   kind: ci-mention
@@ -1431,8 +1417,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -1447,8 +1434,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:edgar-pipeline:claude
   kind: ci-mention
@@ -1459,8 +1444,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -1475,8 +1461,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:edgar-pipeline:evolve
   kind: ci-scheduled
@@ -1484,11 +1468,11 @@ agents:
   repo: bamr87/edgar-pipeline
   where: .github/workflows/evolve.yml
   owner: bamr87
-  trigger: schedule Mon 06:17 UTC weekly; workflow_dispatch
+  trigger: schedule Mon 12:17 UTC weekly; workflow_dispatch
   switch:
     variable: EVOLVE_ENABLED
   budget:
-    per_run_usd: 10.0
+    per_run_usd: 20.0
   model: null
   kpis:
     accepted_per_usd: 0.05
@@ -1516,8 +1500,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -1532,8 +1517,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:fleet-infra:evolve
   kind: ci-scheduled
@@ -1541,11 +1524,11 @@ agents:
   repo: bamr87/fleet-infra
   where: .github/workflows/evolve.yml
   owner: bamr87
-  trigger: schedule Mon 06:17 UTC weekly; workflow_dispatch
+  trigger: schedule Tue 12:17 UTC weekly; workflow_dispatch
   switch:
     variable: EVOLVE_ENABLED
   budget:
-    per_run_usd: 10.0
+    per_run_usd: 20.0
   model: null
   kpis:
     accepted_per_usd: 0.05
@@ -1573,8 +1556,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -1589,8 +1573,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:fleet-mobile:evolve
   kind: ci-scheduled
@@ -1598,11 +1580,11 @@ agents:
   repo: bamr87/fleet-mobile
   where: .github/workflows/evolve.yml
   owner: bamr87
-  trigger: schedule Mon 06:17 UTC weekly; workflow_dispatch
+  trigger: schedule Wed 12:17 UTC weekly; workflow_dispatch
   switch:
     variable: EVOLVE_ENABLED
   budget:
-    per_run_usd: 10.0
+    per_run_usd: 20.0
   model: null
   kpis:
     accepted_per_usd: 0.05
@@ -1630,8 +1612,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -1646,8 +1629,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:fleet-observe:evolve
   kind: ci-scheduled
@@ -1655,11 +1636,11 @@ agents:
   repo: bamr87/fleet-observe
   where: .github/workflows/evolve.yml
   owner: bamr87
-  trigger: schedule Mon 06:17 UTC weekly; workflow_dispatch
+  trigger: schedule Thu 12:17 UTC weekly; workflow_dispatch
   switch:
     variable: EVOLVE_ENABLED
   budget:
-    per_run_usd: 10.0
+    per_run_usd: 20.0
   model: null
   kpis:
     accepted_per_usd: 0.05
@@ -1687,8 +1668,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -1703,8 +1685,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:githubai:claude
   kind: ci-mention
@@ -1715,8 +1695,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment; workflow_call
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -1731,8 +1712,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:githubai:claude-auto-merge
   kind: ci-event
@@ -1741,8 +1720,10 @@ agents:
   where: .github/workflows/claude-auto-merge.yml
   owner: bamr87
   trigger: pull_request; workflow_call; workflow_dispatch
-  switch: null
-  budget: null
+  switch:
+    variable: CLAUDE_AUTO_MERGE_ENABLED
+  budget:
+    per_run_usd: 10.0
   model: null
   kpis:
     accepted_per_usd: 0.1
@@ -1758,9 +1739,7 @@ agents:
   local_entry: null
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
   - R1:model
-  - R1:switch
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
 - id: ci:githubai:claude-implement
@@ -1770,8 +1749,10 @@ agents:
   where: .github/workflows/claude-implement.yml
   owner: bamr87
   trigger: issues; workflow_call; workflow_dispatch
-  switch: null
-  budget: null
+  switch:
+    variable: CLAUDE_IMPLEMENT_ENABLED
+  budget:
+    per_run_usd: 15.0
   model: null
   kpis:
     accepted_per_usd: 0.1
@@ -1787,9 +1768,7 @@ agents:
   local_entry: null
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
   - R1:model
-  - R1:switch
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
 - id: ci:githubai:claude-maintenance
@@ -1801,7 +1780,8 @@ agents:
   trigger: schedule Mon 16:40 UTC weekly; workflow_call; workflow_dispatch
   switch:
     variable: CLAUDE_MAINTENANCE_ENABLED
-  budget: null
+  budget:
+    per_run_usd: 15.0
   model: null
   kpis:
     accepted_per_usd: 0.05
@@ -1817,7 +1797,6 @@ agents:
   local_entry: null
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
   - R1:model
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
@@ -1828,8 +1807,10 @@ agents:
   where: .github/workflows/claude-release.yml
   owner: bamr87
   trigger: push; workflow_call; workflow_dispatch
-  switch: null
-  budget: null
+  switch:
+    variable: CLAUDE_RELEASE_ENABLED
+  budget:
+    per_run_usd: 15.0
   model: null
   kpis:
     accepted_per_usd: 0.1
@@ -1845,9 +1826,7 @@ agents:
   local_entry: null
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
   - R1:model
-  - R1:switch
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
 - id: ci:githubai:claude-review
@@ -1857,8 +1836,10 @@ agents:
   where: .github/workflows/claude-review.yml
   owner: bamr87
   trigger: pull_request; workflow_call; workflow_dispatch
-  switch: null
-  budget: null
+  switch:
+    variable: CLAUDE_REVIEW_ENABLED
+  budget:
+    per_run_usd: 15.0
   model: null
   kpis:
     accepted_per_usd: 0.1
@@ -1874,9 +1855,7 @@ agents:
   local_entry: null
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
   - R1:model
-  - R1:switch
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
 - id: ci:githubai:claude-triage
@@ -1886,8 +1865,10 @@ agents:
   where: .github/workflows/claude-triage.yml
   owner: bamr87
   trigger: issues; workflow_call; workflow_dispatch
-  switch: null
-  budget: null
+  switch:
+    variable: CLAUDE_TRIAGE_ENABLED
+  budget:
+    per_run_usd: 15.0
   model: null
   kpis:
     accepted_per_usd: 0.1
@@ -1903,9 +1884,7 @@ agents:
   local_entry: null
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
   - R1:model
-  - R1:switch
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
 - id: ci:gitorio:claude
@@ -1917,8 +1896,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -1933,8 +1913,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:gitorio:factory--docs-gardener
   kind: ci-event
@@ -2057,8 +2035,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -2073,8 +2052,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:godotgo:claude-code-review
   kind: ci-event
@@ -2083,9 +2060,11 @@ agents:
   where: .github/workflows/claude-code-review.yml
   owner: bamr87
   trigger: pull_request
-  switch: null
-  budget: null
-  model: null
+  switch:
+    variable: CLAUDE_CODE_REVIEW_ENABLED
+  budget:
+    per_run_usd: 10.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: 0.1
     accepted_per_actions_min: 0.05
@@ -2100,9 +2079,6 @@ agents:
   local_entry: null
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
-  - R1:switch
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
 - id: ci:godotgo:claude-improve
@@ -2116,7 +2092,7 @@ agents:
     variable: CLAUDE_IMPROVE_ENABLED
   budget:
     per_run_usd: 15.0
-  model: null
+  model: claude-opus-5-5
   kpis:
     accepted_per_usd: 0.05
     accepted_per_actions_min: 0.02
@@ -2131,7 +2107,6 @@ agents:
   local_entry: null
   first_seen: '2026-11-07'
   gaps:
-  - R1:model
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
 - id: ci:it-journey:agent-audit
@@ -2172,8 +2147,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -2188,8 +2164,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:it-journey:cms-daily-loop
   kind: ci-scheduled
@@ -2198,8 +2172,10 @@ agents:
   where: .github/workflows/cms-daily-loop.yml
   owner: bamr87
   trigger: schedule daily 22:10 UTC; workflow_dispatch
-  switch: null
-  budget: null
+  switch:
+    variable: CMS_DAILY_LOOP_ENABLED
+  budget:
+    per_run_usd: 10.0
   model: claude-opus-5-5
   kpis:
     accepted_per_usd: 0.05
@@ -2215,8 +2191,6 @@ agents:
   local_entry: null
   first_seen: '2026-11-11'
   gaps:
-  - R1:budget
-  - R1:switch
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
 - id: ci:it-journey:content-factory
@@ -2312,8 +2286,9 @@ agents:
   repo: bamr87/it-journey
   where: .github/workflows/link-checker.yml
   owner: bamr87
-  trigger: schedule Mon 06:00 UTC weekly; pull_request; workflow_dispatch
-  switch: null
+  trigger: schedule Mon 06:23 UTC weekly; pull_request; workflow_dispatch
+  switch:
+    variable: LINK_CHECKER_ENABLED
   budget: null
   model: null
   kpis:
@@ -2332,7 +2307,6 @@ agents:
   gaps:
   - R1:budget
   - R1:model
-  - R1:switch
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
 - id: ci:it-journey:quest-fix
@@ -2518,8 +2492,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -2534,8 +2509,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:kvlite:evolve
   kind: ci-scheduled
@@ -2543,11 +2516,11 @@ agents:
   repo: bamr87/kvlite
   where: .github/workflows/evolve.yml
   owner: bamr87
-  trigger: schedule Mon 06:17 UTC weekly; workflow_dispatch
+  trigger: schedule Fri 12:17 UTC weekly; workflow_dispatch
   switch:
     variable: EVOLVE_ENABLED
   budget:
-    per_run_usd: 10.0
+    per_run_usd: 20.0
   model: null
   kpis:
     accepted_per_usd: 0.05
@@ -2575,8 +2548,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -2591,8 +2565,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:lifehacker.dev:agent-review
   kind: ci-scheduled
@@ -2960,8 +2932,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -2976,8 +2949,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:netprobe:evolve
   kind: ci-scheduled
@@ -2985,11 +2956,11 @@ agents:
   repo: bamr87/netprobe
   where: .github/workflows/evolve.yml
   owner: bamr87
-  trigger: schedule Mon 06:17 UTC weekly; workflow_dispatch
+  trigger: schedule Tue 17:17 UTC weekly; workflow_dispatch
   switch:
     variable: EVOLVE_ENABLED
   budget:
-    per_run_usd: 10.0
+    per_run_usd: 20.0
   model: null
   kpis:
     accepted_per_usd: 0.05
@@ -3017,8 +2988,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -3033,8 +3005,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:outbox:claude
   kind: ci-mention
@@ -3045,8 +3015,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -3061,8 +3032,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:ragio-ai:claude
   kind: ci-mention
@@ -3073,8 +3042,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -3089,8 +3059,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:ragio-ai:evolve
   kind: ci-scheduled
@@ -3098,11 +3066,11 @@ agents:
   repo: bamr87/ragio-ai
   where: .github/workflows/evolve.yml
   owner: bamr87
-  trigger: schedule Mon 06:17 UTC weekly; workflow_dispatch
+  trigger: schedule Wed 17:17 UTC weekly; workflow_dispatch
   switch:
     variable: EVOLVE_ENABLED
   budget:
-    per_run_usd: 10.0
+    per_run_usd: 20.0
   model: null
   kpis:
     accepted_per_usd: 0.05
@@ -3130,8 +3098,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -3146,8 +3115,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-09'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:rewind-arcade:claude
   kind: ci-mention
@@ -3158,8 +3125,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -3174,8 +3142,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:schema-lang:claude
   kind: ci-mention
@@ -3186,8 +3152,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -3202,8 +3169,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:schema-lang:evolve
   kind: ci-scheduled
@@ -3211,11 +3176,11 @@ agents:
   repo: bamr87/schema-lang
   where: .github/workflows/evolve.yml
   owner: bamr87
-  trigger: schedule Mon 06:17 UTC weekly; workflow_dispatch
+  trigger: schedule Thu 17:17 UTC weekly; workflow_dispatch
   switch:
     variable: EVOLVE_ENABLED
   budget:
-    per_run_usd: 10.0
+    per_run_usd: 20.0
   model: null
   kpis:
     accepted_per_usd: 0.05
@@ -3243,8 +3208,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -3259,8 +3225,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:sec-lab:claude
   kind: ci-mention
@@ -3271,8 +3235,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -3287,8 +3252,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:sec-lab:evolve
   kind: ci-scheduled
@@ -3296,11 +3259,11 @@ agents:
   repo: bamr87/sec-lab
   where: .github/workflows/evolve.yml
   owner: bamr87
-  trigger: schedule Mon 06:17 UTC weekly; workflow_dispatch
+  trigger: schedule Fri 17:17 UTC weekly; workflow_dispatch
   switch:
     variable: EVOLVE_ENABLED
   budget:
-    per_run_usd: 10.0
+    per_run_usd: 20.0
   model: null
   kpis:
     accepted_per_usd: 0.05
@@ -3328,8 +3291,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -3344,8 +3308,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:sensor-mesh:evolve
   kind: ci-scheduled
@@ -3353,11 +3315,11 @@ agents:
   repo: bamr87/sensor-mesh
   where: .github/workflows/evolve.yml
   owner: bamr87
-  trigger: schedule Mon 06:17 UTC weekly; workflow_dispatch
+  trigger: schedule Tue 19:17 UTC weekly; workflow_dispatch
   switch:
     variable: EVOLVE_ENABLED
   budget:
-    per_run_usd: 10.0
+    per_run_usd: 20.0
   model: null
   kpis:
     accepted_per_usd: 0.05
@@ -3385,8 +3347,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -3401,8 +3364,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:year-of-ai.github.io:ai-content-review
   kind: ci-event
@@ -3411,8 +3372,10 @@ agents:
   where: .github/workflows/ai-content-review.yml
   owner: bamr87
   trigger: pull_request; workflow_dispatch
-  switch: null
-  budget: null
+  switch:
+    variable: AI_CONTENT_REVIEW_ENABLED
+  budget:
+    per_run_usd: 10.0
   model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: 0.1
@@ -3428,8 +3391,6 @@ agents:
   local_entry: null
   first_seen: '2026-11-11'
   gaps:
-  - R1:budget
-  - R1:switch
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
 - id: ci:year-of-ai.github.io:claude
@@ -3441,8 +3402,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -3457,8 +3419,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-11'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:year-of-ai.github.io:framework-pr-reviewer
   kind: ci-event
@@ -3467,8 +3427,10 @@ agents:
   where: .github/workflows/framework-pr-reviewer.yml
   owner: bamr87
   trigger: pull_request; workflow_dispatch
-  switch: null
-  budget: null
+  switch:
+    variable: FRAMEWORK_PR_REVIEWER_ENABLED
+  budget:
+    per_run_usd: 10.0
   model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: 0.1
@@ -3484,8 +3446,6 @@ agents:
   local_entry: null
   first_seen: '2026-11-11'
   gaps:
-  - R1:budget
-  - R1:switch
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
 - id: ci:year-of-ai.github.io:grow-lineage
@@ -3496,7 +3456,8 @@ agents:
   owner: bamr87
   trigger: workflow_dispatch
   switch: null
-  budget: null
+  budget:
+    per_run_usd: 15.0
   model: null
   kpis:
     accepted_per_usd: 0.1
@@ -3512,7 +3473,6 @@ agents:
   local_entry: null
   first_seen: '2026-11-11'
   gaps:
-  - R1:budget
   - R1:model
   - R1:switch
   - R2:missing:cost_source,tool_errors
@@ -3525,7 +3485,8 @@ agents:
   owner: bamr87
   trigger: workflow_dispatch
   switch: null
-  budget: null
+  budget:
+    per_run_usd: 10.0
   model: null
   kpis:
     accepted_per_usd: 0.1
@@ -3541,7 +3502,6 @@ agents:
   local_entry: null
   first_seen: '2026-11-11'
   gaps:
-  - R1:budget
   - R1:model
   - R1:switch
   - R2:missing:cost_source,tool_errors
@@ -3553,8 +3513,10 @@ agents:
   where: .github/workflows/secret-expiry-watch.yml
   owner: bamr87
   trigger: schedule daily 13:40 UTC; workflow_dispatch
-  switch: null
-  budget: null
+  switch:
+    variable: SECRET_EXPIRY_WATCH_ENABLED
+  budget:
+    per_run_usd: 10.0
   model: claude-haiku-5-5
   kpis:
     accepted_per_usd: 0.05
@@ -3570,8 +3532,6 @@ agents:
   local_entry: null
   first_seen: '2026-11-11'
   gaps:
-  - R1:budget
-  - R1:switch
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
 - id: ci:zer0-CMS:claude
@@ -3583,8 +3543,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -3599,8 +3560,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:zer0-id:claude
   kind: ci-mention
@@ -3611,8 +3570,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -3627,8 +3587,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:zer0-id:evolve
   kind: ci-scheduled
@@ -3636,11 +3594,11 @@ agents:
   repo: bamr87/zer0-id
   where: .github/workflows/evolve.yml
   owner: bamr87
-  trigger: schedule Mon 06:17 UTC weekly; workflow_dispatch
+  trigger: schedule Wed 19:17 UTC weekly; workflow_dispatch
   switch:
     variable: EVOLVE_ENABLED
   budget:
-    per_run_usd: 10.0
+    per_run_usd: 20.0
   model: null
   kpis:
     accepted_per_usd: 0.05
@@ -3668,8 +3626,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -3684,8 +3643,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:zer0-kernel:evolve
   kind: ci-scheduled
@@ -3693,11 +3650,11 @@ agents:
   repo: bamr87/zer0-kernel
   where: .github/workflows/evolve.yml
   owner: bamr87
-  trigger: schedule Mon 06:17 UTC weekly; workflow_dispatch
+  trigger: schedule Thu 19:17 UTC weekly; workflow_dispatch
   switch:
     variable: EVOLVE_ENABLED
   budget:
-    per_run_usd: 10.0
+    per_run_usd: 20.0
   model: null
   kpis:
     accepted_per_usd: 0.05
@@ -3723,8 +3680,10 @@ agents:
   where: .github/workflows/ai-content-review.yml
   owner: bamr87
   trigger: pull_request; workflow_dispatch
-  switch: null
-  budget: null
+  switch:
+    variable: AI_CONTENT_REVIEW_ENABLED
+  budget:
+    per_run_usd: 10.0
   model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: 0.1
@@ -3740,8 +3699,6 @@ agents:
   local_entry: null
   first_seen: '2026-11-11'
   gaps:
-  - R1:budget
-  - R1:switch
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
 - id: ci:zer0-mistakes:ci-self-repair
@@ -3751,8 +3708,10 @@ agents:
   where: .github/workflows/ci-self-repair.yml
   owner: bamr87
   trigger: workflow_run
-  switch: null
-  budget: null
+  switch:
+    variable: CI_SELF_REPAIR_ENABLED
+  budget:
+    per_run_usd: 10.0
   model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: 0.1
@@ -3768,8 +3727,6 @@ agents:
   local_entry: null
   first_seen: '2026-11-11'
   gaps:
-  - R1:budget
-  - R1:switch
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
 - id: ci:zer0-mistakes:claude
@@ -3781,8 +3738,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -3797,8 +3755,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: ci:zer0-mistakes:issue-autopilot
   kind: ci-scheduled
@@ -3836,8 +3792,10 @@ agents:
   where: .github/workflows/ui-audit.yml
   owner: bamr87
   trigger: schedule Mon 19:10 UTC weekly; workflow_dispatch
-  switch: null
-  budget: null
+  switch:
+    variable: UI_AUDIT_ENABLED
+  budget:
+    per_run_usd: 10.0
   model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: 0.05
@@ -3853,8 +3811,6 @@ agents:
   local_entry: null
   first_seen: '2026-11-11'
   gaps:
-  - R1:budget
-  - R1:switch
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
 - id: ci:zer0-mistakes:visual-evidence-autogen
@@ -3895,8 +3851,9 @@ agents:
   trigger: issue_comment; issues; pull_request_review; pull_request_review_comment
   switch:
     exempt: runs only when a person mentions it (harness_registry's switch-missing excuse)
-  budget: null
-  model: null
+  budget:
+    per_run_usd: 20.0
+  model: claude-sonnet-5-5
   kpis:
     accepted_per_usd: null
     accepted_per_actions_min: null
@@ -3911,8 +3868,6 @@ agents:
     exempt: reacts inside GitHub (amendment local-first-ai, Consequences)
   first_seen: '2026-11-07'
   gaps:
-  - R1:budget
-  - R1:model
   - R2:missing:cost_source,tool_errors
 - id: loop:fanout/agent-fill-schema
   kind: loop-step
