@@ -1,10 +1,21 @@
 kit: ux-audit
-version: 0.1.0
+version: 0.2.0
 source: bamr87/bamr87 templates/ux-audit/
 seeded-by: tools/fanout.sh --kit ux-audit (OPT-IN; never in the default artifact set)
-files: README.md, VERSION, ux.manifest.example.yml, scripts/ux_audit.py, scripts/collect_evidence.mjs, workflows/ux-gate.yml, prompts/*.md, AGENT_PROMPT.md
-updated: 2026-09-18
+files: README.md, VERSION, ux.manifest.example.yml, scripts/ux_audit.py, scripts/collect_evidence.mjs, scripts/layout_probe.mjs, scripts/layout_capture.mjs, scripts/layout_compare.mjs, workflows/ux-gate.yml, prompts/*.md, AGENT_PROMPT.md
+hub-only: package.json, tests/ (the kit's own test harness; never seeded)
+updated: 2026-11-22
 changelog: |
+  0.2.0 — layout capture. scripts/layout_capture.mjs loads each surface at
+  375/768/1280px and writes a geometry snapshot, a wireframe SVG drawn from it
+  and a screenshot per page and width, with rendered-layout rules L1–L6 (page
+  pans sideways, current item clipped, squeezed label, indented column, long
+  lead, hidden scroller) and a provisional score; scripts/layout_compare.mjs
+  diffs two runs (rules fixed/introduced, boxes resized/added/removed, optional
+  pixel diff) and compares one role across sites by its anchors. Warn-only by
+  default (--fail-on to gate); a run that captured nothing exits 2. The hub
+  runs it over the registry's ux.surfaces as `dash ux`. Tests: tests/ (fixtures,
+  no network), run by .github/workflows/ux-audit-selftest.yml.
   0.1.0 — initial kit. Closes the UPS-FE-53/60 gap named in specs/FRONTEND.md
   (`templates/ux-audit/`). Ships: portable R1–R13 computational audit
   (stdlib-only), Playwright evidence collector MVP, PR gate workflow outline,

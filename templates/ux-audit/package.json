@@ -1,0 +1,17 @@
+{
+  "name": "ux-audit-kit",
+  "private": true,
+  "version": "0.2.0",
+  "description": "Test harness for the hub's ux-audit kit (templates/ux-audit): the layout capture (L1–L6) and compare scripts. Not seeded into fleet repos; leaves install playwright themselves.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  },
+  "devDependencies": {
+    "js-yaml": "*",
+    "pixelmatch": "*",
+    "playwright": "*",
+    "pngjs": "*"
+  }
+}

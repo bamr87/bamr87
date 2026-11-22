@@ -845,6 +845,14 @@
       "presentation": { "group": "4-generate", "order": 16 }
     },
     {
+      "name": "📏 UX: capture every registry ux surface at phone, tablet, desktop (read-only, warn-only)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash ux capture",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 16 }
+    },
+    {
       "name": "📐 Spec: UPS conformance for every submodule (--write)",
       "type": "node-terminal",
       "request": "launch",

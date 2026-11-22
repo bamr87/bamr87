@@ -83,6 +83,8 @@ scout-workorders/
 # dash pm: the routine PM review's local files (model, review, board plan preview);
 # the public snapshot is committed as _data/pm_review.yml.
 .fleet/pm/
+# dash ux: layout capture runs (geometry, wireframes, screenshots; docs/UX-HARNESS.md).
+.fleet/ux/
 # dash decisions: the decision index (index.json: every open pull request and
 # gate-labelled issue of the fleet, read from GitHub; it can hold a private repo's
 # titles, so it is local, owner-only and never published; docs/DECISION-INDEX.md).

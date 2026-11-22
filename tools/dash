@@ -83,6 +83,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash node [status|plan|gen|key]${c_off}  where hub workloads run — the Mac edge and the forge workload node, from _data/fleet.yml \`nodes:\` (docs/PLATFORM.md); read-only except gen, which writes .fleet/nodes/
   ${c_bold}dash infra [plan|apply] [node]${c_off}  the IaC layer — OpenTofu plans a workload node's network and volumes (infra/); apply needs --yes and a saved plan of the current inputs
   ${c_bold}dash apps [list|url|open|check|plan|assist|json]${c_off}  the app portal's launcher — every fleet frontend with its live address and its local dev stack's (registry \`frontend:\` ⨝ _data/ports.yml; docs/FRONTEND-PLATFORM.md); \`open <app> [--target local]\` opens it in the console, \`check\` asks each address whether it answers and can be framed, \`plan\` lists every repo's frontend component and what it is owed, \`assist\` the assistant baseline each repo's platform gets (the page bridge and its adapter, or the agent context; ADR 0014), \`assist activity [--days N] [--json]\` what the console's assistant did (its messages from the AI ledger and its page audit; tools/fleetcore/assistlog.py); read-only
+  ${c_bold}dash ux [targets|capture|compare|consistency]${c_off} the LAYOUT CAPTURE (ux-audit kit, rules L1–L6) — loads each registry \`ux.surfaces\` page at phone, tablet and desktop widths in Chromium and writes a geometry snapshot, a wireframe SVG drawn from it and a screenshot per page and width, with the layout rules it broke and a provisional score; \`compare BASE HEAD\` diffs two runs (rules fixed and introduced, boxes resized, added or removed); \`consistency RUN\` compares one role across sites by its anchors; read-only, writes only under .fleet/ux/, warn-only (exit 2 only when nothing was captured; docs/UX-HARNESS.md)
   ${c_bold}dash console [--docker]${c_off} the Harness Console — local control plane UI on :4001 (native venv, or the compose service; docs/HARNESS-OPS.md)
   ${c_bold}dash mcp [--http|--tunnel]${c_off} the Harness Console as an MCP server for AI agents — stdio, streamable HTTP on 127.0.0.1:4002 with bearer auth, or a temporary cloudflared tunnel (tools/console/docs/mcp-layer.md)
   ${c_bold}dash sync${c_off}              update submodules + regenerate dash data
@@ -720,6 +721,9 @@ cmd_pm() { "$PY" "${TOOLS}/pm_review.py" "${@:-review}"; }
 cmd_decisions() { "$PY" "${TOOLS}/console/decision_index.py" "$@"; }
 # The fleet link check (docs/LINK-CHECK.md): bare `dash links` scans the fleet.
 cmd_links() { "$PY" "${TOOLS}/link_check.py" "$@"; }
+# The layout capture (docs/UX-HARNESS.md): registry `ux.surfaces` → the ux-audit
+# kit's Playwright capture; read-only, output under .fleet/ux/, warn-only.
+cmd_ux() { "$PY" "${TOOLS}/ux_layout.py" "$@"; }
 # The PR queue (docs/PR-QUEUE.md): the decision index plus one detail read per pull
 # request; plans read GitHub and write only .fleet/prqueue/; `apply --apply` is the
 # console's prs-act / prs-agent operations behind the confirm.
@@ -1058,6 +1062,7 @@ main() {
     node)    cmd_node "$@" ;;
     infra)   cmd_infra "$@" ;;
     apps)    cmd_apps "$@" ;;
+    ux)      cmd_ux "$@" ;;
     console) cmd_console "$@" ;;
     mcp)     cmd_mcp "$@" ;;
     sync)    cmd_sync "$@" ;;

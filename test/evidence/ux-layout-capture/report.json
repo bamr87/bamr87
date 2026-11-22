@@ -1,0 +1,909 @@
+{
+ "schema": "ux-layout-evidence/v1",
+ "runs": {
+  "all": {
+   "schema": "ux-layout/v1",
+   "kit": "ux-audit 0.2.0",
+   "captured_at": "2026-11-22T16:01:44.841Z",
+   "color_scheme": "light",
+   "viewports": {
+    "phone": {
+     "width": 375,
+     "height": 812
+    },
+    "tablet": {
+     "width": 768,
+     "height": 1024
+    },
+    "desktop": {
+     "width": 1280,
+     "height": 800
+    }
+   },
+   "captures": [
+    {
+     "key": "zer0-mistakes--home--phone",
+     "id": "zer0-mistakes--home",
+     "site": "zer0-mistakes",
+     "role": "home",
+     "viewport": "phone",
+     "patched": false,
+     "url": "https://zer0-mistakes.com/",
+     "vw": 375,
+     "vh": 812,
+     "docW": 375,
+     "docH": 45416,
+     "items": 71,
+     "contentEdge": 24,
+     "h1AtPctOfFold": 18,
+     "errors": 0,
+     "warnings": 0,
+     "score": 100,
+     "rules": []
+    },
+    {
+     "key": "zer0-mistakes--home--tablet",
+     "id": "zer0-mistakes--home",
+     "site": "zer0-mistakes",
+     "role": "home",
+     "viewport": "tablet",
+     "patched": false,
+     "url": "https://zer0-mistakes.com/",
+     "vw": 768,
+     "vh": 1024,
+     "docW": 768,
+     "docH": 32766,
+     "items": 109,
+     "contentEdge": 48,
+     "h1AtPctOfFold": 14,
+     "errors": 0,
+     "warnings": 1,
+     "score": 95,
+     "rules": [
+      "L6-hidden-scroller"
+     ]
+    },
+    {
+     "key": "zer0-mistakes--home--desktop",
+     "id": "zer0-mistakes--home",
+     "site": "zer0-mistakes",
+     "role": "home",
+     "viewport": "desktop",
+     "patched": false,
+     "url": "https://zer0-mistakes.com/",
+     "vw": 1280,
+     "vh": 800,
+     "docW": 1280,
+     "docH": 28128,
+     "items": 150,
+     "contentEdge": 118,
+     "h1AtPctOfFold": 17,
+     "errors": 0,
+     "warnings": 0,
+     "score": 100,
+     "rules": []
+    },
+    {
+     "key": "zer0-mistakes--news-development--phone",
+     "id": "zer0-mistakes--news-development",
+     "site": "zer0-mistakes",
+     "role": "section",
+     "viewport": "phone",
+     "patched": false,
+     "url": "https://zer0-mistakes.com/news/development/",
+     "vw": 375,
+     "vh": 812,
+     "docW": 375,
+     "docH": 3084,
+     "items": 94,
+     "contentEdge": 24,
+     "h1AtPctOfFold": 31,
+     "errors": 0,
+     "warnings": 2,
+     "score": 90,
+     "rules": [
+      "L4-indented-column",
+      "L6-hidden-scroller"
+     ]
+    },
+    {
+     "key": "zer0-mistakes--news-development--tablet",
+     "id": "zer0-mistakes--news-development",
+     "site": "zer0-mistakes",
+     "role": "section",
+     "viewport": "tablet",
+     "patched": false,
+     "url": "https://zer0-mistakes.com/news/development/",
+     "vw": 768,
+     "vh": 1024,
+     "docW": 768,
+     "docH": 2184,
+     "items": 181,
+     "contentEdge": 12,
+     "h1AtPctOfFold": 20,
+     "errors": 0,
+     "warnings": 1,
+     "score": 95,
+     "rules": [
+      "L6-hidden-scroller"
+     ]
+    },
+    {
+     "key": "zer0-mistakes--news-development--desktop",
+     "id": "zer0-mistakes--news-development",
+     "site": "zer0-mistakes",
+     "role": "section",
+     "viewport": "desktop",
+     "patched": false,
+     "url": "https://zer0-mistakes.com/news/development/",
+     "vw": 1280,
+     "vh": 800,
+     "docW": 1280,
+     "docH": 1691,
+     "items": 248,
+     "contentEdge": 82,
+     "h1AtPctOfFold": 26,
+     "errors": 0,
+     "warnings": 0,
+     "score": 100,
+     "rules": []
+    },
+    {
+     "key": "lifehacker.dev--home--phone",
+     "id": "lifehacker.dev--home",
+     "site": "lifehacker.dev",
+     "role": "home",
+     "viewport": "phone",
+     "patched": false,
+     "url": "https://lifehacker.dev/",
+     "vw": 375,
+     "vh": 812,
+     "docW": 387,
+     "docH": 13209,
+     "items": 68,
+     "contentEdge": 16,
+     "h1AtPctOfFold": 10,
+     "errors": 0,
+     "warnings": 0,
+     "score": 100,
+     "rules": []
+    },
+    {
+     "key": "lifehacker.dev--home--tablet",
+     "id": "lifehacker.dev--home",
+     "site": "lifehacker.dev",
+     "role": "home",
+     "viewport": "tablet",
+     "patched": false,
+     "url": "https://lifehacker.dev/",
+     "vw": 768,
+     "vh": 1024,
+     "docW": 780,
+     "docH": 7858,
+     "items": 97,
+     "contentEdge": 16,
+     "h1AtPctOfFold": 9,
+     "errors": 0,
+     "warnings": 0,
+     "score": 100,
+     "rules": []
+    },
+    {
+     "key": "lifehacker.dev--home--desktop",
+     "id": "lifehacker.dev--home",
+     "site": "lifehacker.dev",
+     "role": "home",
+     "viewport": "desktop",
+     "patched": false,
+     "url": "https://lifehacker.dev/",
+     "vw": 1280,
+     "vh": 800,
+     "docW": 1292,
+     "docH": 5262,
+     "items": 133,
+     "contentEdge": 48,
+     "h1AtPctOfFold": 12,
+     "errors": 0,
+     "warnings": 0,
+     "score": 100,
+     "rules": []
+    },
+    {
+     "key": "lifehacker.dev--news-wire--phone",
+     "id": "lifehacker.dev--news-wire",
+     "site": "lifehacker.dev",
+     "role": "section",
+     "viewport": "phone",
+     "patched": false,
+     "url": "https://lifehacker.dev/news/wire/",
+     "vw": 375,
+     "vh": 812,
+     "docW": 375,
+     "docH": 14299,
+     "items": 80,
+     "contentEdge": 24,
+     "h1AtPctOfFold": 31,
+     "errors": 1,
+     "warnings": 4,
+     "score": 65,
+     "rules": [
+      "L3-squeezed-label",
+      "L2-current-clipped",
+      "L4-indented-column",
+      "L5-long-lead",
+      "L6-hidden-scroller"
+     ]
+    },
+    {
+     "key": "lifehacker.dev--news-wire--tablet",
+     "id": "lifehacker.dev--news-wire",
+     "site": "lifehacker.dev",
+     "role": "section",
+     "viewport": "tablet",
+     "patched": false,
+     "url": "https://lifehacker.dev/news/wire/",
+     "vw": 768,
+     "vh": 1024,
+     "docW": 768,
+     "docH": 7363,
+     "items": 133,
+     "contentEdge": 74,
+     "h1AtPctOfFold": 20,
+     "errors": 0,
+     "warnings": 0,
+     "score": 100,
+     "rules": []
+    },
+    {
+     "key": "lifehacker.dev--news-wire--desktop",
+     "id": "lifehacker.dev--news-wire",
+     "site": "lifehacker.dev",
+     "role": "section",
+     "viewport": "desktop",
+     "patched": false,
+     "url": "https://lifehacker.dev/news/wire/",
+     "vw": 1280,
+     "vh": 800,
+     "docW": 1280,
+     "docH": 5438,
+     "items": 224,
+     "contentEdge": 285,
+     "h1AtPctOfFold": 26,
+     "errors": 0,
+     "warnings": 0,
+     "score": 100,
+     "rules": []
+    }
+   ],
+   "failed": []
+  },
+  "wire-live": {
+   "schema": "ux-layout/v1",
+   "kit": "ux-audit 0.2.0",
+   "captured_at": "2026-11-22T16:01:49.607Z",
+   "color_scheme": "light",
+   "viewports": {
+    "phone": {
+     "width": 375,
+     "height": 812
+    },
+    "tablet": {
+     "width": 768,
+     "height": 1024
+    },
+    "desktop": {
+     "width": 1280,
+     "height": 800
+    }
+   },
+   "captures": [
+    {
+     "key": "lifehacker.dev--news-wire--phone",
+     "id": "lifehacker.dev--news-wire",
+     "site": "lifehacker.dev",
+     "role": "section",
+     "viewport": "phone",
+     "patched": false,
+     "url": "https://lifehacker.dev/news/wire/",
+     "vw": 375,
+     "vh": 812,
+     "docW": 375,
+     "docH": 14299,
+     "items": 80,
+     "contentEdge": 24,
+     "h1AtPctOfFold": 31,
+     "errors": 1,
+     "warnings": 4,
+     "score": 65,
+     "rules": [
+      "L3-squeezed-label",
+      "L2-current-clipped",
+      "L4-indented-column",
+      "L5-long-lead",
+      "L6-hidden-scroller"
+     ]
+    },
+    {
+     "key": "lifehacker.dev--news-wire--tablet",
+     "id": "lifehacker.dev--news-wire",
+     "site": "lifehacker.dev",
+     "role": "section",
+     "viewport": "tablet",
+     "patched": false,
+     "url": "https://lifehacker.dev/news/wire/",
+     "vw": 768,
+     "vh": 1024,
+     "docW": 768,
+     "docH": 7363,
+     "items": 133,
+     "contentEdge": 74,
+     "h1AtPctOfFold": 20,
+     "errors": 0,
+     "warnings": 0,
+     "score": 100,
+     "rules": []
+    },
+    {
+     "key": "lifehacker.dev--news-wire--desktop",
+     "id": "lifehacker.dev--news-wire",
+     "site": "lifehacker.dev",
+     "role": "section",
+     "viewport": "desktop",
+     "patched": false,
+     "url": "https://lifehacker.dev/news/wire/",
+     "vw": 1280,
+     "vh": 800,
+     "docW": 1280,
+     "docH": 5438,
+     "items": 224,
+     "contentEdge": 285,
+     "h1AtPctOfFold": 26,
+     "errors": 0,
+     "warnings": 0,
+     "score": 100,
+     "rules": []
+    }
+   ],
+   "failed": []
+  },
+  "wire-fix": {
+   "schema": "ux-layout/v1",
+   "kit": "ux-audit 0.2.0",
+   "captured_at": "2026-11-22T16:01:54.099Z",
+   "color_scheme": "light",
+   "viewports": {
+    "phone": {
+     "width": 375,
+     "height": 812
+    },
+    "tablet": {
+     "width": 768,
+     "height": 1024
+    },
+    "desktop": {
+     "width": 1280,
+     "height": 800
+    }
+   },
+   "captures": [
+    {
+     "key": "lifehacker.dev--news-wire--phone",
+     "id": "lifehacker.dev--news-wire",
+     "site": "lifehacker.dev",
+     "role": "section",
+     "viewport": "phone",
+     "patched": true,
+     "url": "https://lifehacker.dev/news/wire/",
+     "vw": 375,
+     "vh": 812,
+     "docW": 375,
+     "docH": 14223,
+     "items": 78,
+     "contentEdge": 24,
+     "h1AtPctOfFold": 31,
+     "errors": 0,
+     "warnings": 0,
+     "score": 100,
+     "rules": []
+    },
+    {
+     "key": "lifehacker.dev--news-wire--tablet",
+     "id": "lifehacker.dev--news-wire",
+     "site": "lifehacker.dev",
+     "role": "section",
+     "viewport": "tablet",
+     "patched": true,
+     "url": "https://lifehacker.dev/news/wire/",
+     "vw": 768,
+     "vh": 1024,
+     "docW": 768,
+     "docH": 7363,
+     "items": 133,
+     "contentEdge": 74,
+     "h1AtPctOfFold": 20,
+     "errors": 0,
+     "warnings": 0,
+     "score": 100,
+     "rules": []
+    },
+    {
+     "key": "lifehacker.dev--news-wire--desktop",
+     "id": "lifehacker.dev--news-wire",
+     "site": "lifehacker.dev",
+     "role": "section",
+     "viewport": "desktop",
+     "patched": true,
+     "url": "https://lifehacker.dev/news/wire/",
+     "vw": 1280,
+     "vh": 800,
+     "docW": 1280,
+     "docH": 5438,
+     "items": 224,
+     "contentEdge": 285,
+     "h1AtPctOfFold": 26,
+     "errors": 0,
+     "warnings": 0,
+     "score": 100,
+     "rules": []
+    }
+   ],
+   "failed": []
+  }
+ },
+ "compare_wire_live_to_fix": {
+  "schema": "ux-layout-compare/v1",
+  "base": "wire-live",
+  "head": "wire-fix",
+  "regressions": 0,
+  "captures": [
+   {
+    "key": "lifehacker.dev--news-wire--phone",
+    "score": [
+     65,
+     100
+    ],
+    "fixed": [
+     "L3-squeezed-label",
+     "L2-current-clipped",
+     "L4-indented-column",
+     "L5-long-lead",
+     "L6-hidden-scroller"
+    ],
+    "introduced": [],
+    "structural": {
+     "unchanged": 10,
+     "shifted": 46,
+     "resized": 20,
+     "added": 2,
+     "removed": 4
+    },
+    "anchors": {
+     "breadcrumb": {
+      "dx": -24,
+      "dy": 5,
+      "dw": 169,
+      "dfs": 0,
+      "dlines": 0
+     },
+     "sectionNav": {
+      "dx": 0,
+      "dy": 0,
+      "dw": 0,
+      "dfs": 0,
+      "dlines": 0
+     },
+     "h1": {
+      "dx": -44,
+      "dy": 1,
+      "dw": 44,
+      "dfs": 1.3,
+      "dlines": 0
+     },
+     "lead": {
+      "dx": -44,
+      "dy": 2,
+      "dw": 44,
+      "dfs": -3.2,
+      "dlines": -2
+     },
+     "firstCard": {
+      "dx": 0,
+      "dy": -77,
+      "dw": 0,
+      "dfs": 0,
+      "dlines": 0
+     }
+    },
+    "pixels_pct": 31.5,
+    "regression": false
+   },
+   {
+    "key": "lifehacker.dev--news-wire--tablet",
+    "score": [
+     100,
+     100
+    ],
+    "fixed": [],
+    "introduced": [],
+    "structural": {
+     "unchanged": 133,
+     "shifted": 0,
+     "resized": 0,
+     "added": 0,
+     "removed": 0
+    },
+    "anchors": {
+     "breadcrumb": {
+      "dx": 0,
+      "dy": 0,
+      "dw": 0,
+      "dfs": 0,
+      "dlines": 0
+     },
+     "sectionNav": {
+      "dx": 0,
+      "dy": 0,
+      "dw": 0,
+      "dfs": 0,
+      "dlines": 0
+     },
+     "h1": {
+      "dx": 0,
+      "dy": 0,
+      "dw": 0,
+      "dfs": 0,
+      "dlines": 0
+     },
+     "lead": {
+      "dx": 0,
+      "dy": 0,
+      "dw": 0,
+      "dfs": 0,
+      "dlines": 0
+     },
+     "firstCard": {
+      "dx": 0,
+      "dy": 0,
+      "dw": 0,
+      "dfs": 0,
+      "dlines": 0
+     }
+    },
+    "pixels_pct": 0,
+    "regression": false
+   },
+   {
+    "key": "lifehacker.dev--news-wire--desktop",
+    "score": [
+     100,
+     100
+    ],
+    "fixed": [],
+    "introduced": [],
+    "structural": {
+     "unchanged": 224,
+     "shifted": 0,
+     "resized": 0,
+     "added": 0,
+     "removed": 0
+    },
+    "anchors": {
+     "breadcrumb": {
+      "dx": 0,
+      "dy": 0,
+      "dw": 0,
+      "dfs": 0,
+      "dlines": 0
+     },
+     "sectionNav": {
+      "dx": 0,
+      "dy": 0,
+      "dw": 0,
+      "dfs": 0,
+      "dlines": 0
+     },
+     "h1": {
+      "dx": 0,
+      "dy": 0,
+      "dw": 0,
+      "dfs": 0,
+      "dlines": 0
+     },
+     "lead": {
+      "dx": 0,
+      "dy": 0,
+      "dw": 0,
+      "dfs": 0,
+      "dlines": 0
+     },
+     "firstCard": {
+      "dx": 0,
+      "dy": 0,
+      "dw": 0,
+      "dfs": 0,
+      "dlines": 0
+     }
+    },
+    "pixels_pct": 0,
+    "regression": false
+   }
+  ]
+ },
+ "consistency_all": {
+  "schema": "ux-layout-consistency/v1",
+  "run": "all",
+  "groups": [
+   {
+    "group": "home--desktop",
+    "reference": "zer0-mistakes--home--desktop",
+    "sites": [
+     {
+      "key": "lifehacker.dev--home--desktop",
+      "score": 100,
+      "anchors": {
+       "breadcrumb": null,
+       "sectionNav": {
+        "dx": 0,
+        "dy": 0,
+        "dw": 0,
+        "dfs": 0,
+        "dlines": 0
+       },
+       "h1": {
+        "dx": -36,
+        "dy": -39,
+        "dw": -38,
+        "dfs": -32,
+        "dlines": 0
+       },
+       "lead": {
+        "dx": -36,
+        "dy": -90,
+        "dw": -288,
+        "dfs": -6,
+        "dlines": -5
+       },
+       "firstCard": {
+        "dx": -118,
+        "dy": -25506,
+        "dw": -132,
+        "dfs": 0,
+        "dlines": 2
+       }
+      },
+      "layout_drift_px": 288
+     }
+    ]
+   },
+   {
+    "group": "home--phone",
+    "reference": "zer0-mistakes--home--phone",
+    "sites": [
+     {
+      "key": "lifehacker.dev--home--phone",
+      "score": 100,
+      "anchors": {
+       "breadcrumb": null,
+       "sectionNav": {
+        "dx": 0,
+        "dy": 0,
+        "dw": 0,
+        "dfs": 0,
+        "dlines": 0
+       },
+       "h1": {
+        "dx": 0,
+        "dy": -64,
+        "dw": 0,
+        "dfs": -6.5,
+        "dlines": 0
+       },
+       "lead": {
+        "dx": 0,
+        "dy": -86,
+        "dw": -117,
+        "dfs": -1.2,
+        "dlines": -6
+       },
+       "firstCard": {
+        "dx": -24,
+        "dy": -41065,
+        "dw": -147,
+        "dfs": 0,
+        "dlines": 2
+       }
+      },
+      "layout_drift_px": 147
+     }
+    ]
+   },
+   {
+    "group": "home--tablet",
+    "reference": "zer0-mistakes--home--tablet",
+    "sites": [
+     {
+      "key": "lifehacker.dev--home--tablet",
+      "score": 100,
+      "anchors": {
+       "breadcrumb": null,
+       "sectionNav": {
+        "dx": 75,
+        "dy": 0,
+        "dw": -96,
+        "dfs": 0,
+        "dlines": 0
+       },
+       "h1": {
+        "dx": -12,
+        "dy": -50,
+        "dw": -387,
+        "dfs": -5.3,
+        "dlines": 0
+       },
+       "lead": {
+        "dx": -12,
+        "dy": -70,
+        "dw": -462,
+        "dfs": -1.2,
+        "dlines": -3
+       },
+       "firstCard": {
+        "dx": -48,
+        "dy": -29837,
+        "dw": 37,
+        "dfs": 0,
+        "dlines": 2
+       }
+      },
+      "layout_drift_px": 462
+     }
+    ]
+   },
+   {
+    "group": "section--desktop",
+    "reference": "zer0-mistakes--news-development--desktop",
+    "sites": [
+     {
+      "key": "lifehacker.dev--news-wire--desktop",
+      "score": 100,
+      "anchors": {
+       "breadcrumb": {
+        "dx": 0,
+        "dy": 0,
+        "dw": -8,
+        "dfs": 0,
+        "dlines": 0
+       },
+       "sectionNav": {
+        "dx": 0,
+        "dy": 0,
+        "dw": 0,
+        "dfs": 0,
+        "dlines": 0
+       },
+       "h1": {
+        "dx": 0,
+        "dy": 0,
+        "dw": 411,
+        "dfs": 0,
+        "dlines": 0
+       },
+       "lead": {
+        "dx": 0,
+        "dy": 0,
+        "dw": 411,
+        "dfs": 0,
+        "dlines": 1
+       },
+       "firstCard": {
+        "dx": 0,
+        "dy": 0,
+        "dw": 0,
+        "dfs": 0,
+        "dlines": 0
+       }
+      },
+      "layout_drift_px": 411
+     }
+    ]
+   },
+   {
+    "group": "section--phone",
+    "reference": "zer0-mistakes--news-development--phone",
+    "sites": [
+     {
+      "key": "lifehacker.dev--news-wire--phone",
+      "score": 65,
+      "anchors": {
+       "breadcrumb": {
+        "dx": 0,
+        "dy": 0,
+        "dw": -121,
+        "dfs": 0,
+        "dlines": 0
+       },
+       "sectionNav": {
+        "dx": 0,
+        "dy": 0,
+        "dw": 0,
+        "dfs": 0,
+        "dlines": 0
+       },
+       "h1": {
+        "dx": 0,
+        "dy": 0,
+        "dw": 0,
+        "dfs": 0,
+        "dlines": 0
+       },
+       "lead": {
+        "dx": 0,
+        "dy": 0,
+        "dw": 0,
+        "dfs": 0,
+        "dlines": 3
+       },
+       "firstCard": {
+        "dx": 0,
+        "dy": 51,
+        "dw": 0,
+        "dfs": 0,
+        "dlines": 0
+       }
+      },
+      "layout_drift_px": 121
+     }
+    ]
+   },
+   {
+    "group": "section--tablet",
+    "reference": "zer0-mistakes--news-development--tablet",
+    "sites": [
+     {
+      "key": "lifehacker.dev--news-wire--tablet",
+      "score": 100,
+      "anchors": {
+       "breadcrumb": {
+        "dx": 0,
+        "dy": 0,
+        "dw": -8,
+        "dfs": 0,
+        "dlines": 0
+       },
+       "sectionNav": {
+        "dx": 75,
+        "dy": 0,
+        "dw": -96,
+        "dfs": 0,
+        "dlines": 0
+       },
+       "h1": {
+        "dx": 0,
+        "dy": 0,
+        "dw": 110,
+        "dfs": 0,
+        "dlines": 0
+       },
+       "lead": {
+        "dx": 0,
+        "dy": 0,
+        "dw": 110,
+        "dfs": 0,
+        "dlines": 2
+       },
+       "firstCard": {
+        "dx": 0,
+        "dy": 21,
+        "dw": 0,
+        "dfs": 0,
+        "dlines": 0
+       }
+      },
+      "layout_drift_px": 110
+     }
+    ]
+   }
+  ]
+ },
+ "inject_css_for_wire_fix": "@media (max-width: 575.98px) {\n  .container-fluid.bg-dark > .container-fluid.px-4,\n  .container-fluid.bg-body-tertiary > .container-fluid.px-4 { padding-left: 0 !important; padding-right: 0 !important; }\n  .container-fluid.bg-dark .row.align-items-center > .col-auto:last-child { display: none; }\n  nav.nav-pills.overflow-auto { flex-wrap: wrap !important; overflow: visible !important; }\n  .section-header > .d-flex > i.bi { display: none; }\n  .section-header h1.display-5 { font-size: 2rem; }\n  .section-header p.lead { font-size: 1.05rem; }\n}\n"
+}

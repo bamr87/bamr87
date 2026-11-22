@@ -1,0 +1,24 @@
+<!doctype html>
+<!-- Fixture: a grid row that overhangs the viewport by 12px on each side (a Bootstrap .row
+     outside a .container). As served it scrolls sideways (L1). The test injects
+     html{overflow-x:clip}, as the zer0 theme does, and then nobody can reach the overhang:
+     no L1. Found as a false positive on lifehacker.dev's home page (2026-11-22). The test also
+     sets scroll-behavior:smooth, which once fooled a scrollTo-based check into reading 0. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overhanging row</title>
+<style>
+  body { margin: 0; font-family: system-ui, sans-serif; }
+  .row { display: flex; margin: 0 -12px; }
+  .col { flex: 1; padding: 0 12px; }
+  .col p { margin: 16px 0; }
+</style>
+</head>
+<body>
+<main>
+  <div class="row"><div class="col"><p>Left column</p></div><div class="col"><p>Right column</p></div></div>
+</main>
+</body>
+</html>

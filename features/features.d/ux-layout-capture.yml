@@ -1,0 +1,21 @@
+id: HUB-NEW
+slug: ux-layout-capture
+title: "Layout capture: every declared page measured as rendered at phone, tablet and desktop widths"
+description: "`dash ux` reads the registry's `ux.surfaces` and loads each page in Chromium at 375, 768 and 1280px through the ux-audit kit's layout capture, writing a geometry snapshot, a wireframe SVG drawn from it and a screenshot per page and width, with the layout rules it broke (L1 page pans sideways, L2 current item clipped, L3 squeezed label, L4 indented column, L5 long lead, L6 hidden scroller) and a provisional score; `compare` diffs two runs by rules fixed and introduced and boxes resized, added or removed, and `consistency` compares one page role across sites by its anchors. Read-only, warn-only, output under .fleet/ux/."
+implemented: true
+status: shipped
+surface: cli
+link: tools/ux_layout.py
+docs: docs/UX-HARNESS.md
+tags: [ ux, frontend, layout, evidence ]
+date: 2026-11-22
+tests:
+  - tools/test_ux_layout.py
+  - templates/ux-audit/tests/layout.test.mjs
+evidence:
+  - test/evidence/ux-layout-capture
+prd: ["FR-NEW:ux-layout-capture", "FR44"]
+prd_new:
+  - key: ux-layout-capture
+    kind: FR
+    text: "The product must measure every page the registry declares as a UX surface as it renders at phone, tablet and desktop widths, recording each page's boxes, the layout rules it breaks and a wireframe drawn from them, and must compare two such runs and one page role across sites; it warns only until a ratified amendment makes it a gate."

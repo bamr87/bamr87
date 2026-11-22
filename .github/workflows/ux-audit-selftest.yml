@@ -1,0 +1,55 @@
+name: ux-audit self-test
+
+# Tests the ux-audit kit's layout capture (templates/ux-audit/scripts/layout_*.mjs,
+# docs/UX-HARNESS.md) the way a leaf uses it, on every PR that touches the kit:
+# two fixture pages, one with the section-page defects found on
+# lifehacker.dev/news/wire/ and one with them fixed, plus an overhanging-row page
+# for L1. Fixtures only, so no network and no fleet read. The hub projector
+# (tools/test_ux_layout.py) runs with every other Python suite in python-tests.yml,
+# so this workflow wakes only for the Node half. UX_REQUIRE_BROWSER=1 turns a
+# missing browser into a failure instead of a skip.
+
+on:
+  pull_request:
+    paths:
+      - "templates/ux-audit/**"
+      - ".github/workflows/ux-audit-selftest.yml"
+  push:
+    branches: [main]
+    paths:
+      - "templates/ux-audit/**"
+      - ".github/workflows/ux-audit-selftest.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ux-audit-selftest-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  layout:
+    name: Layout capture tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '26'  # numeric, never lts/* (atlas rule node-alias)
+      - name: Install the kit's test dependencies (latest, no lockfile)
+        working-directory: templates/ux-audit
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: npm install --no-package-lock --no-audit --no-fund
+      - name: Install Chromium
+        working-directory: templates/ux-audit
+        run: npx playwright install --with-deps chromium
+      - name: Layout capture tests
+        working-directory: templates/ux-audit
+        env:
+          UX_REQUIRE_BROWSER: "1"
+        run: npm test

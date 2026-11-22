@@ -206,6 +206,8 @@
     surfaces:
       - url: https://zer0-mistakes.com/
         role: home
+      - url: https://zer0-mistakes.com/news/development/
+        role: section
     baselines: none
 
   docs_url: https://zer0-mistakes.com
@@ -515,6 +517,8 @@
     surfaces:
       - url: https://lifehacker.dev/
         role: home
+      - url: https://lifehacker.dev/news/wire/
+        role: section
     baselines: none
 
   docs_url: null
