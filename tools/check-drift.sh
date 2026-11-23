@@ -80,6 +80,23 @@
 # ============================================================================
 set -uo pipefail
 
+# bash 3.2 (stock macOS) misparses a quoted heredoc inside $( … ), which the
+# checks below use: every composite action then shows a false ✗ and the run
+# dies on a syntax error, on a tree CI calls green. Run again under a newer
+# bash when one is installed; otherwise say why and stop, since any failure
+# printed from here on would not be real.
+if (( BASH_VERSINFO[0] < 4 )); then
+  for newer_bash in /opt/homebrew/bin/bash /usr/local/bin/bash; do
+    if [[ -x "$newer_bash" ]] && "$newer_bash" -c '(( BASH_VERSINFO[0] >= 4 ))' 2>/dev/null; then
+      exec "$newer_bash" "${BASH_SOURCE[0]}" "$@"
+    fi
+  done
+  echo "check-drift: needs bash 4 or newer (this is ${BASH_VERSION}). Install one (brew install bash) or run it in the devenv container; nothing was checked." >&2
+  # --report never fails (`dash status` reads it), but it must not look like a pass either.
+  [[ "${1:-}" == "--report" ]] && exit 0
+  exit 2
+fi
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MODE="gate"
 RUN_LINKS=0

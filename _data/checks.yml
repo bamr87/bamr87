@@ -1,0 +1,175 @@
+# _data/checks.yml — which check a change owes (schema checks/v1).
+# Read by tools/focus.py: it lists, and with --run runs, only the checks whose
+# paths the change touched, so a missing companion entry is found in one local
+# pass and not one CI failure at a time (ADR 0016, docs/ARCHITECTURE.md).
+#
+# Each check names one existing gate or test. Nothing here is a second
+# implementation: a rule lives in the tool the command runs.
+#   paths   glob patterns (`**` crosses directories); a change that touches a
+#           match owes the check. `"**"` means every change.
+#   run     the command, from the hub root. `{files}` becomes the changed files
+#           that matched `files:` (or `paths:` when `files:` is absent), and
+#           `{base}` the base ref the change is compared against.
+#   needs   an executable on PATH, or a path that must exist. A check whose
+#           need is missing is reported as not run, never as passed.
+# A test that sits beside a changed module (test_<name>.py) needs no entry:
+# focus.py finds it.
+schema: checks/v1
+
+checks:
+  - id: drift
+    title: The hub gate (registry parity, generated files, schema, policy)
+    run: tools/check-drift.sh
+    paths:
+      - "**"
+  - id: schema
+    title: SCHEMA pyramid (a new, moved or removed file has its row)
+    run: python3 tools/schema_lint.py check .
+    paths:
+      - "**"
+  - id: generated-guard
+    title: No main-only generated file in the change
+    run: python3 -m tools.jev generated guard --base {base}
+    paths:
+      - "**"
+  - id: prose
+    title: Markdown is one paragraph per line
+    run: python3 tools/unwrap-prose.py --check {files}
+    paths:
+      - "**/*.md"
+  - id: harness-surface
+    title: The harness surface is clean (always-on text under its cap, skills, hooks and MCP config well formed)
+    run: python3 tools/test_jev_surface.py
+    paths:
+      - AGENTS.md
+      - CLAUDE.md
+      - .claude/**
+      - .mcp.json
+  - id: architecture
+    title: Structure contract (layers, sizes, sys.path, data files)
+    run: python3 tools/architecture.py check
+    paths:
+      - tools/**
+      - .github/scripts/**
+      - .github/workflows/**
+      - _data/**
+  - id: workflows
+    title: Workflow atlas lint (0 errors)
+    run: tools/dash workflows lint
+    paths:
+      - .github/workflows/**
+      - .github/actions/**
+  - id: actionlint
+    title: actionlint on the changed workflows
+    run: actionlint {files}
+    needs: actionlint
+    paths:
+      - .github/workflows/*.yml
+  - id: schedule
+    title: Every hub schedule is declared, off the hour, with a switch
+    run: python3 .github/scripts/dash-gen/test_schedule.py
+    paths:
+      - .github/workflows/**
+      - _data/fleet.yml
+  - id: switches
+    title: Every scheduled or switched workflow has its kill-switch entry
+    run: python3 tools/test_loop_switches.py
+    paths:
+      - .github/workflows/**
+      - _data/fleet.yml
+  - id: ai-budget
+    title: Every headless model call is capped and paired with its cost step
+    run: python3 .github/scripts/dash-gen/test_ai_budget.py
+    paths:
+      - .github/workflows/**
+      - .github/actions/**
+      - _data/fleet.yml
+  - id: agents
+    title: Agent inventory is current (drift check p)
+    run: tools/dash agents --check
+    paths:
+      - .github/workflows/**
+      - tools/jev/**
+      - _data/agents.yml
+      - _data/fleet.yml
+  - id: fleet-config
+    title: The central config parses and projects
+    run: python3 tools/test_fleet_config.py
+    paths:
+      - _data/fleet.yml
+      - tools/fleet-config.py
+  - id: shellcheck
+    title: shellcheck on the changed scripts, at the severity the pre-commit hook enforces
+    run: shellcheck --severity=warning {files}
+    needs: shellcheck
+    paths:
+      - tools/*.sh
+      - tools/observability/*.sh
+  - id: editor
+    title: Every surface has its F5 entry and pickers follow the registries
+    run: python3 tools/test_vscode_launch.py
+    paths:
+      - .vscode/**
+      - tools/dash
+      - .gitmodules
+      - _data/ports.yml
+      - docker-compose.yml
+      - verify/scenarios/**
+  - id: specs
+    title: _data/specs.yml matches specs/
+    run: python3 tools/gen-specs-data.py --check
+    paths:
+      - specs/**
+      - _data/specs.yml
+  - id: governance
+    title: Constitution, amendments, PRD and the feature catalog agree
+    run: python3 tools/governance_lint.py check .
+    paths:
+      - docs/constitution.md
+      - docs/amendments/**
+      - docs/adr/**
+      - PRD.md
+      - features/**
+  - id: features
+    title: The feature index is well formed
+    run: tools/dash features check .
+    paths:
+      - features/**
+      - verify/**
+  - id: diagrams
+    title: Every diagram validates at showcase quality
+    run: tools/render-diagrams.sh --check
+    needs: node
+    paths:
+      - diagrams/*.json
+  - id: console
+    title: The console's server-side core, on an interpreter that has FastAPI (it skips the route half without it)
+    run: python3 tools/console/test_console.py
+    paths:
+      - tools/console/*.py
+      - tools/console/mcp_layer/**
+      - _data/fleet.yml
+  - id: jev-loop
+    title: The local loop runner and its sections
+    run: python3 tools/test_jev_loop.py
+    paths:
+      - tools/jev/loop*.py
+      - tools/jev/steps/**
+  - id: pages
+    title: The public site's routes and snapshot agree
+    run: python3 tools/console/test_pages.py
+    paths:
+      - tools/console/**
+      - pages/**
+  - id: console-web
+    title: The console front end's unit tests
+    run: npm --prefix tools/console/web test
+    needs: tools/console/web/node_modules
+    paths:
+      - tools/console/web/**
+  - id: console-web-types
+    title: The console front end type-checks
+    run: npm --prefix tools/console/web run typecheck
+    needs: tools/console/web/node_modules
+    paths:
+      - tools/console/web/**

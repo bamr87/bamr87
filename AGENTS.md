@@ -8,11 +8,11 @@
 
 A monorepo of Git submodules under `projects/` that doubles as a self-managing **dash** and a GitHub profile README. Each submodule is a separate repository with its own stack, branch and release cycle; there is no shared build. The root (`tools/`, `.github/`, `_data/`, `specs/`, `templates/`, `docs/`, `pages/`) is the machinery that manages, monitors, documents and standardizes them, and the published site at bamr87.github.io/bamr87 is the Harness Console built static.
 
-A change is done when `tools/check-drift.sh` is green, the focused tests for what you touched pass (table below), the nearest `README.md` and `SCHEMA.md` say what changed, and any generated projection you affected has been regenerated.
+A change is done when `tools/check-drift.sh` is green, the focused tests for what you touched pass (`tools/focus.py`, table below), the nearest `README.md` and `SCHEMA.md` say what changed, and any generated projection you affected has been regenerated.
 
 ## Stack & commands
 
-Python 3.12 (stdlib + PyYAML, PyGithub), Bash, a FastAPI + React console, GitHub Actions. Toolchain versions live in `_data/fleet.yml` `toolchain:`. Prefer the `devenv` container (`/workspace`); copy `.env.example` to `.env` before the first start.
+Python 3.12 (stdlib + PyYAML, PyGithub), Bash, a FastAPI + Django + React console, GitHub Actions. Toolchain versions live in `_data/fleet.yml` `toolchain:`. Prefer the `devenv` container (`/workspace`); copy `.env.example` to `.env` before the first start.
 
 ```bash
 tools/dash up                                                  # shared core: devenv, console, one Postgres, one Redis

@@ -1,0 +1,18 @@
+id: HUB-NEW
+slug: architecture-contract
+title: "Structure contract: the hub's own code held to declared layers and limits"
+description: "tools/architecture.py holds the hub's own source to _data/architecture.yml (architecture/v1): a code unit imports from its own layer or a lower one (generators < core < engines < surfaces), a non-test module does not change sys.path, a source file stays under 1,500 lines and a committed _data file under 512 KB. What already breaks a rule is recorded (a layer exception with a why, a ledger entry with the number the file is held to), and the ledger only shrinks: `ledger --write` lowers and drops entries and never raises one. `check` prints each problem with its fix, `report [--json]` the measurements; tools/test_architecture.py runs it against the live tree on every pull request."
+implemented: true
+status: shipped
+surface: infra
+link: tools/architecture.py
+docs: docs/ARCHITECTURE.md
+tags: [ architecture, gate, quality ]
+date: 2026-11-22
+tests:
+  - tools/test_architecture.py
+prd: ["NFR-NEW:architecture-contract"]
+prd_new:
+  - key: architecture-contract
+    kind: NFR
+    text: "The hub's own code must keep to a declared structure contract (import layers, a source-file line limit, no new sys.path changes, a size limit on committed data files) that is checked on every pull request, with existing exceptions recorded in a ledger that can only shrink."

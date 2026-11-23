@@ -158,6 +158,27 @@ run_control_plane_tests() {
     fi
 }
 
+# The Harness Console's page: its unit tests (Vitest over
+# tools/console/web/src/**/*.test.ts), offline. Held to the same rule as a
+# submodule's suite: the sweep never installs, so it runs only where the page's
+# dependencies already are (a console that has been started has them), and an
+# install from before the tests existed is a skip, not a failure.
+run_console_web_tests() {
+    printf '\n%s== Console page (unit tests) ==%s\n' "$c_bold" "$c_off"
+    local web_dir="${PROJECT_ROOT}/tools/console/web"
+    if ! has_npm_script "$web_dir" test; then
+        skip "console web: node not installed or no test script"
+    elif ! has_command npm; then
+        skip "console web: npm not installed"
+    elif [[ ! -d "${web_dir}/node_modules" ]]; then
+        skip "console web: node deps not installed (cd tools/console/web && npm install)"
+    elif [[ ! -x "${web_dir}/node_modules/.bin/vitest" ]]; then
+        skip "console web: installed before the unit tests existed (cd tools/console/web && npm install)"
+    else
+        run_step "console web: npm test" bash -c "cd '${web_dir}' && npm test --silent"
+    fi
+}
+
 run_root_checks() {
     printf '\n%s== Root checks ==%s\n' "$c_bold" "$c_off"
     if has_command shellcheck; then
@@ -189,6 +210,7 @@ main() {
     log_info "Verification sweep from ${PROJECT_ROOT}"
     run_root_checks
     run_control_plane_tests
+    run_console_web_tests
     run_submodule_checks
 
     printf '\n%s== Summary ==%s\n' "$c_bold" "$c_off"

@@ -1,0 +1,18 @@
+id: HUB-NEW
+slug: focus-checks
+title: "Focus: the checks a change owes, in one pass"
+description: "tools/focus.py reads the change against origin/main (committed, staged, unstaged and untracked), looks up _data/checks.yml (checks/v1) and lists, or with --run runs, only the gates and tests whose paths the change touched, plus the test file beside each changed module. It adds no rule: every entry is an existing gate or test and the registry only says which paths owe it. A check whose `needs:` is missing on the machine is reported as not run, never as passed; tools/test_focus.py holds every registry command to a tool that exists."
+implemented: true
+status: shipped
+surface: cli
+link: tools/focus.py
+docs: docs/ARCHITECTURE.md
+tags: [ gate, developer-experience ]
+date: 2026-11-22
+tests:
+  - tools/test_focus.py
+prd: ["FR-NEW:focus-checks"]
+prd_new:
+  - key: focus-checks
+    kind: FR
+    text: "The product must name, and on request run, exactly the gates and tests a given change owes from one registry of checks, so a missing companion entry is found in one local pass."
