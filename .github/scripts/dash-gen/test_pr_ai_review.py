@@ -257,10 +257,14 @@ def test_a_reply_that_is_not_a_review_fails():
 
 
 def test_token_shaped_text_never_leaves_the_job():
-    secret = "sk-ant-oat01-" + "A1b2" * 10
-    doc, out = collected(json.dumps(reply([finding(message=f"The env holds {secret} here.")], summary=f"Found {secret}.")))
-    blob = (out / A.REVIEW_FILE).read_text() + (out / A.FINDINGS_FILE).read_text()
-    assert secret not in blob and "***" in doc["summary"] and "***" in doc["findings"][0]["message"]
+    # A made-up string in a credential's shape, held in memory only: the reply never touches a file here,
+    # so the test stores nothing a scanner could read as a credential on disk.
+    planted = "sk-ant-oat01-" + "A1b2" * 10
+    text = json.dumps(reply([finding(message=f"The env holds {planted} here.")], summary=f"Found {planted}."))
+    doc = A.normalize(A.extract_json(text), meta())
+    written = json.dumps(doc) + "".join(json.dumps(A.finding_row(f)) for f in doc["findings"] if f["inline"])
+    assert doc["findings"][0]["inline"], "the finding is one that would be posted"
+    assert planted not in written and "***" in doc["summary"] and "***" in doc["findings"][0]["message"]
 
 
 # ------------------------------------------------------------------- post
