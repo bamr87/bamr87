@@ -92,6 +92,7 @@ import ai_activity  # the API list-price table + model-id normalization
 REPO_ROOT = Path(__file__).resolve().parents[3]
 OUT_DEFAULT = REPO_ROOT / "_data" / "ai_usage.yml"
 FLEET = REPO_ROOT / "_data" / "fleet.yml"
+SCAN_CACHE_DEFAULT = actions_analytics.LAKE_DIR / "ai_usage_scan_cache.json"
 
 # A workflow FILE that calls Claude by any of the fleet's three routes. The
 # first two are actions; the third is the ai-runner kit's vendored shell runner
@@ -472,6 +473,18 @@ def _scan_log_for_usage(gh_session, url: str) -> dict:
     return out
 
 
+class ScanCache(actions_analytics.JobCache):
+    """The usage records read out of each COMPLETED run's log, keyed like the
+    job-minute cache (repo, run id, attempt). A completed run's log never
+    changes, so only runs new since the last sweep cost a zip download — the
+    full re-download of every Claude run in the window was 11+ minutes of
+    fleet-pulse's 45-minute job. Records are cached unpriced, so a rate change
+    re-prices them; a parser change bumps MARKER, which drops the old cache.
+    Only `log: ok` scans are kept: an unavailable log is retried next sweep."""
+
+    MARKER = "ai-usage-scan-cache/v1"
+
+
 def classify_run(conclusion: str | None, scan: dict | None) -> dict:
     """The usage fields for one run: priced, free, or left for the estimator."""
     if conclusion == "skipped":
@@ -493,7 +506,8 @@ def classify_run(conclusion: str | None, scan: dict | None) -> dict:
 
 def collect_ci(api, gh_session, registry: list[dict], window_start: dt.datetime,
                max_runs: int, now: dt.datetime | None = None,
-               coverage: list | None = None) -> list[dict]:
+               coverage: list | None = None,
+               scan_cache: ScanCache | None = None) -> list[dict]:
     """Every Claude-calling run created in the window, priced.
 
     The window is listed the way actions_analytics lists it — by `created`
@@ -523,8 +537,16 @@ def collect_ci(api, gh_session, registry: list[dict], window_start: dt.datetime,
             updated = actions_analytics.parse_ts(run.get("updated_at"))
             # A skipped run cannot have spent anything, so its log is never
             # downloaded — that is 146 fewer zip downloads per refresh.
-            scan = None if run.get("conclusion") == "skipped" else _scan_log_for_usage(
-                gh_session, run.get("logs_url") or "")
+            scan = None
+            if run.get("conclusion") != "skipped":
+                key = ScanCache.key(nwo, run)
+                hit = scan_cache.get(key) if scan_cache is not None else None
+                if hit is not None and isinstance(hit.get("scan"), dict):
+                    scan = hit["scan"]
+                else:
+                    scan = _scan_log_for_usage(gh_session, run.get("logs_url") or "")
+                    if scan_cache is not None and scan["log"] == "ok":
+                        scan_cache.put(key, {"created_at": run.get("created_at"), "scan": scan})
             usage = classify_run(run.get("conclusion"), scan)
             entries.append({
                 "repo": project["name"],
@@ -761,14 +783,15 @@ with_hub = actions_analytics.with_hub
 
 
 def build(gh, gh_session, registry: list[dict], window_days: int, max_runs: int,
-          commit_cap: int, out_path: Path, api=None) -> dict:
+          commit_cap: int, out_path: Path, api=None,
+          scan_cache: ScanCache | None = None) -> dict:
     now = dt.datetime.now(dt.timezone.utc)
     window_start = now - dt.timedelta(days=window_days)
     cat_of = {p["name"]: p.get("category", "uncategorized") for p in registry}
 
     coverage: list[dict] = []
     ci = collect_ci(api, gh_session, registry, window_start, max_runs, now=now,
-                    coverage=coverage)
+                    coverage=coverage, scan_cache=scan_cache)
     usd_per_turn = load_usd_per_turn()
     bases = estimate_unpriced(ci, usd_per_turn)
     commits, prs = collect_vcs(gh, registry, window_start, commit_cap)
@@ -881,10 +904,16 @@ def run(args: argparse.Namespace) -> int:
         wanted = set(args.repo)
         registry = [p for p in registry if p.get("name") in wanted
                     or actions_analytics.owner_repo(p.get("repo_url", "")) in wanted]
-    sys.stderr.write(f"Collecting Claude usage for {len(registry)} repos (last {args.days}d)…\n")
+    scan_cache = ScanCache(Path(args.scan_cache) if args.scan_cache else None)
+    sys.stderr.write(f"Collecting Claude usage for {len(registry)} repos (last {args.days}d; "
+                     f"{scan_cache.loaded} cached log scans)…\n")
     out = Path(args.out)
     report = build(gh, gh_session, registry, args.days, args.max_runs,
-                   args.commit_cap, out, api=api)
+                   args.commit_cap, out, api=api, scan_cache=scan_cache)
+    kept = scan_cache.save(prune_before=dt.datetime.now(dt.timezone.utc)
+                           - dt.timedelta(days=args.days + 1))
+    if args.scan_cache:
+        sys.stderr.write(f"Scan cache: {kept} runs -> {args.scan_cache}\n")
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w") as fh:
         fh.write("# GENERATED by .github/scripts/dash-gen (ai_usage_collector) — "
@@ -923,5 +952,8 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
                         help="max commits scanned per repo (default 150)")
     parser.add_argument("--no-hub", action="store_true",
                         help="skip the hub itself (_data/fleet.yml hub.repo); registry only")
+    parser.add_argument("--scan-cache", default=str(SCAN_CACHE_DEFAULT), metavar="PATH",
+                        help="per-run log-scan cache (default .dash-lake/ai_usage_scan_cache.json; "
+                             "'' disables)")
     parser.add_argument("--out", default=str(OUT_DEFAULT))
     parser.set_defaults(func=run)

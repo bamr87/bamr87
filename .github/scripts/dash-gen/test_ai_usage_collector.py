@@ -512,6 +512,31 @@ def test_the_hubs_claude_runs_are_not_crowded_out_by_its_other_runs() -> None:
     assert capped[0]["truncated"] and capped[0]["runs_missed"] == 101, capped
 
 
+def test_a_completed_runs_log_is_scanned_once_across_sweeps() -> None:
+    """fleet-pulse re-downloaded every Claude run's log zip in the 14-day
+    window each day (11+ minutes, until the 45-minute job timed out). With the
+    scan cache, the second sweep downloads nothing and prices identically; an
+    unavailable log is not cached, so it is retried."""
+    import tempfile
+    runs = [_run(1, ".github/workflows/issue-pipeline.yml", 30),
+            _run(2, ".github/workflows/issue-pipeline.yml", 20)]
+    api = _Api(runs, {".github/workflows/issue-pipeline.yml": "uses: anthropics/claude-code-action@v1"})
+    hub = {"name": "bamr87", "repo_url": "https://github.com/bamr87/bamr87"}
+    start = NOW - dt.timedelta(days=14)
+    with tempfile.TemporaryDirectory() as d:
+        path = Path(d) / "scan.json"
+        first = _Session({"logs/1": _tier_log(*TIERS[0])})  # logs/2 is missing → KeyError → unavailable
+        cache = col.ScanCache(path)
+        rows1 = col.collect_ci(api, first, [hub], start, 0, now=NOW, scan_cache=cache)
+        assert cache.save() == 1, "only the readable log is cached"
+        second = _Session({"logs/1": _tier_log(*TIERS[0]), "logs/2": _tier_log(*TIERS[1])})
+        rows2 = col.collect_ci(api, second, [hub], start, 0, now=NOW, scan_cache=col.ScanCache(path))
+    assert second.urls == ["logs/2"], second.urls
+    by_id = lambda rows: {r["url"].rsplit("/", 1)[1]: r for r in rows}
+    assert by_id(rows2)["1"] == by_id(rows1)["1"], "a cached scan prices exactly as a fresh one"
+    assert abs(by_id(rows2)["2"]["cost_usd"] - TIERS[1][3]) < 1e-6
+
+
 # --------------------------------------------------------------------------- #
 # the budget check reads the accounted figure
 # --------------------------------------------------------------------------- #

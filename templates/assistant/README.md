@@ -32,6 +32,14 @@ tools/fanout.sh --kit assist --target <name> --apply    # open the PR
 tools/dash apps assist                                  # which adapter each repo gets
 ```
 
+Where it lands, and why the dry run is worth reading:
+
+- **The platform is the registry's, not a guess.** The fan-out asks the planner (`frontend.framework` in `_data/projects.yml`) which adapter a repo gets. The files at a repo's root do not say: an app that lives in `app/`, `arcade/` or `web/studio` has no `package.json` up there.
+- **It lands where the app is.** A React or Next.js app gets the payload in its own `public/` and the adapter in its own `src/components/` (or `components/`), wherever in the repo the app sits. A hand-written page gets the payload beside it, because a page in a folder of its own is served with what sits next to it and with nothing else.
+- **A zer0-mistakes site vendors nothing.** The theme carries the payload and the include (ADR 0014 P1), so the seven sites on it need one key, `fleet_assist.enabled: true`, and no copy of the file.
+- **Your copy is the copy.** A payload or adapter the repo already has is kept current where it is, even after you move it next to your own components. A re-run never seeds a second one.
+- **The shell is yours.** The fan-out names the line that mounts the adapter and does not write it (UPS-AST-40). A pull request that stops there adds files nothing loads, so mount it in the same pull request, and check the page in development before it merges.
+
 By hand, in any stack:
 
 1. Vendor `fleet-assist.js` into the repo's static assets (`assets/js/`, `public/`, `static/js/`). Never hot-link the hub.

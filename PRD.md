@@ -180,6 +180,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-128](features/features.yml) | The assistant, observed: its messages, what its sessions did to pages, the pages sharing themselves and its inventory entry, from one document on every surface | shipped | route `/assist` · [`tools/console/README.md`](tools/console/README.md) | FR92, FR139 |
 | [HUB-129](features/features.yml) | Fleet link check: every live link, checked once | shipped | [`tools/link_check.py`](tools/link_check.py) · [`docs/LINK-CHECK.md`](docs/LINK-CHECK.md) | FR142 |
 | [HUB-130](features/features.yml) | Site builds: the console published at another address, with the bashOS desktop as its front door | partial | [`tools/console/build-pages.sh`](tools/console/build-pages.sh) · [`docs/CONSOLE-PAGES.md`](docs/CONSOLE-PAGES.md) | FR58, FR77, FR143 |
+| [HUB-131](features/features.yml) | AI analysis of every failed CI run on a pull request | shipped | [`.github/scripts/dash-gen/pr_ai_analysis.py`](.github/scripts/dash-gen/pr_ai_analysis.py) · [`templates/pr-review/README.md`](templates/pr-review/README.md) | FR144 |
+| [HUB-132](features/features.yml) | AI review: a pull request that is marked ready gets a review and who does what next | partial | [`.github/workflows/pr-ai-review.yml`](.github/workflows/pr-ai-review.yml) · [`templates/pr-review/README.md`](templates/pr-review/README.md) | FR61, FR137 |
 
 **Requirement → feature trace**
 
@@ -256,7 +258,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR58 | HUB-062, HUB-078, HUB-079, HUB-080, HUB-130 |
 | FR59 | HUB-063, HUB-073 |
 | FR60 | HUB-064, HUB-072, HUB-073, HUB-082, HUB-088 |
-| FR61 | HUB-065 |
+| FR61 | HUB-065, HUB-132 |
 | FR62 | HUB-066 |
 | FR63 | HUB-067, HUB-073, HUB-113 |
 | FR64 | HUB-068, HUB-116 |
@@ -352,13 +354,14 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR134 | HUB-117 |
 | FR135 | HUB-117 |
 | FR136 | HUB-118 |
-| FR137 | HUB-121 |
+| FR137 | HUB-121, HUB-132 |
 | FR138 | HUB-122 |
 | FR139 | HUB-125, HUB-128 |
 | FR140 | HUB-126 |
 | FR141 | HUB-127 |
 | FR142 | HUB-129 |
 | FR143 | HUB-130 |
+| FR144 | HUB-131 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -496,6 +499,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR141: Every repo in the fleet must have a baseline way for an AI agent to work with it, sized to its platform: where a repo draws pages, an agent session the person paired with a page can see that page and act on it only as far as the person allows, under the same rules on every stack; where it does not, the agent works in its checkout on the fleet's agent context.
 - FR142: The hub must check every link the fleet publishes — the owned repos' rendered Markdown and HTML, the profile README's data and every live site — and report each broken one with the file and line or page that publishes it, without filing, pushing or failing a scheduled run by default.
 - FR143: The Harness Console must be buildable as a named site for another address, taking that site's title, mark and front door from the instance's settings and not from code, with the default public build unchanged when no site is named; the first such site is the front door of the bash-365 platform: the bashOS desktop with an icon for every repo and application the registry declares, the BASH Consulting site among them.
+- FR144: Every failed CI run on a pull request must get an AI analysis in the PR's one sticky comment (root cause, whether the PR caused it, the fix), once per failed run attempt, through a capped, tool-less, one-turn fleet harness call behind its own switch; it never fails a check or approves, and a PR from outside the collaborators is analysed once a maintainer labels it (constitution § 19.11).
 
 **Non-functional**
 

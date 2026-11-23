@@ -146,10 +146,28 @@ jobs:
           path: .dash-lake/actions_jobs_cache.json
           key: actions-jobs-${{ github.run_id }}
 
+      # Same pattern for the ledger: a completed run's log never changes, so
+      # its parsed usage records are cached per run and only new runs cost a
+      # zip download. Re-downloading the whole window took 11-17 minutes and
+      # pushed this job past its 45-minute timeout (2026-11-19..21).
+      - name: Restore the Claude log-scan cache
+        uses: actions/cache/restore@v6
+        with:
+          path: .dash-lake/ai_usage_scan_cache.json
+          key: ai-usage-scan-${{ github.run_id }}
+          restore-keys: ai-usage-scan-
+
       - name: Claude usage ledger
         id: g_ai
         continue-on-error: true
         run: tools/dash-gen ai-usage --days "$DAYS"
+
+      - name: Save the Claude log-scan cache
+        if: ${{ !cancelled() && hashFiles('.dash-lake/ai_usage_scan_cache.json') != '' }}
+        uses: actions/cache/save@v6
+        with:
+          path: .dash-lake/ai_usage_scan_cache.json
+          key: ai-usage-scan-${{ github.run_id }}
 
       - name: Engagement actuals
         id: g_ledger
