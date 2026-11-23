@@ -21,13 +21,13 @@
 
 ## 1. Specs — the Universal Project Standard
 
-[`specs/README.md`](specs/README.md) is the spec index (UPS 1.0, draft); [`_data/specs.yml`](_data/specs.yml) is its generated twin. 253 requirements: 171 MUST, 73 SHOULD, 4 MAY; 70 still lack a seed kit.
+[`specs/README.md`](specs/README.md) is the spec index (UPS 1.0, draft); [`_data/specs.yml`](_data/specs.yml) is its generated twin. 255 requirements: 171 MUST, 74 SHOULD, 4 MAY; 70 still lack a seed kit.
 
 | Area | Spec | Ids | MUST / SHOULD / MAY | Gaps | Governs |
 | --- | --- | --- | --- | --- | --- |
 | REPO | [`REPOSITORY.md`](specs/REPOSITORY.md) | UPS-REPO-01…40 | 21 / 8 / 0 | 8 | Repository layout and required files |
 | AGENT | [`AGENT-CONTEXT.md`](specs/AGENT-CONTEXT.md) | UPS-AGENT-01…33 | 13 / 6 / 0 | 0 | Agent context |
-| QA | [`QUALITY.md`](specs/QUALITY.md) | UPS-QA-01…63 | 25 / 11 / 0 | 17 | Quality gates |
+| QA | [`QUALITY.md`](specs/QUALITY.md) | UPS-QA-01…63 | 25 / 12 / 0 | 17 | Quality gates |
 | FE | [`FRONTEND.md`](specs/FRONTEND.md) | UPS-FE-01…73 | 34 / 14 / 2 | 6 | Frontend: design system, core components, UX standards |
 | FB | [`FEEDBACK.md`](specs/FEEDBACK.md) | UPS-FB-01…42 | 18 / 4 / 1 | 3 | The universal feedback component |
 | AST | [`ASSIST.md`](specs/ASSIST.md) | UPS-AST-01…42 | 9 / 4 / 0 | 1 | The fleet assistant: the page bridge and the baseline per platform |
@@ -153,6 +153,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`audit-git-hooks.sh`](tools/audit-git-hooks.sh) | Read-only diagnostic for the "Husky vs. |
 | [`audit-standards.sh`](tools/audit-standards.sh) | Standardization conformance matrix across the submodule fleet (wrapped by `dash audit`) |
 | [`backlog_fanout.py`](tools/backlog_fanout.py) | Purpose: the BACKLOG FAN-OUT routine (HUB-027, PRD FR22/FR23). |
+| [`branch_policy.py`](tools/branch_policy.py) | The branch model as code ([docs/BRANCHING.md](../docs/BRANCHING.md), `_data/fleet.yml` `branches:`): `classify` a branch name; `protect` plans one ruleset, `fleet-defaul… |
 | [`check-drift.sh`](tools/check-drift.sh) | **Hard drift gate** — registry/`.gitmodules` parity, README freshness, schema pyramid, and advisory checks: GitHub reality, and (q) that every hub pin in `templates/` re… |
 | [`check_rollup.py`](tools/check_rollup.py) | One rule for reading a commit's checks, shared by `weekly/closeout.py` (`checks_green`), `console/decision_index.py` and `pm_review.py`: a CANCELLED check run is set asi… |
 | [`claude_code_executes_lint.py`](tools/claude_code_executes_lint.py) | Warn-then-fail lint for constitution § 26 (Claude Code executes; |
@@ -197,7 +198,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`pm_review.py`](tools/pm_review.py) | The **routine PM review** (`dash pm`; [docs/PM.md](../docs/PM.md)). |
 | [`projects_backfill.py`](tools/projects_backfill.py) | The issue-triage and **Fleet board backfill** pass (constitution § 10 / § 11; `dash projects`). |
 | [`projects_lint.py`](tools/projects_lint.py) | Work-tracking gate (constitution § 9, amendment 0003, feature projects-coverage-gate). |
-| [`protect-branch.sh`](tools/protect-branch.sh) | Requires the CI gate on a repo's default branch (wrapped by `dash protect`) |
+| [`protect-branch.sh`](tools/protect-branch.sh) | Wrapper of `branch_policy.py protect` / `check` (wrapped by `dash protect`): plans the fleet ruleset on a repo's default branch, writes it with `--apply` |
 | [`render-diagrams.sh`](tools/render-diagrams.sh) | Validates every `diagrams/*.json` archify IR file and delivers the standalone HTML beside it |
 | [`run-all-tests.sh`](tools/run-all-tests.sh) | Aggregate verification — root lint, **the control plane's own `dash-gen` tests**, and each project's own checks (wrapped by `dash test`) |
 | [`sanctioned_lockfiles.py`](tools/sanctioned_lockfiles.py) | The one parser of the hub-only lockfile exception (UPS-QA-40/41, UPS-REPO-07) in `specs/QUALITY.contract.yml`: who counts as the hub (origin `bamr87/bamr87`), which lock… |
@@ -211,6 +212,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_adopt_release.py`](tools/test_adopt_release.py) | Tests for the release-pipeline kit (templates/release-pipeline/) and the tool that seeds it, tools/adopt-release.sh. |
 | [`test_architecture.py`](tools/test_architecture.py) | Tests for tools/architecture.py — the hub's structure contract (ADR 0016): each rule on a fixture tree built in a temp directory, the ledger writer, and the live tree it… |
 | [`test_backlog_fanout.py`](tools/test_backlog_fanout.py) | Fixture tests for tools/backlog_fanout.py + tools/fleet_activity.py. |
+| [`test_branch_policy.py`](tools/test_branch_policy.py) | Fixture tests for tools/branch_policy.py and the `branches:` block of _data/fleet.yml (docs/BRANCHING.md, ADR 0015, UPS-QA-35/36): the policy honours constitution § 12.2… |
 | [`test_check_rollup.py`](tools/test_check_rollup.py) | Offline tests for `check_rollup.py`: both rollup shapes (`gh pr view` and GraphQL), same-second ordering, a run not yet started, unreadable times, only a cancellation se… |
 | [`test_claude_code_executes_lint.py`](tools/test_claude_code_executes_lint.py) | Fixture tests for tools/claude_code_executes_lint.py (constitution § 26).""" from __future__ import annotations |
 | [`test_claude_run.py`](tools/test_claude_run.py) | **claude-run logs what it installed** (#499): the `claude-run` action prints `claude-run: Claude Code <version> on Node <version>` after the install, and warns, naming `… |
@@ -481,6 +483,7 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`ARCH-RESEARCH-HARNESS.md`](docs/ARCH-RESEARCH-HARNESS.md) | A research-and-development harness that studies the high-level architecture and the deeper structural challenges of every codebase in the bamr87 fleet, grounds each judg… |
 | [`ARCHITECTURE.md`](docs/ARCHITECTURE.md) | How the hub's own code is laid out, the four structural rules it is held to, and the one command that names the checks a change owes. |
 | [`BACKLOG-FANOUT.md`](docs/BACKLOG-FANOUT.md) | Turns the hub's pending backlog into tracking PRs in each fleet repo an item applies to — dry run by default, PR-only and additive. |
+| [`BRANCHING.md`](docs/BRANCHING.md) | The fleet's branch model in one place: `main` is the only long-lived branch, every other branch is short-lived and named for what made it, every change lands by pull req… |
 | [`COCKPIT.md`](docs/COCKPIT.md) | Decision record (2026-09-18): GitFactory (gitorio) as the one front door for designing, running and refining harnesses, with this hub as its runtime. |
 | [`CONSOLE-PAGES.md`](docs/CONSOLE-PAGES.md) | The public site is the Harness Console built static: the API snapshot it reads, connecting GitHub or a running console from the page, and what is never published. |
 | [`CONSOLIDATION.md`](docs/CONSOLIDATION.md) | The 2026-10-19 repository consolidation: which repositories merged into which, the zer0-CMS recipe, the hub's add and retire steps, and the decisions still open. |

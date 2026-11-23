@@ -185,6 +185,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-133](features/features.yml) | Fleet uplift: what one repo improved that the others still lack, captured for the hub and deployed by the loops it already has | shipped | [`tools/uplift.py`](tools/uplift.py) · [`docs/UPLIFT.md`](docs/UPLIFT.md) | FR145 |
 | [HUB-134](features/features.yml) | Structure contract: the hub's own code held to declared layers and limits | shipped | [`tools/architecture.py`](tools/architecture.py) · [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | NFR33 |
 | [HUB-135](features/features.yml) | Focus: the checks a change owes, in one pass | shipped | [`tools/focus.py`](tools/focus.py) · [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | FR146 |
+| [HUB-136](features/features.yml) | The branch model, declared once, and one ruleset per repo that allows only merge commits | shipped | [`tools/branch_policy.py`](tools/branch_policy.py) · [`docs/BRANCHING.md`](docs/BRANCHING.md) | FR147 |
 
 **Requirement → feature trace**
 
@@ -368,6 +369,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR145 | HUB-133 |
 | NFR33 | HUB-134 |
 | FR146 | HUB-135 |
+| FR147 | HUB-136 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -508,6 +510,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR144: Every failed CI run on a pull request must get an AI analysis in the PR's one sticky comment (root cause, whether the PR caused it, the fix), once per failed run attempt, through a capped, tool-less, one-turn fleet harness call behind its own switch; it never fails a check or approves, and a PR from outside the collaborators is analysed once a maintainer labels it (constitution § 19.11).
 - FR145: The hub must notice an improvement one fleet repo made that other repos still lack, from the repos' own history and without a model, say exactly which repos lack it and where the change belongs (the kit that seeded the file, or each repo), and hand it to the existing delivery loops as one reviewed hub issue; it must tell a hub rollout that has not finished apart from a repo's own improvement, and show the rollout's progress.
 - FR146: The product must name, and on request run, exactly the gates and tests a given change owes from one registry of checks, so a missing companion entry is found in one local pass.
+- FR147: The hub must declare the fleet's branch model once (the default branch, the merge method, and the work, session and automation branch prefixes with each automation prefix's owner) and project the default branch's protection from it as one named repository ruleset that allows only the merge commit constitution § 12.2 requires, requires no approval unless a repo asks for one, never requires linear history and names only required checks that have reported on the default branch; the tool must plan before it writes, write only on the maintainer's explicit apply, leave every other ruleset and setting unchanged, and audit a repo's live protection from every source read-only.
 
 **Non-functional**
 
