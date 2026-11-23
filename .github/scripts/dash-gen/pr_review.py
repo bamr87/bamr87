@@ -53,7 +53,8 @@ MAX_RUNS = 6            # failed workflows detailed in one comment
 MAX_JOBS = 4            # failed jobs detailed per workflow
 MAX_EXCERPT_LINES = 14
 MAX_LINE = 220
-MAX_BODY = 30_000       # GitHub's limit is 65,536
+MAX_BODY = 30_000       # GitHub's limit is 65,536; the AI region (MAX_AI_REGION) comes on top
+LOG_TAIL_LINES = 160    # what the AI analysis reads of a failed step
 
 # The findings channel (§ 19.3). The artifact is data from the PR's own code.
 FINDINGS_ARTIFACT = "fleet-findings"
@@ -108,6 +109,17 @@ NOISE_RX = re.compile(r"^(?:Post job cleanup|Cleaning up orphan processes|Tempor
                       r"directory|Removing (?:SSH|HTTP|includeIf|credentials)|\[command\]|##\[(?:start|end)-action|Evaluate and set)")
 SECRET_RX = re.compile(r"(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-ant-[A-Za-z0-9_-]{20,}"
                        r"|AKIA[0-9A-Z]{16}|(?i:bearer)\s+[A-Za-z0-9._-]{20,})")
+
+# The AI analysis (§ 19.11, pr_ai_analysis.py) lives in this same comment: one block per
+# failed run, keyed by (run id, attempt), inside one region under the summary. A rebuild
+# carries the blocks of the runs that are still failing at the same attempt, so a run is
+# analysed once; a fixed or re-run workflow drops its block.
+AI_REGION_OPEN = "<!-- fleet:ai-analyses -->"
+AI_REGION_CLOSE = "<!-- /fleet:ai-analyses -->"
+AI_BLOCK_OPEN = "<!-- fleet:ai-analysis {} -->"
+AI_BLOCK_CLOSE = "<!-- /fleet:ai-analysis -->"
+AI_BLOCK_RX = re.compile(r"<!-- fleet:ai-analysis (\{[^\n]*?\}) -->\n.*?<!-- /fleet:ai-analysis -->", re.S)
+MAX_AI_REGION = 18_000
 
 
 class Gh:
@@ -350,8 +362,10 @@ def describe_run(gh: Gh, run: dict, default_branch: str) -> dict:
         reason, excerpt = explain(log, step, messages)
         found = atlas.classify_failure(["\n".join(f"##[error]{m}" for m in messages) + "\n" + log[-20000:]],
                                        run.get("conclusion"), (step or {}).get("name"))
+        # `log_tail` is never rendered: pr_ai_analysis.py hands it to the model, so a log is downloaded once.
         details.append({"job": job.get("name") or "job", "url": job.get("html_url") or "", "step": (step or {}).get("name") or "",
-                        "class": found["class"], "cause": found["cause"], "reason": reason, "excerpt": excerpt})
+                        "class": found["class"], "cause": found["cause"], "reason": reason, "excerpt": excerpt,
+                        "log_tail": step_lines(log, step)[-LOG_TAIL_LINES:]})
     # A job that only reports its siblings failed says nothing the sibling doesn't.
     real = [d for d in details if not ROLLUP_RX.search(d["reason"])]
     out["jobs"] = real or details
@@ -620,16 +634,64 @@ def count_text(counts: dict) -> str:
     return ", ".join(f"{counts[s]} {s if counts[s] == 1 else s + 's'}" for s in FINDING_SEVERITIES if counts.get(s))
 
 
+# ------------------------------------------------------------------- the AI region
+def ai_blocks(comment: dict | None) -> dict[int, tuple[dict, str]]:
+    """{run id: (its block's header, the block)} from the sticky. Only a comment a bot
+    wrote is read: a person can post text that starts with the marker, and nothing they
+    write may pass for an analysis or stop one from running."""
+    if not comment or (comment.get("user") or {}).get("type") != "Bot":
+        return {}
+    out: dict[int, tuple[dict, str]] = {}
+    for m in AI_BLOCK_RX.finditer(str(comment.get("body") or "")):
+        try:
+            head = json.loads(m.group(1))
+            out[int(head["run"])] = (head, m.group(0))
+        except (ValueError, KeyError, TypeError):
+            continue
+    return out
+
+
+def carried(comment: dict | None, runs: list[dict]) -> list[str]:
+    """The blocks a rebuild keeps: those of runs still failing, at the same attempt."""
+    blocks = ai_blocks(comment)
+    keep = []
+    for r in runs:
+        head, block = blocks.get(int(r.get("id") or 0), ({}, ""))
+        if block and int(head.get("attempt") or 0) == int(r.get("run_attempt") or 1):
+            keep.append(block)
+    return keep
+
+
+def ai_region(blocks: list[str], limit: int = MAX_AI_REGION) -> str:
+    """The region, present (empty) whenever a run failed, so a later analysis has its
+    place. A block that does not fit keeps its header, so its run is not analysed again."""
+    if not blocks:
+        return f"{AI_REGION_OPEN}\n{AI_REGION_CLOSE}"
+    parts, used = [], 0
+    for block in sorted(blocks, key=lambda b: b.split("\n", 2)[1] if b.count("\n") >= 1 else b):
+        if used + len(block) > limit:
+            lines = block.split("\n")
+            block = "\n".join([lines[0], lines[1] if len(lines) > 2 else "", "",
+                               "_This run's analysis did not fit in the comment: the analysis run's job summary has it._",
+                               AI_BLOCK_CLOSE])
+        parts.append(block)
+        used += len(block)
+    return "\n".join([AI_REGION_OPEN, "## AI analysis", "", "\n\n".join(parts), AI_REGION_CLOSE])
+
+
 # ------------------------------------------------------------------- the comment
-def render(sha: str, reports: list[dict], extra: int, state: dict, signature: str, findings: dict | None = None) -> str:
+def render(sha: str, reports: list[dict], extra: int, state: dict, signature: str, findings: dict | None = None,
+           ai: str = "") -> str:
     """The comment. Its footer always survives: without the state marker the next
-    run would rewrite it, and § 19.4 requires the signature."""
+    run would rewrite it, and § 19.4 requires the signature. The AI region sits
+    between the summary and the footer, outside the summary's own size budget."""
     footer = f"<!-- fleet:pr-review-state {json.dumps(state, separators=(',', ':'))} -->\n{signature}"
     body = _body(sha, reports, extra, excerpts=True, findings=findings)
     if len(body) + len(footer) > MAX_BODY:
         body = (_body(sha, reports, extra, excerpts=False, findings=findings)
                 + "\nLog excerpts are left out because this comment got too long.\n")
-    return body[:MAX_BODY - len(footer) - 1] + "\n" + footer
+    region = (ai or ai_region([])) + "\n" if reports else ""
+    return body[:MAX_BODY - len(footer) - 1] + "\n" + region + footer
 
 
 def _body(sha: str, reports: list[dict], extra: int, excerpts: bool, findings: dict | None = None) -> str:
@@ -719,7 +781,8 @@ def _sticky(gh: Gh, number: int, run: dict, runs: list[dict], dry_run: bool, tri
     bad.sort(key=lambda r: (r.get("conclusion") in HELD, r.get("name") or ""))
     reports = [describe_run(gh, r, default_branch) for r in bad[:MAX_RUNS]]
     signature = f"<!-- fleet:source=ci-failure trigger={trigger} run={self_url} -->"
-    body = render(run["head_sha"], reports, len(bad) - len(reports), state, signature, findings)
+    body = render(run["head_sha"], reports, len(bad) - len(reports), state, signature, findings,
+                  ai=ai_region(carried(current, bad)))
     say(body)
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:

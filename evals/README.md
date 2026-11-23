@@ -6,6 +6,7 @@ The hub's agent eval sets (constitution § 13.1–13.2). Each directory is one a
 | --- | --- | ---: | --- |
 | [`console-assist/`](console-assist/cases.yml) | model | 24 | the console's assistant (the `assist` op): its shipped prompt, tool allowlist and the real MCP layer, against a recorded page |
 | [`jev-classify/`](jev-classify/cases.yml) | deterministic | 31 | `tools/jev/classify.py` `classify()` + `kind_of()`: JEV's conflict tier ladder |
+| [`pr-ai-analysis/`](pr-ai-analysis/cases.yml) | model | 20 | the CI failure analyst of `pr-review.yml` (§ 19.11): its shipped prompt and parser, against past failed PR runs |
 | [`t1-intake/`](t1-intake/cases.yml) | model | 14 | the issue pipeline's tier-1 intake prompt: the ready / blocked exit and the type label |
 
 ```bash

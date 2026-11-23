@@ -1,6 +1,6 @@
 # templates/pr-review — the fleet's one PR comment
 
-> A thin caller of the hub's reusable `pr-review.yml`, which summarizes every CI failure on a pull request in one sticky comment, so nobody has to open a log to learn why a check failed, and posts each repo check's findings inline on the diff, once.
+> A thin caller of the hub's reusable `pr-review.yml`, which summarizes every CI failure on a pull request in one sticky comment, so nobody has to open a log to learn why a check failed, adds an AI analysis of each failed run to that comment, and posts each repo check's findings inline on the diff, once.
 
 | File | Purpose |
 | --- | --- |
@@ -19,6 +19,31 @@ For each failed job: the failed step, the reason taken from its log, what kind o
 A failed push to the default branch is reported on the PR that merged it, so a broken `main` reaches whoever merged.
 
 While something is failing, the sticky also counts the findings on the head commit's diff, by severity.
+
+## AI analysis (§ 19.11)
+
+Under the deterministic summary, each failed run also gets an AI analysis in the same comment: what most likely went wrong, whether the pull request caused it, the one log line that shows it, a confidence, and the smallest fix with commands to verify it. The summary reads the log with patterns; the analysis reads the log, the workflow file and the pull request's diff together, so it can say *why*.
+
+| What | How |
+| --- | --- |
+| When | Once per failed run attempt. Every time a workflow on the PR finishes, `ci-failure` counts the failed runs on the head commit that have no analysis yet; the `ai-analysis` job starts only when there is one. A re-run is a new attempt and gets a new analysis. A run held for approval gets none: the summary already says what to do |
+| What the model sees | Per failed run: the fleet's own reading of each failed job (step, reason, class, whether it fails on the default branch), the failed step's last 160 log lines, and the workflow file at the head commit; then the PR's changed files and a diff excerpt. Everything from the PR is fenced as untrusted data, and the whole prompt stays under 90 KB |
+| The model | `claude-sonnet-5-5` through the hub's `claude-run` action, OAuth only, **no tools, one turn** (`max-turns: 1`, `permission-mode: default`), capped at $1 per pass (`budget.call_sites` `pr-review.yml:ai-analysis`). One turn means a tool call a log talks it into can never feed a result back into the answer |
+| Its answer | One JSON object per pass, validated field by field (an unknown run id is dropped, a value outside its set falls back to the cautious one, every string is bounded). Every string is scrubbed of token shapes and escaped, so nothing renders as a link, image, mention or HTML; a URL shows as code. Commands go in a fenced block that the answer cannot close |
+| Who gets one | A pull request from an `OWNER`, `MEMBER` or `COLLABORATOR`, from a bot in `_data/fleet.yml` `pr_review.ai_analysis.trusted_bots` (Dependabot, `github-actions[bot]`, …), or one carrying the `ai-analysis` label. Anyone else's gets a note that it waits for that label. The label is read through the API when a workflow on the PR finishes, never as a job condition on a label event (a label checked on `pull_request_target` authorizes a PR at one moment, which CodeQL reports as a time-of-check flaw), so after adding it a maintainer re-runs the failed workflow, or waits for the next one to finish |
+| When it cannot run | The block says why: no `CLAUDE_CODE_OAUTH_TOKEN` reached the job, the call failed (a spent usage window, an outage), or the answer broke the contract. It is tried again on the next pass, at most `max_tries` (2) times per run attempt |
+| What it never does | Fail a check, approve, review code beyond the log and diff, or run anything from the PR. Each block ends by saying it was written by AI and can be wrong |
+
+Each block is keyed by a hidden `<!-- fleet:ai-analysis {"run":…,"attempt":…,"status":…} -->` header inside one `<!-- fleet:ai-analyses -->` region. `pr_review.py` rebuilds the comment from scratch as runs finish and carries each block whose run still fails at the same attempt; a fixed or re-run workflow drops its block. Only a comment a bot wrote is read for blocks, so a person's comment that starts with the marker cannot stop an analysis or pass for one. The `ai-analysis` job runs after `ci-failure`, and the readiness job's pull-request events run as other runs of the same file in the same concurrency group, so the comment is never edited twice at once, and each pass analyses every failed run that still has no block, so a pass the group cancelled loses nothing. The job summary keeps every block whole.
+
+Turn it off in one repo with the variable `PR_AI_ANALYSIS_ENABLED` set to `false`; `PR_REVIEW_ENABLED=false` still stops everything. The same pass runs from a workstation, through `dash ai run` and its ledger, capped by the same call site (§ 10.9):
+
+```bash
+python3 .github/scripts/dash-gen/pr_ai_analysis.py local --repo bamr87/<repo> --pr <n>          # prints the blocks
+python3 .github/scripts/dash-gen/pr_ai_analysis.py local --repo bamr87/<repo> --pr <n> --post   # and writes them
+```
+
+A fleet repo needs kit 0.3.0, whose stub passes `CLAUDE_CODE_OAUTH_TOKEN` (and nothing else) to the reusable workflow. **Seed 0.3.0 only after the `v2` tag carries the `ai-analysis` job:** an older reusable workflow does not declare that secret, and a caller that passes an undeclared secret does not start. A 0.2.0 stub keeps working and gets the "no credential" note.
 
 ## Findings: how a repo check reports
 
@@ -119,5 +144,5 @@ ai-world-view.github.io carries the same `docs-warden.yml` as year-of-ai and fol
 
 ## Not built yet
 
-- **AI review (§ 19.7)** runs on `opened`, `ready_for_review` and an explicit label, never on every push, behind the § 17 switch and held to § 13. It is a new harness and needs its own issue: a fleet route (`ai-lane.yml` or `claude-run`) with an exact model, `--max-budget-usd` and a `budget.call_sites` entry, an `_data/agents.yml` entry with its KPIs, and a § 13.1 eval set before its findings can fail a build. Its findings would arrive through the same `fleet-findings` channel.
+- **AI review of the code (§ 19.7)** runs on `opened`, `ready_for_review` and an explicit label, never on every push, behind the § 17 switch and held to § 13. It is a different harness from the AI failure analysis above (which reads failed runs, not the diff as a review) and needs its own issue: a fleet route with an exact model, `--max-budget-usd` and a `budget.call_sites` entry, an `_data/agents.yml` entry with its KPIs, and a § 13.1 eval set before its findings can fail a build. Its findings would arrive through the same `fleet-findings` channel.
 - **Identity (§ 19.5):** posting as the fleet app instead of `github-actions[bot]` is bamr87/bamr87#565.
