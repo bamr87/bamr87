@@ -36,9 +36,20 @@ name: PR review
 # runs this file from the default branch with the same rule as above. It never checks
 # out the pull request, and it reads the pull request through the API alone.
 #
+# AI ANALYSIS (§ 19.11). Every failed run on a pull request also gets an AI analysis in the
+# same comment: the `ai-analysis` job hands each failed run's log, its workflow file and the
+# pull request's diff to one claude-run call (Sonnet, no tools, ONE turn, a $1 cap) and writes
+# what it says, validated and escaped, into the sticky under the summary
+# (.github/scripts/dash-gen/pr_ai_analysis.py). Each run attempt is analysed once; a pass
+# picks up every failed run on the head commit that has none yet. The pull request of an
+# author outside the collaborators (author_association) waits for a maintainer's
+# `ai-analysis` label, which also starts a pass. The analysis is advisory: it never fails a
+# check, never approves, and a call that cannot run says so in the comment.
+#
 # It runs only from the default branch, so a change here takes effect at merge.
 # Off switch: `vars.PR_REVIEW_ENABLED` set to 'false'. Default on.
 # Readiness switch: `vars.PR_READINESS_ENABLED` set to 'true'. Default off.
+# AI analysis switch: `vars.PR_AI_ANALYSIS_ENABLED` set to 'false'. Default on.
 
 on:
   workflow_run:
@@ -52,6 +63,10 @@ on:
         description: "bamr87/bamr87 ref to take the tooling from: pass the ref you call this workflow at"
         type: string
         default: "main"
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: "The repo's Claude credential, for the AI analysis (§ 19.11); without it the analysis says it could not run"
+        required: false
 
 permissions:
   contents: read
@@ -80,6 +95,8 @@ jobs:
       checks: read
       contents: read
       pull-requests: write
+    outputs:
+      ai-pending: ${{ steps.ai-pending.outputs.pending }}
     steps:
       - name: Check out the hub's tooling, never the pull request
         uses: actions/checkout@v7
@@ -111,6 +128,17 @@ jobs:
           script=pr_review.py
           if [ "$READINESS" = "true" ]; then script=pr_readiness.py; fi
           python ".fleet-hub/.github/scripts/dash-gen/$script" ci --repo "$GITHUB_REPOSITORY" --run "$RUN_ID"
+
+      # Cheap, and no model: does any failed run on the head commit still lack an AI
+      # analysis? The ai-analysis job starts only when one does.
+      - name: Count the failed runs that still need an AI analysis
+        id: ai-pending
+        if: ${{ vars.PR_AI_ANALYSIS_ENABLED != 'false' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: python .fleet-hub/.github/scripts/dash-gen/pr_ai_analysis.py plan --check --repo "$GITHUB_REPOSITORY" --run "$RUN_ID"
 
   readiness:
     # The pull-request events that start no workflow of their own: marked ready, converted
@@ -149,3 +177,95 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
         run: python .fleet-hub/.github/scripts/dash-gen/pr_readiness.py ready --repo "$GITHUB_REPOSITORY" --pr "$PR"
+
+  ai-analysis:
+    # § 19.11: an AI analysis of every failed run, in the same sticky comment. After
+    # ci-failure (which wrote the summary it lands in) and readiness (which may rewrite
+    # the comment), so the three never edit it at once. Starts when ci-failure counted a
+    # failed run with no analysis yet, or when a maintainer adds the `ai-analysis` label.
+    needs: [ci-failure, readiness]
+    if: >-
+      ${{ always() && vars.PR_REVIEW_ENABLED != 'false' && vars.PR_AI_ANALYSIS_ENABLED != 'false' && (
+      (github.event_name == 'workflow_run' && needs.ci-failure.result == 'success'
+      && needs.ci-failure.outputs.ai-pending != '' && needs.ci-failure.outputs.ai-pending != '0')
+      || (github.event_name == 'pull_request_target' && github.event.action == 'labeled'
+      && github.event.label.name == 'ai-analysis')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Check out the hub's tooling, never the pull request
+        uses: actions/checkout@v7
+        with:
+          repository: bamr87/bamr87
+          ref: ${{ inputs.hub-ref || 'main' }}
+          path: .fleet-hub
+          sparse-checkout: |
+            .github/scripts/dash-gen
+            _data
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install the tooling's one dependency
+        run: python -m pip install --quiet pyyaml
+
+      # Which failed runs need an analysis, who wrote the pull request, and the prompt:
+      # each run's log, workflow file and the diff, fenced as untrusted data.
+      - name: Plan the analysis
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          out="$RUNNER_TEMP/ai-analysis"
+          if [ -n "$RUN_ID" ]; then
+            python .fleet-hub/.github/scripts/dash-gen/pr_ai_analysis.py plan --repo "$GITHUB_REPOSITORY" --run "$RUN_ID" --out-dir "$out"
+          else
+            python .fleet-hub/.github/scripts/dash-gen/pr_ai_analysis.py plan --repo "$GITHUB_REPOSITORY" --pr "$PR" --out-dir "$out"
+          fi
+
+      # The model: no tools, one turn, read-only, capped (budget.call_sites
+      # pr-review.yml:ai-analysis). One turn means a tool call it is talked into can never
+      # feed a result back into its answer. Only a collaborator's pull request, a listed
+      # bot's, or one a maintainer labelled reaches it. Advisory: never fails the review.
+      - name: Analyse the failed runs (Claude, no tools)
+        id: analyst
+        if: >-
+          ${{ steps.plan.outputs.pending != '' && steps.plan.outputs.pending != '0' && (
+          contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), steps.plan.outputs.author_association)
+          || steps.plan.outputs.vouched == 'true') }}
+        continue-on-error: true
+        uses: bamr87/bamr87/.github/actions/claude-run@v2
+        env:
+          # OAuth only (2026-11-15): the runner never sees an API key.
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          AI_AUTH_ORDER: oauth
+        with:
+          prompt: ${{ steps.plan.outputs.prompt }}
+          system: ${{ steps.plan.outputs.system }}
+          out: ${{ runner.temp }}/ai-analysis/answer.txt
+          model: claude-sonnet-5-5
+          max-turns: 1
+          max-budget-usd: 1
+          permission-mode: default
+          tools: ""
+
+      # Validate the answer and write it into the sticky; or say why there is none.
+      - name: Write the analysis into the sticky comment
+        if: ${{ !cancelled() && steps.plan.outputs.pending != '' && steps.plan.outputs.pending != '0' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OUTCOME: ${{ steps.analyst.outcome }}
+          CREDENTIAL: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' && 'present' || 'missing' }}
+        run: |
+          python .fleet-hub/.github/scripts/dash-gen/pr_ai_analysis.py post --repo "$GITHUB_REPOSITORY" \
+            --plan "$RUNNER_TEMP/ai-analysis/plan.json" --result "$RUNNER_TEMP/ai-analysis/answer.txt" \
+            --outcome "${OUTCOME:-skipped}" --credential "$CREDENTIAL"
