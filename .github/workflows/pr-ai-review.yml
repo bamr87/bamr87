@@ -1,0 +1,254 @@
+name: AI review
+
+# The review a pull request gets when it is marked ready (constitution § 19.7; ADR 0012, stage B).
+# A capped model reads the diff once, says what it found, and says who does what next. It never
+# approves, merges, edits or comments: it leaves two artifacts, and pr-review.yml, the fleet's one
+# PR commenter (§ 19.1), posts them when this workflow finishes: the findings inline on the lines the
+# pull request adds (`fleet-findings`, § 19.3) and one review per head commit with the summary and
+# the next actions (`fleet-review`, pr_review.ai_review_of). Doc: templates/pr-review/README.md "AI review".
+#
+#   plan     DETERMINISTIC, a read token. .github/scripts/dash-gen/pr_ai_review.py decides whether
+#            this pull request gets a review now (not a Dependabot or release pull request, § 19.6;
+#            not a commit already reviewed; not a commit pushed after the request; not past the
+#            day's cap) and writes the reviewer's brief:
+#            the diff with new-file line numbers, the description, what the PR queue already knows.
+#            A pull request that is turned away for the cap, or holds nothing reviewable, gets a
+#            one-line review saying so, so "marked ready" always hears back.
+#   review   The model, through the fleet route claude-run: an exact model, a turn cap, a dollar
+#            cap. Read, Grep and Glob only, permission mode `default`, a deny list for everything
+#            else, and NO GitHub credential: the job's token reads contents and nothing more, and it
+#            is not in the agent's environment. Then pr_ai_review.py holds the reply to the contract.
+#
+# WHY pull_request_target, AND WHY IT IS SAFE HERE. `ready_for_review` and `labeled` start no CI
+# workflow, and a `pull_request` run from a fork gets no secret, so nothing else can run a model
+# when a pull request is marked ready. This event runs THIS file from the default branch with the
+# repo's secrets, so the pull request's code is never checked out and never run. Every checkout
+# here takes the default ref, which on this event is the BASE branch: the reviewer's working
+# directory holds the hub's tooling (.fleet-hub/), the base branch (base/, the code before the
+# change) and the brief (.fleet-review/, the diff as text). No .claude/ settings, hooks or
+# CLAUDE.md of the pull request can load, because none of its files are on disk. The diff is still
+# text a stranger could write, so only a trusted author's pull request is reviewed without a
+# maintainer asking (the `review` label), the reply is validated before it leaves the job and again
+# before it is posted, and nothing the model writes is ever run.
+#
+# THE LABEL IS READ BY THE SCRIPT, NEVER BY AN `if:`. A label checked in a job condition on
+# pull_request_target authorizes a pull request at one moment, and code scanning reports any
+# checkout after it as a check a later push can outrun (actions/untrusted-checkout-toctou). So
+# every `labeled` event reaches the plan step, which turns away any label but `review`, and
+# turns away a pull request whose head moved after the event: the request was for one commit.
+#
+# TRIGGERS (§ 19.7): opened as ready, marked ready, or the `review` label. Never a push. A manual
+# dispatch reviews one pull request as a DRY RUN: the review lands in the run's summary and nothing
+# is posted, which is how the loop is exercised before it is armed.
+#
+# Kill switch (§ 17): `vars.PR_AI_REVIEW_ENABLED` must be 'true' (a new loop starts off), and
+# `vars.PR_REVIEW_ENABLED` must not be 'false' (the commenter that would post it). A manual
+# dispatch bypasses both. Settings: _data/fleet.yml `pr_ai_review`; the model, the turn cap and
+# the dollar cap below are literals of it, held equal by test_pr_ai_review.py and test_ai_budget.py.
+#
+# Claude auth: OAuth only (CLAUDE_CODE_OAUTH_TOKEN), in the repo's CLAUDE_AUTH_ORDER.
+
+on:
+  pull_request_target:
+    types: [opened, ready_for_review, labeled]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "Pull request number, reviewed as a dry run: the review is in this run's summary and nothing is posted"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+# One review per pull request at a time; a newer request replaces the one in flight. A label other
+# than `review` gets a group of its own, so labelling a pull request never cancels its review.
+concurrency:
+  group: pr-ai-review-${{ github.event_name }}-${{ github.event.pull_request.number || inputs.pr }}-${{ (github.event.action == 'labeled' && github.event.label.name != 'review') && github.run_id || 'review' }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    name: Plan the review
+    # The switch, then who may spend the credential. A pull request that is opened ready or marked
+    # ready is reviewed when its author has write-level standing here; a stranger's waits for a
+    # maintainer's `review` label, and so does a draft. Which label was added is the plan step's
+    # to decide (see the header), so every `labeled` event gets this far and most stop there.
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch'
+      || (vars.PR_AI_REVIEW_ENABLED == 'true' && vars.PR_REVIEW_ENABLED != 'false'
+      && (github.event.action == 'labeled'
+      || (!github.event.pull_request.draft
+      && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)))) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      pull-requests: read
+    outputs:
+      go: ${{ steps.plan.outputs.go }}
+      prompt: ${{ steps.plan.outputs.prompt }}
+    steps:
+      # No `ref:` on any checkout in this file: the default on pull_request_target is the base
+      # branch, and a manual dispatch runs from the branch it was dispatched on.
+      - name: Check out the hub's tooling, never the pull request
+        uses: actions/checkout@v7
+        with:
+          # The script, and what it reads beside it: the PR queue's model and the fleet's settings.
+          sparse-checkout: |
+            .github/scripts/dash-gen
+            tools
+            _data
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install the tooling's one dependency
+        run: python -m pip install --quiet pyyaml
+
+      # Inputs travel through the environment, never inline in the script.
+      - name: Decide, and write the reviewer's brief
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number || inputs.pr }}
+          EVENT: ${{ github.event.action || github.event_name }}
+          LABEL: ${{ github.event.label.name }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python .github/scripts/dash-gen/pr_ai_review.py plan --repo "$GITHUB_REPOSITORY" --pr "$PR" \
+            --event "$EVENT" --label "$LABEL" --head "$HEAD" --out "$RUNNER_TEMP/ai-review"
+
+      - name: Hand the brief to the reviewer
+        if: ${{ steps.plan.outputs.go == 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ai-review-brief
+          path: ${{ runner.temp }}/ai-review/
+          retention-days: 7
+          if-no-files-found: error
+
+      # Turned away for the day's cap, a head that moved, or nothing reviewable: pr-review.yml posts
+      # one line saying so.
+      - name: Report a review that did not run
+        if: ${{ steps.plan.outputs.note == 'true' && github.event_name == 'pull_request_target' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: fleet-review
+          path: ${{ runner.temp }}/ai-review/fleet-review.json
+          retention-days: 7
+          if-no-files-found: error
+
+  review:
+    name: Review the pull request
+    needs: plan
+    if: ${{ needs.plan.outputs.go == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Contents and nothing else: this job reads a diff a pull request wrote, so it holds no token
+    # that can write, and the one it has never reaches the agent.
+    permissions:
+      contents: read
+    env:
+      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+    steps:
+      - name: Require Claude auth
+        if: ${{ env.HAS_CLAUDE_AUTH != 'true' }}
+        run: |
+          echo "::error::No Claude auth. Set CLAUDE_CODE_OAUTH_TOKEN (OAuth only; ANTHROPIC_API_KEY is disabled for now). See docs/AI-INTEGRATION.md."
+          exit 1
+
+      - name: Check out the hub's actions and tooling, never the pull request
+        uses: actions/checkout@v7
+        with:
+          path: .fleet-hub
+          sparse-checkout: |
+            .github/actions
+            .github/scripts/dash-gen
+          persist-credentials: false
+
+      # The code BEFORE the change, for context: the base branch at its tip, which is this
+      # event's default ref. The pull request's own commits are never fetched.
+      - name: Check out the base branch for the reviewer to read
+        uses: actions/checkout@v7
+        with:
+          path: base
+          persist-credentials: false
+
+      - name: Download the brief
+        uses: actions/download-artifact@v8
+        with:
+          name: ai-review-brief
+          path: .fleet-review
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install the tooling's one dependency
+        run: python -m pip install --quiet pyyaml
+
+      # Deny rules win over every allow rule. The allowlist below is already the whole grant; this
+      # also keeps the reader out of the places a runner keeps its environment and credentials, so
+      # a diff that asks the reviewer to read them gets a refusal.
+      - name: Fence the reviewer
+        run: |
+          mkdir -p "$HOME/.claude"
+          cat > "$HOME/.claude/settings.json" <<'JSON'
+          {"permissions": {"deny": ["Bash", "Write", "Edit", "NotebookEdit", "WebFetch", "WebSearch",
+            "Read(//proc/**)", "Read(//sys/**)", "Read(~/.claude/**)", "Read(~/.claude.json)",
+            "Read(~/.config/**)", "Read(~/.ssh/**)", "Read(~/work/_temp/**)"]}}
+          JSON
+
+      # NO GitHub token in this step's environment, and no tool that runs anything. The working
+      # directory is the workspace root, which holds no .claude/ of its own.
+      - name: Review (Claude Code, read-only, no GitHub credential)
+        id: agent
+        uses: ./.fleet-hub/.github/actions/claude-run
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          AI_AUTH_ORDER: ${{ vars.CLAUDE_AUTH_ORDER || 'oauth' }}
+          AI_ROLE: pr-ai-review
+        with:
+          # The plan job renders the prompt from the hub's script at the default branch, so a pull
+          # request can never supply or alter it.
+          prompt: ${{ needs.plan.outputs.prompt }}
+          # An exact id from _data/fleet.yml ai_models.allowed (§ 13.3), and the literals of
+          # pr_ai_review.model / max_turns / usd; the dollar cap is budget.call_sites
+          # `pr-ai-review.yml:review` and clears usd_per_turn x max_turns (0.15 x 25 = 3.75).
+          model: claude-sonnet-5-5
+          tools: "Read,Grep,Glob"
+          permission-mode: default
+          max-turns: "25"
+          max-budget-usd: "4"
+          out: ${{ runner.temp }}/ai-review-reply.txt
+
+      # A reply that is not a review fails the job here: an attempted review that produced nothing
+      # is red, and the CI-failure comment explains it on the pull request (§ 19.10).
+      - name: Hold the reply to the contract
+        run: |
+          python .fleet-hub/.github/scripts/dash-gen/pr_ai_review.py collect --brief .fleet-review \
+            --reply "$RUNNER_TEMP/ai-review-reply.txt" --out "$RUNNER_TEMP/fleet-out"
+
+      # A dry run stops here: with no artifact under these names, pr-review.yml has nothing to post.
+      - name: Report findings to pr-review
+        if: ${{ github.event_name == 'pull_request_target' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: fleet-findings
+          path: ${{ runner.temp }}/fleet-out/fleet-findings.jsonl
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Report the review to pr-review
+        if: ${{ github.event_name == 'pull_request_target' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: fleet-review
+          path: ${{ runner.temp }}/fleet-out/fleet-review.json
+          retention-days: 7
+          if-no-files-found: error

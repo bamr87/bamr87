@@ -1,0 +1,15 @@
+id: HUB-NEW
+slug: ai-pr-review
+title: "AI review: a pull request that is marked ready gets a review and who does what next"
+description: "A pull request that is opened ready, marked ready or given the review label is read once by a capped model (constitution § 19.7; ADR 0012 stage B), never on a push. pr-ai-review.yml plans the review (a trusted author or a maintainer's label, read by the script and never by a job condition; not a Dependabot or release pull request; once per head commit; inside the day's cap), writes a brief with the diff and its new-file line numbers, and runs one session through the claude-run route with read-only tools, an exact model, a turn cap and a dollar cap, and no GitHub credential; the pull request's code is never checked out. The reviewer comments nothing itself: pr-review.yml posts its findings inline through the fleet-findings channel and one comment-only review per head commit with a summary, the findings that are not on an added line, and the next actions grouped by who moves them (an agent, the author, the maintainer) with the fixed hand-off for each. It never approves, and its findings are advisory until the harness has an eval set. tools/dash prs review runs the same review in a local session and posts nothing; a manual dispatch is a dry run. Off unless vars.PR_AI_REVIEW_ENABLED is true. Shipped in the hub; the fleet stub, the eval set and starting the hand-off without a person (stage C) are still to come."
+implemented: true
+status: partial
+surface: infra
+link: .github/workflows/pr-ai-review.yml
+docs: templates/pr-review/README.md
+tags: [ pull-requests, review, ci, ai ]
+date: 2026-11-23
+tests:
+  - .github/scripts/dash-gen/test_pr_ai_review.py
+  - .github/scripts/dash-gen/test_ai_budget.py
+prd: ["FR61", "FR137"]

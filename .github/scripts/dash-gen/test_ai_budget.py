@@ -97,8 +97,10 @@ def check(label: str, ok: bool) -> None:
 # workflow call sites
 # --------------------------------------------------------------------------- #
 def is_claude_run(uses: str) -> bool:
-    """A step that runs the fleet's composite `claude-run` action, by any ref."""
-    return re.search(r"(^\./|^bamr87/bamr87/)\.github/actions/claude-run(@|$)", uses) is not None
+    """A step that runs the fleet's composite `claude-run` action: from this checkout, from
+    the `.fleet-hub` sparse checkout a job makes when its workspace root is not the hub
+    (pr-ai-review.yml keeps the reviewer's working directory free of any `.claude/`), or by ref."""
+    return re.search(r"(^\./(\.fleet-hub/)?|^bamr87/bamr87/)\.github/actions/claude-run(@|$)", uses) is not None
 
 
 def is_claude_cost(uses: str) -> bool:

@@ -12,6 +12,11 @@ name: PR review
 # line the PR adds becomes one inline comment with its severity, never posted
 # twice for the same (path, line, rule). Content and docs findings are dropped
 # on Dependabot and release-please PRs (§ 19.6); the job summary lists them all.
+# The AI review of a pull request that is marked ready (§ 19.7, pr-ai-review.yml)
+# arrives the same way: its findings through that channel, and its summary and
+# next actions as a `fleet-review` artifact that the same pass posts as one
+# comment-only review per head commit (pr_review.ai_review_of). That workflow
+# never writes on a pull request itself, so this file stays the only one that does.
 #
 # This file is both the hub's own watcher and the reusable workflow a fleet repo
 # calls from its stub (templates/pr-review/pr-review.yml). A called workflow sees
