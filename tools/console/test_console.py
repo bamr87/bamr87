@@ -3074,6 +3074,23 @@ def test_refine_documents_read_the_run_records_and_never_carry_a_local_path():
             pass
         else:
             raise AssertionError("a file outside the manifest was served")
+        # a manifest is local data, not a licence: a file it names outside the tree, or a link, is refused
+        (base / "outside.txt").write_text("not the tree's\n", encoding="utf-8")
+        (tree / "context" / "linked.md").symlink_to(base / "outside.txt")
+        (run / "items" / "bamr87__SCHEMA" / "bodies" / "02-linked.md").symlink_to(base / "outside.txt")
+        manifest = json.loads((tree / "evidence.json").read_text(encoding="utf-8"))
+        manifest["files"].update({"../../outside.txt": {"bytes": 15}, "context/linked.md": {"bytes": 15}})
+        (tree / "evidence.json").write_text(json.dumps(manifest), encoding="utf-8")
+        for call in (lambda: core.refine_evidence_file(tree.name, "../../outside.txt"),
+                     lambda: core.refine_evidence_file(tree.name, "context/linked.md"),
+                     lambda: core.refine_review_file(run.name, "items/bamr87__SCHEMA/bodies/02-linked.md")):
+            try:
+                served = call()
+            except ValueError:
+                pass
+            else:
+                raise AssertionError(f"a path outside its tree was served: {served['path']}")
+        assert core.refine_evidence_file(tree.name, "context/task.md")["text"] == "the brief\n"
         public = core.refine_doc(local=False, max_age_s=0)
         assert public["evidence"] == [] and public["reviews"] == [] and public["local"] is False
         assert all(p["budget"] == {"available": False} for p in public["plans"] if not p.get("error"))

@@ -301,14 +301,30 @@ REVIEW_FILE_RX = re.compile(r"^(?:summary\.md|items/[A-Za-z0-9._-]+/(?:publish-p
 MAX_TEXT_CHARS = 200_000
 
 
+def _inside(base: Path, *parts: str) -> Path:
+    """base/parts, only if it stays inside base and no link on the way leads elsewhere. A path built from a
+    request (a run id, a stamp, a file an evidence manifest names) can then reach nothing outside the tree
+    it names, whatever the patterns before this let through (CWE-22). Raises ValueError otherwise."""
+    root = os.path.realpath(base)
+    full = os.path.realpath(os.path.join(root, *parts))
+    if not full.startswith(root + os.sep):
+        raise ValueError("the path leaves its tree")
+    if full != os.path.normpath(os.path.join(root, *parts)):
+        raise ValueError("the path goes through a link")
+    return Path(full)
+
+
 def refine_review_file(run_id: str, rel: str) -> dict:
     """A reviewed preview's text: the run's summary, an item's publish-plan.md or one body (local only)."""
     if not core.RUN_ID_RX.fullmatch(run_id or ""):
         raise ValueError("run_id is not a run id")
     if not REVIEW_FILE_RX.match(rel or ""):
         raise ValueError("path must be summary.md, items/<dir>/publish-plan.md or items/<dir>/bodies/<name>.md")
-    p = _runs_dir() / run_id / rel
-    if p.is_symlink() or not p.is_file():
+    try:
+        p = _inside(_runs_dir(), run_id, rel)
+    except ValueError:
+        raise ValueError(f"no {rel} in run {run_id}") from None
+    if not p.is_file():
         raise ValueError(f"no {rel} in run {run_id}")
     text = p.read_text(encoding="utf-8", errors="replace")
     return {"run_id": run_id, "path": rel, "text": text[:MAX_TEXT_CHARS], "truncated": len(text) > MAX_TEXT_CHARS}
@@ -317,7 +333,10 @@ def refine_review_file(run_id: str, rel: str) -> dict:
 def refine_evidence_doc(stamp: str) -> dict:
     if not core.STAMP_RX.match(stamp or ""):
         raise ValueError("stamp is not an evidence tree id")
-    d = _refine_dir() / stamp
+    try:
+        d = _inside(_refine_dir(), stamp)
+    except ValueError:
+        raise ValueError(f"no evidence tree {stamp}") from None
     m = _load_json(d / "evidence.json")
     if not d.is_dir() or not isinstance(m, dict):
         raise ValueError(f"no evidence tree {stamp}")
@@ -330,8 +349,11 @@ def refine_evidence_file(stamp: str, rel: str) -> dict:
     doc = refine_evidence_doc(stamp)
     if rel not in doc["files"]:
         raise ValueError(f"{rel} is not a file of evidence tree {stamp}")
-    p = _refine_dir() / stamp / rel
-    if p.is_symlink() or not p.is_file():
+    try:
+        p = _inside(_refine_dir(), stamp, rel)
+    except ValueError:
+        raise ValueError(f"{rel} is gone from evidence tree {stamp}") from None
+    if not p.is_file():
         raise ValueError(f"{rel} is gone from evidence tree {stamp}")
     text = p.read_text(encoding="utf-8", errors="replace")
     return {"stamp": stamp, "path": rel, "text": text[:MAX_TEXT_CHARS], "truncated": len(text) > MAX_TEXT_CHARS}

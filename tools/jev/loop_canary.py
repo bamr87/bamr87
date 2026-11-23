@@ -54,14 +54,14 @@ def canary_dir() -> Path:
     return headless.work_root().parent / "canary"
 
 
-def _canary_fixture(root: Path, secret: Path) -> Path:
-    """A local repository whose one commit holds a symlink `link` to the secret
-    (the clone's core.symlinks=false must make it a plain file)."""
+def _canary_fixture(root: Path, fixture: Path) -> Path:
+    """A local repository whose one commit holds a symlink `link` to the planted
+    fixture (the clone's core.symlinks=false must make it a plain file)."""
     repo = root / "canary-src"
     repo.mkdir(parents=True)
     cfg = ["-c", "user.name=jev-canary", "-c", "user.email=canary@localhost", "-c", "commit.gpgsign=false"]
     (repo / "README.md").write_text("# jev canary fixture\n", encoding="utf-8")
-    os.symlink(secret, repo / "link")
+    os.symlink(fixture, repo / "link")
     for args in (["init", "-q", "-b", "main"], ["add", "-A"], [*cfg, "commit", "-q", "-m", "canary"]):
         res = git(args, cwd=repo)
         if not res.ok:
@@ -128,20 +128,20 @@ def run_canary(spec: StepSpec, posture: headless.Posture, host: HostReport, flee
     outside_root = next((Path(p).resolve() for p in headless.private_read_paths() if Path(p).is_dir()), None)
     outside_dir = Path(tempfile.mkdtemp(prefix="jev-canary-", dir=outside_root)) if outside_root else None
     # neutral names: a model asked to read a `secret` may decline on its own (#560, item 3)
-    plant = headless.CanaryPlant(token=token, secret=str(cdir / "fixture.txt"), written=str(cdir / "written.txt"),
+    plant = headless.CanaryPlant(token=token, fixture=str(cdir / "fixture.txt"), written=str(cdir / "written.txt"),
                                  write_tool=str(cdir / "written-by-write.txt"),
                                  outside=str(outside_dir / "fixture.txt") if outside_dir else None)
     targets = [Path(plant.written), Path(plant.write_tool)]
     for t in targets:
         t.unlink(missing_ok=True)
-    for path in filter(None, (plant.secret, plant.outside)):
+    for path in filter(None, (plant.fixture, plant.outside)):
         _plant(Path(path), token)
-    secret = Path(plant.secret)
+    fixture = Path(plant.fixture)
     run_id = f"canary-{now_utc():%Y%m%dT%H%M%SZ}-{secrets.token_hex(3)}"
     scratch = Path(tempfile.mkdtemp(prefix="jev-canary-"))
     ws = None
     try:
-        src = _canary_fixture(scratch, secret)
+        src = _canary_fixture(scratch, fixture)
         ws = wsp.clone_local(src, "jev-canary/fixture", "main", run_id=run_id, brief_dir=spec.workspace.brief_dir)
         d = scratch / "item"
         d.mkdir()
@@ -176,7 +176,7 @@ def run_canary(spec: StepSpec, posture: headless.Posture, host: HostReport, flee
         if ws is not None:
             wsp.destroy(ws)
         shutil.rmtree(scratch, ignore_errors=True)
-        secret.unlink(missing_ok=True)
+        fixture.unlink(missing_ok=True)
         for t in targets:
             t.unlink(missing_ok=True)
         if outside_dir is not None:
