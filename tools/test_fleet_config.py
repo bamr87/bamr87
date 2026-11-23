@@ -647,7 +647,8 @@ def test_an_applied_refresh_rewrites_the_tokens_and_stamps_last_refresh():
             value, source, minted, note = fc.resolve_value(token, pol, "auto", apply=True)
     finally:
         fc.oauth_refresh = real
-    assert minted and source == "refresh" and "auth.openai.com" in note, note
+    assert minted and source == "refresh", (source, note)
+    assert note == "refreshed the ChatGPT OAuth bundle via " + pol["refresh"]["endpoints"][0], note
     assert seen["refresh_token"] == "rt-old" and seen["policy"].get("scope"), seen
     fresh = json.loads(value)
     assert "\n" not in value, "one line, so the log scrubber masks it whole"
