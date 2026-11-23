@@ -20,15 +20,20 @@
 # bamr87 hub once, and a global git pre-commit hook fixes it in every repo.
 name: markdown-oneline
 
+# No workflow-level `paths:` filter (bamr87/bamr87#952): GitHub never starts a
+# path-filtered workflow when nothing matches, so `oneline` would never report
+# and a ruleset that requires it would hold the PR on "Waiting for status to
+# be reported". The job always starts; its first step reads the changed files
+# from the API and the rest run only when markdown changed, so `oneline` reports
+# success either way at the cost of one ~5 s API step.
 on:
   pull_request:
-    paths: ["**/*.md", "**/*.markdown"]
   push:
     branches: [__DEFAULT_BRANCH__]
-    paths: ["**/*.md", "**/*.markdown"]
 
 permissions:
   contents: write
+  pull-requests: read   # the changed-file list
 
 concurrency:
   group: markdown-oneline-${{ github.ref }}
@@ -39,7 +44,35 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Did this change touch markdown?
+        id: changes
+        # Values reach the script through env:, never interpolated into it.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+          PATTERN: '\.(md|markdown)$'
+        run: |
+          # Any doubt (a new branch, an API error, a compare over 300 files)
+          # means "check": a false run costs seconds, a false skip lets prose through.
+          files=ALL
+          if [ "$EVENT" = pull_request ]; then
+            files=$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename') || files=ALL
+          elif [ -n "$BEFORE" ] && ! [[ "$BEFORE" =~ ^0+$ ]]; then
+            files=$(gh api "repos/$REPO/compare/$BEFORE...$SHA" \
+              --jq 'if (.files | length) >= 300 then "ALL" else .files[].filename end') || files=ALL
+          fi
+          if [ "$files" = ALL ] || grep -qE "$PATTERN" <<<"$files"; then
+            echo "markdown=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "markdown=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No markdown changed; oneline reports success without checking."
+          fi
       - uses: actions/checkout@v7
+        if: steps.changes.outputs.markdown == 'true'
         with:
           # Check out the PR's head COMMIT, not the merge commit, so the repair
           # can be committed onto it and pushed back. By SHA, not branch name:
@@ -50,10 +83,12 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
       - uses: actions/setup-python@v7
+        if: steps.changes.outputs.markdown == 'true'
         with:
           python-version: "3.x"
       - name: Unwrap soft-wrapped prose
         id: fix
+        if: steps.changes.outputs.markdown == 'true'
         run: |
           python3 tools/unwrap-prose.py --write \
             --exclude '(^|/)SCHEMA\.md$' --exclude '(^|/)CHANGELOG\.md$'
