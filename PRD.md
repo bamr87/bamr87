@@ -182,6 +182,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-130](features/features.yml) | Site builds: the console published at another address, with the bashOS desktop as its front door | partial | [`tools/console/build-pages.sh`](tools/console/build-pages.sh) · [`docs/CONSOLE-PAGES.md`](docs/CONSOLE-PAGES.md) | FR58, FR77, FR143 |
 | [HUB-131](features/features.yml) | AI analysis of every failed CI run on a pull request | shipped | [`.github/scripts/dash-gen/pr_ai_analysis.py`](.github/scripts/dash-gen/pr_ai_analysis.py) · [`templates/pr-review/README.md`](templates/pr-review/README.md) | FR144 |
 | [HUB-132](features/features.yml) | AI review: a pull request that is marked ready gets a review and who does what next | partial | [`.github/workflows/pr-ai-review.yml`](.github/workflows/pr-ai-review.yml) · [`templates/pr-review/README.md`](templates/pr-review/README.md) | FR61, FR137 |
+| [HUB-133](features/features.yml) | Fleet uplift: what one repo improved that the others still lack, captured for the hub and deployed by the loops it already has | shipped | [`tools/uplift.py`](tools/uplift.py) · [`docs/UPLIFT.md`](docs/UPLIFT.md) | FR145 |
 
 **Requirement → feature trace**
 
@@ -362,6 +363,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR142 | HUB-129 |
 | FR143 | HUB-130 |
 | FR144 | HUB-131 |
+| FR145 | HUB-133 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -500,6 +502,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR142: The hub must check every link the fleet publishes — the owned repos' rendered Markdown and HTML, the profile README's data and every live site — and report each broken one with the file and line or page that publishes it, without filing, pushing or failing a scheduled run by default.
 - FR143: The Harness Console must be buildable as a named site for another address, taking that site's title, mark and front door from the instance's settings and not from code, with the default public build unchanged when no site is named; the first such site is the front door of the bash-365 platform: the bashOS desktop with an icon for every repo and application the registry declares, the BASH Consulting site among them.
 - FR144: Every failed CI run on a pull request must get an AI analysis in the PR's one sticky comment (root cause, whether the PR caused it, the fix), once per failed run attempt, through a capped, tool-less, one-turn fleet harness call behind its own switch; it never fails a check or approves, and a PR from outside the collaborators is analysed once a maintainer labels it (constitution § 19.11).
+- FR145: The hub must notice an improvement one fleet repo made that other repos still lack, from the repos' own history and without a model, say exactly which repos lack it and where the change belongs (the kit that seeded the file, or each repo), and hand it to the existing delivery loops as one reviewed hub issue; it must tell a hub rollout that has not finished apart from a repo's own improvement, and show the rollout's progress.
 
 **Non-functional**
 

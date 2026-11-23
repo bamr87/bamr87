@@ -16,6 +16,7 @@ Claude Code configuration that makes the dash self-managing.
 | `skills/onboard-dir/` | Adopt or remove a stray/unregistered `projects/*/` dir the drift gate flagged |
 | `skills/new-project/` | Scaffold + register a new project |
 | `skills/triage-attention/` | Turn Monitor-board signals into prioritized actions |
+| `skills/uplift/` | Judge what one repo improved that the others still lack (`tools/dash uplift`), and preview the hub issues that carry it across the fleet |
 | `skills/actions-triage/` | Explain the worst Actions workflows from `_data/actions_usage.yml`; drive a direct fix or dispatch `fleet-pulse.yml` (its `doctor` job is the AI fix pass) |
 | `skills/issue-pipeline/` | Read the three-tier issue queues from `_data/issue_pipeline.yml`, build an issue's evidence bundle in an isolated virtual environment, and dispatch the intake/implement/complete tiers of `issue-pipeline.yml` |
 | `skills/deep-dive-showcase/` | The Quest Log showcase for a repo the daily deep dive processed: the article and personal LinkedIn draft (bamr87.github.io), the company-page LinkedIn draft (bash-365.com), a presentation PR in the repo, then the ledger record (`tools/deep_dive.py record --article …`); drafts and PRs only, Amr merges ([`docs/SHOWCASE.md`](../docs/SHOWCASE.md)) |
@@ -25,7 +26,7 @@ Claude Code configuration that makes the dash self-managing.
 | `skills/verify-feature/` | **Agent verification**: prove a feature/change/fix works the way a user experiences it — read the feature index for context, run the app per `verify/verify.yml`, drive it in a real browser (Playwright MCP / `verify/runner.mjs`), capture evidence, link it back, report PASS/FAIL/NOT VERIFIED; plus the fleet view of `_data/features_index.yml` and `dash verify deploy` for seeding the kit ([`docs/VERIFICATION.md`](../docs/VERIFICATION.md)) |
 | `agents/verifier.md` | sub-agent: the acceptance tester that follows `verify-feature` and never claims what it did not observe |
 | `skills/run-dash/` | Orchestration hub: whole-repo project map + per-project "work order" (branch, stack, run cmd, context) for dispatching into a submodule; serve/screenshot the Jekyll dash. Driven by `driver.py` |
-| `commands/harness/` | `/harness:status`, `:inventory`, `:health`, `:decisions`, `:graph`, `:gates`, `:refine`, `:learn`, `:lake` — observe and gate the harness ([below](#slash-commands-the-harness-and-its-loops-one-stage-at-a-time)) |
+| `commands/harness/` | `/harness:status`, `:inventory`, `:health`, `:decisions`, `:graph`, `:gates`, `:refine`, `:learn`, `:lake`, `:uplift` — observe and gate the harness ([below](#slash-commands-the-harness-and-its-loops-one-stage-at-a-time)) |
 | `commands/loops/` | `/loops:list` and one command per loop (`:pulse`, `:issues`, `:conflicts`, `:pm`, `:credentials`, `:evolution`, `:scout`, `:fanout`, `:upkeep`, `:weekly`) — run one stage of a loop ([below](#slash-commands-the-harness-and-its-loops-one-stage-at-a-time)) |
 | `commands/console/` | `/console:ops`, `:run`, `:jobs` — the Harness Console's whole operation allowlist ([below](#slash-commands-the-harness-and-its-loops-one-stage-at-a-time)) |
 | `commands/register-project.md` | `/register-project` — add/reconcile a project |
@@ -50,7 +51,7 @@ Three namespaces, one per subdirectory of `commands/` (Claude Code types `comman
 
 | Namespace | Commands | What they do |
 | --- | --- | --- |
-| `/harness:` | `status`, `inventory`, `health`, `decisions`, `graph`, `gates`, `refine`, `learn`, `lake` | Observe and gate the harness: the scorecard, the AI-workflow inventory against the standard, the agent contract, the decision queue, the fleet graph, the hub's gates, Harness² refinement, outcome learning and the data lake. All $0 but `refine reflect`, which asks first |
+| `/harness:` | `status`, `inventory`, `health`, `decisions`, `graph`, `gates`, `refine`, `learn`, `lake`, `uplift` | Observe and gate the harness: the scorecard, the AI-workflow inventory against the standard, the agent contract, the decision queue, the fleet graph, the hub's gates, Harness² refinement, outcome learning, the data lake and fleet uplift (what one repo improved that the others still lack). All $0 but `refine reflect`, which asks first |
 | `/loops:` | `list`, then one per loop: `pulse`, `issues`, `conflicts`, `pm`, `credentials`, `evolution`, `scout`, `fanout`, `upkeep`, `weekly` | Run ONE stage of a loop. The first argument is the stage, the rest its target: `/loops:scout plan`, `/loops:scout rehearse kvlite`, `/loops:scout run kvlite`, `/loops:scout publish <run_id>`, `/loops:scout ci` |
 | `/console:` | `ops`, `run`, `jobs` | The whole allowlist: list or show operations, run any one with its parameters, and follow the console's jobs |
 

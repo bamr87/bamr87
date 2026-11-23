@@ -279,6 +279,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_template_pins.py`](tools/test_template_pins.py) | **Pins resolve** (#457): every `bamr87/bamr87` or `bamr87/.github` workflow or action that a caller pins at a tag or a full SHA exists at that ref. |
 | [`test_tui_fleet.py`](tools/test_tui_fleet.py) | Fixture tests for tools/fleetcore/fleet.py + host.py — the data layer the terminal dash and the console share. |
 | [`test_unwrap_prose.py`](tools/test_unwrap_prose.py) | Fixture tests for `unwrap-prose.py` — structure untouched, list items joined without leaving their list, idempotence (run by `run-all-tests.sh`) |
+| [`test_uplift.py`](tools/test_uplift.py) | Offline tests for `uplift.py` against real git repositories built in a temp dir and a stubbed `gh`: each class of change, the chain of edits, what proves nothing (empty… |
 | [`test_voices.py`](tools/test_voices.py) | Tests for tools/voices.py — the fleet voice model and the console's Voices editor (constitution § 23 rule 7; the filer is the OPS remote-write path, § 11.8). |
 | [`test_vscode_launch.py`](tools/test_vscode_launch.py) | The editor-is-a-front-door gate (constitution § 20, [`.vscode/README.md`](../.vscode/README.md)): the four `.vscode/` files parse, every `preLaunchTask`, `dependsOn`, co… |
 | [`test_weekly.py`](tools/test_weekly.py) | Offline tests for tools/weekly/core.py, on real throwaway git repositories (a bare origin and a clone), because what this tool must never get wrong is git's behaviour. |
@@ -290,6 +291,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`unpin-deps.sh`](tools/unpin-deps.sh) | Converts one repo to the fleet's **always-latest** dependency policy — strips exact pins, deletes + gitignores lockfiles, adapts CI installs (idempotent; the `deps-lates… |
 | [`unwrap-prose.py`](tools/unwrap-prose.py) | Liquid-safe one-paragraph-per-line unwrapper for markdown prose and list items (`--check`/`--diff`/`--write`); vendored into the fleet by the prose kit |
 | [`update-submodules.sh`](tools/update-submodules.sh) | Refresh `projects/` — bring each submodule onto its declared branch at the remote tip (safe by default) and record moved pointers |
+| [`uplift.py`](tools/uplift.py) | **Fleet uplift**, the hub's inbound arc (`dash uplift`; [docs/UPLIFT.md](../docs/UPLIFT.md)). |
 | [`voices.py`](tools/voices.py) | voices.py — the canonical fleet voice config (_data/voices/voices.yml, voices/v1): check, render, preview, file. |
 
 ## 6. Workflows and loops
@@ -367,6 +369,7 @@ Indexed by [`.claude/README.md`](.claude/README.md). Skills and commands are Cla
 | [`sync-project-docs`](.claude/skills/sync-project-docs/SKILL.md) | Pull each project's current README summary and status from GitHub into the registry descriptions. |
 | [`triage-attention`](.claude/skills/triage-attention/SKILL.md) | Read the Monitor board health data, explain why each repo needs attention, and propose the next concrete action per repo. |
 | [`update-registry`](.claude/skills/update-registry/SKILL.md) | Reconcile _data/projects.yml (the project registry) with .gitmodules and GitHub repo metadata. |
+| [`uplift`](.claude/skills/uplift/SKILL.md) | Find what one fleet repo improved that the others still lack, judge whether each change is general, and preview the hub issues that carry it to the rest of the fleet. |
 | [`verify-feature`](.claude/skills/verify-feature/SKILL.md) | Verify a feature, change, or fix the way a USER experiences it — in the hub or in any fleet repo: read the feature index for context, run the app per verify/verify.yml,… |
 
 ### Commands
@@ -390,6 +393,7 @@ Indexed by [`.claude/README.md`](.claude/README.md). Skills and commands are Cla
 | [`/harness:learn`](.claude/commands/harness/learn.md) | Outcome learning, shadow only — what happened to each loop's output, where its next slots would pay, and the replay test ($0, read-only) |
 | [`/harness:refine`](.claude/commands/harness/refine.md) | Harness² refinement — check a harness surface, plan one Propose–Probe–Compose step, build a loop's evidence tree, check the experience library; reflect on the week's inc… |
 | [`/harness:status`](.claude/commands/harness/status.md) | The harness at a glance — drift, the six-layer scorecard, what waits on Amr, and whether each loop's output is landing ($0, read-only) |
+| [`/harness:uplift`](.claude/commands/harness/uplift.md) | Fleet uplift — what one repo improved that the others still lack, which rollouts have not landed, and the work order for judging the candidates ($0, reads local git only) |
 | [`/loops:conflicts`](.claude/commands/loops/conflicts.md) | Merge conflicts through JEV's tiers — scan the fleet, triage one pull request, resolve one or sweep them all (dry run first, then asks), the month's budget, or dispatch… |
 | [`/loops:credentials`](.claude/commands/loops/credentials.md) | Credential rotation, one stage at a time — audit secrets and API keys by name, plan a rotation, verify keys, then push, rotate or project the auth order (dry run first,… |
 | [`/loops:evolution`](.claude/commands/loops/evolution.md) | Repo evolution, one stage at a time — plan the opted-in repos' briefs, rehearse, run the builder locally, show or publish a run, dispatch it in CI, or evolve the hub its… |
@@ -520,6 +524,7 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`SUBMODULES.md`](docs/SUBMODULES.md) | The submodule workflow, documented once: where the project list lives, how a change moves (commit in the submodule first, then record its pointer here), and what the aut… |
 | [`TERMINAL-FRAMEWORK.md`](docs/TERMINAL-FRAMEWORK.md) | The plan to consolidate the fleet's CLIs and TUIs onto bashOS: the inventory, `keys v1`, the per-repo plan and the phases. |
 | [`TOKEN-ROTATION.md`](docs/TOKEN-ROTATION.md) | The weekly credential loop: what rotating a browser-minted token can mean, the propagate / audit / re-mint split, and the values-free ledger. |
+| [`UPLIFT.md`](docs/UPLIFT.md) | The hub's inbound arc: what one fleet repo improved that the others still lack, found by comparing file contents across the local checkouts, captured as a hub issue, and… |
 | [`UX-HARNESS.md`](docs/UX-HARNESS.md) | Continuous UI/UX audit for the fleet: the `ux-audit` kit's computational gate and the hub's critique loop. |
 | [`VERIFICATION.md`](docs/VERIFICATION.md) | The agent verification standard — feature index, user scenarios, evidence bundles, the `fleet-verify.yml` gate and the fleet coverage index. |
 | [`VISUAL-EVIDENCE.md`](docs/VISUAL-EVIDENCE.md) | Status: **proposed** (constitution § 24, amendment `visual-evidence`; epic [#678](https://github.com/bamr87/bamr87/issues/678), backlog [#679](https://github.com/bamr87/… |
