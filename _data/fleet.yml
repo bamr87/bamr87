@@ -749,6 +749,43 @@ decisions:
     skip_branches: [chore/jev-ratify]                # the ratification-record branch is automation's (§ 12.3)
 
 # --------------------------------------------------------------------------- #
+# PR AI review — the review a pull request gets when it is marked ready
+# (constitution § 19.7; ADR 0012, stage B; templates/pr-review/README.md "AI review").
+#
+# .github/workflows/pr-ai-review.yml runs once when a pull request is opened
+# ready, marked ready or given the `label` below, never on a push. A capped
+# model reads the diff with read-only tools and no GitHub credential, and leaves
+# its findings and its next actions as artifacts that pr-review.yml posts: the
+# findings inline (§ 19.3) and one review per head commit that comments and
+# never approves (§ 19.5). Its findings are advisory: nothing here fails a build
+# or blocks a merge until the harness has its § 13.1 eval set.
+#
+# Consumed by .github/scripts/dash-gen/pr_ai_review.py. The model, max_turns and
+# usd are ALSO literals in the workflow (a `with:` block cannot read YAML);
+# test_pr_ai_review.py holds the two equal, and test_ai_budget.py holds usd to
+# budget.call_sites `pr-ai-review.yml:review`. Kill switch: switches.loops
+# hub/pr-ai-review (vars.PR_AI_REVIEW_ENABLED, opt-in). Changing the model, the
+# caps or the budget is a gated change (§ 12.3).
+# --------------------------------------------------------------------------- #
+pr_ai_review:
+  model: claude-sonnet-5-5   # an exact id in ai_models.allowed (§ 13.3)
+  max_turns: 25
+  usd: 4                     # per review, API-equivalent (estimate); clears usd_per_turn x max_turns (3.75)
+  timeout_s: 900             # the local session (`tools/dash prs review`); the CI job has its own timeout
+  label: review              # the explicit ask (§ 19.7): reviews a draft, a bot's or a stranger's pull request too
+  max_per_day: 30            # reviews a repo gets in one UTC day; past it a pull request is told so, not reviewed
+  max_files: 80              # changed files read in one review; the rest are named and left out
+  max_file_bytes: 40000      # of one file's diff
+  max_diff_bytes: 240000     # of the whole diff
+  max_findings: 30           # findings one review may report
+  skip_paths:                # extended regexes, beside the lockfile / build-output / binary defaults in the script
+    - '^CATALOG\.md$'                 # generated (tools/gen-catalog.py), main-only
+    - '^_data/(agents|harness_registry|specs)\.yml$'   # generated inventories
+    - '^_data/cv_portfolio\.json$'
+    - '^projects/SCHEMA\.md$'
+    - '^test/evidence/'               # evidence bundles: screenshots and run records
+
+# --------------------------------------------------------------------------- #
 # PR queue — every open pull request of the hub and the registry repos, who
 # moves each one next, and bulk actions an agent carries out once the maintainer
 # confirms (docs/PR-QUEUE.md, the console's /prs, `tools/dash prs`, the MCP's
@@ -788,6 +825,30 @@ pr_queue:
     bamr87/it-journey:
       agent_deny_paths:                            # the Warden Pact keeps agents out of the workflows
         - '(^|/)\.github/workflows/'
+
+# --------------------------------------------------------------------------- #
+# PR review — the fleet's one PR comment (constitution § 19,
+# .github/workflows/pr-review.yml, templates/pr-review/README.md).
+#
+# `ai_analysis` is § 19.11: every failed CI run on a pull request also gets an AI
+# analysis in the same sticky comment (.github/scripts/dash-gen/pr_ai_analysis.py).
+# The model, its one-turn cap and its dollar cap are literals in the workflow
+# (the harness scan reads them there; budget.call_sites pr-review.yml:ai-analysis
+# holds the cap); these are the pass's own knobs. A fleet repo runs the hub's
+# checkout of this file, so the hub's values are the fleet's. Switch:
+# vars.PR_AI_ANALYSIS_ENABLED = 'false' (switches: hub/pr-ai-analysis).
+# --------------------------------------------------------------------------- #
+pr_review:
+  ai_analysis:
+    label: ai-analysis      # a maintainer adds it to analyse a pull request from outside the collaborators
+    max_runs: 4             # failed runs analysed in one model call; the rest wait for the next pass
+    max_tries: 2            # calls that could not run (no credential, a spent window) per run attempt
+    trusted_bots:           # bot authors analysed without the label, beside OWNER, MEMBER and COLLABORATOR
+      - dependabot[bot]
+      - github-actions[bot]
+      - renovate[bot]
+      - claude[bot]
+      - bamr87-bot
 
 # --------------------------------------------------------------------------- #
 # Verification — the AGENT VERIFICATION standard's knobs (docs/VERIFICATION.md).
@@ -923,12 +984,23 @@ budget:
     # has no turn cap to derive from. It gets a generous ceiling anyway: a
     # runaway mention is still unattended spend once the human walks away.
     claude.yml:claude: 20
+    # The AI review of a pull request that is marked ready (constitution § 19.7,
+    # pr_ai_review.py): 25 turns (pr_ai_review.max_turns), sonnet, read-only tools;
+    # floor 0.15 x 25 = 3.75. One review per ready pull request, never per push,
+    # capped per day by pr_ai_review.max_per_day.
+    pr-ai-review.yml:review: 4
     # Reusable-workflow and claude-run call sites (added 2026-10-03).
     fleet-verify.yml:verify: 10           # 40 turns default (inputs.max-turns), sonnet;
                                           # floor 0.15 x 40 = 6. A caller raising max-turns
                                           # past ~66 meets this ceiling first — by design.
     ai-lane.yml:run: 10                   # the reusable lane's `max-budget-usd` input default
                                           # (= default_usd); consumers may pass their own.
+    # The AI analysis of every failed CI run on a pull request (constitution § 19.11,
+    # pr_ai_analysis.py): one Sonnet call per pass, no tools, ONE turn, so the
+    # floor is 0.15 x 1. A pass sends at most ~90 KB of log, workflow and diff
+    # (~25k tokens): about $0.10 API-equivalent (estimate), so $1 is headroom,
+    # not the expected cost. It fires once per failed run attempt, not per push.
+    pr-review.yml:ai-analysis: 1
 
   # JEV's conflict engine is deliberately NOT a `call_sites` entry. Those are
   # keyed `<workflow file>:<job id>` and test_ai_budget.py holds each one
@@ -1381,6 +1453,10 @@ harness:
   agents:
     ci:bamr87:fleet-pulse:
       reads: [actions-usage, fleet-triage]
+    ci:bamr87:pr-ai-review:
+      reads: [github-live, fleet-config]
+      local_entry: "tools/dash prs review --pr <owner/repo#n>"
+      note: reads a pull request's diff with read-only tools and no GitHub credential; pr-review.yml posts what it leaves
     ci:bamr87:issue-pipeline:
       reads: [issue-pipeline, work-queue, registry]
     ci:bamr87:repo-evolution:
@@ -1391,6 +1467,14 @@ harness:
       reads: [registry]
     ci:bamr87:ai-lane:
       note: the reusable lane (claude-run); its caller sets the model, so none is named here
+    ci:bamr87:pr-review:
+      # The AI analysis of every failed CI run on a pull request (constitution § 19.11):
+      # one tool-less, one-turn Sonnet call per pass, written into the fleet's one PR
+      # comment. The same pass runs from a workstation through `dash ai run`, capped by
+      # this call site's budget (§ 10.9).
+      note: the AI analysis of every failed CI run on a pull request (§ 19.11), in the one PR comment
+      local_entry: python3 .github/scripts/dash-gen/pr_ai_analysis.py local --repo <owner/name> --pr <n>
+      switch: {variable: PR_AI_ANALYSIS_ENABLED, loop: hub/pr-ai-analysis}
     local:conflict-sweep:
       reads: [github-live, jev-ledger]
       model_from: [jev.tiers.tier1.model, jev.tiers.tier2.model]
@@ -3095,6 +3179,21 @@ switches:
       verified: false
       note: the fleet's one PR comment (constitution § 19); summarizes CI failures, no AI and no cron
       flip: 'gh variable set PR_REVIEW_ENABLED -R bamr87/bamr87 --body false  # disable; record the flip here in the same PR'
+    hub/pr-ai-analysis:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/pr-review.yml
+      group: hub-agents
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: PR_AI_ANALYSIS_ENABLED
+        semantics: opt_out
+      default: 'on'
+      state: unverified
+      verified: false
+      note: the AI analysis of every failed CI run on a pull request (constitution § 19.11), in the one PR comment; one capped, tool-less Sonnet call per pass, no cron
+      flip: 'gh variable set PR_AI_ANALYSIS_ENABLED -R bamr87/bamr87 --body false  # disable; record the flip here in the same PR'
     hub/pr-readiness:
       repo: bamr87/bamr87
       workflow: .github/workflows/pr-review.yml
@@ -3110,6 +3209,22 @@ switches:
       verified: false
       note: merge readiness in the one PR comment (ADR 0012); what is left before a pull request merges, and one review when nothing is; no AI and no cron
       flip: 'gh variable set PR_READINESS_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
+    hub/pr-ai-review:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/pr-ai-review.yml
+      group: hub-agents
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: PR_AI_REVIEW_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      dispatch_bypasses: true
+      note: the AI review of a pull request that is marked ready (constitution § 19.7; ADR 0012 stage B); event-driven, no cron; a manual dispatch is a dry run that posts nothing; also needs PR_REVIEW_ENABLED not 'false', because pr-review.yml posts it
+      flip: 'gh variable set PR_AI_REVIEW_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
     hub/reconcile-registry:
       repo: bamr87/bamr87
       workflow: .github/workflows/reconcile-registry.yml

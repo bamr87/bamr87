@@ -129,11 +129,15 @@
 #                React, Next.js or plain HTML — so a Claude Code session paired
 #                with a page of this repo can see it and, as far as the person
 #                on it allows, use it (specs/ASSIST.md, ADR 0014). Every adapter
-#                is off outside development. Mounting stays a human one-liner,
-#                as for feedback. A repo with no page (a library, a CLI, an
-#                extension's webview) gets nothing from this kit: its baseline
-#                is the agent-context kit, and `tools/dash apps assist` says
-#                which a repo is.
+#                is off outside development. Which adapter is the planner's
+#                answer (`tools/dash apps assist`, the registry), not a guess
+#                from the files at the root, and it lands in the app's own
+#                folder. A zer0-mistakes consumer vendors nothing: the theme
+#                carries it. A copy the repo already has is kept where it is.
+#                Mounting stays the shell owner's line, as for feedback. A
+#                repo with no page (a library, a CLI, an extension's webview)
+#                gets nothing from this kit: its baseline is the agent-context
+#                kit.
 #   deps-latest  branch chore/deps-latest; converts the repo to the fleet's
 #                ALWAYS-LATEST dependency policy via tools/unpin-deps.sh —
 #                strips exact pins (package.json/requirements*.txt/Gemfile),
@@ -860,85 +864,255 @@ seed_feedback() {
   esac
 }
 
-# GitHub SILENTLY DROPS a label that does not exist from a prefilled issue URL:
-# no error, no warning, the label is just gone and the issue never enters the
-# pipeline. Creating them is therefore part of making the widget work, not a
-# nicety — the one place this kit writes to a target outside its own PR, and
-# only under --apply.
 # The assistant kit (templates/assistant, specs/ASSIST.md): the page bridge
-# payload and the adapter for this repo's framework. Detection is the feedback
-# kit's (one place decides what a stack is), plus plain HTML, which has no
-# marker file of its own.
-assist_stack() {
-  local stack
-  stack="$(feedback_stack)"
-  if [[ "$stack" == "unknown" ]] && [[ -f index.html || -f public/index.html || -f docs/index.html || -f static/index.html ]]; then
-    stack="static"
+# payload and the adapter for this repo's framework.
+#
+# ONE place decides what a repo's platform is: the registry's
+# `frontend.framework`, read through the planner (`tools/dash apps assist`).
+# The files at a repo's root do not say. On the 2026-11-22 dry run the
+# root-only detection this replaced seeded nothing in five of the nineteen page
+# repos, whose app sits in a subfolder (gitorio app/, cv-pro app/,
+# rewind-arcade arcade/, zer0-CMS web/studio, ocrmd ocrmd/web/static), and put
+# the React adapter outside the app in two more (law-ai, fredgar-ai:
+# frontend/). A repo the registry does not know falls back to the files.
+#
+# Placement follows the app, not the repo root. And the copy a repo already
+# has is the copy kept current, wherever it was moved to: a re-run that looked
+# only at the default path would seed a second one beside it.
+assist_family() {  # $1 = repo name → jekyll | mkdocs | nextjs | react | django | static | none | gap
+  local fam="" rc=0
+  fam="$(PYTHONPATH="$HUB/tools${PYTHONPATH:+:$PYTHONPATH}" "${PYTHON:-python3}" -m fleetcore.assist family "$1" 2>/dev/null)" || rc=$?
+  if [[ "$rc" -eq 0 && -n "$fam" ]]; then echo "$fam"; return 0; fi
+  if [[ "$rc" -eq 3 ]]; then
+    echo "assist: ${1} is not in the registry — reading its files instead" >&2
+  else
+    echo "assist: the planner did not answer (exit ${rc}; it needs PyYAML) — reading this repo's files instead" >&2
   fi
-  echo "$stack"
+  case "$(feedback_stack)" in
+    zer0-theme|jekyll) echo "jekyll" ;;
+    mkdocs)            echo "mkdocs" ;;
+    django|rails)      echo "django" ;;
+    next)              echo "nextjs" ;;
+    react)             echo "react" ;;
+    ext)               echo "none" ;;
+    *) if [[ -n "$(assist_page_dir)" ]]; then echo "static"; else echo "none"; fi ;;
+  esac
+}
+
+# A JavaScript app is a package.json that names the framework AND has a page
+# or a bundler config: a shared UI package depends on React too, and is not a
+# place to mount anything.
+assist_is_app() {  # $1 = folder, $2 = "next" | "react"
+  grep -qs "\"$2\"" "$1/package.json" || return 1
+  if [[ "$2" == "next" ]]; then return 0; fi
+  [[ -f "$1/index.html" ]] || compgen -G "$1/vite.config.*" >/dev/null
+}
+
+# Where the app lives: the root, then the usual folder names, then every
+# folder one and two levels down. The first app found wins.
+assist_app_root() {  # $1 = "next" | "react" → the app's folder ("." = the root), or "" when there is none
+  local needle="$1" d depth
+  for d in . frontend web app client ui; do
+    if assist_is_app "$d" "$needle"; then echo "$d"; return 0; fi
+  done
+  for depth in 2 3; do
+    while IFS= read -r d; do
+      d="${d#./}"; d="${d%/package.json}"
+      if assist_is_app "$d" "$needle"; then echo "$d"; return 0; fi
+    done < <(find . -mindepth "$depth" -maxdepth "$depth" -name package.json \
+               -not -path '*/node_modules/*' -not -path './.*' -not -path './vendor/*' \
+               -not -path '*/dist/*' -not -path '*/build/*' 2>/dev/null | LC_ALL=C sort || true)
+  done
+  echo ""
+}
+
+assist_component_dir() {  # $1 = the app's folder → where its components are kept
+  local pre=""
+  [[ "$1" == "." ]] || pre="$1/"
+  if [[ -d "${pre}src" ]]; then echo "${pre}src/components"; else echo "${pre}components"; fi
+}
+
+# The folder of the page a hand-written site serves: the usual names first,
+# then anywhere that is not a build, a test or a vendored tree.
+assist_page_dir() {  # → the folder ("." = the root), or "" when the repo has no page
+  local d f
+  for d in . public docs static site web; do
+    if [[ -f "$d/index.html" ]]; then echo "$d"; return 0; fi
+  done
+  f="$(find . -mindepth 2 -maxdepth 5 -name index.html -not -path '*/node_modules/*' -not -path './.*' \
+         -not -path '*/dist/*' -not -path '*/build/*' -not -path '*/_site/*' -not -path '*/test/*' \
+         -not -path '*/tests/*' -not -path '*/verify/*' -not -path '*/examples/*' -not -path '*/vendor/*' \
+         2>/dev/null | LC_ALL=C sort | head -1 || true)"
+  if [[ -n "$f" ]]; then f="${f#./}"; echo "${f%/index.html}"; return 0; fi
+  echo ""
+}
+
+assist_static_asset_dir() {  # $1 = the page's folder → where its scripts go
+  local p="$1" pre="" d
+  [[ "$p" == "." ]] || pre="${p}/"
+  for d in js assets/js scripts; do
+    if [[ -d "${pre}${d}" ]]; then echo "${pre}${d}"; return 0; fi
+  done
+  # A page at the root is served with the whole repo, so it keeps the folder
+  # the feedback kit already uses there. A page in a folder of its own is
+  # served with what sits beside it, and with nothing else in the repo.
+  if [[ "$p" != "." ]]; then echo "$p"
+  elif [[ -d public ]]; then echo "public"
+  else echo "assets/js"
+  fi
+}
+
+assist_mkdocs_key() {  # $1 = a key of mkdocs.yml (docs_dir, custom_dir), $2 = its default
+  local v
+  v="$(sed -n "s/^[[:space:]]*$1:[[:space:]]*//p" mkdocs.yml 2>/dev/null | head -1 | sed "s/[[:space:]]*#.*\$//; s/[\"']//g; s/[[:space:]]*\$//" || true)"
+  echo "${v:-$2}"
+}
+
+assist_existing() {  # $1 = a file name → the copy this repo already has, or ""
+  find . -name "$1" -not -path '*/node_modules/*' -not -path './.git/*' -not -path './.claude/*' \
+    -not -path '*/dist/*' -not -path '*/build/*' -not -path '*/_site/*' -not -path '*/staticfiles/*' \
+    2>/dev/null | LC_ALL=C sort | head -1 | sed 's|^\./||' || true
+}
+
+assist_seed_adapter() {  # $1 = the kit's adapter, $2 = where it goes when the repo has none; sets ASSIST_AT
+  local have
+  have="$(assist_existing "$(basename "$2")")"
+  if [[ -n "$have" ]]; then
+    ASSIST_AT="$have"
+    echo "assist: adapter present — ${have} (left alone)"
+    return 0
+  fi
+  mkdir -p "$(dirname "$2")"
+  cp "$1" "$2"
+  ASSIST_AT="$2"
+  echo "assist: adapter seeded -> ${2}"
 }
 
 seed_assist() {
   # cwd = target clone; $1 = repo name, $2 = default branch.
-  local name="$1" def="$2" kit="$HUB/templates/assistant" stack dir
-  stack="$(assist_stack)"
-  echo "assist: detected stack '${stack}'"
-  case "$stack" in
-    ext)
-      echo "assist: an extension's webview has no page the console can admit — nothing to seed (the agent-context kit is this repo's baseline)"
+  local name="$1" kit="$HUB/templates/assistant" family needle root="" pre="" comp="" page="" payload="" have custom docs
+  ASSIST_AT=""
+  family="$(assist_family "$name")"
+  echo "assist: platform family '${family}'"
+
+  # First where the payload goes, by family. Each arm also settles what the
+  # second half needs (the app's folder, the page's folder).
+  case "$family" in
+    jekyll)
+      # A zer0-mistakes consumer takes the page bridge from the theme (ADR 0014
+      # P1): the theme ships the payload and the include, and remote_theme
+      # cannot carry the _config.yml key that turns it on. Seven vendored
+      # copies of one file is what a theme is there to avoid. A consumer that
+      # vendored its own copy anyway keeps it, and it is kept current below.
+      if grep -qs 'zer0-mistakes' _config.yml && ! compgen -G '*.gemspec' >/dev/null \
+         && [[ -z "$(assist_existing fleet-assist.js)" ]]; then
+        if grep -qs '^fleet_assist:' _config.yml _config_dev.yml; then
+          echo "assist: theme consumer — fleet_assist is configured, nothing to seed"
+        else
+          echo "assist: theme consumer — the zer0-mistakes theme carries the page bridge, so nothing is vendored here"
+          echo "assist: ADD TO _config.yml (one key; needs a theme release that ships _includes/components/fleet-assist.html):"
+          echo "assist:     fleet_assist:"
+          echo "assist:       enabled: true"
+        fi
+        return
+      fi
+      payload="assets/js/fleet-assist.js" ;;
+    mkdocs)
+      docs="$(assist_mkdocs_key docs_dir docs)"
+      payload="${docs}/assets/js/fleet-assist.js" ;;
+    nextjs|react)
+      if [[ "$family" == "nextjs" ]]; then needle="next"; else needle="react"; fi
+      root="$(assist_app_root "$needle")"
+      if [[ -z "$root" ]]; then
+        echo "assist: the registry says '${family}', and no package.json in this repo is a ${needle} app — nothing seeded"
+        return
+      fi
+      [[ "$root" == "." ]] || pre="${root}/"
+      echo "assist: the app is in ${root} (. is the repo root)"
+      payload="${pre}public/fleet-assist.js" ;;
+    django)
+      # Django serves what STATICFILES_DIRS names. A repo that already keeps
+      # the fleet's scripts in public/ (the feedback kit's folder) has mapped
+      # it; without one, static/js is the framework's own convention.
+      if [[ -d public ]]; then payload="public/fleet-assist.js"; else payload="static/js/fleet-assist.js"; fi ;;
+    static)
+      page="$(assist_page_dir)"
+      if [[ -z "$page" ]]; then
+        echo "assist: the registry says 'static', and this repo has no index.html — nothing seeded"
+        return
+      fi
+      echo "assist: the page is in ${page} (. is the repo root)"
+      payload="$(assist_static_asset_dir "$page")/fleet-assist.js" ;;
+    gap)
+      echo "assist: this repo draws pages in a framework no adapter covers yet — nothing to seed (tools/dash apps assist)"
       return ;;
-    unknown)
-      echo "assist: no page found in this repo — nothing to seed (the agent-context kit is its baseline; tools/dash apps assist)"
+    *)
+      echo "assist: no page in this repo — nothing to seed (the agent-context kit is its baseline; tools/dash apps assist)"
       return ;;
   esac
 
-  # MkDocs serves what sits under docs/; every other stack keeps the feedback kit's rule.
-  if [[ "$stack" == "mkdocs" ]]; then dir="docs/assets/js"; else dir="$(feedback_asset_dir)"; fi
-  # A hand-written site with none of those folders keeps scripts beside its pages, not in a build's public/.
-  if [[ "$stack" == "static" && ! -d "$dir" ]]; then dir="assets/js"; fi
-  seed_vendored_asset "$dir/fleet-assist.js" "$kit/fleet-assist.js" "fleet-assist.js" "$AST_VERSION" js
+  have="$(assist_existing fleet-assist.js)"
+  if [[ -n "$have" ]]; then payload="$have"; fi
+  seed_vendored_asset "$payload" "$kit/fleet-assist.js" "fleet-assist.js" "$AST_VERSION" js
 
-  # The adapter is seeded as a file and mounted by a human, as for feedback:
-  # every app shell in the fleet is hand-written.
-  case "$stack" in
-    next|react)
-      mkdir -p components
-      [[ -f components/AssistBridge.tsx ]] || cp "$kit/adapters/AssistBridge.tsx" components/AssistBridge.tsx
-      if [[ "$stack" == "next" ]]; then
-        [[ -f components/AssistBridgeNext.tsx ]] || cp "$kit/adapters/nextjs.tsx" components/AssistBridgeNext.tsx
-        echo "assist: MOUNT — <AssistBridgeNext enabled={process.env.NODE_ENV !== 'production'} repo=\"bamr87/${name}\" /> once inside <body> in app/layout.tsx"
+  # The adapter is seeded as a file and mounted by whoever owns the shell, as
+  # for feedback: every app shell in the fleet is hand-written (UPS-AST-40).
+  case "$family" in
+    nextjs|react)
+      comp="$(assist_component_dir "$root")"
+      assist_seed_adapter "$kit/adapters/AssistBridge.tsx" "${comp}/AssistBridge.tsx"
+      if [[ "$family" == "nextjs" ]]; then
+        assist_seed_adapter "$kit/adapters/nextjs.tsx" "${comp}/AssistBridgeNext.tsx"
+        echo "assist: MOUNT — <AssistBridgeNext enabled={process.env.NODE_ENV !== 'production'} repo=\"bamr87/${name}\" /> once inside <body> in ${pre}app/layout.tsx (import it from ${ASSIST_AT})"
       else
-        echo "assist: MOUNT — <AssistBridge enabled={import.meta.env.DEV} repo=\"bamr87/${name}\" navigate={navigate} /> once in the app shell, inside the router"
+        echo "assist: MOUNT — <AssistBridge enabled={import.meta.env.DEV} repo=\"bamr87/${name}\" navigate={navigate} /> once in the app shell, inside the router (import it from ${ASSIST_AT})"
       fi
       ;;
-    zer0-theme|jekyll)
-      mkdir -p _includes/custom
-      [[ -f _includes/custom/fleet-assist.html ]] || cp "$kit/adapters/jekyll.html" _includes/custom/fleet-assist.html
-      echo "assist: MOUNT — {% include custom/fleet-assist.html %} before </body> (zer0-mistakes: in _includes/custom/body-end.html)"
+    jekyll)
+      # A theme keeps what it ships with its components; a site keeps its own
+      # additions in custom/, the theme's seam for exactly that.
+      if compgen -G '*.gemspec' >/dev/null && [[ -d _includes/components ]]; then
+        assist_seed_adapter "$kit/adapters/jekyll.html" _includes/components/fleet-assist.html
+        echo "assist: MOUNT — {% include ${ASSIST_AT#_includes/} %} before </body> in the layout that closes it, so every site on this theme gets it"
+      else
+        assist_seed_adapter "$kit/adapters/jekyll.html" _includes/custom/fleet-assist.html
+        echo "assist: MOUNT — {% include ${ASSIST_AT#_includes/} %} before </body>"
+      fi
       echo "assist: ADD TO _config.yml:"
       echo "assist:     fleet_assist:"
       echo "assist:       enabled: true"
       ;;
     mkdocs)
-      if [[ -f overrides/main.html ]]; then
-        echo "assist: overrides/main.html exists — add the {% block scripts %} from templates/assistant/adapters/mkdocs.html to it"
+      custom="$(assist_mkdocs_key custom_dir overrides)"
+      if [[ -f "${custom}/main.html" ]]; then
+        if grep -qs 'fleet-assist' "${custom}/main.html"; then
+          echo "assist: adapter present — ${custom}/main.html already mounts it"
+        else
+          echo "assist: MOUNT — ${custom}/main.html exists: add the {% block scripts %} from templates/assistant/adapters/mkdocs.html to it, and extra.fleet_assist in mkdocs.yml (the adapter's header has the keys)"
+        fi
       else
-        mkdir -p overrides
-        cp "$kit/adapters/mkdocs.html" overrides/main.html
-        echo "assist: MOUNT — theme.custom_dir: overrides, and extra.fleet_assist in mkdocs.yml (the adapter's header has the keys)"
+        mkdir -p "$custom"
+        cp "$kit/adapters/mkdocs.html" "${custom}/main.html"
+        echo "assist: adapter seeded -> ${custom}/main.html"
+        echo "assist: MOUNT — theme.custom_dir: ${custom}, and extra.fleet_assist in mkdocs.yml (the adapter's header has the keys)"
       fi
       ;;
-    django|rails)
-      mkdir -p templates/includes
-      [[ -f templates/includes/fleet-assist.html ]] || cp "$kit/adapters/django.html" templates/includes/fleet-assist.html
-      echo "assist: MOUNT — {% include 'includes/fleet-assist.html' %} before </body> in base.html, and FLEET_ASSIST in the context processor"
+    django)
+      assist_seed_adapter "$kit/adapters/django.html" templates/includes/fleet-assist.html
+      echo "assist: MOUNT — {% include '${ASSIST_AT#templates/}' %} before </body> in base.html, and FLEET_ASSIST in the context processor"
       ;;
     static)
-      echo "assist: MOUNT — the two lines of templates/assistant/adapters/static.html before </body>, with src pointing at ${dir}/fleet-assist.js"
+      [[ "$page" == "." ]] || pre="${page}/"
+      echo "assist: MOUNT — the two lines of templates/assistant/adapters/static.html before </body> in ${pre}index.html, with src pointing at ${payload}"
       ;;
   esac
 }
 
+# GitHub SILENTLY DROPS a label that does not exist from a prefilled issue URL:
+# no error, no warning, the label is just gone and the issue never enters the
+# pipeline. Creating them is therefore part of making the widget work, not a
+# nicety — the one place this kit writes to a target outside its own PR, and
+# only under --apply.
 feedback_ensure_labels() {  # $1 = owner/repo
   local slug="$1" spec name color desc
   for spec in \

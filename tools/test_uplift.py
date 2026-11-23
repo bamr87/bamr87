@@ -732,6 +732,8 @@ class Config(unittest.TestCase):
         self.assertIn('"uplift": dict(', (ROOT / "tools" / "console" / "core.py").read_text())
         self.assertIn(".fleet/uplift/", (ROOT / ".gitignore").read_text().splitlines())
         self.assertTrue((ROOT / "docs" / "UPLIFT.md").is_file())
+        self.assertIn("dash uplift", (ROOT / "docs" / "DASH.md").read_text(), "the generated CLI reference lists it")
+        self.assertTrue((ROOT / ".claude" / "commands" / "harness" / "uplift.md").is_file())
 
     def test_nothing_here_holds_a_key_block_header(self) -> None:
         header = "BEGIN " + "RSA PRIVATE KEY"

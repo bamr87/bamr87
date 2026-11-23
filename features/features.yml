@@ -1218,8 +1218,9 @@ features:
       PR check, post one sticky summary updated in place (silent when clean), severity-tagged deduplicated
       inline findings and a fleet signature footer, as github-actions or the fleet app, never Amr's token;
       proposed by amendment fleet-pr-review. Shipped so far are the CI-failure sticky (amendment
-      ci-failure-summary) and inline findings from each check's fleet-findings artifact; AI review (§ 19.7)
-      and the fleet-app identity (bamr87/bamr87#565) are still to come.
+      ci-failure-summary), inline findings from each check's fleet-findings artifact, and the AI review
+      of § 19.7 in the hub (pr-ai-review.yml, feature ai-pr-review), which this workflow posts; the fleet
+      stub for that review and the fleet-app identity (bamr87/bamr87#565) are still to come.
     implemented: true
     status: partial
     surface: infra
@@ -3314,3 +3315,62 @@ features:
     - FR58
     - FR77
     - FR143
+  - id: HUB-131
+    title: AI analysis of every failed CI run on a pull request
+    description: 'Every failed CI run on a pull request gets an AI analysis in the fleet''s one sticky PR
+      comment, under the deterministic summary: the most likely root cause, whether the PR caused it, the
+      evidence line and the smallest fix, from the run''s log, its workflow file and the PR''s diff (constitution
+      § 19.11, amendment ai-ci-failure-analysis). The ai-analysis job of .github/workflows/pr-review.yml
+      runs .github/scripts/dash-gen/pr_ai_analysis.py: one claude-run call per pass (claude-sonnet-5-5,
+      no tools, one turn, $1 cap at budget.call_sites pr-review.yml:ai-analysis), the answer validated and
+      escaped before it is written, once per failed run attempt, behind vars.PR_AI_ANALYSIS_ENABLED. A PR
+      from outside the collaborators waits for the ai-analysis label. The same pass runs locally with `pr_ai_analysis.py
+      local`.'
+    implemented: true
+    status: shipped
+    surface: infra
+    link: .github/scripts/dash-gen/pr_ai_analysis.py
+    docs: templates/pr-review/README.md
+    tags:
+    - ci
+    - review
+    - ai
+    date: 2026-11-23
+    tests:
+    - .github/scripts/dash-gen/test_pr_ai_analysis.py
+    - .github/scripts/dash-gen/test_pr_review.py
+    prd:
+    - FR144
+  - id: HUB-132
+    title: 'AI review: a pull request that is marked ready gets a review and who does what next'
+    description: 'A pull request that is opened ready, marked ready or given the review label is read once
+      by a capped model (constitution § 19.7; ADR 0012 stage B), never on a push. pr-ai-review.yml plans
+      the review (a trusted author or a maintainer''s label, read by the script and never by a job condition;
+      not a Dependabot or release pull request; once per head commit; inside the day''s cap), writes a brief
+      with the diff and its new-file line numbers, and runs one session through the claude-run route with
+      read-only tools, an exact model, a turn cap and a dollar cap, and no GitHub credential; the pull request''s
+      code is never checked out. The reviewer comments nothing itself: pr-review.yml posts its findings
+      inline through the fleet-findings channel and one comment-only review per head commit with a summary,
+      the findings that are not on an added line, and the next actions grouped by who moves them (an agent,
+      the author, the maintainer) with the fixed hand-off for each. It never approves, and its findings
+      are advisory until the harness has an eval set. tools/dash prs review runs the same review in a local
+      session and posts nothing; a manual dispatch is a dry run. Off unless vars.PR_AI_REVIEW_ENABLED is
+      true. Shipped in the hub; the fleet stub, the eval set and starting the hand-off without a person
+      (stage C) are still to come.'
+    implemented: true
+    status: partial
+    surface: infra
+    link: .github/workflows/pr-ai-review.yml
+    docs: templates/pr-review/README.md
+    tags:
+    - pull-requests
+    - review
+    - ci
+    - ai
+    date: 2026-11-23
+    tests:
+    - .github/scripts/dash-gen/test_pr_ai_review.py
+    - .github/scripts/dash-gen/test_ai_budget.py
+    prd:
+    - FR61
+    - FR137

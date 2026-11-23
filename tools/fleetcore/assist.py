@@ -23,6 +23,7 @@ conformance checker's to say (tools/fanout.sh --kit assist, UPS-AST-01).
 Usage (from tools/, as `tools/dash apps assist` runs it):
     python3 -m fleetcore.assist [plan]     # the table
     python3 -m fleetcore.assist json       # the document (fleet-assist/v1)
+    python3 -m fleetcore.assist family <repo>   # one word, for tools/fanout.sh --kit assist
 """
 from __future__ import annotations
 
@@ -40,10 +41,14 @@ KIT = "templates/assistant"
 #: the framework name, so `react-vite+django` (a React page over a Django API) is React before it is Django.
 #: (family, needle, adapter in the kit, where the fan-out seeds it, how it knows it is in development)
 ADAPTERS = (
-    ("jekyll", "jekyll", "adapters/jekyll.html", "_includes/custom/fleet-assist.html", "jekyll.environment"),
-    ("mkdocs", "mkdocs", "adapters/mkdocs.html", "overrides/main.html", "FLEET_ASSIST=1 (an environment variable)"),
-    ("nextjs", "nextjs", "adapters/nextjs.tsx", "components/AssistBridgeNext.tsx", "the app passes its NODE_ENV"),
-    ("react", "react", "adapters/AssistBridge.tsx", "components/AssistBridge.tsx", "the app passes its DEV flag"),
+    ("jekyll", "jekyll", "adapters/jekyll.html",
+     "_includes/custom/fleet-assist.html (a zer0-mistakes site takes it from the theme)", "jekyll.environment"),
+    ("mkdocs", "mkdocs", "adapters/mkdocs.html", "main.html in the theme's custom_dir",
+     "FLEET_ASSIST=1 (an environment variable)"),
+    ("nextjs", "nextjs", "adapters/nextjs.tsx", "components/AssistBridgeNext.tsx in the app's folder",
+     "the app passes its NODE_ENV"),
+    ("react", "react", "adapters/AssistBridge.tsx", "components/AssistBridge.tsx in the app's folder",
+     "the app passes its DEV flag"),
     ("django", "django", "adapters/django.html", "templates/includes/fleet-assist.html", "settings.DEBUG"),
     ("static", "static-html", "adapters/static.html", "the page's own HTML", "a loopback address shows the button"),
 )
@@ -104,6 +109,19 @@ def plan(root: Path = HUB) -> dict:
                         "gap": sum(r["level"] == "gap" for r in rows), "families": dict(sorted(families.items()))}}
 
 
+def family(name: str, root: Path = HUB) -> str | None:
+    """What the fan-out seeds for one repo, by its registry name: an adapter family, `none` when the repo is reached
+    in its checkout, `gap` when no adapter covers its framework. None when the registry has no such repo.
+
+    The fan-out asks this instead of reading the files at a repo's root, which do not say: an app that lives in a
+    subfolder (`app/`, `arcade/`, `web/studio`) has no package.json up there to recognise."""
+    want = str(name or "").lower()
+    for r in plan(root)["rows"]:
+        if want and want in (str(r["name"]).lower(), str(r["id"]).lower()):
+            return r["family"] if r["level"] == "page" else ("gap" if r["level"] == "gap" else "none")
+    return None
+
+
 def table(doc: dict) -> str:
     """The plan as a Markdown table (docs/adr/0014, specs/ASSIST.md)."""
     out = ["| repo | platform | baseline | adapter | why |", "| --- | --- | --- | --- | --- |"]
@@ -117,8 +135,16 @@ def table(doc: dict) -> str:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="dash apps assist",
                                  description="The assistant baseline each repo's platform gets (ADR 0014).")
-    ap.add_argument("cmd", nargs="?", default="plan", choices=("plan", "json"))
+    ap.add_argument("cmd", nargs="?", default="plan", choices=("plan", "json", "family"))
+    ap.add_argument("repo", nargs="?", help="family: the repo's registry name")
     a = ap.parse_args(argv)
+    if a.cmd == "family":
+        # One word for tools/fanout.sh. Exit 3 = the registry has no such repo (the fan-out then reads the files).
+        fam = family(a.repo or "", HUB)
+        if fam is None:
+            return 3
+        print(fam)
+        return 0
     doc = plan(HUB)
     if a.cmd == "json":
         print(json.dumps(doc, indent=2))

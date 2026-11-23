@@ -4,9 +4,12 @@ name: PR review
 # Seeded from bamr87/bamr87 templates/pr-review/. Every CI failure on a pull
 # request is summarized in one sticky comment (constitution § 19): the job, the
 # reason from its log, whether the PR probably caused it, and what to do. The
-# comment is deleted when nothing is failing. All the logic lives in the hub's
-# reusable pr-review.yml; repo-specific checks plug in as inputs there.
-# Off switch: set the repo variable PR_REVIEW_ENABLED to 'false'.
+# comment is deleted when nothing is failing. Each failed run also gets an AI
+# analysis in that comment (§ 19.11), from the repo's CLAUDE_CODE_OAUTH_TOKEN:
+# without it the comment says the analysis could not run. All the logic lives in
+# the hub's reusable pr-review.yml; repo-specific checks plug in as inputs there.
+# Off switch: set the repo variable PR_REVIEW_ENABLED to 'false'; the AI analysis
+# alone: PR_AI_ANALYSIS_ENABLED to 'false'.
 
 on:
   workflow_run:
@@ -33,3 +36,6 @@ jobs:
       pull-requests: write
     with:
       hub-ref: v2
+    # Only the Claude credential, by name: the AI analysis runs one tool-less call with it.
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

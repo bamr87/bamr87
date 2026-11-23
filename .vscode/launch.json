@@ -757,6 +757,18 @@
       "presentation": { "group": "4-generate", "order": 8 }
     },
     {
+      // The AI review a pull request gets when it is marked ready (constitution § 19.7,
+      // templates/pr-review/README.md "AI review"), run here in a capped local session:
+      // read-only tools, the review printed, nothing posted. The posted review is
+      // pr-ai-review.yml's.
+      "name": "🔎 AI review: one pull request in a local session (posts nothing)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash prs review --pr '${input:pullRequestRef}'",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 8 }
+    },
+    {
       "name": "🗺️ Workflow atlas: list / health (from the lake)",
       "type": "node-terminal",
       "request": "launch",
@@ -1806,6 +1818,13 @@
       "description": "Graph node: an id (file:_data/agents.yml) or a unique tail (claude-cost, fleet-pulse.yml)",
       "type": "promptString",
       "default": "action:bamr87/bamr87:claude-cost"
+    },
+    {
+      // One pull request of a registry repo (tools/dash prs queue lists them).
+      "id": "pullRequestRef",
+      "description": "Pull request as owner/repo#number",
+      "type": "promptString",
+      "default": "bamr87/bamr87#1"
     },
     {
       // Loops with a local: block (tools/dash loop list).
