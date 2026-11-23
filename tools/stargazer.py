@@ -45,8 +45,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "tools"))
-from fleetcore import stars  # noqa: E402
+# tools/ is on the path already: it is this script's directory (`tools/dash stars` runs it by path)
+from fleetcore import stars, stars_ai, stars_grafana  # noqa: E402
 
 DOC = ROOT / "_data" / "stars.json"
 HISTORY = ROOT / "_data" / "stars_history.json"
@@ -296,7 +296,7 @@ def refresh(args) -> int:
     except GhError as exc:
         print(f"stars refresh: {exc}; nothing written", file=sys.stderr)
         return 1
-    doc, nxt = stars.build(raw, registry=reg, fleet=fleet, history=hist, now=now, ai=stars.load_ai(AI_FILE))
+    doc, nxt = stars.build(raw, registry=reg, fleet=fleet, history=hist, now=now, ai=stars_ai.load_ai(AI_FILE))
     t = doc["totals"]
     print(f"stars refresh: {t['starred']} starred, {t['trending']} trending, {t['repos']} repos on the radar, "
           f"{t['relevant']} relevant to the fleet, {t['incorporate']} to review, {t['suspect']} suspect — "
@@ -495,23 +495,23 @@ def review_cmd(args) -> int:
     fleet = fleet_yml()
     cfg = stars.config(fleet)["ai"]
     doc = _need_doc()
-    ai = stars.load_ai(AI_FILE)
+    ai = stars_ai.load_ai(AI_FILE)
     now = datetime.now(timezone.utc)
     if not cfg.get("enabled", True):
         print("stars review: off (_data/fleet.yml stars.ai.enabled is false)", file=sys.stderr)
         return 1
     if args.batches:
         cfg = {**cfg, "max_batches": max(1, min(int(args.batches), 20))}
-    names = [] if args.groups_only else stars.review_candidates(doc, ai, cfg, now, args.limit)
+    names = [] if args.groups_only else stars_ai.review_candidates(doc, ai, cfg, now, args.limit)
     size = max(1, int(cfg["batch"]))
     batches = [names[i:i + size] for i in range(0, len(names), size)]
-    stale_groups = (ai.get("groups") or {}).get("basis") != stars.groups_basis(doc)
+    stale_groups = (ai.get("groups") or {}).get("basis") != stars_ai.groups_basis(doc)
     groups = not args.no_groups and (args.groups or args.groups_only or stale_groups)
     sessions = len(batches) + (1 if groups else 0)
     cap = float(cfg["budget_usd"])
     print(f"stars review: {len(names)} repo(s) to review in {len(batches)} session(s)"
           f"{', and the groups over ' + str(len(doc.get('starred') or [])) + ' stars' if groups else ''} — "
-          f"{cfg['model']}, at most ${cap:g} a session, ${cap * sessions:g} in all ({stars.COST_LABEL})")
+          f"{cfg['model']}, at most ${cap:g} a session, ${cap * sessions:g} in all ({stars_ai.COST_LABEL})")
     for n in names[:12]:
         print(f"  {n}")
     if len(names) > 12:
@@ -534,14 +534,14 @@ def review_cmd(args) -> int:
                                           "outcome": meta.get("outcome")})
         ai["runs"] = ai["runs"][-50:]
         ai["updated_at"] = stars._iso(datetime.now(timezone.utc))
-        AI_FILE.write_text(stars.dump_ai(ai), encoding="utf-8")
+        AI_FILE.write_text(stars_ai.dump_ai(ai), encoding="utf-8")
 
     queue = [(str(i), b, True) for i, b in enumerate(batches, 1)]
     while queue:
         label, batch, may_split = queue.pop(0)
-        text, meta = run_session(stars.review_prompt(doc, batch), cfg, hub_repo)
+        text, meta = run_session(stars_ai.review_prompt(doc, batch), cfg, hub_repo)
         try:
-            got = stars.parse_reviews(text, doc, batch, model=str(cfg["model"]), now=datetime.now(timezone.utc))
+            got = stars_ai.parse_reviews(text, doc, batch, model=str(cfg["model"]), now=datetime.now(timezone.utc))
         except ValueError as exc:
             record("reviews", 0, meta)
             said = " ".join(text.split())[:200]
@@ -556,18 +556,18 @@ def review_cmd(args) -> int:
             continue
         ai.setdefault("reviews", {}).update(got)
         record("reviews", len(got), meta)
-        print(f"  session {label}: {len(got)} of {len(batch)} reviewed · ${meta.get('cost_usd') or 0:.4f} {stars.COST_LABEL}")
+        print(f"  session {label}: {len(got)} of {len(batch)} reviewed · ${meta.get('cost_usd') or 0:.4f} {stars_ai.COST_LABEL}")
     if groups:
-        text, meta = run_session(stars.groups_prompt(doc, cfg, ai), cfg, hub_repo)
+        text, meta = run_session(stars_ai.groups_prompt(doc, cfg, ai), cfg, hub_repo)
         try:
-            ai["groups"] = stars.parse_groups(text, doc, cfg, model=str(cfg["model"]), now=datetime.now(timezone.utc))
+            ai["groups"] = stars_ai.parse_groups(text, doc, cfg, model=str(cfg["model"]), now=datetime.now(timezone.utc))
             record("groups", len(doc.get("starred") or []), meta)
-            print(f"  groups: {len(ai['groups']['items'])} themes · ${meta.get('cost_usd') or 0:.4f} {stars.COST_LABEL}")
+            print(f"  groups: {len(ai['groups']['items'])} themes · ${meta.get('cost_usd') or 0:.4f} {stars_ai.COST_LABEL}")
         except ValueError as exc:
             failed += 1
             record("groups", 0, meta)
             print(f"  groups: no usable answer ({exc}; outcome {meta.get('outcome')})", file=sys.stderr)
-    stars.attach_ai(doc, ai)
+    stars_ai.attach_ai(doc, ai)
     DOC.write_text(stars.dump(doc), encoding="utf-8")
     print(f"  wrote {_rel(AI_FILE)} and {_rel(DOC)}; metrics: {push_metrics(doc, fleet)}")
     return 1 if failed and failed == sessions else 0
@@ -588,10 +588,10 @@ def push_metrics(doc: dict, fleet: dict, endpoint: str | None = None) -> str:
     """POST the radar's gauges to the OTel collector (OTLP/JSON). Best effort: a collector that is not running
     is the ordinary state (`tools/dash observe up --profile metrics` starts it), never an error."""
     if not stars.config(fleet)["metrics"].get("push", True) and not endpoint:
-        return "push off (stars.metrics.push)"
+        return "push off (stars_grafana.metrics.push)"
     url = otlp_endpoint(fleet, endpoint)
-    samples = stars.metrics(doc)
-    body = json.dumps(stars.otlp_payload(samples, datetime.now(timezone.utc))).encode()
+    samples = stars_grafana.metrics(doc)
+    body = json.dumps(stars_grafana.otlp_payload(samples, datetime.now(timezone.utc))).encode()
     req = urllib.request.Request(url, data=body, method="POST", headers={"Content-Type": "application/json", "User-Agent": UA})
     try:
         with urllib.request.urlopen(req, timeout=float(stars.config(fleet)["metrics"]["timeout_s"])) as resp:
@@ -600,7 +600,7 @@ def push_metrics(doc: dict, fleet: dict, endpoint: str | None = None) -> str:
         return f"the collector at {url} answered {exc.code}; not pushed"
     except (urllib.error.URLError, OSError):
         return f"no collector at {url}; not pushed (the metrics profile is off)"
-    return f"{len(samples)} gauges pushed to {url} → Prometheus → Grafana dashboard {stars.GRAFANA_UID}"
+    return f"{len(samples)} gauges pushed to {url} → Prometheus → Grafana dashboard {stars_grafana.GRAFANA_UID}"
 
 
 def metrics_cmd(args) -> int:
@@ -609,12 +609,12 @@ def metrics_cmd(args) -> int:
         msg = push_metrics(doc, fleet_yml(), args.endpoint or None)
         print(msg)
         return 0 if "pushed to" in msg else 1
-    print(stars.prom_text(stars.metrics(doc)), end="")
+    print(stars_grafana.prom_text(stars_grafana.metrics(doc)), end="")
     return 0
 
 
 def grafana_cmd(args) -> int:
-    text = json.dumps(stars.grafana_dashboard(), indent=2, sort_keys=True) + "\n"
+    text = json.dumps(stars_grafana.grafana_dashboard(), indent=2, sort_keys=True) + "\n"
     if args.write:
         GRAFANA_FILE.write_text(text, encoding="utf-8")
         print(f"wrote {_rel(GRAFANA_FILE)}")

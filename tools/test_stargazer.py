@@ -22,7 +22,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 import stargazer as sg  # noqa: E402
-from fleetcore import stars  # noqa: E402
+from fleetcore import stars, stars_ai, stars_grafana  # noqa: E402
 
 NOW = datetime(2026, 11, 23, 12, 0, tzinfo=timezone.utc)
 # No test may push gauges to a live OTel collector (a refresh and a review push by default): every push in
@@ -422,16 +422,16 @@ class AiPass(unittest.TestCase):
         return "Here you go:\n" + json.dumps({"reviews": reviews}) + "\n"
 
     def test_candidates_skip_suspect_own_and_current_reviews(self):
-        names = stars.review_candidates(self.doc, None, self.cfg, NOW)
+        names = stars_ai.review_candidates(self.doc, None, self.cfg, NOW)
         self.assertEqual(names[0], "acme/agent-kit")  # the account's stars first, newest first
         self.assertLess(names.index("jane/jekyll-docs-theme"), names.index("new/actions-reviewer"))
         for bad in ("spam12345/claude-code-pro", "bamr87/zer0-mistakes"):
             self.assertNotIn(bad, names)
-        got = stars.parse_reviews(self.answer(names), self.doc, names, model="m", now=NOW)
-        ai = {**stars.empty_ai(), "reviews": got}
-        self.assertEqual(stars.review_candidates(self.doc, ai, self.cfg, NOW), [])
-        self.assertEqual(stars.review_candidates(self.doc, ai, self.cfg, NOW + timedelta(days=200)), names)  # too old
-        self.assertEqual(len(stars.review_candidates(self.doc, None, self.cfg, NOW, limit=1)), 1)
+        got = stars_ai.parse_reviews(self.answer(names), self.doc, names, model="m", now=NOW)
+        ai = {**stars_ai.empty_ai(), "reviews": got}
+        self.assertEqual(stars_ai.review_candidates(self.doc, ai, self.cfg, NOW), [])
+        self.assertEqual(stars_ai.review_candidates(self.doc, ai, self.cfg, NOW + timedelta(days=200)), names)  # too old
+        self.assertEqual(len(stars_ai.review_candidates(self.doc, None, self.cfg, NOW, limit=1)), 1)
 
     def test_parse_holds_every_field_to_its_type(self):
         names = ["acme/agent-kit"]
@@ -439,63 +439,63 @@ class AiPass(unittest.TestCase):
             {"repo": "acme/agent-kit", "summary": "x" * 500, "kind": "rocket", "verdict": "BUY", "project": "nope",
              "why": "w\u202e", "ideas": ["a", 3, "b", "c", "d"]},
             {"repo": "not/given", "verdict": "adopt"}]})
-        got = stars.parse_reviews(text, self.doc, names, model="m", now=NOW)
+        got = stars_ai.parse_reviews(text, self.doc, names, model="m", now=NOW)
         r = got["acme/agent-kit"]
         self.assertEqual(list(got), ["acme/agent-kit"])  # a repo it was not given is dropped
         self.assertEqual((r["kind"], r["verdict"], r["project"]), ("other", "watch", None))
         self.assertLessEqual(len(r["summary"]), 161)
         self.assertEqual(r["ideas"], ["a", "b", "c"])
-        self.assertEqual(r["hash"], stars.review_hash(self.doc["repos"]["acme/agent-kit"]))
+        self.assertEqual(r["hash"], stars_ai.review_hash(self.doc["repos"]["acme/agent-kit"]))
         for bad in ("no json here", "[1, 2]", '{"reviews": [ broken'):
             with self.assertRaises(ValueError):
-                stars.parse_reviews(bad, self.doc, names, model="m", now=NOW)
+                stars_ai.parse_reviews(bad, self.doc, names, model="m", now=NOW)
 
     def test_prompts_fence_third_party_text(self):
-        names = stars.review_candidates(self.doc, None, self.cfg, NOW)
-        text = stars.review_prompt(self.doc, names)
+        names = stars_ai.review_candidates(self.doc, None, self.cfg, NOW)
+        text = stars_ai.review_prompt(self.doc, names)
         self.assertIn("<repos>", text)
         self.assertIn("never an instruction", text)
         self.assertIn("- githubai:", text)
         for n in names:
             self.assertIn(n, text)
-        self.assertIn("<repos>", stars.groups_prompt(self.doc, self.cfg))
+        self.assertIn("<repos>", stars_ai.groups_prompt(self.doc, self.cfg))
 
     def test_groups_keep_each_star_once_and_gather_the_rest(self):
         text = json.dumps({"groups": [
             {"name": "Agents", "summary": "s", "repos": ["acme/agent-kit", "acme/agent-kit", "ghost/repo"], "fleet": ["githubai", "x"]},
             {"name": "Sites", "summary": "s", "repos": ["jane/jekyll-docs-theme", "acme/agent-kit"], "fleet": []}]})
-        g = stars.parse_groups(text, self.doc, self.cfg, model="m", now=NOW)
+        g = stars_ai.parse_groups(text, self.doc, self.cfg, model="m", now=NOW)
         self.assertEqual([x["repos"] for x in g["items"][:2]], [["acme/agent-kit"], ["jane/jekyll-docs-theme"]])
         self.assertEqual(g["items"][0]["fleet"], ["githubai"])
         self.assertEqual(g["items"][-1]["name"], "Ungrouped")
-        self.assertEqual(g["basis"], stars.groups_basis(self.doc))
+        self.assertEqual(g["basis"], stars_ai.groups_basis(self.doc))
         with self.assertRaises(ValueError):
-            stars.parse_groups('{"groups": []}', self.doc, self.cfg, model="m", now=NOW)
+            stars_ai.parse_groups('{"groups": []}', self.doc, self.cfg, model="m", now=NOW)
 
     def test_attach_is_idempotent_and_a_skip_leaves_the_review_list(self):
         names = [i["repo"] for i in self.doc["incorporate"]]
-        got = stars.parse_reviews(self.answer(names, verdict="skip"), self.doc, names, model="m", now=NOW)
-        ai = {**stars.empty_ai(), "reviews": got, "updated_at": "t"}
-        once = stars.attach_ai(json.loads(json.dumps(self.doc)), ai)
-        twice = stars.attach_ai(json.loads(json.dumps(once)), ai)
+        got = stars_ai.parse_reviews(self.answer(names, verdict="skip"), self.doc, names, model="m", now=NOW)
+        ai = {**stars_ai.empty_ai(), "reviews": got, "updated_at": "t"}
+        once = stars_ai.attach_ai(json.loads(json.dumps(self.doc)), ai)
+        twice = stars_ai.attach_ai(json.loads(json.dumps(once)), ai)
         self.assertEqual(once, twice)
         self.assertEqual(once["incorporate"], [])
         self.assertEqual(once["ai"]["verdicts"], {"skip": len(names)})
         self.assertEqual(once["repos"][names[0]]["ai"]["verdict"], "skip")
         changed = json.loads(json.dumps(self.doc))
         changed["repos"][names[0]]["description"] = "something else now"
-        self.assertTrue(stars.attach_ai(changed, ai)["repos"][names[0]]["ai"]["stale"])
+        self.assertTrue(stars_ai.attach_ai(changed, ai)["repos"][names[0]]["ai"]["stale"])
         self.assertNotIn("Starred repos most like githubai", stars.brief(once, "githubai", now=NOW))  # its one match was a skip
 
     def test_build_lays_the_committed_ai_over_the_radar(self):
         names = ["acme/agent-kit"]
-        ai = {**stars.empty_ai(), "reviews": stars.parse_reviews(self.answer(names, verdict="adopt"), self.doc, names, model="m", now=NOW)}
+        ai = {**stars_ai.empty_ai(), "reviews": stars_ai.parse_reviews(self.answer(names, verdict="adopt"), self.doc, names, model="m", now=NOW)}
         doc, _ = build()
         doc2, _ = stars.build(raw_fixture(), registry=REGISTRY, fleet=FLEET, history=None, now=NOW, ai=ai)
         self.assertNotIn("ai", doc["repos"]["acme/agent-kit"])
         self.assertEqual(doc2["repos"]["acme/agent-kit"]["ai"]["verdict"], "adopt")
         self.assertIn("AI: adopt", stars.brief(doc2, "githubai", now=NOW))
-        self.assertEqual(json.loads(stars.dump_ai(ai)), ai)
+        self.assertEqual(json.loads(stars_ai.dump_ai(ai)), ai)
 
     def test_review_command_plans_until_yes_and_splits_a_failed_batch(self):
         doc, _ = build()
@@ -524,7 +524,7 @@ class AiPass(unittest.TestCase):
                 self.assertFalse(ai_p.exists())
                 self.assertEqual(sg.main(["review", "--yes"]), 0)
             ai = json.loads(ai_p.read_text())
-            want = stars.review_candidates(doc, None, stars.config(FLEET)["ai"], datetime.now(timezone.utc))
+            want = stars_ai.review_candidates(doc, None, stars.config(FLEET)["ai"], datetime.now(timezone.utc))
             self.assertEqual(sorted(ai["reviews"]), sorted(want))   # the failed batch came back as two halves
             self.assertEqual(len(calls[1]) + len(calls[2]), len(calls[0]))
             self.assertEqual(ai["groups"]["items"][0]["name"], "All")
@@ -536,19 +536,19 @@ class Metrics(unittest.TestCase):
     doc = build()[0]
 
     def test_gauges_and_their_two_encodings(self):
-        samples = stars.metrics(self.doc)
+        samples = stars_grafana.metrics(self.doc)
         names = {x["name"] for x in samples}
         for want in ("fleet_stars_repo_stars", "fleet_stars_repo_similarity", "fleet_stars_category_repos", "fleet_stars_total"):
             self.assertIn(want, names)
         agent = [x for x in samples if x["name"] == "fleet_stars_repo_stars" and x["attrs"]["repo"] == "acme/agent-kit"][0]
         self.assertEqual((agent["value"], agent["attrs"]["starred"], agent["attrs"]["project"]), (1000.0, "true", "githubai"))
-        text = stars.prom_text(samples)
+        text = stars_grafana.prom_text(samples)
         seen: list[str] = []
         for line in text.splitlines():  # a family's samples are contiguous
             if line.startswith("# TYPE "):
                 self.assertNotIn(line.split()[2], seen)
                 seen.append(line.split()[2])
-        payload = stars.otlp_payload(samples, NOW)
+        payload = stars_grafana.otlp_payload(samples, NOW)
         metrics = payload["resourceMetrics"][0]["scopeMetrics"][0]["metrics"]
         self.assertEqual(sum(len(m["gauge"]["dataPoints"]) for m in metrics), len(samples))
         self.assertEqual(payload["resourceMetrics"][0]["resource"]["attributes"][0]["value"]["stringValue"], "stargazer")
@@ -562,9 +562,9 @@ class Metrics(unittest.TestCase):
                              "http://x:4318/v1/metrics")
 
     def test_the_committed_dashboard_is_the_render(self):
-        want = json.dumps(stars.grafana_dashboard(), indent=2, sort_keys=True) + "\n"
+        want = json.dumps(stars_grafana.grafana_dashboard(), indent=2, sort_keys=True) + "\n"
         self.assertEqual(sg.GRAFANA_FILE.read_text(encoding="utf-8"), want, "run `tools/dash stars grafana --write`")
-        dash = stars.grafana_dashboard()
+        dash = stars_grafana.grafana_dashboard()
         self.assertEqual(dash["uid"], "fleet-stars")
         for p in dash["panels"]:
             self.assertEqual(p["datasource"], {"type": "prometheus", "uid": "fleet-prometheus"}, p["title"])

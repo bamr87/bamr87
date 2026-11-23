@@ -9,7 +9,7 @@ coverage: listed
 
 ## Conventions
 
-- **Nothing here is hand-authored except the pipelines and the shipper.** Everything under `elasticsearch/`, `kibana/` and `grafana/dashboards/` is rendered from `_data/fleet.yml` `observability:` by `dash observe verify --write` — retention, mappings, data views and both dashboards. Edit the contract, re-render, commit both. The one exception is `grafana/dashboards/fleet-stars.json`, the open-source radar's dashboard: rendered by `tools/dash stars grafana --write` from `tools/fleetcore/stars.py` (docs/STARGAZER.md), and held equal to that render by `tools/test_stargazer.py`.
+- **Nothing here is hand-authored except the pipelines and the shipper.** Everything under `elasticsearch/`, `kibana/` and `grafana/dashboards/` is rendered from `_data/fleet.yml` `observability:` by `dash observe verify --write` — retention, mappings, data views and both dashboards. Edit the contract, re-render, commit both. The one exception is `grafana/dashboards/fleet-stars.json`, the open-source radar's dashboard: rendered by `tools/dash stars grafana --write` from `tools/fleetcore/stars_grafana.py` (docs/STARGAZER.md), and held equal to that render by `tools/test_stargazer.py`.
 - Saved-object ids and datasource uids are **pinned** in the generated files. The Harness Console embeds them by id, so a minted id is a blank iframe with no error anywhere.
 - Each config is mounted read-only into its container by `docker-compose.yml`'s `elk` profile, or its `metrics` profile for `otel-collector/` and `prometheus/`.
 

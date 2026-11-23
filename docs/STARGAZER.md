@@ -6,7 +6,7 @@ A star is a note to self: "this is good, come back to it". The fleet never came 
 
 | | |
 | --- | --- |
-| **Model** | [`tools/fleetcore/stars.py`](../tools/fleetcore/stars.py): categories, matches, star velocity, suspect flags, the review list, the feed, the session brief. Pure: no network, no writes |
+| **Model** | [`tools/fleetcore/stars.py`](../tools/fleetcore/stars.py): categories, matches, star velocity, suspect flags, the review list, the feed, the session brief; [`stars_ai.py`](../tools/fleetcore/stars_ai.py): the AI pass; [`stars_grafana.py`](../tools/fleetcore/stars_grafana.py): the gauges and the dashboard. Pure: no network, no writes |
 | **Tool** | [`tools/stargazer.py`](../tools/stargazer.py): reads GitHub, writes the two data files, answers the read commands |
 | **CLI** | `tools/dash stars …` |
 | **Data** | [`_data/stars.json`](../_data/stars.json) (`stars/v1`, public), [`_data/stars_history.json`](../_data/stars_history.json) (`stars-history/v1`) and [`_data/stars_ai.json`](../_data/stars_ai.json) (`stars-ai/v1`, the AI pass) |
