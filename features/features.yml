@@ -1218,8 +1218,9 @@ features:
       PR check, post one sticky summary updated in place (silent when clean), severity-tagged deduplicated
       inline findings and a fleet signature footer, as github-actions or the fleet app, never Amr's token;
       proposed by amendment fleet-pr-review. Shipped so far are the CI-failure sticky (amendment
-      ci-failure-summary) and inline findings from each check's fleet-findings artifact; AI review (§ 19.7)
-      and the fleet-app identity (bamr87/bamr87#565) are still to come.
+      ci-failure-summary), inline findings from each check's fleet-findings artifact, and the AI review
+      of § 19.7 in the hub (pr-ai-review.yml, feature ai-pr-review), which this workflow posts; the fleet
+      stub for that review and the fleet-app identity (bamr87/bamr87#565) are still to come.
     implemented: true
     status: partial
     surface: infra

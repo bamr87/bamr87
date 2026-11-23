@@ -184,14 +184,30 @@ def sync(gh: Gh, number: int, sha: str, dry_run: bool, trigger: str, self_url: s
 
 
 def report(gh: Gh, run_id: str, dry_run: bool, trigger: str, self_url: str, say=print, row_of=live_readiness) -> str:
-    """After a workflow finishes: the pull request of that run, by pr_review's own rules for which run speaks."""
+    """After a workflow finishes: the pull request of that run, by pr_review's own rules for which run speaks.
+    Then, as pr_review.report does, the AI review when that is the workflow that finished (§ 19.7)."""
     run = gh.get(f"actions/runs/{run_id}") or {}
+    return "; ".join(x for x in (_report(gh, run, dry_run, trigger, self_url, say, row_of),
+                                 P.ai_review_of(gh, run, dry_run, trigger, self_url, say)) if x)
+
+
+def _report(gh: Gh, run: dict, dry_run: bool, trigger: str, self_url: str, say, row_of) -> str:
     number, head = P.find_pr(gh, run)
     if not number:
         return "no pull request for this run"
     if run.get("event") in P.PR_EVENTS and head != run.get("head_sha"):
         return "a newer commit is on the PR; its own runs will report"
-    return sync(gh, number, run["head_sha"], dry_run, trigger, self_url, say, row_of)
+    # Findings belong to an open PR's diff (§ 19.3), exactly as in pr_review.report: this entry point
+    # replaces that one when readiness is on, so it posts them too, or a check's findings and the AI
+    # review's inline comments would stop arriving the day the switch is set.
+    found = ""
+    if run.get("event") in P.PR_EVENTS:
+        try:
+            found = P.review_findings(gh, number, run["head_sha"], P.latest_runs(gh, run["head_sha"]), dry_run,
+                                      trigger, self_url)["result"]
+        except RuntimeError as e:
+            found = f"findings not read: {str(e)[:160]}"
+    return "; ".join(x for x in (sync(gh, number, run["head_sha"], dry_run, trigger, self_url, say, row_of), found) if x)
 
 
 def report_pr(gh: Gh, number: int, dry_run: bool, trigger: str, self_url: str, say=print, row_of=live_readiness) -> str:

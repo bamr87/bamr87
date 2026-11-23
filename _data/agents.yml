@@ -15,23 +15,23 @@ contract:
     R5: its run records reach the reflector
     R6: a local entry point
 totals:
-  agents: 143
+  agents: 144
   by_category:
-    ci-agent-step: 129
+    ci-agent-step: 130
     local-loop-step: 5
     jev-tier: 3
     scheduled-local-job: 6
   by_kind:
     ci-scheduled: 51
-    ci-event: 36
+    ci-event: 37
     ci-mention: 42
     loop-step: 5
     jev-tier: 3
     local-job: 6
-  with_gaps: 134
+  with_gaps: 135
   gaps_by_rule:
     R1: 60
-    R2: 134
+    R2: 135
     R3: 0
     R4: 0
     R5: 4
@@ -407,6 +407,37 @@ agents:
   gaps:
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
+- id: ci:bamr87:pr-ai-review
+  kind: ci-event
+  category: ci-agent-step
+  repo: bamr87/bamr87
+  where: .github/workflows/pr-ai-review.yml
+  owner: bamr87
+  trigger: pull_request_target; workflow_dispatch
+  switch:
+    variable: PR_AI_REVIEW_ENABLED
+    loop: hub/pr-ai-review
+  budget:
+    per_run_usd: 4.0
+    call_sites:
+      pr-ai-review.yml:review: 4.0
+  model: claude-sonnet-5-5
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: tools/dash prs review --pr <owner/repo#n>
+  first_seen: '2026-11-23'
+  gaps:
+  - R2:missing:cost_source,tool_errors
+  note: reads a pull request's diff with read-only tools and no GitHub credential; pr-review.yml posts what it leaves
 - id: ci:bamr87:repo-evolution
   kind: ci-scheduled
   category: ci-agent-step

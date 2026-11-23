@@ -87,6 +87,74 @@ The review is a comment. It never approves, never counts as a required review (�
 
 In the hub the workflow also runs on the pull-request events that start no workflow of their own: opened, reopened, marked ready, converted to a draft, pushed to, labelled, unlabelled and edited. It takes them through `pull_request_target`, under the rule the failure summary already follows: it checks out the hub's tooling, never the pull request. The stub in this kit does not have that trigger yet, so a fleet repo that sets the variable gets the readiness section when a workflow finishes and not when a pull request is only marked ready; kit 0.3.0 adds the trigger.
 
+## AI review
+
+A pull request that is marked ready is read once by a model, which comments with what it found and who does what next (constitution § 19.7; [ADR 0012](../../docs/adr/0012-merge-readiness.md), stage B). It runs in the hub today, from `.github/workflows/pr-ai-review.yml`; the fleet gets it with a later kit version (see [Not built yet](#not-built-yet)).
+
+| When | What happens |
+| --- | --- |
+| A pull request is opened ready, or a draft is marked ready, by an author with write-level standing (owner, member, collaborator) | It is reviewed |
+| Anyone with triage rights adds the `review` label | It is reviewed, whoever wrote it and whether or not it is a draft |
+| A push, an edit, any other label | Nothing. A review is never repeated on a push (§ 19.7); add the label again after new commits |
+| A Dependabot, release or bot pull request | Nothing, unless it is given the label (§ 19.6) |
+| A commit that already has its review | Nothing: one review per head commit |
+| The repo has used the day's reviews (`max_per_day`), a commit was pushed after the request, or the diff holds only generated, vendored or binary files | One line on the pull request saying so, and how to ask again |
+
+### What it posts
+
+Two things, both through `pr-review.yml`, both as `github-actions[bot]`:
+
+- **Findings on the diff.** Each finding on a line the pull request adds is an inline comment with its severity and a rule id `ai-review/<category>` (correctness, security, rules, tests, docs, design). They travel through the `fleet-findings` channel described above, so they are deduplicated and capped like any check's.
+- **One review per head commit.** It opens with a short summary, counts the findings, lists the ones that are not on an added line, and ends with the next actions. It is a comment: it never approves and never requests changes (§ 19.5), and it says its findings are advisory.
+
+### Who does what next
+
+The review names who moves each action, and gives the hand-off for it. The model chooses who; the hand-off text is fixed, so a diff cannot write a command into it.
+
+| Who | Used for | The hand-off the review prints |
+| --- | --- | --- |
+| An agent | Mechanical work a coding agent can do from the findings alone: a fix, a missing test, a doc update | A maintainer comments `@claude address the AI review findings on this pull request`, which starts the repo's mention handler (`claude.yml`) |
+| The author | A change only whoever opened the pull request can judge | Push the change to the branch |
+| The maintainer | A decision: scope, risk, a rule being bent, anything touching governance, secrets, budgets, permissions or deploys | A decision, not work |
+
+The review recommends and hands off. It starts nothing by itself: a bot's comment cannot trigger the mention handler, by design, so spending on a fix is still one comment from a person. Starting the fix without a person is stage C of ADR 0012.
+
+### How it runs
+
+| Job | Holds | Does |
+| --- | --- | --- |
+| `plan` in `pr-ai-review.yml` | A read-only token | `pr_ai_review.py plan` decides whether this pull request gets a review now and writes the brief: the diff with the new file's line number beside each line, the description, and what the PR queue already knows (so the reviewer does not report a failing check). Files past the size caps are named and left out |
+| `review` in `pr-ai-review.yml` | The Claude credential, and a token that reads contents only and never reaches the agent | One session through the fleet route `claude-run`: an exact model, a turn cap and a dollar cap from `_data/fleet.yml` `pr_ai_review`. Read, Grep and Glob only. Then `pr_ai_review.py collect` holds the reply to the contract and uploads `fleet-findings` and `fleet-review` |
+| `ci-failure` in `pr-review.yml` | The token that writes on pull requests | Its pass posts the findings inline and then, because the workflow that finished is the AI review, the review itself (`pr_review.ai_review_of`). No step was added for it |
+
+The pull request's code is never checked out, on any job: every checkout takes the event's default ref, which on `pull_request_target` is the base branch. The reviewer's working directory holds the hub's tooling, the base branch (the code before the change) and the diff as text, so no `.claude/` settings, hook or `CLAUDE.md` from the pull request can load. The diff is still text someone else wrote, so the reply is treated as untrusted twice: `collect` keeps only what fits the contract (an item that does not is dropped and counted; a reply with no summary fails the job), and the posting pass validates the artifact again, believes it only from a `pull_request_target` run of `pr-ai-review.yml` (which always runs the base branch's file), and escapes every word before it reaches the review.
+
+Which label was added is read by the script, never by a job condition. A label checked in an `if:` on `pull_request_target` authorizes a pull request at one moment, and code scanning reports any checkout after it as a check a later push can outrun. So every `labeled` event reaches the plan step, which turns away any label but `review`, and turns away a pull request whose head moved after the event.
+
+A review that was attempted and failed (a spent usage window, a reply that is not a review) fails the `review` job, and the CI-failure comment explains it like any other failed check. Re-run the job, or add the label again.
+
+### Switch, caps and settings
+
+| Setting | Value | Where |
+| --- | --- | --- |
+| Kill switch | `vars.PR_AI_REVIEW_ENABLED` must be `true`: off until set, as every new loop is. `vars.PR_REVIEW_ENABLED` set to `false` stops it too, because nothing would post it | `_data/fleet.yml` `switches.loops` `hub/pr-ai-review` |
+| Model, turns, dollars | `claude-sonnet-5-5`, 25 turns, $4 a review, API-equivalent (estimate) | `pr_ai_review`, `budget.call_sites` `pr-ai-review.yml:review` |
+| Reviews a day | 30 for the repo, in one UTC day | `pr_ai_review.max_per_day` |
+| Size | 80 files, 40 kB a file, 240 kB a review, 30 findings | `pr_ai_review` |
+| Files never read | Lockfiles, build output, vendored trees, binaries, and the repo's generated files | The script's defaults, plus `pr_ai_review.skip_paths` |
+
+```bash
+gh variable set PR_AI_REVIEW_ENABLED -R bamr87/bamr87 --body true    # arm it
+gh workflow run pr-ai-review.yml -R bamr87/bamr87 -f pr=123          # a dry run: the review is in the run's summary, nothing is posted
+tools/dash prs review --pr bamr87/bamr87#123                         # the same review in a local session; prints, posts nothing
+```
+
+The dry run works with the switch off, so the loop can be tried before it is armed. The local run is a capped session through `dash-gen ai-run --isolate`, with its cost on the AI ledger (§ 10.9).
+
+### The `fleet-review` artifact
+
+One file, `fleet-review.json`, with `schema: fleet-review/v1`, the `repo`, `number` and `head_sha` it reviewed, and either `status: reviewed` (`model`, `summary`, `findings`, `actions`, `files_reviewed`, `files_total`, `dropped`) or `status: skipped` with a `reason` (`daily-cap`, `moved`, `nothing-to-review`). The posting pass rejects a document with a missing or extra key, a value outside its bounds, or a `repo`, `number` or `head_sha` that is not the run's own, and then posts nothing.
+
 ## Seeding
 
 ```bash
@@ -119,5 +187,8 @@ ai-world-view.github.io carries the same `docs-warden.yml` as year-of-ai and fol
 
 ## Not built yet
 
-- **AI review (§ 19.7)** runs on `opened`, `ready_for_review` and an explicit label, never on every push, behind the § 17 switch and held to § 13. It is a new harness and needs its own issue: a fleet route (`ai-lane.yml` or `claude-run`) with an exact model, `--max-budget-usd` and a `budget.call_sites` entry, an `_data/agents.yml` entry with its KPIs, and a § 13.1 eval set before its findings can fail a build. Its findings would arrive through the same `fleet-findings` channel.
+- **AI review in the fleet.** [AI review](#ai-review) runs in the hub. A fleet repo needs a stub that carries the `pull_request_target` trigger and passes `CLAUDE_CODE_OAUTH_TOKEN` to a reusable form of `pr-ai-review.yml`: a later kit version, a `v2` cut that carries it, and one fan-out pull request per repo.
+- **An eval set for the reviewer (§ 13.1).** About 20 past pull requests with the findings a review must and must not report. Until it exists the findings are advisory: they never fail a build, and merge readiness does not count them. With it, an `error` finding becomes a `todo` item in the readiness list, as ADR 0012 stage B describes.
+- **Handing work off without a person (ADR 0012, stage C).** The review names who does what and prints the hand-off. Starting the agent from an `error` finding, at most twice and then `needs-amr`, is the next stage; so is letting the PR queue's `address-review` task take a comment-only review as its brief.
+- **The other two reviews.** The completeness review (§ 15.5, bamr87/bamr87#492) and the direction review (§ 28.3) are separate reviewers with their own markers; this one reviews the code.
 - **Identity (§ 19.5):** posting as the fleet app instead of `github-actions[bot]` is bamr87/bamr87#565.
