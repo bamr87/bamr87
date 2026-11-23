@@ -1,6 +1,7 @@
 # ADR 0015 — The branch model, declared once: work, session and automation prefixes, and one ruleset per repo that allows only the merge commit § 12.2 requires
 
-- **Status**: proposed
+- **Status**: accepted
+- **Accepted in**: https://github.com/bamr87/bamr87/pull/954 (merged 2026-11-23 by @bamr87)
 - **Date**: 2026-11-21
 - **Deciders**: proposed by an agent at the maintainer's request (2026-11-21: "fix all, and make any improvements where possible; identify a redesign if needed", after a review of the fleet's branch philosophy found the protection tool contradicting constitution § 12)
 - **Related**: constitution § 4 (who changes branch protection), § 12 (merge authority and the review gate); [specs/QUALITY.md](../../specs/QUALITY.md) UPS-QA-24, UPS-QA-31 (retired here), UPS-QA-35 and UPS-QA-36 (added here); [docs/BRANCHING.md](../BRANCHING.md); [ADR 0012](0012-merge-readiness.md) (merge readiness, whose queue reads the merge method a repo allows)
