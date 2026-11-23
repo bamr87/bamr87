@@ -57,7 +57,7 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 | [`issue-autopilot/`](templates/issue-autopilot/) | 0.1.0 | 2026-09-10 | .github/workflows/fanout.yml (kit standardize, artifact `issue-autopilot`, OPT-IN) via to… | `README.md`, `SKILL.template.md`, `dispatch.py`, `issue-resolver.template.md`, `issue-triager.template.md`, `issue-verifier.template.md`, `test_triage_engine.py`, `test_verify_close.py`, `triage.py`,… |
 | [`pr-review/`](templates/pr-review/) | 0.3.0 | 2026-11-23 | tools/fanout.sh --kit pr-review (fanout.yml, kit pr-review) | `README.md`, `pr-review.yml` |
 | [`projects/`](templates/projects/) | unversioned | — | — | `auto-add.yml`, `framework.yml` |
-| [`prose/`](templates/prose/) | 0.5.0 | 2026-11-15 | tools/fanout.sh --kit prose | `markdown-oneline.yml`, `test_prose_kit.py` |
+| [`prose/`](templates/prose/) | 0.6.0 | 2026-11-22 | tools/fanout.sh --kit prose | `markdown-oneline.yml`, `test_prose_kit.py` |
 | [`release-pipeline/`](templates/release-pipeline/) | 0.2.0 | 2026-11-15 | tools/adopt-release.sh (adopts a repo; --upgrade refreshes an untouched release.yml) | `RELEASING.md`, `ci.yml`, `release.yml` |
 | [`schema/`](templates/schema/) | spec 0.1 | 2026-08-18 | tools/seed-schema.sh / fanout.yml (kit: schema) | `CLAUDE.snippet.md`, `README.md`, `SCHEMA.md`, `SCHEMA.template.md`, `schema-check.yml` |
 | [`sdlc/`](templates/sdlc/) | 0.2.0 | 2026-10-22 | Copied per repo (not inherited). | `AGENTS.template.md`, `CHANGELOG.template.md`, `CLAUDE.template.md`, `README.md`, `content-queue/backlog.yml`, `docs/README.template.md`, `docs/adr/0000-template.md`, `docs/adr/0001-record-architectu… |
