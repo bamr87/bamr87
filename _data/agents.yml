@@ -380,6 +380,7 @@ agents:
   trigger: workflow_call
   switch:
     variable: OPENAI_REVIEW_ENABLED
+    loop: hub/independent-review
   budget:
     per_run_usd: 0.0
   model: gpt-6.1-sol
