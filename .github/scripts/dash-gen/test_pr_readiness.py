@@ -43,6 +43,17 @@ def go(gh, row, dry=False):
     return R.report(gh, "1", dry, "workflow_run", "https://example.test/run", say=lambda _b: None, row_of=lambda _repo, _n: row)
 
 
+def test_a_rebuild_keeps_the_ai_analysis_between_the_failures_and_the_readiness_section():
+    block = (P.AI_BLOCK_OPEN.format('{"run":1,"attempt":1,"status":"ok","tries":1}') + "\n### 🤖 Tests\n\nkept analysis\n"
+             + P.AI_BLOCK_CLOSE)
+    old = P.MARKER + "\n" + P.ai_region([block]) + '\n<!-- fleet:pr-review-state {"sha":"x","runs":[]} -->'
+    gh = world([run()], comments=[{"id": 9, "body": old, "user": {"type": "Bot"}}])
+    go(gh, ready_row())
+    body = gh.writes[-1][2]
+    assert "kept analysis" in body and body.count(P.AI_REGION_OPEN) == 1
+    assert body.index("### [Tests]") < body.index(P.AI_REGION_OPEN) < body.index("### Before this merges"), body
+
+
 def test_work_left_keeps_one_comment_on_a_green_pull_request():
     gh = world([run(conclusion="success")])
     go(gh, ready_row())
