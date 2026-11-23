@@ -189,10 +189,14 @@ The app's two secrets and the legacy PAT are declared fleet-scoped in [`_data/fl
 
 ## Branch protection
 
-Require the CI gate before merge (needs admin):
+Require the CI gate before merge with the fleet ruleset, which allows merge commits only (constitution § 12.2). The command prints a plan and writes nothing until `--apply`, which needs admin; [BRANCHING.md](BRANCHING.md#the-fleet-ruleset) explains each rule:
 
 ```bash
-tools/protect-branch.sh <repo>           # require CI checks + PR review on the default branch
+tools/dash protect <repo> --checks 'ci / ci'
+```
+
+```bash
+tools/dash protect <repo> --check
 ```
 
 ## Reference & status

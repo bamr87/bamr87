@@ -58,7 +58,7 @@ See [`SCHEMA.md`](SCHEMA.md) and the chain of `SCHEMA.md` files down to where yo
 ## Conventions
 
 - **Backlog of record:** GitHub Issues with the fleet labels; cross-repo initiatives in `_data/roadmap.yml`. **Definition of Done:** `.github/pull_request_template.md`. **Decisions:** `docs/adr/`.
-- **Commits:** Conventional Commits (`feat fix docs style refactor test chore perf ci`). **Branches:** `feature/`, `fix/`, `docs/`, `refactor/`, `test/`.
+- **Commits:** Conventional Commits (`feat fix docs style refactor test chore perf ci`). **Branches:** `<type>/…` ([BRANCHING.md](docs/BRANCHING.md)).
 - **README-First, README-Last:** read the nearest `README.md` before changing a directory and update it after.
 - **SCHEMA protocol:** place files per the nearest `SCHEMA.md` `## Placement`; a new directory is created with its `SCHEMA.md` (from `templates/schema/SCHEMA.template.md`) and a row in its parent; any add, remove or rename updates the local `SCHEMA.md` in the same commit. `python3 tools/schema_lint.py check . --fix` fixes mechanical drift. The kit is vendored from bamr87/SCHEMA: improvements go upstream first, then re-vendor ([docs/SCHEMA-FRAMEWORK.md](docs/SCHEMA-FRAMEWORK.md)).
 - **Dependencies are always latest:** no exact pins, no ceilings, no committed lockfiles. Actions ride major tags; pre-commit `rev:` pins and `toolchain:` versions are the exceptions ([docs/DEPENDENCIES.md](docs/DEPENDENCIES.md)).

@@ -1,0 +1,18 @@
+id: HUB-NEW
+slug: branch-policy
+title: "The branch model, declared once, and one ruleset per repo that allows only merge commits"
+description: "_data/fleet.yml branches: declares the fleet's branch model: main as the one long-lived branch, the merge method (merge, constitution § 12.2), work prefixes (the Conventional Commit types plus feature/), session prefixes (claude/ for Claude Code cloud sessions) and automation prefixes with their owning loop (agent/issue-, ai-evolution/, chore/jev-, wip/mac/, wtd/, dependabot/, release-please--), plus the shape of the default branch's protection. tools/branch_policy.py classifies a branch name, plans one repository ruleset, fleet-default-branch (pull requests only, a merge commit the only allowed method, no required approval since the review gate is the needs-amr label, the CI gate named as its check run reports, no force push or deletion, never a linear-history rule, admin bypass by default), writes it only with --apply (the maintainer's, § 4) and audits what GitHub enforces on the branch from every source with --check, read-only. A required check that has not reported on the default branch is refused, a repo whose setting turns merge commits off is refused, a re-run keeps the live checks and approvals, and --drop-classic replaces old classic protection only after the ruleset lands. tools/protect-branch.sh and tools/dash protect (--all, --check) wrap it; drift check (s) gates on the policy and warns on an undeclared head branch; UPS-QA-35 (names) and UPS-QA-36 (the ruleset) replace UPS-QA-31; ADR 0015 records why."
+implemented: true
+status: shipped
+surface: cli
+link: tools/branch_policy.py
+docs: docs/BRANCHING.md
+tags: [ branches, protection, governance, standards ]
+date: 2026-11-21
+tests:
+  - tools/test_branch_policy.py
+prd: ["FR-NEW:branch-model-ruleset"]
+prd_new:
+  - key: branch-model-ruleset
+    kind: FR
+    text: "The hub must declare the fleet's branch model once (the default branch, the merge method, and the work, session and automation branch prefixes with each automation prefix's owner) and project the default branch's protection from it as one named repository ruleset that allows only the merge commit constitution § 12.2 requires, requires no approval unless a repo asks for one, never requires linear history and names only required checks that have reported on the default branch; the tool must plan before it writes, write only on the maintainer's explicit apply, leave every other ruleset and setting unchanged, and audit a repo's live protection from every source read-only."

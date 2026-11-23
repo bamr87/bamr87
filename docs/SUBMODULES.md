@@ -25,7 +25,7 @@ Every `.gitmodules` section is named by its path — `[submodule "projects/<name
 
 ### Branch conventions
 
-All submodules track `main` (the former `sonic-pi` fork that tracked `dev` no longer exists; `vs-sonic-pi` is on `main`). `skills` is an external `microsoft/skills` mirror on `main` (`update = merge`). Always read the branch from `.gitmodules` — never assume.
+All submodules track `main` (the former `sonic-pi` fork that tracked `dev` no longer exists; `vs-sonic-pi` is on `main`). `skills` is an external `microsoft/skills` mirror on `main` (`update = merge`). Always read the branch from `.gitmodules` — never assume. Work branches inside a submodule follow the fleet's branch model ([BRANCHING.md](BRANCHING.md)).
 
 ## Cloning and updating
 
