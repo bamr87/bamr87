@@ -218,6 +218,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_docker_view.py`](tools/test_docker_view.py) | Tests for `docker_view.py` — each one a mistake it actually made before it shipped: comparing majors instead of the contract's precision (which reported five repos on Py… |
 | [`test_docs_index.py`](tools/test_docs_index.py) | Fixture tests for `docs_index.py` — run by `run-all-tests.sh` |
 | [`test_evals.py`](tools/test_evals.py) | Tests for `evals.py`: the committed sets pass, the JSON shape, and a deliberately wrong expectation, a missing field, a duplicate id or too few cases each exit non-zero;… |
+| [`test_fanout_assist.py`](tools/test_fanout_assist.py) | Tests for the assistant arm of tools/fanout.sh (`--kit assist`): where the kit lands in a repo. |
 | [`test_fanout_preflight.py`](tools/test_fanout_preflight.py) | Tests for tools/fanout.sh's hub-pin pre-flight (FF-0037, bamr87/bamr87#610). |
 | [`test_fanout_upgrade.py`](tools/test_fanout_upgrade.py) | Tests for tools/fanout.sh's --upgrade matcher, `machine_seeded` (bamr87/bamr87#829). |
 | [`test_features_index.py`](tools/test_features_index.py) | Fixture tests for `features_index.py` — run by `run-all-tests.sh` |
