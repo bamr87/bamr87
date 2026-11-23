@@ -47,6 +47,15 @@ name: AI review
 # the dollar cap below are literals of it, held equal by test_pr_ai_review.py and test_ai_budget.py.
 #
 # Claude auth: OAuth only (CLAUDE_CODE_OAUTH_TOKEN), in the repo's CLAUDE_AUTH_ORDER.
+#
+# REUSABLE. A fleet repo calls this file from its own stub (templates/pr-review/pr-ai-review.yml,
+# kit pr-review), on the same three events, and passes `hub-ref` (the tag it pins) and its
+# CLAUDE_CODE_OAUTH_TOKEN by name. A called workflow sees the caller's event, variables and
+# repository, so every rule above holds there unchanged: the switches are the caller's, the
+# pull request is never checked out, and `base/` is the caller's base branch. Only the hub's
+# tooling is named explicitly (bamr87/bamr87 at `hub-ref`), because a checkout with no
+# `repository:` is the caller's repo; here, where `hub-ref` is empty, it is this repo at the
+# event's own ref, which is what a checkout with no `ref:` took before.
 
 on:
   pull_request_target:
@@ -57,6 +66,20 @@ on:
         description: "Pull request number, reviewed as a dry run: the review is in this run's summary and nothing is posted"
         type: string
         required: true
+  workflow_call:
+    inputs:
+      hub-ref:
+        description: "bamr87/bamr87 ref to take the tooling from: pass the ref you call this workflow at"
+        type: string
+        default: "main"
+      pr:
+        description: "Pull request number, for a caller dispatched by hand (a dry run); empty on a pull-request event"
+        type: string
+        default: ""
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: "The caller's Claude Code OAuth token; without it the review job fails with a clear message"
+        required: false
 
 permissions:
   contents: read
@@ -91,11 +114,15 @@ jobs:
       go: ${{ steps.plan.outputs.go }}
       prompt: ${{ steps.plan.outputs.prompt }}
     steps:
-      # No `ref:` on any checkout in this file: the default on pull_request_target is the base
-      # branch, and a manual dispatch runs from the branch it was dispatched on.
+      # The pull request is never checked out. The hub's tooling is named at `hub-ref` (empty here,
+      # so the event's own ref: the base branch on pull_request_target, the dispatched branch on a
+      # manual run); the caller's code is checked out only as its base branch, with no `ref:`.
       - name: Check out the hub's tooling, never the pull request
         uses: actions/checkout@v7
         with:
+          # The hub, named: in a fleet repo's call a bare checkout would be that repo.
+          repository: bamr87/bamr87
+          ref: ${{ inputs.hub-ref || github.ref }}
           # The script, and what it reads beside it: the PR queue's model and the fleet's settings.
           sparse-checkout: |
             .github/scripts/dash-gen
@@ -165,6 +192,8 @@ jobs:
       - name: Check out the hub's actions and tooling, never the pull request
         uses: actions/checkout@v7
         with:
+          repository: bamr87/bamr87
+          ref: ${{ inputs.hub-ref || github.ref }}
           path: .fleet-hub
           sparse-checkout: |
             .github/actions

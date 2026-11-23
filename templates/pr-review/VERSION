@@ -1,11 +1,12 @@
 kit: pr-review
-version: 0.3.0
+version: 0.4.0
 source: bamr87/bamr87 templates/pr-review/
 seeded-by: tools/fanout.sh --kit pr-review (fanout.yml, kit pr-review)
 files: pr-review.yml
 spec: constitution § 19; specs/WORK.md UPS-WORK-17; reusable .github/workflows/pr-review.yml
 updated: 2026-11-23
 changelog: |
+  0.4.0 — the fleet gets merge readiness. pr-review.yml gains the pull_request_target trigger (opened, reopened, ready_for_review, converted_to_draft, synchronize, labeled, unlabeled, edited), so the readiness section (PR_READINESS_ENABLED) is current when a pull request is only marked ready or labelled, and its concurrency group keys on the pull request's head too. Seed it, like 0.3.0, only after the v2 cut that carries the readiness and ai-analysis jobs. The AI review's own stub (pr-ai-review.yml, calling the hub's now-reusable pr-ai-review.yml) follows in 0.5.0, once v2 carries that file: tools/test_template_pins.py refuses a kit pin its ref cannot serve. 0.3.0 archived for --upgrade.
   0.3.0 — the stub passes CLAUDE_CODE_OAUTH_TOKEN (by name, nothing else) to the reusable workflow, whose ai-analysis job writes an AI analysis of every failed run into the sticky (constitution § 19.11). 0.2.0 archived for --upgrade.
   0.2.0 — the stub declares a workflow-level concurrency group (pr-review-caller-<head sha>, cancel-in-progress false), so repos whose tests require one on every workflow (githubai) accept it; named apart from the reusable's group because a caller and callee sharing one deadlock. 0.1.0 archived for --upgrade.
   0.1.0 — thin caller of the reusable pr-review.yml: CI failures summarized in one sticky comment.

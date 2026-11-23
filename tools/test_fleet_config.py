@@ -545,6 +545,40 @@ def test_a_multi_line_value_is_masked_line_by_line():
     assert printed == [f"::add-mask::{line}" for line in value.splitlines()], printed
 
 
+def test_variable_overrides_are_per_repo_exceptions_to_the_canonical_values():
+    repos = fc.fleet_repos(cfg(), REGISTRY)
+    c = {**cfg(), "variables": {"PR_AI_REVIEW_ENABLED": "true", "NODE_VERSION": "20"},
+         "variable_overrides": {"alpha": {"PR_AI_REVIEW_ENABLED": False}, "bamr87/gamma": {"NODE_VERSION": 22}}}
+    got, errors = fc.variable_overrides(c, repos)
+    assert errors == [], errors
+    assert got == {"bamr87/alpha": {"PR_AI_REVIEW_ENABLED": "False"}, "bamr87/gamma": {"NODE_VERSION": "22"}}, got
+    assert fc.variable_overrides(cfg(), repos) == ({}, []), "no overrides declared, nothing to except"
+
+
+def test_variable_overrides_refuse_what_the_contract_does_not_declare():
+    repos = fc.fleet_repos(cfg(), REGISTRY)
+    c = {**cfg(), "variables": {"PR_AI_REVIEW_ENABLED": "true"}}
+    for raw, why in (({"nowhere": {"PR_AI_REVIEW_ENABLED": "false"}}, "not a fleet repo"),
+                     ({"mirror": {"PR_AI_REVIEW_ENABLED": "false"}}, "not a fleet repo"),
+                     ({"alpha": {"SOMETHING_ELSE": "x"}}, "not declared in variables:"),
+                     ({"alpha": {}}, "at least one"),
+                     ({"alpha": "false"}, "at least one"),
+                     (["alpha"], "must be a mapping")):
+        got, errors = fc.variable_overrides({**c, "variable_overrides": raw}, repos)
+        assert got == {} and any(why in e for e in errors), (raw, got, errors)
+
+
+def test_the_live_variable_contract_is_clean():
+    """The committed variables: and variable_overrides: blocks always resolve, and the fleet's PR
+    review switches are projected on (the maintainer's ruling of 2026-11-23)."""
+    live = fc.load(fc.FLEET)
+    registry = fc.load(fc.REGISTRY)
+    _, errors = fc.variable_overrides(live, fc.fleet_repos(live, registry))
+    assert errors == [], errors
+    for name in ("PR_AI_REVIEW_ENABLED", "PR_READINESS_ENABLED", "PR_AI_ANALYSIS_ENABLED"):
+        assert str(live["variables"].get(name)) == "true", name
+
+
 def main() -> int:
     failures = 0
     for name, fn in sorted(globals().items()):
