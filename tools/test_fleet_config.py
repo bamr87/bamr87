@@ -545,6 +545,167 @@ def test_a_multi_line_value_is_masked_line_by_line():
     assert printed == [f"::add-mask::{line}" for line in value.splitlines()], printed
 
 
+# --------------------------------------------------------------------------- #
+# CODEX_AUTH_JSON — the OpenAI ChatGPT-login bundle (openai_auth:). It carries
+# its own refresh token, the weekly loop is its one refresher, and a dry run
+# must never refresh it: the grant consumes the refresh token it is handed.
+# Token text is assembled here so no file holds something shaped like a JWT.
+# --------------------------------------------------------------------------- #
+def _codex_bundle(refresh: str = "rt-old", **extra) -> str:
+    tokens = {"id_token": "id-old", "access_token": "at-old",
+              "refresh_token": refresh, "account_id": "acct"}
+    return json.dumps({"OPENAI_API_KEY": None, "tokens": tokens,
+                       "last_refresh": "2026-11-01T00:00:00Z", **extra}, indent=2)
+
+
+@contextlib.contextmanager
+def _env(**values):
+    before = {k: os.environ.get(k) for k in values}
+    os.environ.update({k: v for k, v in values.items() if v is not None})
+    for k, v in values.items():
+        if v is None:
+            os.environ.pop(k, None)
+    try:
+        yield
+    finally:
+        for k, v in before.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+
+def test_the_openai_bundle_rides_the_rotation_and_is_shaped_like_a_chatgpt_login():
+    live = fc.load(fc.FLEET)
+    rotating = {t["name"]: t for t in fc.rotating_tokens(live)}
+    assert "CODEX_AUTH_JSON" in rotating, "the OpenAI bundle must ride the weekly rotation"
+    tok = rotating["CODEX_AUTH_JSON"]
+    pol = tok["_rotation"]
+    assert tok["scope"] == "fleet" and not tok.get("required")
+    assert pol["refresh"]["kind"] == fc.REFRESH_KIND_CODEX
+    assert pol["refresh"]["secret"] == "CODEX_AUTH_JSON", "the bundle refreshes itself"
+    assert live["openai_auth"]["secret"] == "CODEX_AUTH_JSON"
+    compact = json.dumps(json.loads(_codex_bundle()), separators=(",", ":"))
+    assert fc.value_looks_right(compact, pol["value_prefixes"], pol["value_pattern"])
+    assert fc.value_looks_right(_codex_bundle(), pol["value_prefixes"], pol["value_pattern"]), \
+        "auth.json as `codex login` writes it, indented"
+    api_key_login = json.dumps({"OPENAI_API_KEY": "sk-x", "tokens": None})
+    assert not fc.value_looks_right(api_key_login, pol["value_prefixes"], pol["value_pattern"]), \
+        "an API-key login has no refresh token and must never reach the fleet"
+    old = [{"nwo": "bamr87/bamr87", "state": fc.S_OK, "age_days": 4000}]
+    assert not fc.needs_human_mint(old, pol, "bamr87/bamr87", False), "no fixed lifetime"
+    wf = (fc.REPO_ROOT / ".github" / "workflows" / "token-rotation.yml").read_text()
+    assert "CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}" in wf, "never handed to the rotation"
+    allowed = live["ai_models"]["allowed"]["openai"]
+    for role, model in live["openai_auth"]["models"].items():
+        assert model in allowed, f"openai_auth.models.{role} {model!r} is not in ai_models.allowed.openai"
+
+
+def test_a_bundle_without_a_refresh_token_is_refused_before_any_grant():
+    bundle, why = fc.codex_bundle(json.dumps({"OPENAI_API_KEY": "sk-x"}))
+    assert bundle is None and "refresh_token" in why, why
+    bundle, why = fc.codex_bundle("not json")
+    assert bundle is None and "JSON" in why, why
+    bundle, why = fc.codex_bundle(_codex_bundle(OPENAI_API_KEY="sk-x"))
+    assert bundle is None and "OPENAI_API_KEY" in why, why
+    bundle, why = fc.codex_bundle(_codex_bundle())
+    assert bundle and not why
+
+
+def test_a_dry_run_never_refreshes_the_openai_bundle():
+    pol = _live_policy("CODEX_AUTH_JSON")
+    calls = []
+    real = fc.oauth_refresh
+    fc.oauth_refresh = lambda *a, **k: calls.append(a) or (None, "unexpected")
+    try:
+        with _env(CODEX_AUTH_JSON=_codex_bundle()), contextlib.redirect_stdout(io.StringIO()):
+            token = {"name": "CODEX_AUTH_JSON"}
+            value, source, minted, _ = fc.resolve_value(token, pol, "auto", apply=False)
+            assert not calls, "a dry run consumed the refresh token"
+            assert value == _codex_bundle().strip() and source == "seed" and not minted
+            value, source, minted, note = fc.resolve_value(token, pol, "refresh", apply=False)
+            assert value is None and not minted and "--apply" in note, note
+            assert not calls
+    finally:
+        fc.oauth_refresh = real
+
+
+def test_an_applied_refresh_rewrites_the_tokens_and_stamps_last_refresh():
+    pol = _live_policy("CODEX_AUTH_JSON")
+    seen = {}
+
+    def fake(policy, refresh_token):
+        seen["policy"], seen["refresh_token"] = policy, refresh_token
+        return {"access_token": "at-new", "refresh_token": "rt-new", "id_token": "id-new",
+                "expires_in": 864000, "endpoint": policy["endpoints"][0]}, ""
+
+    real = fc.oauth_refresh
+    fc.oauth_refresh = fake
+    try:
+        with _env(CODEX_AUTH_JSON=_codex_bundle()), contextlib.redirect_stdout(io.StringIO()):
+            token = {"name": "CODEX_AUTH_JSON"}
+            value, source, minted, note = fc.resolve_value(token, pol, "auto", apply=True)
+    finally:
+        fc.oauth_refresh = real
+    assert minted and source == "refresh" and "auth.openai.com" in note, note
+    assert seen["refresh_token"] == "rt-old" and seen["policy"].get("scope"), seen
+    fresh = json.loads(value)
+    assert "\n" not in value, "one line, so the log scrubber masks it whole"
+    assert fresh["tokens"] == {"id_token": "id-new", "access_token": "at-new",
+                               "refresh_token": "rt-new", "account_id": "acct"}, fresh
+    assert fresh["last_refresh"] > "2026-11-01", "the stamp consumers judge freshness by"
+    assert fc.value_looks_right(value, pol["value_prefixes"], pol["value_pattern"])
+
+
+def test_a_failed_openai_refresh_falls_back_and_asks_for_a_reseed():
+    pol = _live_policy("CODEX_AUTH_JSON")
+    real = fc.oauth_refresh
+    fc.oauth_refresh = lambda *a, **k: (None, "https://auth.openai.com/oauth/token → HTTP 401")
+    try:
+        with _env(CODEX_AUTH_JSON=_codex_bundle()), contextlib.redirect_stdout(io.StringIO()):
+            token = {"name": "CODEX_AUTH_JSON"}
+            value, source, minted, _ = fc.resolve_value(token, pol, "auto", apply=True)
+            assert value and source == "seed" and not minted, "propagation still runs"
+            assert "401" in token["_refresh_failed"]
+            value, _, minted, note = fc.resolve_value({"name": "CODEX_AUTH_JSON"}, pol, "refresh", apply=True)
+            assert value is None and not minted and "401" in note
+    finally:
+        fc.oauth_refresh = real
+    assert "needs-reseed" in fc.REASON_TEXT
+
+
+def test_the_refresh_grant_sends_a_scope_only_when_the_policy_names_one():
+    sent = []
+
+    class Resp:
+        def __init__(self, body):
+            self.body = body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def read(self):
+            return self.body
+
+    def fake_urlopen(req, timeout=0):
+        sent.append(json.loads(req.data.decode()))
+        return Resp(b'{"access_token": "a", "refresh_token": "r", "id_token": "i"}')
+
+    real = fc.urllib.request.urlopen
+    fc.urllib.request.urlopen = fake_urlopen
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            got, _ = fc.oauth_refresh({"endpoints": ["https://x"], "client_id": "c", "scope": "openid"}, "r0")
+            fc.oauth_refresh({"endpoints": ["https://x"], "client_id": "c"}, "r0")
+    finally:
+        fc.urllib.request.urlopen = real
+    assert sent[0]["scope"] == "openid" and "scope" not in sent[1], sent
+    assert got["id_token"] == "i"
+
+
 def main() -> int:
     failures = 0
     for name, fn in sorted(globals().items()):

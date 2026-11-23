@@ -1,0 +1,61 @@
+name: OpenAI review
+
+# The hub's own caller of the reusable independent-review.yml: an independent
+# OpenAI review (ChatGPT OAuth, via Codex) of every non-technical pull request,
+# that is one touching prose, docs or media and no code. Its findings reach the
+# pull request through pr-review.yml (constitution § 19); the verdict is in the
+# job summary. Advisory: it never approves or blocks.
+#
+# Fleet repos get the same stub from the openai-review kit once a release
+# carries independent-review.yml (docs/OPENAI-AUTH.md, "Rollout").
+#
+# When it runs (§ 19.7): a pull request opened or marked ready, or labelled
+# `ai-review`; never on every push. The path filter keeps code-only changes
+# from starting it at all. A commit pushed straight to main is reviewed on
+# demand: Actions → OpenAI review → Run workflow, with its range.
+# Off switch: repo variable OPENAI_REVIEW_ENABLED = 'false' (a dispatch still runs).
+
+on:
+  pull_request:
+    types: [opened, ready_for_review, labeled]
+    paths:
+      - '**.md'
+      - '**.markdown'
+      - '**.mdx'
+      - '**.txt'
+      - '**.rst'
+      - '**.adoc'
+      - '**.png'
+      - '**.jpg'
+      - '**.jpeg'
+      - '**.gif'
+      - '**.webp'
+      - '**.svg'
+  workflow_dispatch:
+    inputs:
+      base:
+        description: "Review from this commit (exclusive); blank = the parent of head"
+        type: string
+        default: ""
+      head:
+        description: "Review up to this commit; blank = the branch tip"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.OPENAI_REVIEW_ENABLED != 'false' }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/independent-review.yml
+    with:
+      # The hub reviews with the tooling of the change itself; a fleet repo's
+      # stub passes the tag it calls the workflow at (`v2`).
+      hub-ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      base: ${{ inputs.base }}
+      head: ${{ inputs.head }}
+    secrets:
+      CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}

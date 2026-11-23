@@ -806,12 +806,76 @@ def graded(text: str, path: str = ".github/workflows/x.yml", cfg: dict | None = 
     return row
 
 
+OPENAI_REVIEW_CALLER = """\
+name: OpenAI review
+on:
+  pull_request:
+    types: [opened, ready_for_review, labeled]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  review:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.OPENAI_REVIEW_ENABLED != 'false' }}
+    uses: bamr87/bamr87/.github/workflows/independent-review.yml@v2
+    with:
+      hub-ref: v2
+    secrets:
+      CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
+"""
+
+CODEX_IMAGE_WF = """\
+name: Hero images
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  paint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: bamr87/bamr87/.github/actions/codex-run@v2
+        env:
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
+        with:
+          mode: image
+          model: gpt-6.1-sol
+          prompt: "a lighthouse at dawn"
+          out: assets/images/hero.png
+"""
+
+
+def test_the_openai_oauth_route_is_graded_on_what_binds_it():
+    """codex-run runs on the ChatGPT plan's OAuth login: no metered spend for
+    a dollar cap, no turn flag on one read-only call, one credential and so no
+    Claude order. Those controls do not bind it; the switch, the pinned model,
+    the timeout and least privilege do."""
+    h = graded(OPENAI_REVIEW_CALLER)
+    assert h["route"] == "codex-run" and h["auth"] == "chatgpt-oauth", h
+    assert h["model_source"] == "route" and h["timeout"] is True
+    assert h["switch"] == "OPENAI_REVIEW_ENABLED"
+    assert h["standard"]["conformant"], h["standard"]
+    for control in ("budget-cap", "turn-cap", "auth-ordered"):
+        assert hr.CONTROL_CHECKS[control](h, CFG) is None, control
+    allow = dict(CFG, allowed_models=["gpt-6.1-sol"])
+    paint = graded(CODEX_IMAGE_WF, cfg=allow)
+    assert paint["route"] == "codex-run" and paint["model"] == "gpt-6.1-sol"
+    assert paint["standard"]["conformant"], paint["standard"]
+    retired = graded(CODEX_IMAGE_WF.replace("gpt-6.1-sol", "gpt-5.5"), cfg=allow)
+    assert retired["standard"]["missing"] == ["model-pinned"], retired["standard"]
+    assert hr.choose_lever(retired, {"nwo": "bamr87/alpha"}, dict(allow, hub_nwo="bamr87/bamr87")) \
+        == "fix-controls"
+
+
 def test_every_route_to_a_model_is_a_harness():
     """The marker used to be the claude-code-action step alone. Each of these
     spends on a model and each was invisible."""
     for text, route in ((LANE_CALLER, "ai-lane"), (RUN_ACTION_WF, "claude-run"),
                         (CLI_WF, "claude-cli"), (OTHER_PROVIDER_WF, "other-provider"),
-                        (MENTION_WF, "claude-code-action")):
+                        (MENTION_WF, "claude-code-action"), (OPENAI_REVIEW_CALLER, "codex-run"),
+                        (CODEX_IMAGE_WF, "codex-run")):
         info = hr.classify_workflow(".github/workflows/x.yml", text)
         assert info["ai"] and info["route"] == route, (route, info["route"])
         assert info["routes"] == [route]

@@ -43,6 +43,14 @@ name: ai-lane
 # The ANTHROPIC_API_KEY secret input stays declared (optional, unread) so callers
 # that still pass it keep working.
 #
+# Images: a lane whose skill paints pictures sets `images: true` and passes
+# CODEX_AUTH_JSON. The lane restores the fleet's OpenAI ChatGPT (OAuth) login
+# before the agent runs and exports FLEET_IMAGEGEN, so the agent calls
+#   "$FLEET_IMAGEGEN" --prompt "…" --out assets/images/…/hero.png
+# and gets a PNG plus its provenance sidecar (docs/OPENAI-AUTH.md). Image
+# generation never runs on a metered OPENAI_API_KEY: that input stays declared
+# (optional, unread) so callers that still pass it keep working.
+#
 # Not expressible here, by design: fan-out matrices computed by a planning job
 # (call this lane once per matrix item from the caller), multi-job pipelines
 # with artifact hand-offs, and lanes that check out ANOTHER repository.
@@ -142,6 +150,14 @@ on:
         description: "Let the workflow stay green when the agent step fails (default false: a failed call is RED)"
         type: boolean
         default: false
+      images:
+        description: "Restore the fleet's OpenAI ChatGPT login and export FLEET_IMAGEGEN for the agent (needs the CODEX_AUTH_JSON secret)"
+        type: boolean
+        default: false
+      hub-ref:
+        description: "bamr87/bamr87 ref the image tooling is taken from when images is true: pass the ref you call this workflow at"
+        type: string
+        default: "main"
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
         description: "Claude Code OAuth token (from `claude setup-token`) — the primary credential"
@@ -153,7 +169,10 @@ on:
         description: "Bot PAT for PRs that must trigger CI (e.g. FLEET_TOKEN); probed with `gh api user`, falls back to the job token"
         required: false
       OPENAI_API_KEY:
-        description: "Optional, for lanes whose skill paints images"
+        description: "Unused: images run on the ChatGPT OAuth login (CODEX_AUTH_JSON), never a metered key — still accepted so callers that pass it do not break"
+        required: false
+      CODEX_AUTH_JSON:
+        description: "The fleet's OpenAI ChatGPT-login auth.json, for lanes with images: true (docs/OPENAI-AUTH.md)"
         required: false
     outputs:
       go:
@@ -218,7 +237,8 @@ jobs:
       # OAuth only: no ANTHROPIC_API_KEY in this env, so the runner never sees
       # the key (disabled for now, 2026-11-15; see the header to restore).
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      # No OPENAI_API_KEY: images run on the ChatGPT OAuth login (the step
+      # below), so the agent never holds a metered OpenAI key.
       AI_ROLE: ${{ inputs.agent || inputs.lane }}
       AI_LANE: ${{ inputs.lane }}
       # OAuth only for now: pinned to `oauth` rather than the CALLER repo's
@@ -259,6 +279,32 @@ jobs:
         uses: actions/setup-python@v7
         with:
           python-version: ${{ inputs.setup-python }}
+
+      # Images on the fleet's OpenAI ChatGPT login: restore it once for the job
+      # and hand the agent $FLEET_IMAGEGEN. Taken from a sparse checkout of the
+      # hub at hub-ref (a `./` action would resolve in the caller's repo).
+      - name: Check out the image tooling
+        if: inputs.images
+        uses: actions/checkout@v7
+        with:
+          repository: bamr87/bamr87
+          ref: ${{ inputs.hub-ref || 'main' }}
+          path: .fleet-hub
+          sparse-checkout: .github/actions/codex-run
+          persist-credentials: false
+
+      - name: Keep the tooling out of the agent's commits
+        if: inputs.images
+        run: echo ".fleet-hub/" >> .git/info/exclude
+
+      - name: Restore the OpenAI ChatGPT login for images
+        id: images
+        if: inputs.images
+        uses: ./.fleet-hub/.github/actions/codex-run
+        env:
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
+        with:
+          mode: setup
 
       - name: Pre-run
         if: inputs.pre-run != ''

@@ -1319,6 +1319,22 @@ harness:
       reads: [registry]
     ci:bamr87:ai-lane:
       note: the reusable lane (claude-run); its caller sets the model, so none is named here
+    ci:bamr87:independent-review:
+      note: >-
+        the reusable OpenAI reviewer of non-technical changes (codex-run, ChatGPT
+        OAuth); every repo's openai-review.yml calls it. Not free: it draws on the
+        ChatGPT plan's usage window, which has no per-run dollar figure to cap, so
+        the budget reads 0 metered and the job timeout bounds it
+      model_from: openai_auth.models.review
+      budget: {per_run_usd: 0.0}
+      reads: [github-live, fleet-config]
+      local_entry: tools/openai-auth.sh review
+    ci:bamr87:openai-review:
+      note: the hub's caller of independent-review.yml (same plan-usage caveat)
+      model_from: openai_auth.models.review
+      budget: {per_run_usd: 0.0}
+      reads: [github-live]
+      local_entry: tools/openai-auth.sh review
     local:conflict-sweep:
       reads: [github-live, jev-ledger]
       model_from: [jev.tiers.tier1.model, jev.tiers.tier2.model]
@@ -1582,6 +1598,12 @@ harnesses:
       claude-run:
         standard: true
         title: the hub's claude-run composite action
+      # OpenAI on the ChatGPT OAuth login (openai_auth:). Plan usage, not
+      # metered spend: budget-cap, turn-cap and auth-ordered do not bind it;
+      # its timeout and the plan's usage window do.
+      codex-run:
+        standard: true
+        title: the hub's codex-run action or independent-review.yml (OpenAI, ChatGPT OAuth)
       claude-cli:
         standard: false
         title: "a bare `claude -p` in a run step"
@@ -2288,6 +2310,49 @@ tokens:
     rotation:
       enabled: false      # rotate it in the Console; it must never reach a repo
 
+  # The fleet's OpenAI credential (openai_auth: below, docs/OPENAI-AUTH.md).
+  - name: CODEX_AUTH_JSON
+    scope: fleet
+    required: false
+    purpose: >-
+      The `auth.json` a ChatGPT-account `codex login` writes: OpenAI OAuth
+      access, id and refresh tokens, never an API key. Every image generation
+      and every independent review of a non-technical change runs on it,
+      through .github/actions/codex-run. Seed it from a DEDICATED login, never
+      the one your own Codex sessions use (`tools/openai-auth.sh seed`). ONE
+      WRITER, MANY READERS: this loop is the only place the bundle is
+      refreshed, and every consumer refuses a bundle older than
+      openai_auth.max_seed_age_days instead of letting Codex refresh it, since
+      refresh tokens rotate and a second refresher would strand the fleet.
+      Optional: without it the reviewer and image steps idle with a notice.
+    used_by: [token-rotation.yml, independent-review.yml, openai-review.yml, ai-lane.yml]
+    rotation:
+      enabled: true
+      # A minted bundle goes to every reachable repo regardless; this is the
+      # heartbeat that re-heals a copy someone deleted between refreshes.
+      max_age_days: 7
+      # No fixed life: the weekly refresh below keeps it current. A refresh
+      # that fails is flagged `needs-reseed`, since consumers go idle once the
+      # bundle passes openai_auth.max_seed_age_days.
+      lifetime_days: 0
+      value_prefixes: ["{"]
+      # The whole bundle, with a refresh token in it: an API-key login writes
+      # an auth.json with none, and that must never reach the fleet.
+      value_pattern: '\{.*"refresh_token"\s*:\s*"[^"]+".*\}'
+      refresh:
+        # UNOFFICIAL, like the Claude grant above: OpenAI documents restoring
+        # and persisting auth.json in CI (learn.chatgpt.com/docs/auth/ci-cd-auth),
+        # not this endpoint. It is the grant the Codex CLI itself refreshes
+        # with, so a change upstream shows up here as `needs-reseed`, never as
+        # a fan-out of a broken value. The bundle carries its own refresh token,
+        # so the secret it refreshes is the secret it is.
+        kind: codex_auth_json
+        secret: CODEX_AUTH_JSON
+        client_id: app_EMoamEEZ73f0CkXaXp7hrann
+        scope: openid profile email
+        endpoints:
+          - https://auth.openai.com/oauth/token
+
   - name: FLEET_TOKEN
     scope: hub
     required: true
@@ -2451,6 +2516,60 @@ ai_auth:
     #   categories: []                 # …or every registry repo in a category
   repos: {}
     # zer0-mistakes: api_key           # example: API key only, never OAuth
+
+# --------------------------------------------------------------------------- #
+# OpenAI auth — the ChatGPT-account OAuth route, and what it is for.
+#
+# Two kinds of work go to OpenAI, and both run on the ChatGPT subscription's
+# OAuth login, never on a metered OPENAI_API_KEY (docs/OPENAI-AUTH.md):
+#
+#   image generation   every AI-painted image in the fleet: Codex's built-in
+#                      `$imagegen` skill, through .github/actions/codex-run
+#                      (mode: image) or `tools/openai-auth.sh image` locally;
+#   independent review a second opinion, from a different model family than
+#                      the Claude agents that write most fleet content, on every
+#                      NON-TECHNICAL change (prose, docs, posts, media; no code):
+#                      the reusable independent-review.yml, called by each
+#                      repo's openai-review.yml. Code stays with Claude Code and
+#                      CI (constitution § 26); this reviewer only comments.
+#
+# The credential is CODEX_AUTH_JSON (tokens: above): an auth.json from a
+# dedicated `codex login`, refreshed by ONE writer (the weekly token-rotation
+# re-mint) and read by many. A consumer never refreshes it: it refuses a bundle
+# older than `max_seed_age_days`, or whose access token is about to lapse, and
+# idles with a notice that names the fix. The Codex CLI itself is installed at
+# its latest release each run (docs/DEPENDENCIES.md), forced to the ChatGPT
+# login (`forced_login_method = "chatgpt"`), with OPENAI_API_KEY unset.
+#
+# Models are exact ids from ai_models.allowed.openai (constitution § 13.3). A
+# ChatGPT-account model can be retired out from under a pin (gpt-5.5 was, on
+# 2026-10-14); the runner names that error, and `tools/openai-auth.sh check`
+# proves a pin with one call before it is changed here.
+# --------------------------------------------------------------------------- #
+openai_auth:
+  secret: CODEX_AUTH_JSON
+  login: chatgpt                   # forced_login_method; an API key is refused, never a fallback
+  cli: "@openai/codex"             # installed at latest each run (no pins, docs/DEPENDENCIES.md)
+  # The weekly re-mint keeps the bundle under 7 days old. Codex refreshes a
+  # bundle on its own past ~8 days, which would rotate the fleet's one refresh
+  # token from inside some consumer job; 7.5 stops every consumer first.
+  max_seed_age_days: 7.5
+  min_access_ttl_minutes: 30       # refuse an access token closer than this to its expiry
+  models:
+    review: gpt-6.1-sol            # the independent reviewer
+    image_driver: gpt-6.1-sol      # the text model that calls the image tool
+    image: gpt-image-2             # Codex's built-in image model; recorded in each image's provenance
+  review:
+    switch: OPENAI_REVIEW_ENABLED  # opt-out: runs unless the repo variable is 'false'
+    # non-technical: review a pull request (or a pushed commit) that touches
+    # content and no code. content-files: review the content files of any
+    # change. The classifier is .github/scripts/dash-gen/independent_review.py.
+    scope: non-technical
+    max_files: 40                  # content files put in front of the reviewer
+    max_diff_kb: 120               # diff text in the prompt; the reviewer can read the files too
+    timeout_minutes: 15
+  image:
+    timeout_minutes: 12            # one image takes 2-6 minutes on the plan
 
 # --------------------------------------------------------------------------- #
 # Anthropic API keys — one Console key per workspace, each to the repos that
@@ -3093,6 +3212,38 @@ switches:
       verified: false
       note: '@claude mention handler (AI call, no schedule); § 17 rule 1 requires a switch — none yet'
       flip: 'no switch yet (§ 17 gap): `gh workflow disable claude.yml -R bamr87/bamr87`; record it here'
+    hub/openai-review:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/openai-review.yml
+      group: hub-agents
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: OPENAI_REVIEW_ENABLED
+        semantics: opt_out
+      default: 'on'
+      state: unverified
+      verified: false
+      dispatch_bypasses: true
+      note: independent OpenAI review of non-technical changes (openai_auth.review); findings reach the PR through pr-review.yml, never approves; idles without CODEX_AUTH_JSON; no cron
+      flip: 'gh variable set OPENAI_REVIEW_ENABLED -R bamr87/bamr87 --body false  # disable; record the flip here in the same PR'
+    hub/independent-review:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/independent-review.yml
+      group: hub-agents
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: OPENAI_REVIEW_ENABLED
+        semantics: opt_out
+      default: 'on'
+      state: unverified
+      verified: false
+      dispatch_bypasses: true
+      note: the reusable reviewer every repo's openai-review.yml calls; it reads the CALLER repo's OPENAI_REVIEW_ENABLED, so each repo flips its own
+      flip: 'gh variable set OPENAI_REVIEW_ENABLED -R <owner/repo> --body false  # per repo; record the flip here in the same PR'
     lifehacker.dev/agent-review:
       repo: bamr87/lifehacker.dev
       workflow: .github/workflows/agent-review.yml
@@ -3498,3 +3649,9 @@ ai_models:
       - claude-opus-5-5
       - claude-sonnet-5-5
       - claude-haiku-5-5
+    # On the ChatGPT-account OAuth route only (openai_auth:): the independent
+    # reviewer and the image tool's driver, and the image model Codex's
+    # built-in `$imagegen` paints with. Never an executor (§ 26, § 30.3).
+    openai:
+      - gpt-6.1-sol
+      - gpt-image-2

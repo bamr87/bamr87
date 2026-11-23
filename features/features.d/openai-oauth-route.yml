@@ -1,0 +1,21 @@
+id: HUB-NEW
+slug: openai-oauth-route
+title: "OpenAI on the ChatGPT OAuth login: images and the independent review of non-technical changes"
+description: "Every AI-painted image and every independent review of a non-technical change runs through the Codex CLI on a ChatGPT subscription's OAuth login (CODEX_AUTH_JSON), never a metered OPENAI_API_KEY. `.github/actions/codex-run` restores the login read-only, forces the ChatGPT method and refuses a stale bundle; the weekly token rotation is the bundle's one refresher and writes it hub-first to every repo. `independent-review.yml` (called by each repo's `openai-review.yml`) classifies a change into content, data and code and, for content with no code, asks OpenAI for an editor's second opinion whose findings reach the pull request through pr-review.yml (constitution § 19). `ai-lane.yml` `images: true` hands an agent `$FLEET_IMAGEGEN`. Local front door: `tools/openai-auth.sh`. Partial until the credential is seeded, a release carries the workflow and the openai-review kit is fanned out."
+implemented: true
+status: partial
+surface: infra
+link: .github/actions/codex-run/action.yml
+docs: docs/OPENAI-AUTH.md
+tags: [ ai, openai, images, review, credentials ]
+date: 2026-11-23
+tests:
+  - tools/test_codex_run.py
+  - .github/scripts/dash-gen/test_independent_review.py
+  - tools/test_fleet_config.py
+  - .github/scripts/dash-gen/test_harness_registry.py
+prd: ["FR-NEW:openai-oauth-route"]
+prd_new:
+  - key: openai-oauth-route
+    kind: FR
+    text: "The fleet must generate AI images and run the independent review of non-technical changes on an OpenAI ChatGPT-account OAuth login, never a metered OpenAI API key, with a single scheduled refresher for that credential and read-only consumers that refuse a stale copy."

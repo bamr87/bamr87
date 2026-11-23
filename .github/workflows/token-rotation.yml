@@ -60,6 +60,13 @@ name: 🔑 Token Rotation
 #                                     named below for drift check (l).
 #   CLAUDE_CODE_OAUTH_REFRESH_TOKEN   optional. Present → the run can re-mint.
 #                                     Absent → propagate-and-alert only.
+#   CODEX_AUTH_JSON                   optional. The fleet's OpenAI credential, a
+#                                     ChatGPT-login auth.json (docs/OPENAI-AUTH.md).
+#                                     It carries its own refresh token, so an
+#                                     applying run refreshes it here, the ONE
+#                                     writer, and writes the new bundle hub-first
+#                                     to every repo; a dry run never refreshes
+#                                     (the grant consumes the token it is given).
 #
 # Full doc: docs/TOKEN-ROTATION.md
 
@@ -204,6 +211,9 @@ jobs:
           RELEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           # Legacy PAT the app replaces; propagated until it is retired.
           RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          # The OpenAI ChatGPT-login bundle: refreshed here weekly and nowhere
+          # else (openai_auth: in _data/fleet.yml).
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
           # Dispatch inputs reach the shell as environment variables, never
           # spliced into the command line: `${{ }}` interpolation inside `run:`
           # is textual substitution, which turns any input into arbitrary shell.
