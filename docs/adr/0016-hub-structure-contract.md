@@ -1,6 +1,7 @@
 # ADR 0016 — The hub structure contract: declared layers and limits, a ledger that only shrinks, and one pass over the checks a change owes
 
-- **Status**: proposed
+- **Status**: accepted
+- **Accepted in**: https://github.com/bamr87/bamr87/pull/969 (merged 2026-11-23 by @bamr87)
 - **Date**: 2026-11-22
 - **Deciders**: proposed by an agent at the maintainer's request (2026-11-22: review the repo's architecture, then address every issue the review found)
 - **Related**: [ADR 0006](0006-django-management-backend.md) (the Django backend beside the console), [ADR 0010](0010-fleet-graph-and-outcome-learning.md) (the fleet graph, which models what the control plane manages; this models the code that manages it), [ADR 0011](0011-one-framework-many-instances.md) (the stack installs for any owner), constitution § 20 (the editor is a front door); [docs/ARCHITECTURE.md](../ARCHITECTURE.md); `HUB-NEW:architecture-contract`, `HUB-NEW:focus-checks`
