@@ -408,9 +408,9 @@ case "$KIT" in
     ;;
   pr-review)
     BRANCH="ci/pr-review"
-    COMMIT_MSG="ci: adopt the fleet PR review stub (CI failures summarized on the PR)"
-    PR_TITLE="ci: summarize CI failures on the PR"
-    PR_BODY="$(printf 'Automated by bamr87 fanout.yml (tools/fanout.sh --kit pr-review): adds the stub that calls the hub reusable pr-review.yml (constitution § 19). Every CI failure on a pull request is summarized in one sticky comment: the job, the reason from its log, whether the PR probably caused it, and what to do. The comment is deleted when nothing is failing. Doc: bamr87/bamr87 templates/pr-review/README.md.')"
+    COMMIT_MSG="ci: adopt the fleet PR review stub (CI failures and merge readiness on the PR)"
+    PR_TITLE="ci: summarize CI failures and merge readiness on the PR"
+    PR_BODY="$(printf 'Automated by bamr87 fanout.yml (tools/fanout.sh --kit pr-review): adds the stub that calls the hub reusable pr-review.yml (constitution § 19). Every CI failure on a pull request is summarized in one sticky comment: the job, the reason from its log, whether the PR probably caused it, an AI analysis, and what to do; the comment is deleted when nothing is failing. With PR_READINESS_ENABLED (projected from the hub, _data/fleet.yml variables) the comment also says what is left before the merge, and stays current when a pull request is only marked ready. Doc: bamr87/bamr87 templates/pr-review/README.md.')"
     ;;
   site-quality)
     BRANCH="ci/site-quality"
