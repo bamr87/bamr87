@@ -1,0 +1,15 @@
+id: HUB-NEW
+slug: qa-lead
+title: 'QA Lead: the completeness review of every major or frontend pull request'
+description: "qa-lead.yml gates each pull request with no model (the major label or the § 15.1 interim heuristics; the § 15.3 frontend globs plus verify/verify.yml frontend_paths), grades four lines (tests listed, a green CI link for the head commit, visual evidence at two or more viewports or skip-evidence with a reason, the template's docs and feature index), and pr-review.yml recomputes and posts one review: REQUEST_CHANGES on a gap, COMMENT otherwise, never APPROVE; a pull request from its own identity is left to Amr. An advisory one-turn Sonnet read adds notes that never change the verdict. Held to evals/qa-lead (real past pull requests) in CI; opt-in through vars.QA_LEAD_ENABLED."
+implemented: true
+status: shipped
+surface: infra
+link: .github/workflows/qa-lead.yml
+docs: docs/qa-lead-prior-art.md
+tags: [governance, verification, review, ai]
+date: 2026-11-23
+tests:
+  - .github/scripts/dash-gen/test_qa_lead.py
+  - tools/test_evals.py
+prd: [FR44]

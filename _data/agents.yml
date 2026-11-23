@@ -15,23 +15,23 @@ contract:
     R5: its run records reach the reflector
     R6: a local entry point
 totals:
-  agents: 145
+  agents: 146
   by_category:
-    ci-agent-step: 131
+    ci-agent-step: 132
     local-loop-step: 5
     jev-tier: 3
     scheduled-local-job: 6
   by_kind:
     ci-scheduled: 51
-    ci-event: 38
+    ci-event: 39
     ci-mention: 42
     loop-step: 5
     jev-tier: 3
     local-job: 6
-  with_gaps: 136
+  with_gaps: 137
   gaps_by_rule:
     R1: 60
-    R2: 136
+    R2: 137
     R3: 0
     R4: 0
     R5: 4
@@ -469,6 +469,38 @@ agents:
   gaps:
   - R2:missing:cost_source,tool_errors
   note: the AI analysis of every failed CI run on a pull request (§ 19.11), in the one PR comment
+- id: ci:bamr87:qa-lead
+  kind: ci-event
+  category: ci-agent-step
+  repo: bamr87/bamr87
+  where: .github/workflows/qa-lead.yml
+  owner: bamr87
+  trigger: pull_request; workflow_dispatch
+  switch:
+    variable: QA_LEAD_ENABLED
+    loop: hub/qa-lead
+  budget:
+    per_run_usd: 1.0
+    call_sites:
+      qa-lead.yml:review: 1.0
+  model: claude-sonnet-5-5
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: python3 .github/scripts/dash-gen/qa_lead.py local --repo <owner/repo> --pr <n>
+  first_seen: '2026-11-23'
+  gaps:
+  - R2:missing:cost_source,tool_errors
+  note: the § 15 completeness review; a deterministic gate and verdict, an advisory one-turn read with no tools; pr-review.yml
+    recomputes and posts it
 - id: ci:bamr87:repo-evolution
   kind: ci-scheduled
   category: ci-agent-step

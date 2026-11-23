@@ -1,0 +1,132 @@
+name: QA Lead
+
+# QA Lead: the completeness review of every major or frontend pull request (constitution § 15.5;
+# amendments 0010 `major-change-evidence`, 0012 `qa-lead-bridge`; held to its eval set under § 13,
+# 0011). Doc: docs/qa-lead-prior-art.md. Code: .github/scripts/dash-gen/qa_lead.py.
+#
+#   gate     DETERMINISTIC, no model. qa_lead.py decides whether the pull request is major (the
+#            `major` label or the § 15.1 interim heuristics) or frontend (the § 15.3 globs plus the
+#            repo's verify/verify.yml `frontend_paths:`). Anything else stops here and costs nothing.
+#            It grades the four lines — tests listed, a green CI link for the head commit, visual
+#            evidence at two or more viewports (frontend only), the PR template's docs and feature
+#            index — and the verdict follows from them alone.
+#   read     ADVISORY. On the asks only (opened, reopened, ready for review, a label: § 19.7, never a
+#            push) and only for a collaborator's pull request, one claude-run call — an exact model,
+#            no tools, ONE turn, a dollar cap — reads the description and the diff and may add notes.
+#            The notes are shown as AI-written and never change the verdict (§ 15.5: a bot reviewer
+#            cannot waive a requirement).
+#
+# WHO POSTS. This workflow writes nothing on the pull request: its token reads. pr-review.yml, the
+# fleet's one PR commenter (§ 19.1), runs from the default branch when this run finishes and posts
+# the review (pr_review.qa_lead_of → qa_lead.post). It RECOMPUTES the gate and the four lines from
+# live GitHub with the default branch's rules, so a pull request that edits this file or
+# qa_lead.py cannot grade itself; from this run it takes the notes alone, escaped. The review is
+# REQUEST_CHANGES when a line is a gap and COMMENT when none is. It never approves and never
+# merges. A pull request opened by QA Lead's own identity is not reviewed: Amr reviews it.
+#
+# Kill switch (§ 17): `vars.QA_LEAD_ENABLED` must be 'true' (a new loop starts off). A manual
+# dispatch bypasses it and is a dry run: the review lands in this run's summary only. Private
+# repositories are skipped, so Actions spend there is $0. Settings: _data/fleet.yml `qa_lead`;
+# the model and the dollar cap below are literals of it, held equal by test_qa_lead.py and
+# test_ai_budget.py (budget.call_sites `qa-lead.yml:review`).
+#
+# Claude auth: OAuth only (CLAUDE_CODE_OAUTH_TOKEN), in the repo's CLAUDE_AUTH_ORDER.
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled, edited]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "Pull request number, reviewed as a dry run: the review is in this run's summary and nothing is posted"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-lead-${{ github.event.pull_request.number || inputs.pr }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: QA Lead
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch'
+      || (vars.QA_LEAD_ENABLED == 'true' && !github.event.repository.private) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    steps:
+      # The default branch's tooling, never the pull request's files.
+      - name: Check out the hub's tooling, never the pull request
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          sparse-checkout: |
+            .github/scripts/dash-gen
+            _data
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install the tooling's one dependency
+        run: python -m pip install --quiet pyyaml
+
+      # Inputs travel through the environment, never inline in the script.
+      - name: Gate and grade (no model)
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number || inputs.pr }}
+          EVENT: ${{ github.event.action || github.event_name }}
+        run: |
+          python .github/scripts/dash-gen/qa_lead.py plan --repo "$GITHUB_REPOSITORY" --pr "$PR" \
+            --event "$EVENT" --out "$RUNNER_TEMP/qa-lead"
+
+      # Advisory, so a spent usage window or a failed call never fails the review (`usage-limit: skip`
+      # is the runner's default for a 429; continue-on-error covers the rest).
+      - name: AI read (Claude, no tools, one turn, advisory)
+        id: read
+        if: ${{ steps.plan.outputs.ai == 'true' }}
+        continue-on-error: true
+        uses: bamr87/bamr87/.github/actions/claude-run@v2
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          AI_AUTH_ORDER: ${{ vars.CLAUDE_AUTH_ORDER || 'oauth' }}
+          AI_ROLE: qa-lead
+        with:
+          prompt: ${{ steps.plan.outputs.prompt }}
+          system: ${{ steps.plan.outputs.system }}
+          out: ${{ runner.temp }}/qa-lead/reply.txt
+          # An exact id from _data/fleet.yml ai_models.allowed (§ 13.3), the literal of qa_lead.model;
+          # the dollar cap is qa_lead.usd and budget.call_sites `qa-lead.yml:review`.
+          model: claude-sonnet-5-5
+          max-turns: 1
+          max-budget-usd: 1
+          permission-mode: default
+          tools: ""
+
+      - name: Hold the AI read to its contract
+        if: ${{ steps.plan.outputs.go == 'true' }}
+        env:
+          REPLY: ${{ steps.plan.outputs.ai == 'true' && format('{0}/qa-lead/reply.txt', runner.temp) || '' }}
+        run: |
+          python .github/scripts/dash-gen/qa_lead.py collect --plan "$RUNNER_TEMP/qa-lead/plan.json" \
+            --reply "$REPLY" --out "$RUNNER_TEMP/qa-lead/out"
+
+      # A dry run stops here: pr-review.yml posts only for a pull_request run.
+      - name: Leave the notes for pr-review
+        if: ${{ steps.plan.outputs.go == 'true' && github.event_name == 'pull_request' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: qa-lead-notes
+          path: ${{ runner.temp }}/qa-lead/out/qa-lead-notes.json
+          retention-days: 7
+          if-no-files-found: error
