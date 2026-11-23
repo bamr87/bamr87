@@ -1,0 +1,3 @@
+### Added
+
+- **Stargazer, the open-source radar** (`tools/dash stars`, docs/STARGAZER.md): the account's GitHub stars sorted and categorised, the repos rising this week, this month and in the fleet's topics, and the repos most like each fleet project, with star velocity, star-farming flags and a review list per project. It renders on the console's new **Stars** page (`/stars`, `/api/stars`, also on the published site) and through the MCP's `fleet_stars`, and is refreshed daily by `stargazer.yml` (off until `vars.STARGAZER_ENABLED`). A SessionStart hook starts every local Claude Code session with the starred repos relevant to its project; `tools/dash stars hook --install --yes` extends that to sessions outside the hub.

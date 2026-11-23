@@ -857,6 +857,14 @@
       "presentation": { "group": "4-generate", "order": 16 }
     },
     {
+      "name": "⭐ Stars: refresh the open-source radar (stars, trending, like the fleet; read-only)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash stars refresh && tools/dash stars",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 16 }
+    },
+    {
       "name": "📐 Spec: UPS conformance for every submodule (--write)",
       "type": "node-terminal",
       "request": "launch",

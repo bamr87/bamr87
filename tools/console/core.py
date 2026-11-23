@@ -96,6 +96,7 @@ SOURCES = {
     "actions_usage": "actions_usage.yml",
     "ai_usage": "ai_usage.yml",
     "engagements": "engagements.yml",
+    "stars": "stars.json",
 }
 
 # Secrets the fleet contract names — the console reports PRESENCE of the env
@@ -110,7 +111,7 @@ TOKEN_ENV = ["FLEET_TOKEN", "GH_TOKEN", "GITHUB_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN
 # issue-pipeline, token-rotation, reconcile-registry and update-submodules.
 DISPATCH_WORKFLOWS = ("fanout", "fleet-pulse", "issue-pipeline", "token-rotation", "repo-evolution", "repo-scout",
                       "weekly-closeout", "weekly-gather", "weekly-finalize", "build-dash", "reconcile-registry",
-                      "update-submodules", "backlog-fanout", "jev-conflicts", "fleet-pm")
+                      "update-submodules", "backlog-fanout", "jev-conflicts", "fleet-pm", "stargazer")
 
 
 # --------------------------------------------------------------------------- #
@@ -337,6 +338,9 @@ LOOPS = [
      "schedule_key": "update_submodules", "doc": "docs/SUBMODULES.md", "outputs": [], "local_ops": []},
     {"id": "build_dash", "title": "Build & deploy the dash (Pages)", "workflow": "build-dash",
      "schedule_key": "build_dash", "doc": "docs/DASH.md", "outputs": [], "local_ops": []},
+    {"id": "stargazer", "title": "Stargazer — the open-source radar: stars, trending, like the fleet",
+     "workflow": "stargazer", "schedule_key": "stargazer", "doc": "docs/STARGAZER.md",
+     "outputs": ["stars"], "local_ops": ["stars-refresh"]},
     {"id": "backlog_fanout", "title": "Backlog fan-out — pending items → fleet PRs (dry run by default)",
      "workflow": "backlog-fanout", "schedule_key": "backlog_fanout", "doc": "docs/BACKLOG-FANOUT.md",
      "outputs": [], "local_ops": []},
@@ -1236,6 +1240,28 @@ def sprints_doc() -> dict:
     (the page's evidence build reads the test fixture through it)."""
     folder = Path(os.environ.get("DASH_SPRINTS_DIR") or (DATA / "sprints"))
     return _sprint_module().document(folder, fleet_path=DATA / "fleet.yml", queue_path=WORK_QUEUE)
+
+
+# --------------------------------------------------------------------------- #
+# STARS — the open-source radar (fleetcore/stars.py, tools/stargazer.py; docs/STARGAZER.md)
+# --------------------------------------------------------------------------- #
+STARS_FILE = DATA / "stars.json"
+
+
+def stars_doc() -> dict:
+    """The /api/stars document: `_data/stars.json` as committed (schema stars/v1) — the account's stars, the
+    repos rising in the fleet's topics, each fleet project's closest repos, what to review and the feed — with
+    `present` and its age, or `present: false` and how to make one. Public data (GitHub shows stars to anyone),
+    so the published build carries it whole; the `stars-refresh` operation rewrites it."""
+    from fleetcore import stars as fstars  # noqa: PLC0415
+    doc = yamlio.cached(("stars", str(STARS_FILE)), [STARS_FILE], lambda: fstars.load(STARS_FILE))
+    if not doc:
+        return {"schema": fstars.SCHEMA, "present": False, "generated_at": None, "age_days": None,
+                "error": "no radar yet: run `tools/dash stars refresh` (the stars-refresh operation)",
+                "totals": {}, "categories": [], "languages": [], "timeline": [], "health": {}, "starred": [],
+                "lists": [], "trending": [], "gaining": [], "fleet": [], "incorporate": [], "feed": [],
+                "errors": [], "repos": {}}
+    return {**doc, "present": True, "age_days": fstars.age_days(doc)}
 
 
 # --------------------------------------------------------------------------- #
@@ -2451,6 +2477,13 @@ OPS: dict[str, dict] = {
                               desc="Reads every open pull request and gate-labelled issue of the fleet again under "
                                    "decisions.refresh_budget_s and rewrites the index; fails unless the read finished "
                                    "clean, so a scheduled run cannot hide a stale index. Read-only, $0."),
+    # The open-source radar (docs/STARGAZER.md): read-only on GitHub, writes the two committed data files.
+    "stars-refresh": dict(title="Stars: read GitHub now (the open-source radar)", group="observe",
+                          argv=lambda p: [DASH, "stars", "refresh"], needs_token=True,
+                          desc="tools/dash stars refresh — the account's stars and public star lists, every fleet "
+                               "repo's topics, the repos rising this week, this month and in the fleet's topics, and "
+                               "the repos most like each fleet project → _data/stars.json + _data/stars_history.json "
+                               "(docs/STARGAZER.md). About 20 GraphQL calls. Read-only on GitHub, $0."),
     # The PR queue (docs/PR-QUEUE.md): every open pull request, who moves it next, and bulk actions. A
     # plan is made from live GitHub by POST /api/prs/plan (or `tools/dash prs plan`) and writes only its
     # plan file; these two apply a plan by its id, after re-planning and refusing one that moved.

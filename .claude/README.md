@@ -34,7 +34,7 @@ Claude Code configuration that makes the dash self-managing.
 | `commands/future-features.md` | `/future-features <idea>` — draft a full feature spec + place it on the right repo's roadmap |
 | `commands/weekly.md` | `/weekly [close\|prepare\|plan\|confirm]` — run a stage of the weekly routine as a preview and walk through it; `--apply` only on Amr's yes (docs/WEEKLY.md) |
 | `agents/feature-scout.md` | sub-agent that scans the session thread for latent feature ideas and proposes roadmap-ready specs (review/approval before backlog) |
-| `hooks/` | `SessionStart` + `Stop` hooks that make the Future-Features pipeline active in **every** session (see `hooks/README.md`) |
+| `hooks/` | `SessionStart` + `Stop` hooks that make the Future-Features pipeline active in **every** session, and the SessionStart brief of the starred-repo radar ([docs/STARGAZER.md](../docs/STARGAZER.md)) (see `hooks/README.md`) |
 | `settings.json` | registers the hooks above |
 | [`../.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json) | the **`bamr87` plugin marketplace**: kits under `templates/` published as Claude Code plugins a member repo enables from its own `.claude/settings.json` instead of vendoring. Today: `spec-driven` ([`templates/spec-driven/`](../templates/spec-driven/README.md), [`docs/SPEC-DRIVEN.md`](../docs/SPEC-DRIVEN.md)) — the `/spec-driven:specify … :evolve` skills, the `backlog-triager` agent, the spec/backlog gate hook |
 

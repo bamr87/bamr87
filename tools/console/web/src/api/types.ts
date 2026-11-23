@@ -1512,6 +1512,37 @@ export interface PrQueue {
   warnings: string[]; errors: { stage?: string; kind?: string; message?: string }[]; hint?: string | null;
   switches: { merge: boolean; close: boolean; agent: boolean; github_writes: boolean };
 }
+
+// --- The open-source radar (tools/fleetcore/stars.py, docs/STARGAZER.md) ------
+export interface StarMatch { project: string; score: number; shared: string[] }
+export type StarHealth = 'active' | 'maintained' | 'slowing' | 'stale' | 'archived' | 'unknown';
+/** One repo as committed: empty fields are left out, dates are days, the URL is github.com/<name>. */
+export interface StarRepo {
+  name: string; description: string; language: string | null; topics: string[]; stars: number; forks: number;
+  owner: string; avatar?: string; created_at: string | null; pushed_at: string | null; homepage?: string; license?: string;
+  archived?: boolean; fork?: boolean; release?: { tag: string; at: string | null };
+  category: string; tags?: string[]; health: StarHealth; sources: string[]; starred_at?: string; lists?: string[];
+  matches?: StarMatch[]; suspect?: string[]; fleet_owned?: boolean;
+  velocity: { d1?: number; d7?: number; d30?: number; per_day?: number };
+}
+export interface StarTrend { id: string; title: string; query: string; topic?: string | null; count?: number | null; repos: string[] }
+export interface StarFleetRow {
+  project: string; repo: string | null; path: string; category: string; terms: string[]; starred: string[]; discovered: string[]; searched: number;
+}
+export interface StarIncorporate { repo: string; project: string; score: number; priority: number; starred: boolean; why: string }
+export interface StarEvent { at: string; kind: 'starred' | 'release' | 'spike' | 'radar'; repo: string; text: string; url?: string }
+export interface StarsDoc {
+  schema: string; present: boolean; generated_at: string | null; age_days: number | null; account?: string; error?: string;
+  totals: Partial<Record<'starred' | 'starred_total' | 'repos' | 'trending' | 'relevant' | 'starred_relevant' | 'incorporate' | 'suspect' | 'archived_starred' | 'lists', number>>;
+  categories: { id: string; title: string; starred: number; count: number }[];
+  languages: { name: string; count: number }[];
+  timeline: { month: string; count: number }[];
+  health: Dict<number>;
+  starred: string[];
+  lists: { name: string; slug: string; description: string; repos: string[] }[];
+  trending: StarTrend[]; gaining: string[]; fleet: StarFleetRow[]; incorporate: StarIncorporate[]; feed: StarEvent[]; errors: string[];
+  repos: Dict<StarRepo>;
+}
 export interface PrPlanItem {
   key: string; repo: string; number: number; title?: string; url?: string; head_sha?: string; do: boolean; skip?: string;
   preview?: string; warnings: string[]; next?: PrRow['next']; gate?: PrRow['gate'];

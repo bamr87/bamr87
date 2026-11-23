@@ -11,10 +11,13 @@ import type {
   ProjectDetail, StateDoc, TuiStatus, Dict, GithubStatus, GhRepo, GhRepoDetail, GhAction, GhIssue,
   SiteIndex, SitePage, SitePost, GithubFleet, PullSpecs, WorkBoard, WorkItemDetail, WorkPlan,
   WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint, RefineDoc, EvidenceDoc, TextFile, AssistDoc, AssistActivity, JobTail, PrQueue, NodesDoc, SprintsDoc, VoicesDoc,
-  GhProjectsDoc, GhProjectItemsDoc, DecisionsDoc,
+  GhProjectsDoc, GhProjectItemsDoc, DecisionsDoc, StarsDoc,
 } from './types';
 
 const minute = 60_000;
+
+/** The open-source radar: the committed _data/stars.json, whole (the page filters it in the browser). */
+export const useStars = () => useQuery({ queryKey: ['stars'], queryFn: () => api<StarsDoc>('/api/stars'), staleTime: 5 * minute });
 
 export const useStateDoc = () => useQuery({ queryKey: ['state'], queryFn: () => api<StateDoc>('/api/state'), staleTime: minute });
 /** What waits on the maintainer, counts only (the decision index; docs/DECISION-INDEX.md). `refresh=never`:
