@@ -1,0 +1,1192 @@
+# evals/pr-ai-analysis/cases.yml — the eval set for the CI failure analyst of
+# .github/workflows/pr-review.yml (the `ai-analysis` job, constitution § 19.11, § 13.1).
+#
+# Every case is a REAL failed run on a pull request in this repository, collected on
+# 2026-11-23 from the runs whose logs GitHub still kept (logs before about 2026-08-26 have
+# expired). Each holds what the workflow would hand the model: the failed job and step,
+# the fleet's deterministic reading of it (pr_review.explain and the failure class), the
+# failed step's log as recorded (timestamps and colour codes stripped; GitHub had already
+# masked secrets as ***) and the PR's changed files. The patch itself was not recorded.
+# `expected` comes from what fixed the run (`fixed_by`), never from what a model answered:
+# whether the PR caused it, and phrases any correct root cause names (one is enough,
+# case-insensitive). `why` is the collector's account of the cause, for a reader.
+#
+# Gap: no case of a missing secret or credential exists among the kept logs; add one when
+# the analyst meets one.
+#
+#   python3 tools/evals.py run pr-ai-analysis --dry-run   # schema + prompt budget, no model (CI)
+#   python3 tools/evals.py run pr-ai-analysis             # SPENDS: the shipped prompt, one turn, no tools
+#
+# `model` must be the shipped analyst's (pr_ai_analysis.MODEL) and an id in
+# _data/fleet.yml ai_models.allowed.
+schema: evals/v1
+role: pr-ai-analysis
+mode: model
+target: .github/workflows/pr-review.yml#ai-analysis
+model: claude-sonnet-5-5
+min_cases: 10
+rubric: An LLM judge, if used, scores 1 when the verdict matches and the root cause names the concrete thing that broke (the
+  file, key, rule or version) and the fix would turn the run green; 0 for a generic 'a test failed, check the logs'.
+cases:
+- id: drift-check-38625268177-fleet-yml
+  source: bamr87/bamr87#353, run 38625268177 (.github/workflows/drift-check.yml)
+  fixed_by: bac487ab60 put the three crons back to their fleet.yml values and commented out git_digs in _data/fleet.yml with
+    the paused git-digs.yml schedule; drift-check passed.
+  input:
+    repo: bamr87/bamr87
+    pr: 353
+    title: ''
+    runs:
+    - id: 38625268177
+      name: 🚧 Drift Check
+      conclusion: failure
+      path: .github/workflows/drift-check.yml
+      jobs:
+      - job: drift
+        step: Run dash-gen fixture tests
+        reason: FAIL — 2 schedule test(s)
+        class: defect
+        cause: test
+        log: "  PASS  category emphasis file exists for `full-stack-ai`\n  PASS  category emphasis file exists for `docs`\n\
+          \  PASS  category emphasis file exists for `dev-tools`\n  FAIL  cron matches _data/fleet.yml schedule.repo_evolution\n\
+          \  PASS  write-capable scheduled workflow has a concurrency group\n  PASS  every job sets timeout-minutes\n  PASS\
+          \  evolve needs plan (needs:, not workflow_run)\n\nFAILED (1/144)\n##[endgroup]\n##[error]test_evolution.py failed\n\
+          ##[group]test_schedule.py\n  ✗ test_every_declared_schedule_has_a_workflow: fleet.yml schedule.git_digs names no\
+          \ scheduled workflow\n  ✗ test_every_scheduled_workflow_is_declared_with_the_same_cron: fleet-pulse.yml runs '11\
+          \ 5 * * *' but fleet.yml says '37 5 * * *'\n  ✓ test_hub_crons_never_fire_on_the_hour\n  ✓ test_scheduled_agents_carry_a_kill_switch_that_spares_manual_runs\n\
+          FAIL — 2 schedule test(s)\n##[endgroup]\n##[error]test_schedule.py failed\ndash-gen: 20/22 suites passed\nFAILED:\
+          \ test_evolution.py\nFAILED: test_schedule.py\n##[error]Process completed with exit code 1."
+    files:
+    - .github/workflows/fleet-pulse.yml
+    - .github/workflows/repo-evolution.yml
+    - .github/workflows/git-digs.yml
+    - .github/workflows/issue-pipeline.yml
+    diff: '(not recorded: the case keeps the changed file names, not the patch)'
+  expected:
+    caused_by_pr: 'yes'
+    root_cause_any:
+    - fleet.yml
+    - cron
+    - schedule
+  pass: caused_by_pr equals expected, and the summary, root cause or evidence names one of root_cause_any
+  why: The PR's first commit moved the fleet-pulse, issue-pipeline and repo-evolution crons to new staggered times and commented
+    out git-digs's schedule, but left _data/fleet.yml `schedule:` unchanged. The dash-gen contract tests require every workflow
+    cron to equal its fleet.yml entry and every fleet.yml entry to have a scheduled workflow, so test_schedule.py and test_evolution.py
+    failed on the mismatch.
+- id: drift-check-41069453884-catalog-md
+  source: bamr87/bamr87#422, run 41069453884 (.github/workflows/drift-check.yml)
+  fixed_by: 6d56c2da26 'restore main-only generated files from main' checked both files out from origin/main; drift-check
+    passed.
+  input:
+    repo: bamr87/bamr87
+    pr: 422
+    title: ''
+    runs:
+    - id: 41069453884
+      name: 🚧 Drift Check
+      conclusion: failure
+      path: .github/workflows/drift-check.yml
+      jobs:
+      - job: drift
+        step: Pull requests do not edit main-only generated files
+        reason: 'The step printed no clear error. Its last output: ##[error]CATALOG.md is generated on main only — a pull
+          request must not edit it'
+        class: defect
+        cause: exit-code
+        log: "##[group]Run python3 -m tools.jev generated guard --range HEAD^1 HEAD\npython3 -m tools.jev generated guard\
+          \ --range HEAD^1 HEAD\nshell: /usr/bin/bash -e {0}\nenv:\n  pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64\n\
+          \  PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig\n  Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64\n\
+          \  Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64\n  Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64\n\
+          \  LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib\n  GITHUB_HEAD_REF: ci/workflow-overhaul\n##[endgroup]\n\
+          ##[error]CATALOG.md is generated on main only — a pull request must not edit it\n##[error]docs/README.md is generated\
+          \ on main only — a pull request must not edit it\nPull requests do not edit generated files any more: they are regenerated\
+          \ and committed on main by the post-merge job (.github/workflows/jev-number.yml, `chore(jev): assign ids and compile\
+          \ pending fragments`), so two PRs can never conflict on them. Drop the change from this branch:\n    git checkout\
+          \ origin/main -- CATALOG.md docs/README.md\n    git commit -m 'chore: leave generated files to main'\nEdit the SOURCE\
+          \ instead (the tool, spec, doc or data file the generator reads). Doc: docs/JEV.md, \"Main-only generated files\"\
+          .\n##[error]Process completed with exit code 1."
+    files:
+    - CATALOG.md
+    - docs/README.md
+    - .agents/skills/standardize-audit/SKILL.md
+    - .agents/skills/triage-attention/SKILL.md
+    - .claude/README.md
+    - .claude/commands/adopt-schema.md
+    - .claude/commands/evolve.md
+    - .claude/skills/standardize-audit/SKILL.md
+    - .claude/skills/triage-attention/SKILL.md
+    - .claude/skills/verify-feature/SKILL.md
+    - .github/actions/README.md
+    - .github/actions/claude-cost/README.md
+    - .github/actions/claude-cost/action.yml
+    - .github/actions/resolve-fleet-token/README.md
+    - .github/actions/resolve-fleet-token/action.yml
+    diff: '(not recorded: the case keeps the changed file names, not the patch)'
+  expected:
+    caused_by_pr: 'yes'
+    root_cause_any:
+    - catalog.md
+    - docs/readme.md
+    - generated
+  pass: caused_by_pr equals expected, and the summary, root cause or evidence names one of root_cause_any
+  why: A merge of origin/main into this long-lived branch left CATALOG.md and docs/README.md different from main, so the PR
+    diff edited two files that are generated on main only. The JEV guard (`python3 -m tools.jev generated guard`) fails any
+    pull request that touches them.
+- id: drift-check-35389400291-actionlint
+  source: bamr87/bamr87#274, run 35389400291 (.github/workflows/drift-check.yml)
+  fixed_by: 9891ffd015 'escape the backticks in the budget-abort annotation'; the next drift-check run passed.
+  input:
+    repo: bamr87/bamr87
+    pr: 274
+    title: ''
+    runs:
+    - id: 35389400291
+      name: 🚧 Drift Check
+      conclusion: failure
+      path: .github/workflows/drift-check.yml
+      jobs:
+      - job: drift
+        step: Run actionlint (control plane)
+        reason: 'The step printed no clear error. Its last output:     |         ^~~~'
+        class: defect
+        cause: exit-code
+        log: "##[group]Run shopt -s nullglob\nshopt -s nullglob\nfiles=(.github/workflows/*.yml .github/workflows/*.yaml)\n\
+          echo \"Linting ${#files[@]} workflow(s):\"\nprintf '  %s\\n' \"${files[@]}\"\nbash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)\n\
+          ./actionlint -color \"${files[@]}\"\nDownloaded and unarchived executable: /home/runner/work/bamr87/bamr87/actionlint\n\
+          Done: 1.7.12\ninstalled by downloading from release page\nbuilt with go1.26.1 compiler for linux/amd64\n.github/workflows/fleet-pulse.yml:460:9:\
+          \ shellcheck reported issue in this script: SC2006:style:41:200: Use $(...) notation instead of legacy backticks\
+          \ `...` [shellcheck]\n    |\n460 |         run: |\n    |         ^~~~\n.github/workflows/issue-pipeline.yml:508:9:\
+          \ shellcheck reported issue in this script: SC2006:style:41:200: Use $(...) notation instead of legacy backticks\
+          \ `...` [shellcheck]\n    |\n508 |         run: |\n    |         ^~~~\n.github/workflows/issue-pipeline.yml:799:9:\
+          \ shellcheck reported issue in this script: SC2006:style:41:200: Use $(...) notation instead of legacy backticks\
+          \ `...` [shellcheck]\n    |\n799 |         run: |\n    |         ^~~~\n.github/workflows/issue-pipeline.yml:1031:9:\
+          \ shellcheck reported issue in this script: SC2006:style:41:200: Use $(...) notation instead of legacy backticks\
+          \ `...` [shellcheck]\n     |\n1031 |         run: |\n     |         ^~~~\n.github/workflows/repo-evolution.yml:362:9:\
+          \ shellcheck reported issue in this script: SC2006:style:41:200: Use $(...) notation instead of legacy backticks\
+          \ `...` [shellcheck]\n    |\n362 |         run: |\n    |         ^~~~\n.github/workflows/unified-evolution.yml:121:9:\
+          \ shellcheck reported issue in this script: SC2006:style:41:200: Use $(...) notation instead of legacy backticks\
+          \ `...` [shellcheck]\n    |\n121 |         run: |\n    |         ^~~~\n##[error]Process completed with exit code\
+          \ 1."
+    files:
+    - .github/workflows/fleet-pulse.yml
+    - .github/workflows/issue-pipeline.yml
+    - .github/workflows/repo-evolution.yml
+    - .github/workflows/unified-evolution.yml
+    - .github/scripts/dash-gen/README.md
+    - .github/scripts/dash-gen/ai_activity.py
+    - .github/scripts/dash-gen/dash_gen.py
+    - .github/scripts/dash-gen/test_ai_budget.py
+    - .github/scripts/dash-gen/test_evolution.py
+    - .github/workflows/README.md
+    - .github/workflows/claude.yml
+    - .github/workflows/schema-fanout.yml
+    - .github/workflows/standardize-fanout.yml
+    - CLAUDE.md
+    - _data/fleet.yml
+    diff: '(not recorded: the case keeps the changed file names, not the patch)'
+  expected:
+    caused_by_pr: 'yes'
+    root_cause_any:
+    - actionlint
+    - sc2006
+    - backtick
+  pass: caused_by_pr equals expected, and the summary, root cause or evidence names one of root_cause_any
+  why: 'The commit added a budget-abort `::error::` annotation to run: scripts in fleet-pulse.yml, issue-pipeline.yml, repo-evolution.yml
+    and unified-evolution.yml with unescaped backticks inside a double-quoted string, which bash would treat as command substitution.
+    actionlint''s shellcheck pass reports SC2006 for each of the six scripts and exits 1.'
+- id: drift-check-34055837670-scripts
+  source: bamr87/bamr87#244, run 34055837670 (.github/workflows/drift-check.yml)
+  fixed_by: 'On main, #251 (355e76f4f6) moved scripts/audit-git-hooks.sh to tools/audit-git-hooks.sh, removing the stray directory;
+    main''s drift-check went green.'
+  input:
+    repo: bamr87/bamr87
+    pr: 244
+    title: ''
+    runs:
+    - id: 34055837670
+      name: 🚧 Drift Check
+      conclusion: failure
+      path: .github/workflows/drift-check.yml
+      jobs:
+      - job: drift
+        step: Run drift gate
+        reason: '✗ hub pyramid has 1 warning(s) — warnings gate here; mechanical drift (strays/stale rows) auto-fixes with:
+          python3 tools/schema_lint.py check . --fix'
+        class: defect
+        cause: exit-code
+        log: "##[group]Run tools/check-drift.sh --ci\ntools/check-drift.sh --ci\n== Drift check ==\n(a) registry ↔ .gitmodules\
+          \ parity / (e) submodule branches\n  ✓ registry/submodule parity\n(b) README AUTO:projects freshness\n  ✓ README\
+          \ AUTO:projects up to date\n(d) README presence\n  ✗ missing README in: scripts\n(f) standardization conformance\n\
+          \  ! standardization: skipped (no submodules checked out)\n(h) SCHEMA.md pyramid\n  ✗ hub pyramid has 1 warning(s)\
+          \ — warnings gate here; mechanical drift (strays/stale rows) auto-fixes with: python3 tools/schema_lint.py check\
+          \ . --fix\n      warning  .: unregistered entry 'scripts'\n  ✓ projects/SCHEMA.md matches .gitmodules + registry\n\
+          \  ! 10 bamr87/books bamr87/cv bamr87/cv-builder-pro bamr87/drsai bamr87/git-with-the-program unread (private or\
+          \ 404 under a repo-scoped token) — NOT verified clean\n\n❌ 2 drift issue(s).\n##[error]Process completed with exit\
+          \ code 1."
+    files:
+    - .github/workflows/fleet-conformance.yml
+    diff: '(not recorded: the case keeps the changed file names, not the patch)'
+  expected:
+    caused_by_pr: 'no'
+    root_cause_any:
+    - scripts
+    - readme
+    - schema
+  pass: caused_by_pr equals expected, and the summary, root cause or evidence names one of root_cause_any
+  why: 'This Dependabot PR only bumps actions/upload-artifact in fleet-conformance.yml. The gate failed on main''s state:
+    #203 had just added a top-level scripts/ directory (scripts/audit-git-hooks.sh) with no README and no row in the root
+    SCHEMA.md, which fails check (d) README presence and check (h) the SCHEMA pyramid. Drift Check on main was red from that
+    commit on.'
+- id: drift-check-44382453979-agents-yml
+  source: bamr87/bamr87#928, run 44382453979 (.github/workflows/drift-check.yml)
+  fixed_by: b04a6b3682 regenerated _data/agents.yml for the new JEV tier models; drift-check passed.
+  input:
+    repo: bamr87/bamr87
+    pr: 928
+    title: ''
+    runs:
+    - id: 44382453979
+      name: 🚧 Drift Check
+      conclusion: failure
+      path: .github/workflows/drift-check.yml
+      jobs:
+      - job: drift
+        step: Run drift gate
+        reason: '✗ 3 registered agent(s) whose entry is stale: jev:tier1, jev:tier2, local:conflict-sweep — run `tools/dash
+          agents` and commit _data/agents.yml'
+        class: defect
+        cause: exit-code
+        log: "##[group]Run if [ \"$EVENT\" = schedule ] || [ \"$EVENT\" = workflow_dispatch ]; then\nif [ \"$EVENT\" = schedule\
+          \ ] || [ \"$EVENT\" = workflow_dispatch ]; then\n  tools/check-drift.sh --ci\nelse\n  tools/check-drift.sh\nfi\n\
+          (o) frontend registry (_data/projects.yml frontend: blocks)\n  ✓ frontend registry: 41 entries, 0 problem(s)\n(p)\
+          \ agent inventory (_data/agents.yml, efficacy contract)\n  ! contract gaps (shadow: enforce is false, shadow until\
+          \ 2026-11-21): 133 of 142 agents — R1 115 · R2 133 · R5 3 · R6 77 (`tools/dash agents --verbose` lists them)\n \
+          \ ✗ 3 registered agent(s) whose entry is stale: jev:tier1, jev:tier2, local:conflict-sweep — run `tools/dash agents`\
+          \ and commit _data/agents.yml\n(q) hub pins resolve (templates/ against the hub's tags)\n  ✓ 10 of 10 hub pin(s)\
+          \ in templates resolve (10 distinct target@ref, via the local tags, offline)\n(r) expedite-sprint records (_data/sprints/,\
+          \ sprint/v1)\n  ✓ sprint records: 0 record(s), 0 active (WIP 1) — clean\n\n❌ 1 drift issue(s).\n##[error]Process\
+          \ completed with exit code 1."
+    files:
+    - _data/fleet.yml
+    - .github/scripts/dash-gen/test_ai_budget.py
+    - changelog.d/model-allowlist-guard.md
+    - docs/JEV.md
+    - features/features.yml
+    diff: '(not recorded: the case keeps the changed file names, not the patch)'
+  expected:
+    caused_by_pr: 'yes'
+    root_cause_any:
+    - agents.yml
+    - stale
+    - tools/dash agents
+  pass: caused_by_pr equals expected, and the summary, root cause or evidence names one of root_cause_any
+  why: 'The PR changed the Claude model ids in _data/fleet.yml (including the JEV tier models) but did not regenerate the
+    agent inventory. Drift check (p) compares _data/agents.yml with what `tools/dash agents` derives from the config and found
+    three stale entries: jev:tier1, jev:tier2 and local:conflict-sweep.'
+- id: drift-check-37155018068-shellcheck-py
+  source: bamr87/bamr87#310, run 37155018068 (.github/workflows/drift-check.yml)
+  fixed_by: c03cb61d95 'remove accidentally committed shellcheck wheel'; drift-check passed.
+  input:
+    repo: bamr87/bamr87
+    pr: 310
+    title: ''
+    runs:
+    - id: 37155018068
+      name: 🚧 Drift Check
+      conclusion: failure
+      path: .github/workflows/drift-check.yml
+      jobs:
+      - job: drift
+        step: Run drift gate
+        reason: '✗ hub pyramid has 1 warning(s) — warnings gate here; mechanical drift (strays/stale rows) auto-fixes with:
+          python3 tools/schema_lint.py check . --fix'
+        class: defect
+        cause: exit-code
+        log: "##[group]Run tools/check-drift.sh --ci\ntools/check-drift.sh --ci\n== Drift check ==\n(a) registry ↔ .gitmodules\
+          \ parity / (e) submodule branches\n  ✓ registry/submodule parity\n(b) README AUTO:projects freshness\n  ✓ README\
+          \ AUTO:projects up to date\n(d) README presence\n  ✓ all module dirs have a README\n(f) standardization conformance\n\
+          \  ! standardization: skipped (no submodules checked out)\n(h) SCHEMA.md pyramid\n  ✗ hub pyramid has 1 warning(s)\
+          \ — warnings gate here; mechanical drift (strays/stale rows) auto-fixes with: python3 tools/schema_lint.py check\
+          \ . --fix\n      warning  .: unregistered entry 'shellcheck_py-0.11.0.1-py2.py3-none-manylinux1_x86_64.manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_5_x86_64.whl'\n\
+          \  ✓ projects/SCHEMA.md matches .gitmodules + registry\n\n❌ 1 drift issue(s).\n##[error]Process completed with exit\
+          \ code 1."
+    files:
+    - .github/workflows/standard-ci.yml
+    - shellcheck_py-0.11.0.1-py2.py3-none-manylinux1_x86_64.manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_5_x86_64.whl
+    - tools/issue-evidence.sh
+    diff: '(not recorded: the case keeps the changed file names, not the patch)'
+  expected:
+    caused_by_pr: 'yes'
+    root_cause_any:
+    - shellcheck_py
+    - whl
+    - unregistered
+  pass: caused_by_pr equals expected, and the summary, root cause or evidence names one of root_cause_any
+  why: The commit accidentally added a downloaded shellcheck_py wheel at the repository root. The SCHEMA.md pyramid check
+    needs a registered row for every root entry, so the stray .whl file is an 'unregistered entry' warning, and warnings fail
+    the gate.
+- id: verify-36787318493-claude-auth
+  source: bamr87/bamr87#296, run 36787318493 (.github/workflows/verify.yml)
+  fixed_by: 'unknown: no later Verify run on the branch; the PR merged as-is, after which the @main reference resolves.'
+  input:
+    repo: bamr87/bamr87
+    pr: 296
+    title: ''
+    runs:
+    - id: 36787318493
+      name: Verify
+      conclusion: failure
+      path: .github/workflows/verify.yml
+      jobs:
+      - job: verify / Scenarios + evidence
+        step: Set up job
+        reason: 'The step printed no clear error. Its last output: ##[error]Can''t find ''action.yml'', ''action.yaml'' or
+          ''Dockerfile'' for action ''bamr87/bamr87/.github/actions/claude-auth@main''.'
+        class: config
+        cause: missing-ref
+        log: '##[endgroup]
+
+          ##[group]GITHUB_TOKEN Permissions
+
+          Contents: read
+
+          Metadata: read
+
+          PullRequests: write
+
+          ##[endgroup]
+
+          Secret source: Actions
+
+          Cache mode: write
+
+          Prepare workflow directory
+
+          Prepare all required actions
+
+          Getting action download info
+
+          Download action repository ''actions/checkout@v7'' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+
+          Download action repository ''actions/setup-node@v7'' (SHA:820762786026740c76f36085b0efc47a31fe5020)
+
+          Download action repository ''actions/setup-python@v7'' (SHA:5fda3b95a4ea91299a34e894583c3862153e4b97)
+
+          Download action repository ''ruby/setup-ruby@v1'' (SHA:14594264cd68ce8a2345dd349bc3d138a4ef85c8)
+
+          Download action repository ''actions/upload-artifact@v7'' (SHA:043fb46d1a93c77aae656e7c1c64a875d1fc6a0a)
+
+          Download action repository ''bamr87/bamr87@main'' (SHA:5c1824710369412b96b892a621353922e46b8d10)
+
+          Download action repository ''anthropics/claude-code-action@v1'' (SHA:12dd8d74c712f5f3669365b2369b558c495b1104)
+
+          ##[error]Can''t find ''action.yml'', ''action.yaml'' or ''Dockerfile'' for action ''bamr87/bamr87/.github/actions/claude-auth@main''.'
+    files:
+    - .github/workflows/fleet-verify.yml
+    - .github/actions/claude-auth/action.yml
+    - .github/actions/README.md
+    - .github/actions/claude-auth/README.md
+    - .github/actions/claude-run/README.md
+    - .github/actions/claude-run/action.yml
+    - .github/actions/claude-run/run.sh
+    - .github/scripts/dash-gen/harness_registry.py
+    - .github/scripts/dash-gen/requirements.txt
+    - .github/scripts/dash-gen/test_evolution.py
+    - .github/scripts/dash-gen/test_harness_registry.py
+    - .github/scripts/dash-gen/test_schedule.py
+    - .github/workflows/README.md
+    - .github/workflows/ai-lane.yml
+    - .github/workflows/api-keys.yml
+    diff: '(not recorded: the case keeps the changed file names, not the patch)'
+  expected:
+    caused_by_pr: 'yes'
+    root_cause_any:
+    - claude-auth
+    - '@main'
+    - action.yml
+  pass: caused_by_pr equals expected, and the summary, root cause or evidence names one of root_cause_any
+  why: The PR added a new composite action, .github/actions/claude-auth, and made fleet-verify.yml (called locally by verify.yml)
+    use it as `bamr87/bamr87/.github/actions/claude-auth@main`. The runner resolves that reference against main, where the
+    action does not exist until the PR merges, so the job fails in 'Set up job' before any step runs.
+- id: verify-41725787279-rate-limit
+  source: bamr87/bamr87#640, run 41725787279 (.github/workflows/verify.yml)
+  fixed_by: 'No fix: Verify passed on d572891e4b (a test-only commit) and later failed again with the same rate-limit error
+    on other commits; the PR merged.'
+  input:
+    repo: bamr87/bamr87
+    pr: 640
+    title: ''
+    runs:
+    - id: 41725787279
+      name: Verify
+      conclusion: failure
+      path: .github/workflows/verify.yml
+      jobs:
+      - job: verify / Scenarios + evidence
+        step: Run actions/setup-node@v7
+        reason: 'Failed to fetch a valid manifest after 3 attempts. Last error: API rate limit exceeded for installation.
+          If you reach out to GitHub Support for help, please include the request ID 0442:138E65:B9A0:1420C:6AEA57CC and timestamp
+          2026-11-03 21:53:16 UTC. For more on scraping GitHub and how it may affect your rights, please review our Terms
+          of Service (https://docs.github.com/en/site-policy/github-terms/github-terms-of-service)'
+        class: transient
+        cause: api-rate-limit
+        log: "##[group]Run actions/setup-node@v7\nwith:\n  node-version: lts/*\n  check-latest: false\n  token: ***\n  package-manager-cache:\
+          \ true\nenv:\n  NODE_V: lts/*\n  PYTHON_V: 3.12\n  RUBY_V: 3.3\n  CONFIG: verify/verify.yml\n  HUB: .fleet-hub\n\
+          \  HAS_CLAUDE_AUTH: true\n##[endgroup]\nAttempt to resolve LTS alias from manifest...\nRetrying to fetch the manifest...\n\
+          Retrying to fetch the manifest...\n##[error]Failed to fetch a valid manifest after 3 attempts. Last error: API rate\
+          \ limit exceeded for installation. If you reach out to GitHub Support for help, please include the request ID 0442:138E65:B9A0:1420C:6AEA57CC\
+          \ and timestamp 2026-11-03 21:53:16 UTC. For more on scraping GitHub and how it may affect your rights, please review\
+          \ our Terms of Service (https://docs.github.com/en/site-policy/github-terms/github-terms-of-service)"
+    files:
+    - .github/scripts/dash-gen/README.md
+    - .github/scripts/dash-gen/agent_fill.py
+    - .github/scripts/dash-gen/agent_fill_file.py
+    - .github/scripts/dash-gen/dash_gen.py
+    - .github/workflows/fanout.yml
+    - _data/fleet.yml
+    - changelog.d/jev-step-fanout-agent-fill.md
+    - docs/AI-INTEGRATION.md
+    - docs/JEV.md
+    - docs/SCHEMA-FRAMEWORK.md
+    - docs/adr/0002-agent-step-specs-and-local-runner.md
+    - features/features.d/jev-step-fanout-agent-fill.yml
+    - tools/jev/adapters/README.md
+    - tools/jev/adapters/SCHEMA.md
+    - tools/jev/adapters/__init__.py
+    diff: '(not recorded: the case keeps the changed file names, not the patch)'
+  expected:
+    caused_by_pr: 'no'
+    root_cause_any:
+    - rate limit
+    - setup-node
+    - manifest
+  pass: caused_by_pr equals expected, and the summary, root cause or evidence names one of root_cause_any
+  why: 'actions/setup-node resolves `node-version: lts/*` by fetching the Node versions manifest from the GitHub API, and
+    all three attempts got ''API rate limit exceeded for installation''. It is a transient quota problem on the runner''s
+    token, unrelated to the PR''s JEV and Python changes.'
+- id: verify-43065787446-network
+  source: bamr87/bamr87#825, run 43065787446 (.github/workflows/verify.yml)
+  fixed_by: 'No code fix: the next Verify run on the branch (a5bb9277e0, a YAML style change in _data/fleet.yml) passed.'
+  input:
+    repo: bamr87/bamr87
+    pr: 825
+    title: ''
+    runs:
+    - id: 43065787446
+      name: Verify
+      conclusion: failure
+      path: .github/workflows/verify.yml
+      jobs:
+      - job: verify / Scenarios + evidence
+        step: Install the runner's dependencies + Chromium
+        reason: Failed to install browsers
+        class: defect
+        cause: exit-code
+        log: "##[group]Run set -euo pipefail\nset -euo pipefail\n# Installed into verify/node_modules, which verify/runner.mjs\
+          \ resolves\n# first, so the repo's own package.json / lockfile / node_modules are\n# never touched: installing on\
+          \ top of an existing tree crashes npm\n# (\"Cannot read properties of null (reading 'edgesOut')\").\nnpm install\
+          \ --prefix verify --no-save --no-audit --no-fund --no-package-lock @playwright/test yaml\nverify/node_modules/.bin/playwright\
+          \ install --with-deps chromium\nIgn:2 http://azure.archive.ubuntu.com/ubuntu resolute/universe amd64v3 fonts-ipafont-gothic\
+          \ all 00303-23ubuntu1\nIgn:3 http://azure.archive.ubuntu.com/ubuntu resolute/main amd64v3 fonts-freefont-ttf all\
+          \ 20211204+svn4273-4build1\nIgn:2 https://archive.ubuntu.com/ubuntu resolute/universe amd64v3 fonts-ipafont-gothic\
+          \ all 00303-23ubuntu1\nGet:4 http://azure.archive.ubuntu.com/ubuntu resolute/universe amd64v3 fonts-tlwg-loma-otf\
+          \ all 1:0.7.3-1build1 [106 kB]\nGet:5 http://azure.archive.ubuntu.com/ubuntu resolute/universe amd64v3 fonts-unifont\
+          \ all 1:16.0.04-1build1 [3169 kB]\nGet:6 http://azure.archive.ubuntu.com/ubuntu resolute/universe amd64v3 fonts-wqy-zenhei\
+          \ all 0.9.45-8build1 [7863 kB]\nGet:7 http://azure.archive.ubuntu.com/ubuntu resolute/main amd64v3 xfonts-encodings\
+          \ all 1:1.0.5-0ubuntu3 [576 kB]\nGet:8 http://azure.archive.ubuntu.com/ubuntu resolute/main amd64v3 xfonts-utils\
+          \ amd64 1:7.7+7build1 [97.3 kB]\nGet:9 http://azure.archive.ubuntu.com/ubuntu resolute/universe amd64v3 xfonts-cyrillic\
+          \ all 1:1.0.5+nmu1build1 [384 kB]\nGet:10 http://azure.archive.ubuntu.com/ubuntu resolute/universe amd64v3 xfonts-scalable\
+          \ all 1:1.0.3-1.3build1 [304 kB]\nErr:2 https://security.ubuntu.com/ubuntu resolute/universe amd64v3 fonts-ipafont-gothic\
+          \ all 00303-23ubuntu1\n  Temporary failure resolving 'azure.archive.ubuntu.com'\n  Temporary failure resolving 'archive.ubuntu.com'\n\
+          \  Cannot initiate the connection to security.ubuntu.com:443 (2620:2d:4002:1::101). - connect (101: Network is unreachable)\
+          \ Cannot initiate the connection to security.ubuntu.com:443 (2a06:bc80:0:1000::17). - connect (101: Network is unreachable)\
+          \ Cannot initiate the connection to security.ubuntu.com:443 (2620:2d:4002:1::103). - connect (101: Network is unreachable)\
+          \ Cannot initiate the connection to security.ubuntu.com:443 (2620:2d:4000:1::101). - connect (101: Network is unreachable)\
+          \ Cannot initiate the connection to security.ubuntu.com:443 (2620:2d:4000:1::102). - connect (101: Network is unreachable)\
+          \ Cannot initiate the connection to security.ubuntu.com:443 (2620:2d:4002:1::102). - connect (101: Network is unreachable)\
+          \ Cannot initiate the connection to security.ubuntu.com:443 (2a06:bc80:10:1000::216). - connect (101: Network is\
+          \ unreachable) Cannot initiate the connection to security.ubuntu.com:443 (2a06:bc80:10:1000::35c). - connect (101:\
+          \ Network is unreachable) Cannot initiate the connection to security.ubuntu.com:443 (2a06:bc80:10:1000::398). -\
+          \ connect (101: Network is unreachable) Cannot initiate the connection to security.ubuntu.com:443 (2a06:bc80:0:1000::16).\
+          \ - connect (101: Network is unreachable) Cannot initiate the connection to security.ubuntu.com:443 (2a06:bc80:0:1000::18).\
+          \ - connect (101: Network is unreachable) Cannot initiate the connection to security.ubuntu.com:443 (2620:2d:4000:1::103).\
+          \ - connect (101: Network is unreachable)\nIgn:3 https://archive.ubuntu.com/ubuntu resolute/main amd64v3 fonts-freefont-ttf\
+          \ all 20211204+svn4273-4build1\nErr:3 https://security.ubuntu.com/ubuntu resolute/main amd64v3 fonts-freefont-ttf\
+          \ all 20211204+svn4273-4build1\n  Temporary failure resolving 'azure.archive.ubuntu.com'\nE: Unable to fetch some\
+          \ archives, maybe run apt update or try with --fix-missing?\nFetched 12.5 MB in 2min 5s (99.8 kB/s)\nFailed to install\
+          \ browsers\nError: Installation process exited with code: 100\n##[error]Process completed with exit code 1."
+    files:
+    - .github/scripts/dash-gen/agent_inventory.py
+    - .github/scripts/dash-gen/harness_registry.py
+    - .github/scripts/dash-gen/test_harness_registry.py
+    - .github/scripts/dash-gen/workflow_atlas.py
+    - .github/workflows/claude.yml
+    - .github/workflows/fleet-verify.yml
+    - .github/workflows/issue-pipeline.yml
+    - AGENTS.md
+    - _data/SCHEMA.md
+    - _data/agents.yml
+    - _data/fleet.yml
+    - _data/harness_registry.yml
+    - docs/AGENT-EFFICACY.md
+    - docs/HARNESS-OPS.md
+    - docs/HARNESS.md
+    diff: '(not recorded: the case keeps the changed file names, not the patch)'
+  expected:
+    caused_by_pr: 'no'
+    root_cause_any:
+    - network
+    - apt
+    - playwright
+  pass: caused_by_pr equals expected, and the summary, root cause or evidence names one of root_cause_any
+  why: '`playwright install --with-deps chromium` runs apt-get, and the runner could not resolve or reach the Ubuntu mirrors
+    (''Temporary failure resolving'', ''Network is unreachable''), so two font packages failed to download and the installer
+    exited with code 100. It is a transient runner network failure; the PR changes harness-inventory code and data, not the
+    verify setup.'
+- id: markdown-oneline-37570350631-branch
+  source: bamr87/bamr87#320, run 37570350631 (.github/workflows/markdown-oneline.yml)
+  fixed_by: 'Later, #846 changed markdown-oneline.yml to check out pull_request.head.sha instead of the branch name (and #860
+    shipped the same fix in the prose kit).'
+  input:
+    repo: bamr87/bamr87
+    pr: 320
+    title: ''
+    runs:
+    - id: 37570350631
+      name: markdown-oneline
+      conclusion: failure
+      path: .github/workflows/markdown-oneline.yml
+      jobs:
+      - job: oneline
+        step: Run actions/checkout@v7
+        reason: 'The step printed no clear error. Its last output: Waiting 12 seconds before trying again'
+        class: defect
+        cause: exit-code
+        log: "##[group]Run actions/checkout@v7\nwith:\n  ref: fix/qa40-pin-policy\n  repository: bamr87/bamr87\n  token: ***\n\
+          Syncing repository: bamr87/bamr87\n##[group]Fetching the repository\n[command]/usr/bin/git -c protocol.version=2\
+          \ fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +refs/heads/fix/qa40-pin-policy*:refs/remotes/origin/fix/qa40-pin-policy*\
+          \ +refs/tags/fix/qa40-pin-policy*:refs/tags/fix/qa40-pin-policy*\nThe process '/usr/bin/git' failed with exit code\
+          \ 1\nWaiting 18 seconds before trying again\n[command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune\
+          \ --no-recurse-submodules --depth=1 origin +refs/heads/fix/qa40-pin-policy*:refs/remotes/origin/fix/qa40-pin-policy*\
+          \ +refs/tags/fix/qa40-pin-policy*:refs/tags/fix/qa40-pin-policy*\nThe process '/usr/bin/git' failed with exit code\
+          \ 1\nWaiting 12 seconds before trying again\n[command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune\
+          \ --no-recurse-submodules --depth=1 origin +refs/heads/fix/qa40-pin-policy*:refs/remotes/origin/fix/qa40-pin-policy*\
+          \ +refs/tags/fix/qa40-pin-policy*:refs/tags/fix/qa40-pin-policy*\n##[error]The process '/usr/bin/git' failed with\
+          \ exit code 1\nPost job cleanup."
+    files:
+    - CATALOG.md
+    - tools/conformance.py
+    - tools/test_pin_policy.py
+    diff: '(not recorded: the case keeps the changed file names, not the patch)'
+  expected:
+    caused_by_pr: 'no'
+    root_cause_any:
+    - branch
+    - deleted
+    - checkout
+  pass: caused_by_pr equals expected, and the summary, root cause or evidence names one of root_cause_any
+  why: 'The workflow checked out the PR''s head branch by name (`ref: fix/qa40-pin-policy`). PR #320 merged two seconds after
+    the run was created and its branch was auto-deleted, so every `git fetch` of that branch failed and checkout gave up after
+    three attempts. The PR''s Markdown was not at fault.'
+- id: conformance-36378361627-gitmodules
+  source: bamr87/bamr87#245, run 36378361627 (.github/workflows/conformance.yml)
+  fixed_by: 2a7b4c570b 'restore main's .gitmodules, submodule pointers and fleet data lost in the main merges'; Conformance
+    and Verify passed on it.
+  input:
+    repo: bamr87/bamr87
+    pr: 245
+    title: ''
+    runs:
+    - id: 36378361627
+      name: Conformance
+      conclusion: failure
+      path: .github/workflows/conformance.yml
+      jobs:
+      - job: conformance / UPS conformance
+        step: Checkout the hub (spec + checker)
+        reason: 'The step printed no clear error. Its last output: ##[error]fatal: No url found for submodule path ''projects/bashos''
+          in .gitmodules'
+        class: defect
+        cause: exit-code
+        log: "##[group]Fetching the repository\n[command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules\
+          \ --depth=1 origin c4143f570628b7047bf831b4af7cfdf5ae2f03e2\nFrom https://github.com/bamr87/bamr87\n * branch  \
+          \          c4143f570628b7047bf831b4af7cfdf5ae2f03e2 -> FETCH_HEAD\n[command]/usr/bin/git rev-parse --verify --quiet\
+          \ c4143f570628b7047bf831b4af7cfdf5ae2f03e2^{object}\nc4143f570628b7047bf831b4af7cfdf5ae2f03e2\n##[endgroup]\n##[group]Checking\
+          \ out the ref\n[command]/usr/bin/git checkout --progress --force c4143f570628b7047bf831b4af7cfdf5ae2f03e2\nHEAD\
+          \ is now at c4143f5 Merge origin/main into feat/agent-verification\n##[endgroup]\n[command]/usr/bin/git log -1 --format=%H\n\
+          c4143f570628b7047bf831b4af7cfdf5ae2f03e2\n##[group]Removing auth\nRemoving SSH command configuration\n[command]/usr/bin/git\
+          \ config --local --name-only --get-regexp core\\.sshCommand\n[command]/usr/bin/git submodule foreach --recursive\
+          \ sh -c \"git config --local --name-only --get-regexp 'core\\.sshCommand' && git config --local --unset-all 'core.sshCommand'\
+          \ || :\"\n##[error]fatal: No url found for submodule path 'projects/bashos' in .gitmodules\n##[error]The process\
+          \ '/usr/bin/git' failed with exit code 128"
+    files:
+    - .gitmodules
+    - projects/SCHEMA.md
+    - projects/README.md
+    - .claude/README.md
+    - .claude/agents/verifier.md
+    - .claude/skills/verify-feature/SKILL.md
+    - .github/workflows/README.md
+    - .github/workflows/fleet-pulse.yml
+    - .github/workflows/fleet-verify.yml
+    - .github/workflows/verify-fanout.yml
+    - .github/workflows/verify.yml
+    - .gitignore
+    - .mcp.json
+    - AGENTS.md
+    - CATALOG.md
+    diff: '(not recorded: the case keeps the changed file names, not the patch)'
+  expected:
+    caused_by_pr: 'yes'
+    root_cause_any:
+    - .gitmodules
+    - submodule
+    - bashos
+  pass: caused_by_pr equals expected, and the summary, root cause or evidence names one of root_cause_any
+  why: A merge of origin/main into this long-running branch kept an old .gitmodules, dropping the [submodule "projects/bashos"]
+    entry (and several others) while the projects/bashos gitlink stayed in the tree. actions/checkout's `git submodule foreach`
+    cleanup then aborts with 'No url found for submodule path projects/bashos in .gitmodules'.
+- id: fleet-engines-contract-38685808109-vitest
+  source: bamr87/bamr87#356, run 38685808109 (.github/workflows/fleet-engines-contract.yml)
+  fixed_by: b9a0b97feb set setup-node's node-version-file to templates/fleet-engines/package.json so the gate runs the kit's
+    own engines.node (>=22); the contract gate passed.
+  input:
+    repo: bamr87/bamr87
+    pr: 356
+    title: ''
+    runs:
+    - id: 38685808109
+      name: fleet-engines-contract
+      conclusion: failure
+      path: .github/workflows/fleet-engines-contract.yml
+      jobs:
+      - job: engines contract
+        step: Install (always-latest, no lockfile)
+        reason: npm error Cannot read properties of null (reading 'edgesOut')
+        class: defect
+        cause: exit-code
+        log: "##[group]Run actions/setup-node@v7\nwith:\n  node-version: 20\n  check-latest: false\n  token: ***\n  package-manager-cache:\
+          \ true\n##[endgroup]\nAttempting to download 20...\nAcquiring 20.20.2 - x64 from https://github.com/actions/node-versions/releases/download/20.20.2-23521894959/node-20.20.2-linux-x64.tar.gz\n\
+          Extracting ...\n[command]/usr/bin/tar xz --strip 1 --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/82cf342d-e699-4c62-9c6d-4b62a7f1dbba\
+          \ -f /home/runner/work/_temp/dc64d674-f115-4f23-9521-b7776ed52fd6\nAdding to the cache ...\n##[group]Environment\
+          \ details\nnode: v20.20.2\nnpm: 10.8.2\nyarn: 1.22.22\n##[endgroup]\n##[group]Run npm install --no-audit --no-fund\
+          \ --no-package-lock\nnpm install --no-audit --no-fund --no-package-lock\nshell: /usr/bin/bash -e {0}\n##[endgroup]\n\
+          npm error Cannot read properties of null (reading 'edgesOut')\nnpm error A complete log of this run can be found\
+          \ in: /home/runner/.npm/_logs/2026-10-15T05_17_49_884Z-debug-0.log\n##[error]Process completed with exit code 1."
+    files:
+    - templates/fleet-engines/package.json
+    diff: '(not recorded: the case keeps the changed file names, not the patch)'
+  expected:
+    caused_by_pr: 'yes'
+    root_cause_any:
+    - vitest
+    - node
+    - npm
+  pass: caused_by_pr equals expected, and the summary, root cause or evidence names one of root_cause_any
+  why: The PR raised the kit's vitest floor to >=5.0.4, and vitest 5 needs Node 22 (the kit declares engines.node >=22), but
+    the gate set up Node 20 from vars.NODE_VERSION. npm 10.8.2 on Node 20 crashed while resolving the tree ('Cannot read properties
+    of null (reading edgesOut)') instead of reporting the engine mismatch.
+- id: fleet-engines-contract-34299846463-gitignore
+  source: bamr87/bamr87#255, run 34299846463 (.github/workflows/fleet-engines-contract.yml)
+  fixed_by: 24af99a623 force-added the three files under src/github/ ('a root .gitignore pattern swallowed it'); the gate
+    passed.
+  input:
+    repo: bamr87/bamr87
+    pr: 255
+    title: ''
+    runs:
+    - id: 34299846463
+      name: fleet-engines-contract
+      conclusion: failure
+      path: .github/workflows/fleet-engines-contract.yml
+      jobs:
+      - job: engines contract
+        step: Typecheck
+        reason: 'The step printed no clear error. Its last output: ##[error]src/index.ts(7,15): error TS2307: Cannot find
+          module ''./github/telemetry.js'' or its corresponding type declarations.'
+        class: defect
+        cause: code
+        log: '##[group]Run npm run typecheck
+
+          npm run typecheck
+
+          shell: /usr/bin/bash -e {0}
+
+          ##[endgroup]
+
+
+          > @bamr87/fleet-engines@0.1.0 typecheck
+
+          > tsc -p tsconfig.json --noEmit
+
+
+          ##[error]src/fleet/import.ts(6,44): error TS2307: Cannot find module ''../github/types.js'' or its corresponding
+          type declarations.
+
+          ##[error]src/fleet/import.ts(21,33): error TS7006: Parameter ''e'' implicitly has an ''any'' type.
+
+          ##[error]src/fleet/import.ts(23,22): error TS7006: Parameter ''e'' implicitly has an ''any'' type.
+
+          ##[error]src/fleet/import.ts(28,26): error TS7006: Parameter ''f'' implicitly has an ''any'' type.
+
+          ##[error]src/fleet/manifest.ts(8,37): error TS2307: Cannot find module ''../github/types.js'' or its corresponding
+          type declarations.
+
+          ##[error]src/fleet/metrics.test.ts(4,33): error TS2307: Cannot find module ''../github/types.js'' or its corresponding
+          type declarations.
+
+          ##[error]src/fleet/metrics.ts(10,33): error TS2307: Cannot find module ''../github/types.js'' or its corresponding
+          type declarations.
+
+          ##[error]src/fleet/parse.test.ts(4,30): error TS2307: Cannot find module ''../github/types.js'' or its corresponding
+          type declarations.
+
+          ##[error]src/fleet/parse.ts(13,30): error TS2307: Cannot find module ''../github/types.js'' or its corresponding
+          type declarations.
+
+          ##[error]src/fleet/types.ts(7,30): error TS2307: Cannot find module ''../github/types.js'' or its corresponding
+          type declarations.
+
+          ##[error]src/harness/hub-paths.ts(5,27): error TS2307: Cannot find module ''../github/types.js'' or its corresponding
+          type declarations.
+
+          ##[error]src/harness/hubread.ts(6,59): error TS2307: Cannot find module ''../github/types.js'' or its corresponding
+          type declarations.
+
+          ##[error]src/harness/signals.ts(7,33): error TS2307: Cannot find module ''../github/types.js'' or its corresponding
+          type declarations.
+
+          ##[error]src/index.ts(6,15): error TS2307: Cannot find module ''./github/types.js'' or its corresponding type declarations.
+
+          ##[error]src/index.ts(7,15): error TS2307: Cannot find module ''./github/telemetry.js'' or its corresponding type
+          declarations.
+
+          ##[error]Process completed with exit code 1.'
+    files:
+    - .github/workflows/fleet-engines-contract.yml
+    - templates/fleet-engines/package.json
+    - templates/fleet-engines/.gitignore
+    - templates/fleet-engines/src/index.ts
+    - templates/fleet-engines/src/fleet/import.ts
+    - .github/workflows/README.md
+    - .github/workflows/publish-kits.yml
+    - CATALOG.md
+    - _data/templates.yml
+    - templates/README.md
+    - templates/SCHEMA.md
+    - templates/fleet-engines/README.md
+    - templates/fleet-engines/VERSION
+    - templates/fleet-engines/src/fleet/audit.test.ts
+    - templates/fleet-engines/src/fleet/audit.ts
+    diff: '(not recorded: the case keeps the changed file names, not the patch)'
+  expected:
+    caused_by_pr: 'yes'
+    root_cause_any:
+    - gitignore
+    - src/github
+    - ts2307
+  pass: caused_by_pr equals expected, and the summary, root cause or evidence names one of root_cause_any
+  why: The new kit imports ./github/types.js and ./github/telemetry.js, but templates/fleet-engines/src/github/ was never
+    committed because the hub's root .gitignore matches a 'github' path segment. tsc therefore reports TS2307 'Cannot find
+    module ../github/types.js' for every importer, plus follow-on implicit-any errors.
+- id: infra-41557656708-tofu-fmt
+  source: bamr87/bamr87#606, run 41557656708 (.github/workflows/infra.yml)
+  fixed_by: 3efadd17a3 'format outputs.tf the way tofu fmt does'; infra passed.
+  input:
+    repo: bamr87/bamr87
+    pr: 606
+    title: ''
+    runs:
+    - id: 41557656708
+      name: infra
+      conclusion: failure
+      path: .github/workflows/infra.yml
+      jobs:
+      - job: validate
+        step: Format
+        reason: 'The step printed no clear error. Its last output:    }'
+        class: defect
+        cause: exit-code
+        log: "##[group]Run tofu fmt -check -recursive -diff infra\ntofu fmt -check -recursive -diff infra\nshell: /usr/bin/bash\
+          \ -e {0}\n##[endgroup]\ninfra/node/outputs.tf\n--- old/infra/node/outputs.tf\n+++ new/infra/node/outputs.tf\n@@\
+          \ -5,7 +5,7 @@\n\n output \"volumes\" {\n   description = \"The volumes this state owns, by kind.\"\n-  value  \
+          \     = {\n+  value = {\n     durable     = sort([for v in docker_volume.durable : v.name])\n     rebuildable =\
+          \ sort([for v in docker_volume.rebuildable : v.name])\n   }\n##[error]Process completed with exit code 3."
+    files:
+    - infra/node/outputs.tf
+    - .github/workflows/README.md
+    - .github/workflows/infra.yml
+    - .gitignore
+    - AGENTS.md
+    - SCHEMA.md
+    - _data/fleet.yml
+    - _data/roadmap.yml
+    - docs/DASH.md
+    - docs/FORGE-HOST.md
+    - docs/PLATFORM.md
+    - docs/adr/0003-fleet-platform-nodes-iac-and-scale-out.md
+    - docs/adr/README.md
+    - features/features.d/fleet-platform-nodes.yml
+    - infra/README.md
+    diff: '(not recorded: the case keeps the changed file names, not the patch)'
+  expected:
+    caused_by_pr: 'yes'
+    root_cause_any:
+    - tofu fmt
+    - outputs.tf
+  pass: caused_by_pr equals expected, and the summary, root cause or evidence names one of root_cause_any
+  why: infra/node/outputs.tf, added by the PR, padded `value       = {` with extra spaces. `tofu fmt -check -recursive -diff
+    infra` wants `value = {` and exits 3 when a file is not canonically formatted.
+- id: site-quality-self-test-40635961937-npm-ci
+  source: bamr87/bamr87#422, run 40635961937 (.github/workflows/site-quality-selftest.yml)
+  fixed_by: 2d2aca569e moved the overrides to top level and regenerated the lockfile with npm 10; the self-test passed.
+  input:
+    repo: bamr87/bamr87
+    pr: 422
+    title: ''
+    runs:
+    - id: 40635961937
+      name: site-quality self-test
+      conclusion: failure
+      path: .github/workflows/site-quality-selftest.yml
+      jobs:
+      - job: Runner tests
+        step: npm ci (exact pins)
+        reason: 'npm error Missing: agent-base@9.0.0 from lock file'
+        class: dependency
+        cause: deps-install
+        log: "##[group]Run npm ci --no-audit --no-fund\nnpm ci --no-audit --no-fund\nshell: /usr/bin/bash -e {0}\nenv:\n \
+          \ PUPPETEER_SKIP_DOWNLOAD: true\n  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1\n##[endgroup]\nnpm error code EUSAGE\nnpm\
+          \ error\nnpm error `npm ci` can only install packages when your package.json and package-lock.json or npm-shrinkwrap.json\
+          \ are in sync. Please update your lock file with `npm install` before continuing.\nnpm error\nnpm error Missing:\
+          \ zod@3.25.76 from lock file\nnpm error Missing: proxy-agent@8.0.2 from lock file\nnpm error Missing: agent-base@9.0.0\
+          \ from lock file\nnpm error Missing: http-proxy-agent@9.1.0 from lock file\nnpm error Missing: https-proxy-agent@9.1.0\
+          \ from lock file\nnpm error Missing: pac-proxy-agent@9.1.0 from lock file\nnpm error Missing: proxy-from-env@2.1.0\
+          \ from lock file\nnpm error Missing: socks-proxy-agent@10.1.0 from lock file\nnpm error Missing: proxy-agent-negotiate@1.1.0\
+          \ from lock file\nnpm error Missing: get-uri@8.0.1 from lock file\nnpm error Missing: pac-resolver@9.0.1 from lock\
+          \ file\nnpm error Missing: quickjs-wasi@2.2.0 from lock file\nnpm error Missing: data-uri-to-buffer@8.0.0 from lock\
+          \ file\nnpm error Missing: degenerator@7.0.1 from lock file\nnpm error\nnpm error A complete log of this run can\
+          \ be found in: /home/runner/.npm/_logs/2026-10-28T05_05_43_460Z-debug-0.log\n##[error]Process completed with exit\
+          \ code 1."
+    files:
+    - .github/site-quality/package.json
+    - .github/site-quality/package-lock.json
+    - .github/workflows/site-quality-selftest.yml
+    - .agents/skills/standardize-audit/SKILL.md
+    - .agents/skills/triage-attention/SKILL.md
+    - .claude/README.md
+    - .claude/commands/adopt-schema.md
+    - .claude/commands/evolve.md
+    - .claude/skills/standardize-audit/SKILL.md
+    - .claude/skills/triage-attention/SKILL.md
+    - .claude/skills/verify-feature/SKILL.md
+    - .github/actions/README.md
+    - .github/actions/claude-cost/README.md
+    - .github/actions/claude-cost/action.yml
+    - .github/actions/resolve-fleet-token/README.md
+    diff: '(not recorded: the case keeps the changed file names, not the patch)'
+  expected:
+    caused_by_pr: 'yes'
+    root_cause_any:
+    - npm ci
+    - lock
+    - overrides
+  pass: caused_by_pr equals expected, and the summary, root cause or evidence names one of root_cause_any
+  why: 'An earlier commit on the PR added nested security overrides to .github/site-quality/package.json and wrote package-lock.json
+    with npm 11. CI''s Node 22 ships npm 10.9, which does not apply overrides below the first level, computes a different
+    tree and refuses `npm ci` because package.json and the lock file are out of sync (''Missing: zod@3.25.76 from lock file'').'
+- id: python-tests-45042004631-test-remediation
+  source: bamr87/bamr87#958, run 45042004631 (.github/workflows/python-tests.yml)
+  fixed_by: 'PR #959 (still open when this was collected) asserts the productive-schedule guard on every qualifying row of
+    the live snapshot instead of two named workflows.'
+  input:
+    repo: bamr87/bamr87
+    pr: 958
+    title: ''
+    runs:
+    - id: 45042004631
+      name: 🐍 Python Tests
+      conclusion: failure
+      path: .github/workflows/python-tests.yml
+      jobs:
+      - job: tests (rest)
+        step: Run this shard's test files
+        reason: FAILED (1/149)
+        class: defect
+        cause: test
+        log: "##[group].github/scripts/dash-gen/test_remediation.py\n  PASS  a pre-guard snapshot behaves exactly as before\n\
+          \  PASS  100% scheduled clears the 90 threshold\n  PASS  productive_schedule_pct: 101 switches the guard off\n \
+          \ PASS  …restoring today's behaviour end to end\n  PASS  load_config defaults productive_schedule_pct to 90 when\
+          \ absent\n  PASS  the committed _data/fleet.yml declares the knob\n  FAIL  the committed snapshot no longer queues\
+          \ nightly-extended.yml\n  PASS  …nor quest-fix-loop.yml\n  PASS  a stale red sorts below a live one of the same\
+          \ severity\n  PASS  …but is still in the queue, not dropped\n  PASS  the usage signal's ISO-8601 stamp is read too\n\
+          FAILED (1/149)\n##[endgroup]\n##[error].github/scripts/dash-gen/test_remediation.py failed\nFAILED: .github/scripts/dash-gen/test_remediation.py\n\
+          ##[error]Process completed with exit code 1."
+    files:
+    - .github/workflows/README.md
+    - .github/workflows/ux-audit-selftest.yml
+    - .gitignore
+    - .vscode/README.md
+    - .vscode/launch.json
+    - _data/projects.yml
+    - changelog.d/ux-layout-capture.md
+    - docs/DASH.md
+    - docs/UX-HARNESS.md
+    - features/features.d/ux-layout-capture.yml
+    - templates/ux-audit/README.md
+    - templates/ux-audit/VERSION
+    - templates/ux-audit/package.json
+    - templates/ux-audit/scripts/layout_capture.mjs
+    - templates/ux-audit/scripts/layout_compare.mjs
+    diff: '(not recorded: the case keeps the changed file names, not the patch)'
+  expected:
+    caused_by_pr: 'no'
+    root_cause_any:
+    - test_remediation
+    - snapshot
+    - nightly-extended
+  pass: caused_by_pr equals expected, and the summary, root cause or evidence names one of root_cause_any
+  why: 'test_remediation.py asserts on the committed _data/actions_usage.yml snapshot that nightly-extended.yml is not queued.
+    The daily snapshot refresh on main recorded new failures for zer0-mistakes'' nightly-extended.yml, so it is now rightly
+    queued and the name-based assertion fails on main and on every hub PR. PR #958 (UX layout capture) does not touch the
+    snapshot or the remediation code.'
+- id: python-tests-42323874817-duplicate-key
+  source: bamr87/bamr87#747, run 42323874817 (.github/workflows/python-tests.yml)
+  fixed_by: 'On main, #749 (87f941126b) removed the duplicate hub/drift-check switch entry from _data/fleet.yml.'
+  input:
+    repo: bamr87/bamr87
+    pr: 747
+    title: ''
+    runs:
+    - id: 42323874817
+      name: 🐍 Python Tests
+      conclusion: failure
+      path: .github/workflows/python-tests.yml
+      jobs:
+      - job: tests (console)
+        step: Run this shard's test files
+        reason: 'ruamel.yaml.constructor.DuplicateKeyError: while constructing a mapping found duplicate key "hub/drift-check"
+          with value "{''repo'': ''bamr87/bamr87'', ''workflow'': ''.github/workflows/drift-check.yml'', ''group'': ''hub-maintenance'',
+          ''owner'': ''bamr87'', ''scope'': ''loop'', ''gate'': {''kind'': ''none''}, ''default'': ''on'', ''state'': ''on'',
+          ''verified'': False, ''cron'': ''7 4 * * *'', ''note'': ''scheduled since the November review (#726, S0) — the daily
+          fleet-wide checks (g, k); PR and push runs are not a loop and skip them'', ''flip'': ''no switch yet (§ 17 gap):
+          `gh workflow disable drift-check.yml -R bamr87/bamr87` is the only lever; record it here''}" (original value: "{''repo'':
+          ''bamr87/bamr87'', ''workflow'': ''.github/workflows/drift-check.yml'', ''group'': ''hub-maintenance'', ''owner'':
+          ''bamr87'', ''scope'': ''loop'', ''gate'': {''kind'': ''none''}, ''default'': ''on'', ''state'': ''on'', ''verified'':
+          False, ''cron'': ''7 4 * * *'', ''note'': ''daily fleet-wide drift checks (g, k); the PR and push runs skip them
+          (S0 fix 8023fb3)'', ''flip'': ''no switch yet (§ 17 gap): `gh workflow disable drift-check.yml -R bamr87/bamr87`
+          is the only lever; record it here''}")'
+        class: defect
+        cause: code
+        log: "##[group]tools/console/test_console.py\nTraceback (most recent call last):\n  File \"/home/runner/work/bamr87/bamr87/tools/console/test_console.py\"\
+          , line 1973, in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/runner/work/bamr87/bamr87/tools/console/test_console.py\"\
+          , line 1963, in main\n    fn()\n  File \"/home/runner/work/bamr87/bamr87/tools/console/test_console.py\", line 1142,\
+          \ in test_ai_auth_ops_and_the_default_order_is_editable\n    out = core.update_config({\"ai_auth.default\": \"api_key,oauth\"\
+          }, fleet)\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/bamr87/bamr87/tools/console/core.py\"\
+          , line 2709, in update_config\n    doc = yml.load(original)\n  File \"/opt/hostedtoolcache/Python/3.12.16/x64/lib/python3.12/site-packages/ruamel/yaml/constructor.py\"\
+          , line 281, in check_mapping_key\n    raise DuplicateKeyError(*args)\nruamel.yaml.constructor.DuplicateKeyError:\
+          \ while constructing a mapping\n  in \"<unicode string>\", line 1813, column 5:\n        hub/api-keys:\n       \
+          \ ^ (line: 1813)\nfound duplicate key \"hub/drift-check\" with value \"{'repo': 'bamr87/bamr87', 'workflow': '.github/workflows/drift-check.yml',\
+          \ 'group': 'hub-maintenance', 'owner': 'bamr87', 'scope': 'loop', 'gate': {'kind': 'none'}, 'default': 'on', 'state':\
+          \ 'on', 'verified': False, 'cron': '7 4 * * *', 'note': 'scheduled since the November review (#726, S0) — the daily\
+          \ fleet-wide checks (g, k); PR and push runs are not a loop and skip them', 'flip': 'no switch yet (§ 17 gap): `gh\
+          \ workflow disable drift-check.yml -R bamr87/bamr87` is the only lever; record it here'}\" (original value: \"{'repo':\
+          \ 'bamr87/bamr87', 'workflow': '.github/workflows/drift-check.yml', 'group': 'hub-maintenance', 'owner': 'bamr87',\
+          \ 'scope': 'loop', 'gate': {'kind': 'none'}, 'default': 'on', 'state': 'on', 'verified': False, 'cron': '7 4 * *\
+          \ *', 'note': 'daily fleet-wide drift checks (g, k); the PR and push runs skip them (S0 fix 8023fb3)', 'flip': 'no\
+          \ switch yet (§ 17 gap): `gh workflow disable drift-check.yml -R bamr87/bamr87` is the only lever; record it here'}\"\
+          )\n  in \"<unicode string>\", line 2088, column 5:\n        hub/drift-check:\n##[endgroup]\n##[error]tools/console/test_console.py\
+          \ failed\nFAILED: tools/console/test_console.py\n##[error]Process completed with exit code 1."
+    files:
+    - tools/console/core.py
+    - tools/console/test_console.py
+    - .vscode/launch.json
+    - docs/FRONTEND-PLATFORM.md
+    - features/features.d/console-shell.yml
+    - features/features.yml
+    - test/evidence/console-nav/README.md
+    - test/evidence/console-nav/report.json
+    - test/evidence/console-shell/README.md
+    - test/evidence/console-shell/report.json
+    - test/evidence/desktop-context-menu/README.md
+    - test/evidence/desktop-context-menu/report.json
+    - tools/console/README.md
+    - tools/console/test_pages.py
+    - tools/console/web/README.md
+    diff: '(not recorded: the case keeps the changed file names, not the patch)'
+  expected:
+    caused_by_pr: 'no'
+    root_cause_any:
+    - duplicate key
+    - hub/drift-check
+    - fleet.yml
+  pass: caused_by_pr equals expected, and the summary, root cause or evidence names one of root_cause_any
+  why: core.update_config loads _data/fleet.yml with ruamel.yaml, which rejects duplicate keys, and main's fleet.yml had two
+    `hub/drift-check` entries under switches.loops (two separate commits had each registered drift-check). test_console.py
+    crashes with DuplicateKeyError. The PR (console shell rebuild) does not edit fleet.yml.
+- id: python-tests-43751627222-shard
+  source: bamr87/bamr87#859, run 43751627222 (.github/workflows/python-tests.yml)
+  fixed_by: 'On main, #865 (ebb8fd578d) made the test accept the compiled feature entry once JEV has numbered the fragment.'
+  input:
+    repo: bamr87/bamr87
+    pr: 859
+    title: ''
+    runs:
+    - id: 43751627222
+      name: 🐍 Python Tests
+      conclusion: failure
+      path: .github/workflows/python-tests.yml
+      jobs:
+      - job: python-tests
+        step: Every shard passed
+        reason: if [ "$TESTS" != success ]; then echo "::error::the test shards ended $TESTS"; exit 1; fi
+        class: defect
+        cause: exit-code
+        log: "##[group]Run if [ \"$CHANGES\" != success ]; then echo \"::error::the changes job ended $CHANGES\"; exit 1;\
+          \ fi\nif [ \"$CHANGES\" != success ]; then echo \"::error::the changes job ended $CHANGES\"; exit 1; fi\nif [ \"\
+          $RUN\" = false ] && [ \"$TESTS\" = skipped ]; then echo \"Docs-only change: no shard ran.\"; exit 0; fi\nif [ \"\
+          $TESTS\" != success ]; then echo \"::error::the test shards ended $TESTS\"; exit 1; fi\necho \"Every shard passed.\"\
+          \nshell: /usr/bin/bash -e {0}\nenv:\n  pythonLocation: /opt/hostedtoolcache/Python/3.12.16/x64\n  PKG_CONFIG_PATH:\
+          \ /opt/hostedtoolcache/Python/3.12.16/x64/lib/pkgconfig\n  Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64\n\
+          \  Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64\n  Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64\n\
+          \  LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib\n  CHANGES: success\n  RUN: true\n  TESTS: failure\n\
+          ##[endgroup]\n##[error]the test shards ended failure\n##[error]Process completed with exit code 1."
+    files:
+    - tools/test_weekly_closeout.py
+    - .github/actions/claude-auth/README.md
+    - .github/actions/claude-auth/action.yml
+    - .github/actions/claude-run/README.md
+    - .github/actions/claude-run/action.yml
+    - .github/actions/claude-run/run.sh
+    - .github/scripts/dash-gen/test_evolution.py
+    - .github/scripts/dash-gen/test_scout.py
+    - .github/workflows/ai-lane.yml
+    - .github/workflows/api-keys.yml
+    - .github/workflows/claude.yml
+    - .github/workflows/fanout.yml
+    - .github/workflows/fleet-pulse.yml
+    - .github/workflows/fleet-verify.yml
+    - .github/workflows/issue-pipeline.yml
+    diff: '(not recorded: the case keeps the changed file names, not the patch)'
+  expected:
+    caused_by_pr: 'no'
+    root_cause_any:
+    - shard
+    - test_weekly_closeout
+  pass: caused_by_pr equals expected, and the summary, root cause or evidence names one of root_cause_any
+  why: 'This aggregator job only checks the shard results; it failed because its sibling ''tests (rest)'' shard failed. That
+    shard failed in tools/test_weekly_closeout.py, which read features/features.d/weekly-closeout.yml, a fragment that JEV
+    numbering deletes after merge, so python-tests had been red on main since #841. The PR edits the same test file for a
+    different assertion but did not cause this failure.'
+- id: build-deploy-dash-34288970135-templates-yml
+  source: bamr87/bamr87#254, run 34288970135 (.github/workflows/build-dash.yml)
+  fixed_by: 41c2555ad3 quoted the ai-runner catalog description; the next build passed.
+  input:
+    repo: bamr87/bamr87
+    pr: 254
+    title: ''
+    runs:
+    - id: 34288970135
+      name: 🛰️ Build & Deploy Dash
+      conclusion: failure
+      path: .github/workflows/build-dash.yml
+      jobs:
+      - job: build
+        step: Build site
+        reason: 'jekyll 3.10.0 | Error:  (/home/runner/work/bamr87/bamr87/_data/templates.yml): mapping values are not allowed
+          in this context at line 28 column 78'
+        class: defect
+        cause: code
+        log: "##[group]Run bundle exec jekyll build\nbundle exec jekyll build\nshell: /usr/bin/bash -e {0}\nenv:\n  JEKYLL_ENV:\
+          \ production\n##[endgroup]\nConfiguration file: /home/runner/work/bamr87/bamr87/_config.yml\n            Source:\
+          \ /home/runner/work/bamr87/bamr87\n       Destination: /home/runner/work/bamr87/bamr87/_site\n Incremental build:\
+          \ disabled. Enable with --incremental\n      Generating...\n      Remote Theme: Using theme bamr87/zer0-mistakes\n\
+          /opt/hostedtoolcache/Ruby/3.3.12/x64/lib/ruby/3.3.0/psych/parser.rb:62:in `_native_parse': (/home/runner/work/bamr87/bamr87/_data/templates.yml):\
+          \ mapping values are not allowed in this context at line 28 column 78 (Psych::SyntaxError)\n\tfrom /opt/hostedtoolcache/Ruby/3.3.12/x64/lib/ruby/3.3.0/psych/parser.rb:62:in\
+          \ `parse'\n\tfrom /home/runner/work/bamr87/bamr87/vendor/bundle/ruby/3.3.0/gems/safe_yaml-1.0.5/lib/safe_yaml/load.rb:143:in\
+          \ `load'\njekyll 3.10.0 | Error:  (/home/runner/work/bamr87/bamr87/_data/templates.yml): mapping values are not\
+          \ allowed in this context at line 28 column 78\n\tfrom /opt/hostedtoolcache/Ruby/3.3.12/x64/bin/bundle:25:in `<main>'\n\
+          ##[error]Process completed with exit code 1."
+    files:
+    - _data/templates.yml
+    - .github/actions/README.md
+    - .github/actions/claude-run/README.md
+    - .github/actions/claude-run/action.yml
+    - .github/actions/claude-run/run.sh
+    - .github/workflows/README.md
+    - .github/workflows/ai-lane.yml
+    - .github/workflows/ai-runner-contract.yml
+    - CATALOG.md
+    - templates/README.md
+    - templates/SCHEMA.md
+    - templates/ai-runner/README.md
+    - templates/ai-runner/VERSION
+    - templates/ai-runner/ai-lane.template.yml
+    - templates/ai-runner/archive/ai-lane-0.1.0.yml
+    diff: '(not recorded: the case keeps the changed file names, not the patch)'
+  expected:
+    caused_by_pr: 'yes'
+    root_cause_any:
+    - templates.yml
+    - yaml
+    - 'uses:'
+  pass: caused_by_pr equals expected, and the summary, root cause or evidence names one of root_cause_any
+  why: 'The PR added an AI runner kit entry to _data/templates.yml whose unquoted description contains ''`uses: bamr87/...`''.
+    The '': '' inside a plain scalar is invalid YAML (''mapping values are not allowed in this context at line 28 column 78''),
+    so Jekyll fails reading the site data.'
+- id: python-tests-44654312304-launch-json
+  source: bamr87/bamr87#937, run 44654312304 (.github/workflows/python-tests.yml)
+  fixed_by: 291ed71779 added overview-story to the verifyScenario picker in .vscode/launch.json (the next run on the branch
+    failed before any job started, so no green python-tests is recorded on the branch).
+  input:
+    repo: bamr87/bamr87
+    pr: 937
+    title: ''
+    runs:
+    - id: 44654312304
+      name: 🐍 Python Tests
+      conclusion: failure
+      path: .github/workflows/python-tests.yml
+      jobs:
+      - job: tests (rest)
+        step: Run this shard's test files
+        reason: 'AssertionError: Items in the second set but not the first:'
+        class: defect
+        cause: test
+        log: "##[group]tools/test_vscode_launch.py\n.....................F.............\n======================================================================\n\
+          FAIL: test_verify_scenario_picker_equals_scenarios_dir (__main__.Pickers.test_verify_scenario_picker_equals_scenarios_dir)\n\
+          ----------------------------------------------------------------------\nTraceback (most recent call last):\n  File\
+          \ \"/home/runner/work/bamr87/bamr87/tools/test_vscode_launch.py\", line 225, in test_verify_scenario_picker_equals_scenarios_dir\n\
+          \    self.assertEqual(set(inputs(LAUNCH)[\"verifyScenario\"][\"options\"]), want)\nAssertionError: Items in the\
+          \ second set but not the first:\n'overview-story'\n\n----------------------------------------------------------------------\n\
+          Ran 35 tests in 0.016s\n\nFAILED (failures=1)\n/opt/hostedtoolcache/Python/3.12.16/x64/lib/python3.12/site-packages/coverage/control.py:967:\
+          \ CoverageWarning: No data was collected. (no-data-collected); see https://coverage.readthedocs.io/en/7.17.3/messages.html#warning-no-data-collected\n\
+          \  self._warn(\"No data was collected.\", slug=\"no-data-collected\")\n##[endgroup]\n##[error]tools/test_vscode_launch.py\
+          \ failed"
+    files:
+    - verify/scenarios/overview-story.yml
+    - features/features.d/overview-story.yml
+    - test/evidence/overview-story/README.md
+    - test/evidence/overview-story/report.json
+    - tools/console/README.md
+    - tools/console/core.py
+    - tools/console/snapshot.py
+    - tools/console/test_console.py
+    - tools/console/web/README.md
+    - tools/console/web/src/api/hooks.ts
+    - tools/console/web/src/api/types.ts
+    - tools/console/web/src/components/Viz.module.css
+    - tools/console/web/src/components/Viz.tsx
+    - tools/console/web/src/lib/format.ts
+    - tools/console/web/src/lib/links.ts
+    diff: '(not recorded: the case keeps the changed file names, not the patch)'
+  expected:
+    caused_by_pr: 'yes'
+    root_cause_any:
+    - launch.json
+    - overview-story
+    - verifyscenario
+  pass: caused_by_pr equals expected, and the summary, root cause or evidence names one of root_cause_any
+  why: The PR added a verify scenario, verify/scenarios/overview-story.yml, without adding it to the verifyScenario picker
+    in .vscode/launch.json. tools/test_vscode_launch.py holds the picker equal to the scenarios directory, so it fails with
+    'overview-story' missing from the picker.

@@ -45,6 +45,7 @@ from tools import evals  # noqa: E402
 JEV_SET = evals.EVALS_DIR / "jev-classify" / "cases.yml"
 T1_SET = evals.EVALS_DIR / "t1-intake" / "cases.yml"
 ASSIST_SET = evals.EVALS_DIR / "console-assist" / "cases.yml"
+ANALYSIS_SET = evals.EVALS_DIR / "pr-ai-analysis" / "cases.yml"
 STANDIN = evals.CONSOLE_DIR / "assist_standin.py"
 
 
@@ -63,7 +64,7 @@ def write_set(data: dict) -> Path:
 
 class CommittedSets(unittest.TestCase):
     def test_roles_are_discovered(self):
-        self.assertEqual(evals.roles(), ["console-assist", "jev-classify", "t1-intake"])
+        self.assertEqual(evals.roles(), ["console-assist", "jev-classify", "pr-ai-analysis", "t1-intake"])
 
     def test_jev_classify_has_20_cases_and_passes_offline(self):
         data = evals.load_set(JEV_SET)
@@ -186,6 +187,76 @@ class ModelRuns(unittest.TestCase):
         self.assertIn(first[first.index("--model") + 1], evals.allowed_models(cfg))
         self.assertLessEqual(float(first[first.index("--max-budget-usd") + 1]), evals.budget_cap(cfg))
         self.assertGreater(json.loads(out)["cost_usd"], 0)
+
+
+# --------------------------------------------------------------------------- #
+# pr-ai-analysis: the CI failure analyst of pr-review.yml (§ 19.11)
+# --------------------------------------------------------------------------- #
+class PrAiAnalysisSet(unittest.TestCase):
+    """The committed set offline, and the model path with `claude` stubbed."""
+
+    def setUp(self):
+        self.data = evals.load_set(ANALYSIS_SET)
+        self.cfg = evals.fleet_config()
+
+    def test_validates_offline_with_every_verdict(self):
+        self.assertGreaterEqual(len(self.data["cases"]), evals.ANALYSIS_MIN_CASES)
+        verdicts = {c["expected"]["caused_by_pr"] for c in self.data["cases"]}
+        self.assertTrue({"yes", "no"} <= verdicts, "a set needs failures the PR caused and ones it did not")
+        with mock.patch.object(evals.subprocess, "run", side_effect=AssertionError("no model in --dry-run")):
+            code, out = run_cli("run", "pr-ai-analysis", "--dry-run")
+        self.assertEqual(code, 0, out)
+
+    def test_every_case_says_where_it_came_from(self):
+        for case in self.data["cases"]:
+            self.assertRegex(str(case["source"]), r"bamr87/|rule:", case["id"])
+
+    def test_the_model_is_the_shipped_analysts(self):
+        analysis = evals._analysis_module()
+        self.assertEqual(self.data["model"], analysis.MODEL)
+        bad = copy.deepcopy(self.data)
+        bad["model"] = "claude-haiku-5-5"
+        self.assertTrue(any("shipped analyst" in e for e in evals.validate_pr_ai_analysis(bad, self.cfg)))
+
+    def test_a_broken_expectation_fails_the_dry_run(self):
+        bad = copy.deepcopy(self.data)
+        bad["cases"][0]["expected"]["caused_by_pr"] = "maybe"
+        code, out = run_cli("run", "pr-ai-analysis", "--cases", str(write_set(bad)), "--dry-run")
+        self.assertNotEqual(code, 0)
+        self.assertIn("caused_by_pr must be one of", out)
+
+    def test_grading_reads_the_verdict_and_the_root_cause(self):
+        exp = {"caused_by_pr": "no", "root_cause_any": ["duplicate key"]}
+        good = {"caused_by_pr": "no", "summary": "A duplicate key in fleet.yml.", "root_cause": "", "evidence": ""}
+        self.assertEqual(evals.grade_pr_ai_analysis(exp, good), [])
+        self.assertEqual(len(evals.grade_pr_ai_analysis(exp, {**good, "caused_by_pr": "yes"})), 1)
+        self.assertEqual(len(evals.grade_pr_ai_analysis(exp, {**good, "summary": "flaky"})), 1)
+        self.assertEqual(evals.grade_pr_ai_analysis(exp, None), ["the answer analysed no run"])
+
+    def test_a_model_run_uses_the_shipped_prompt_one_turn_no_tools_and_the_cap(self):
+        calls: list = []
+        analysis = evals._analysis_module()
+
+        def fake(cmd, **_):
+            calls.append(cmd)
+            prompt = cmd[cmd.index("-p") + 1]
+            case = next(c for c in self.data["cases"] if analysis.compose(evals.analysis_material(c)) == prompt)
+            exp = case["expected"]
+            reply = json.dumps({"runs": [{"run_id": int(case["input"]["runs"][0].get("id") or 1),
+                                          "summary": exp["root_cause_any"][0], "root_cause": exp["root_cause_any"][0],
+                                          "caused_by_pr": exp["caused_by_pr"], "confidence": "medium"}]})
+            return mock.Mock(returncode=0, stderr="", stdout=json.dumps({"result": reply, "total_cost_usd": 0.01}))
+
+        with mock.patch.object(evals.shutil, "which", return_value="/usr/bin/claude"), \
+                mock.patch.object(evals.subprocess, "run", side_effect=fake):
+            code, out = run_cli("run", "pr-ai-analysis", "--json")
+        self.assertEqual(code, 0, out)
+        first = calls[0]
+        self.assertEqual(first[first.index("--max-turns") + 1], "1")
+        self.assertEqual(first[first.index("--permission-mode") + 1], "default")
+        self.assertEqual(first[first.index("--append-system-prompt") + 1], analysis.SYSTEM)
+        self.assertNotIn("--allowedTools", first)
+        self.assertLessEqual(float(first[first.index("--max-budget-usd") + 1]), evals.budget_cap(self.cfg))
 
 
 # --------------------------------------------------------------------------- #

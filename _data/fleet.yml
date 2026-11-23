@@ -718,6 +718,30 @@ pr_queue:
         - '(^|/)\.github/workflows/'
 
 # --------------------------------------------------------------------------- #
+# PR review — the fleet's one PR comment (constitution § 19,
+# .github/workflows/pr-review.yml, templates/pr-review/README.md).
+#
+# `ai_analysis` is § 19.11: every failed CI run on a pull request also gets an AI
+# analysis in the same sticky comment (.github/scripts/dash-gen/pr_ai_analysis.py).
+# The model, its one-turn cap and its dollar cap are literals in the workflow
+# (the harness scan reads them there; budget.call_sites pr-review.yml:ai-analysis
+# holds the cap); these are the pass's own knobs. A fleet repo runs the hub's
+# checkout of this file, so the hub's values are the fleet's. Switch:
+# vars.PR_AI_ANALYSIS_ENABLED = 'false' (switches: hub/pr-ai-analysis).
+# --------------------------------------------------------------------------- #
+pr_review:
+  ai_analysis:
+    label: ai-analysis      # a maintainer adds it to analyse a pull request from outside the collaborators
+    max_runs: 4             # failed runs analysed in one model call; the rest wait for the next pass
+    max_tries: 2            # calls that could not run (no credential, a spent window) per run attempt
+    trusted_bots:           # bot authors analysed without the label, beside OWNER, MEMBER and COLLABORATOR
+      - dependabot[bot]
+      - github-actions[bot]
+      - renovate[bot]
+      - claude[bot]
+      - bamr87-bot
+
+# --------------------------------------------------------------------------- #
 # Verification — the AGENT VERIFICATION standard's knobs (docs/VERIFICATION.md).
 #
 # Tests prove the code; verification proves the PRODUCT, by using it the way a
@@ -857,6 +881,12 @@ budget:
                                           # past ~66 meets this ceiling first — by design.
     ai-lane.yml:run: 10                   # the reusable lane's `max-budget-usd` input default
                                           # (= default_usd); consumers may pass their own.
+    # The AI analysis of every failed CI run on a pull request (constitution § 19.11,
+    # pr_ai_analysis.py): one Sonnet call per pass, no tools, ONE turn, so the
+    # floor is 0.15 x 1. A pass sends at most ~90 KB of log, workflow and diff
+    # (~25k tokens): about $0.10 API-equivalent (estimate), so $1 is headroom,
+    # not the expected cost. It fires once per failed run attempt, not per push.
+    pr-review.yml:ai-analysis: 1
 
   # JEV's conflict engine is deliberately NOT a `call_sites` entry. Those are
   # keyed `<workflow file>:<job id>` and test_ai_budget.py holds each one
@@ -1335,6 +1365,14 @@ harness:
       budget: {per_run_usd: 0.0}
       reads: [github-live]
       local_entry: tools/openai-auth.sh review
+    ci:bamr87:pr-review:
+      # The AI analysis of every failed CI run on a pull request (constitution § 19.11):
+      # one tool-less, one-turn Sonnet call per pass, written into the fleet's one PR
+      # comment. The same pass runs from a workstation through `dash ai run`, capped by
+      # this call site's budget (§ 10.9).
+      note: the AI analysis of every failed CI run on a pull request (§ 19.11), in the one PR comment
+      local_entry: python3 .github/scripts/dash-gen/pr_ai_analysis.py local --repo <owner/name> --pr <n>
+      switch: {variable: PR_AI_ANALYSIS_ENABLED, loop: hub/pr-ai-analysis}
     local:conflict-sweep:
       reads: [github-live, jev-ledger]
       model_from: [jev.tiers.tier1.model, jev.tiers.tier2.model]
@@ -3142,6 +3180,21 @@ switches:
       verified: false
       note: the fleet's one PR comment (constitution § 19); summarizes CI failures, no AI and no cron
       flip: 'gh variable set PR_REVIEW_ENABLED -R bamr87/bamr87 --body false  # disable; record the flip here in the same PR'
+    hub/pr-ai-analysis:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/pr-review.yml
+      group: hub-agents
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: PR_AI_ANALYSIS_ENABLED
+        semantics: opt_out
+      default: 'on'
+      state: unverified
+      verified: false
+      note: the AI analysis of every failed CI run on a pull request (constitution § 19.11), in the one PR comment; one capped, tool-less Sonnet call per pass, no cron
+      flip: 'gh variable set PR_AI_ANALYSIS_ENABLED -R bamr87/bamr87 --body false  # disable; record the flip here in the same PR'
     hub/pr-readiness:
       repo: bamr87/bamr87
       workflow: .github/workflows/pr-review.yml
