@@ -9,7 +9,7 @@ the pull request caused it, and the smallest fix. Its answer lands in the SAME s
 comment (§ 19.2), one block per failed run, under the deterministic summary.
 
   python3 pr_ai_analysis.py plan --repo OWNER/NAME --run RUN_ID [--check]   what needs an analysis
-  python3 pr_ai_analysis.py plan --repo OWNER/NAME --pr N --out-dir DIR     ... and write the prompt
+  python3 pr_ai_analysis.py plan --repo OWNER/NAME --run RUN_ID --out-dir DIR ... and write the prompt
   python3 pr_ai_analysis.py post --repo OWNER/NAME --plan DIR/plan.json --result FILE --outcome success
   python3 pr_ai_analysis.py local --repo OWNER/NAME --pr N [--post]         the local entry (§ 10.9)
 
@@ -28,8 +28,9 @@ Each failed run is analysed once per attempt: a block is keyed by (run id, attem
 carried across sticky rebuilds by pr_review.py. A pass analyses every failed run on the
 head commit that has no block yet, so a review the concurrency group cancelled loses
 nothing. An author outside the repository's collaborators waits for a maintainer's
-`ai-analysis` label; a call that could not run is retried on a later pass, at most
-`max_tries` times.
+`ai-analysis` label, read here through the API when a workflow on the PR finishes (never
+as a job condition on a label event); a call that could not run is retried on a later
+pass, at most `max_tries` times.
 """
 from __future__ import annotations
 
@@ -448,8 +449,8 @@ def render_note(planned: dict, status: str, tries: int, text: str) -> str:
 
 
 def held_text(cfg: dict) -> str:
-    return (f"_AI analysis is waiting: this pull request's author is not a collaborator here, so it runs once a "
-            f"maintainer adds the `{cfg['label']}` label._")
+    return (f"_AI analysis is waiting: this pull request's author is not a collaborator here. A maintainer who adds "
+            f"the `{cfg['label']}` label and re-runs the failed workflow gets it analysed._")
 
 
 def unavailable_text(reason: str, tries: int, cfg: dict) -> str:
@@ -635,7 +636,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--repo", required=True)
     who = p.add_mutually_exclusive_group(required=True)
     who.add_argument("--run", help="the workflow run that just finished")
-    who.add_argument("--pr", help="a pull request's number (the label path)")
+    who.add_argument("--pr", help="a pull request's number (a local or manual pass)")
     p.add_argument("--check", action="store_true", help="only count what is pending; write no prompt")
     p.add_argument("--out-dir", default=os.path.join(os.environ.get("RUNNER_TEMP", tempfile.gettempdir()), "ai-analysis"))
     s = sub.add_parser("post", help="validate the model's answer and write it into the sticky")

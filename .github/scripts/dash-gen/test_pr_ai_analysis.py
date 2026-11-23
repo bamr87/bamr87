@@ -372,6 +372,10 @@ def test_the_workflow_gates_on_the_switch_and_the_author():
     _wf, job = _job()
     text = (ROOT / ".github/workflows/pr-review.yml").read_text(encoding="utf-8")
     assert "PR_AI_ANALYSIS_ENABLED != 'false'" in str(job["if"])
+    # A label checked as a job condition on pull_request_target is a TOCTOU authorization
+    # (CodeQL actions/untrusted-checkout-toctou): the label is read through the API instead.
+    assert "github.event.label" not in str(job) and "pull_request_target" not in str(job["if"])
+    assert job["needs"] == "ci-failure"
     step = next(s for s in job["steps"] if "claude-run" in str(s.get("uses", "")))
     assert "author_association" in str(step["if"]) and "vouched" in str(step["if"])
     for s in job["steps"]:

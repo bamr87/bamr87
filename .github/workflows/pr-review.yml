@@ -43,8 +43,8 @@ name: PR review
 # (.github/scripts/dash-gen/pr_ai_analysis.py). Each run attempt is analysed once; a pass
 # picks up every failed run on the head commit that has none yet. The pull request of an
 # author outside the collaborators (author_association) waits for a maintainer's
-# `ai-analysis` label, which also starts a pass. The analysis is advisory: it never fails a
-# check, never approves, and a call that cannot run says so in the comment.
+# `ai-analysis` label; the next failed or re-run workflow on it is analysed. The analysis is
+# advisory: it never fails a check, never approves, and a call that cannot run says so.
 #
 # It runs only from the default branch, so a change here takes effect at merge.
 # Off switch: `vars.PR_REVIEW_ENABLED` set to 'false'. Default on.
@@ -179,17 +179,18 @@ jobs:
         run: python .fleet-hub/.github/scripts/dash-gen/pr_readiness.py ready --repo "$GITHUB_REPOSITORY" --pr "$PR"
 
   ai-analysis:
-    # § 19.11: an AI analysis of every failed run, in the same sticky comment. After
-    # ci-failure (which wrote the summary it lands in) and readiness (which may rewrite
-    # the comment), so the three never edit it at once. Starts when ci-failure counted a
-    # failed run with no analysis yet, or when a maintainer adds the `ai-analysis` label.
-    needs: [ci-failure, readiness]
+    # § 19.11: an AI analysis of every failed run, in the same sticky comment, after
+    # ci-failure wrote the summary it lands in. A workflow_run only: the readiness job's
+    # pull-request events run as other runs of this file in the same concurrency group,
+    # so nothing edits the comment at once. Starts when ci-failure counted a failed run
+    # with no analysis yet. A maintainer's `ai-analysis` label is read through the API by
+    # the plan step, never used as a job condition: a label checked on pull_request_target
+    # authorizes the PR at one moment, and this job must not depend on that moment.
+    needs: ci-failure
     if: >-
-      ${{ always() && vars.PR_REVIEW_ENABLED != 'false' && vars.PR_AI_ANALYSIS_ENABLED != 'false' && (
-      (github.event_name == 'workflow_run' && needs.ci-failure.result == 'success'
-      && needs.ci-failure.outputs.ai-pending != '' && needs.ci-failure.outputs.ai-pending != '0')
-      || (github.event_name == 'pull_request_target' && github.event.action == 'labeled'
-      && github.event.label.name == 'ai-analysis')) }}
+      ${{ vars.PR_REVIEW_ENABLED != 'false' && vars.PR_AI_ANALYSIS_ENABLED != 'false'
+      && github.event_name == 'workflow_run'
+      && needs.ci-failure.outputs.ai-pending != '' && needs.ci-failure.outputs.ai-pending != '0' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -223,14 +224,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.event.workflow_run.id }}
-          PR: ${{ github.event.pull_request.number }}
         run: |
-          out="$RUNNER_TEMP/ai-analysis"
-          if [ -n "$RUN_ID" ]; then
-            python .fleet-hub/.github/scripts/dash-gen/pr_ai_analysis.py plan --repo "$GITHUB_REPOSITORY" --run "$RUN_ID" --out-dir "$out"
-          else
-            python .fleet-hub/.github/scripts/dash-gen/pr_ai_analysis.py plan --repo "$GITHUB_REPOSITORY" --pr "$PR" --out-dir "$out"
-          fi
+          python .fleet-hub/.github/scripts/dash-gen/pr_ai_analysis.py plan --repo "$GITHUB_REPOSITORY" \
+            --run "$RUN_ID" --out-dir "$RUNNER_TEMP/ai-analysis"
 
       # The model: no tools, one turn, read-only, capped (budget.call_sites
       # pr-review.yml:ai-analysis). One turn means a tool call it is talked into can never
