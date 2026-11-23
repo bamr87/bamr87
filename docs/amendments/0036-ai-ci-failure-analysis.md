@@ -1,12 +1,12 @@
 <!-- kit: governance v0.1.0 -->
-# NEW — Every failed CI run on a pull request gets an AI analysis
+# 0036 — Every failed CI run on a pull request gets an AI analysis
 
 - **Status:** proposed
-- **Number:** NEW
+- **Number:** 0036
 - **Date:** 2026-11-23
 - **Proposed by:** agent (Claude Code), at the maintainer's request (2026-11-23: "every workflow error on every PR must have an AI agent review, analyze, and comment.")
 - **Ratified by:**
-- **Affects:** constitution § 19 (new item 11; § 19.7 and § 19.10 read with it); requirement `FR-NEW:ai-ci-failure-analysis` and feature `HUB-NEW:pr-ai-analysis` (`features/features.d/pr-ai-analysis.yml`); `_data/fleet.yml` `budget.call_sites`, `switches`, `pr_review`, `harness.agents`
+- **Affects:** constitution § 19 (new item 11; § 19.7 and § 19.10 read with it); requirement `FR144` and feature `HUB-131` (`features/features.d/pr-ai-analysis.yml`); `_data/fleet.yml` `budget.call_sites`, `switches`, `pr_review`, `harness.agents`
 - **Supersedes:** none (extends § 19)
 - **Related:** 0017 `fleet-pr-review`, 0028 `ci-failure-summary`, 0030 `agentic-efficacy-contract`, bamr87/bamr87#564
 
