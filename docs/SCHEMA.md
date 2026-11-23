@@ -17,7 +17,9 @@ coverage: listed
 | `amendments/` | dir | Constitution amendment log — append-only `NNNN-slug.md` records (Status, Date, Ratified by, Affects) + README index; `constitution.md` changes only through it (UPS-WORK-16, templates/governance/) | required |
 | `assets/` | dir | Static assets for docs; assets/guides holds visual evidence for tutorials and setup docs (constitution section 24) | |
 | `prd/` | dir | Sub-PRDs — one `TOPIC.md` per feature area that needs more detail than the root `PRD.md`; requirement ids stay owned by the root `PRD.md` (Draft/proposed until shipped) | |
+| `research/` | dir | Dated research reports from Researcher — `YYYY-MM-DD-slug.md` reviews, source packs, briefs and deep dives, with a README index | |
 
 ## Placement
 
 - New machinery doc → `UPPERCASE-TOPIC.md` here; project-specific docs live in the project's own repo.
+- New research report → `research/YYYY-MM-DD-slug.md`, plus a row in `research/README.md`.
