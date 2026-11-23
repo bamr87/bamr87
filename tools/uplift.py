@@ -12,8 +12,9 @@ from file contents, with no model and no GitHub call:
     a repo changed a file. Which other repos still hold a version of that
     file the repo held before its change?
 
-A byte-identical earlier version means the same change applies there without
-adaptation. From that one comparison every change in the window is one of:
+A byte-identical earlier version means that repo never changed the file on
+its own, so it can take the new content as it is. From that one comparison
+every change in the window is one of:
 
   candidate  one or two repos hold the new content and others hold an earlier
              version: one repo's own improvement, not yet anywhere else
@@ -45,6 +46,7 @@ Usage:
   python3 tools/uplift.py show KEY
   python3 tools/uplift.py brief [KEY ...] [--top N] [--out FILE]
   python3 tools/uplift.py file KEY [KEY ...] [--apply]
+  python3 tools/uplift.py verify
   python3 tools/uplift.py status
   (also `tools/dash uplift …`)
 Dependencies: Python 3.12 stdlib + PyYAML; git; gh only for `file`.
@@ -159,6 +161,14 @@ def git(repo: Path, *args: str, check: bool = True) -> str:
     return proc.stdout
 
 
+def git_error(repo: Path, *args: str) -> str | None:
+    """None when the command works, else the last line git printed: why it cannot read this checkout."""
+    proc = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, errors="replace")
+    if proc.returncode == 0:
+        return None
+    return clip((proc.stderr.strip().splitlines() or [f"exit {proc.returncode}"])[-1], 140)
+
+
 def blob_bytes(repo: Path, sha: str) -> bytes:
     proc = subprocess.run(["git", "-C", str(repo), "cat-file", "blob", sha], capture_output=True)
     if proc.returncode != 0:
@@ -197,6 +207,7 @@ class Commit:
     pr: int | None
     branch: str | None              # the head branch a merge commit names
     changes: list[tuple[str, str, str | None, str | None]]   # (status, path, pre blob, post blob)
+    moved: list[str] = field(default_factory=list)           # paths this commit renamed away
     ignored: bool = False
     fanout: bool = False
 
@@ -278,13 +289,17 @@ def parse_log(out: str) -> list[Commit]:
             continue
         sha, author, date, subject, body = parts
         changes: list[tuple[str, str, str | None, str | None]] = []
+        moved: list[str] = []
         for line in raw.splitlines():
             if not line.startswith(":"):
                 continue
             meta, _, path = line.partition("\t")
             f = meta.split()
+            if len(f) >= 5 and f[4].startswith("R") and path.count("\t") == 1:
+                moved.append(path.split("\t")[0])          # a rename moved the file: neither an edit nor a deletion
+                continue
             if len(f) < 5 or not path or "\t" in path:
-                continue                                   # a rename (two paths) moved the file; it is neither an edit nor a deletion
+                continue
             old_mode, new_mode, pre, post, status = f[0][1:], f[1], f[2], f[3], f[4][0]
             if status == "A" and new_mode in REGULAR_MODES:
                 changes.append(("A", path, None, post))
@@ -299,7 +314,7 @@ def parse_log(out: str) -> list[Commit]:
             title = next((ln.strip() for ln in body.splitlines() if ln.strip()), subject)
         commits.append(Commit(sha=sha, author=author, date=date, subject=subject, title=title,
                               pr=int(merge.group(1)) if merge else int(squash.group(1)) if squash else None,
-                              branch=merge.group(3) if merge else None, changes=changes))
+                              branch=merge.group(3) if merge else None, changes=changes, moved=moved))
     return commits
 
 
@@ -315,6 +330,10 @@ def read_repo(repo: Repo, since: str, cfg: dict, branches: tuple[set[str], list[
     A repo that cannot be read is marked so; it is never reported as quiet."""
     if not (repo.path / ".git").exists():
         repo.reason = "no checkout"
+        return
+    broken = git_error(repo.path, "rev-parse", "--git-dir")
+    if broken:
+        repo.reason = f"git cannot read it: {broken}"       # not "no origin/<branch>": the ref was never looked for
         return
     head = git(repo.path, "rev-parse", "-q", "--verify", f"{repo.ref}^{{commit}}", check=False).strip()
     if not head:
@@ -357,11 +376,17 @@ def moves_of(repo: Repo, cfg: dict) -> list[Move]:
     back to where it started, or that only ignored commits touched, is no move."""
     chains: dict[str, list[str | None]] = {}
     touched: dict[str, list[Commit]] = {}
+    born: set[str] = set()                                 # paths that did not exist when the window opened
     for c in reversed(repo.commits):                       # oldest first
+        for path in c.moved:
+            # edited, then renamed: the file lives on under another name, so by path it is no longer comparable
+            chains.pop(path, None)
+            touched.pop(path, None)
         for status, path, pre, post in c.changes:
             if matches(cfg["ignore_paths"], path):
                 continue
             if status == "A" and path not in chains:
+                born.add(path)
                 continue                                   # a new file has no earlier version to be behind on
             chain = chains.setdefault(path, [pre])
             chain.append(post)
@@ -372,8 +397,8 @@ def moves_of(repo: Repo, cfg: dict) -> list[Move]:
         if path not in touched:
             continue
         now = repo.tree.get(path)
-        if chain[0] == now:
-            continue                                       # back where it started: nothing changed for this repo
+        if chain[0] == now or (now is None and path in born):
+            continue                                       # back where it started (added and deleted again, too)
         seen: list[str] = []
         for sha in chain[:-1]:
             if sha and sha != now and sha != EMPTY_BLOB and sha not in seen:
@@ -478,6 +503,9 @@ def analyze(members: list[Repo], cfg: dict) -> dict:
                          "commits": len(m.commits)}
                         for m in sorted(moves, key=lambda m: m.repo.target)],
             "behind": sorted(behind), "behind_holds": behind, "holders": holders, "diverged": diverged,
+            # the repos behind that hold an earlier version OTHER than the one the diff starts from: they take the
+            # same new file, but the diff as shown does not apply to them
+            "behind_other": sorted(r for r, sha in behind.items() if sha != st["base"]),
             "variants": variants, "post": post, "ancestors": ancestors,
             "from": {"repo": primary.repo.target, "nwo": primary.repo.nwo, "base": st["base"],
                      "date": last.date, "title": last.title, "url": commit_url(primary.repo.nwo, last)},
@@ -577,7 +605,9 @@ def scan(hub: Path, projects: Path, *, days: int | None = None, only: list[str] 
          now: dt.datetime | None = None) -> tuple[dict, list[Repo]]:
     cfg, fleet = load_config(hub)
     now = now or utcnow()
-    days = days or cfg["days"]
+    days = cfg["days"] if days is None else days
+    if days < 1:
+        raise UpliftError("--days must be 1 or more")
     since = (now - dt.timedelta(days=days)).isoformat(timespec="seconds")
     members, skipped = load_fleet(hub, projects, fleet)
     known = {r.target for r in members}
@@ -770,6 +800,9 @@ def render_entry(entry: dict, members: list[Repo], cfg: dict) -> str:
         lines.append(f"    {o['url']}" + (f" ({o['commits']} commits touched the file)" if o["commits"] > 1 else ""))
     lines += ["", f"  {len(entry['behind'])} repo(s) hold a version the origin held before, byte for byte:",
               f"    {', '.join(entry['behind']) or '(none)'}"]
+    if entry["behind_other"]:
+        lines.append(f"  {len(entry['behind_other'])} of them hold another earlier version than the one the diff below starts "
+                     f"from ({', '.join(entry['behind_other'])}): they take the same new file, not this diff")
     if entry["post"]:
         lines.append(f"  {len(entry['holders'])} repo(s) hold the new content: {', '.join(entry['holders'])}")
     if entry["diverged"]:
@@ -777,8 +810,7 @@ def render_entry(entry: dict, members: list[Repo], cfg: dict) -> str:
     if entry["variants"] > 1:
         lines.append(f"  {entry['variants']} different contents were made from the same earlier version across the fleet")
     lines += ["", "  " + route_text(entry), "", change_diff(entry, members, cfg["diff_lines"]),
-              "", f"  (the diff is from the earlier version most repos behind hold to what {src['repo']} holds now; "
-                  "a repo on another earlier version takes the same end state)"]
+              "", f"  (the diff runs from the earlier version most repos behind hold to what {src['repo']} holds now)"]
     return "\n".join(lines)
 
 
@@ -800,6 +832,8 @@ def render_brief(entries: list[dict], members: list[Repo], doc: dict, cfg: dict)
         out += [f"## {e['key']}: `{e['path']}`" + (" (deleted)" if e["action"] == "delete" else ""), "",
                 f"- **Changed in:** {src['nwo']} on {day(src['date'])}: {src['title']} ({src['url']})",
                 f"- **Behind ({len(e['behind'])}):** {', '.join(e['behind'])}",
+                *([f"- **On another earlier version (they take the new file, the diff below does not apply to them):** "
+                   f"{', '.join(e['behind_other'])}"] if e["behind_other"] else []),
                 f"- **Already hold it:** {', '.join(e['holders']) or 'nobody else'}",
                 f"- **Route found:** {route_text(e)}"]
         if e["variants"] > 1:
@@ -858,7 +892,10 @@ def issue_body(entry: dict, members: list[Repo], cfg: dict, hub_target: str | No
              f"`{src['nwo']}` {'deleted' if entry['action'] == 'delete' else 'changed'} `{entry['path']}` on {day(src['date'])}: "
              f"{src['title']} ({src['url']}).", "", "## Who still holds the earlier version", "",
              f"{len(entry['behind'])} fleet repo(s) hold a version of this file that `{src['repo']}` held before its change, "
-             "byte for byte, so the same change applies to each without adaptation."
+             "byte for byte. None of them changed it on its own, so each can take the new content as it is."
+             + (f" The diff below applies as written to {len(entry['behind']) - len(entry['behind_other'])} of them; "
+                f"{', '.join(entry['behind_other'])} hold another earlier version and take the same end state, not this diff."
+                if entry["behind_other"] else " The diff below applies to each as written.")
              + (" The hub's own copy is one of them." if hub_target in entry["behind"] else ""), ""]
     if entry["route"] == "patch" and behind:
         lines += [f"applies_to: {', '.join(behind)}", ""]
@@ -958,6 +995,91 @@ def file_candidates(keys: list[str], *, hub: Path, doc: dict, members: list[Repo
     return results, 1 if bad else 0
 
 
+# ------------------------------------------------------ checking the scan itself
+def verify(doc: dict, members: list[Repo], cfg: dict) -> dict:
+    """Re-derive who is behind a second way, and compare it with the scan.
+
+    The scan reads each commit's raw diff and chains the versions a path went
+    through. This uses neither: for every commit of the window it asks git
+    which blob each shared path held THERE (one batch lookup per repo), and
+    calls a repo behind when what it holds now is one of those blobs. Every
+    (path, repo behind, new content) the scan lists must be found this way,
+    and everything found this way that the scan does not list must fall under
+    an exclusion docs/UPLIFT.md names. Anything else is a defect in the scan."""
+    since = doc["since"]
+    read = [r for r in members if r.read]
+    holders: dict[str, set[str]] = {}
+    for r in read:
+        for path in r.tree:
+            holders.setdefault(path, set()).add(r.target)
+    truth: dict[tuple[str, str, str], list[str]] = {}
+    for r in read:
+        commits = git(r.path, "rev-list", "--first-parent", f"--since={since}", r.ref).split()
+        if not commits:
+            continue
+        base = git(r.path, "rev-parse", "-q", "--verify", f"{commits[-1]}^", check=False).strip()
+        points = ([base] if base else []) + commits[::-1]              # oldest first
+        start = set(git(r.path, "ls-tree", "-r", "--name-only", base).splitlines()) if base else set()
+        # every path the repo held at the window's start, holds now, or touched in between (a file added and
+        # deleted inside the window is in neither tree)
+        touched = set(git(r.path, "log", "--first-parent", "--diff-merges=first-parent", f"--since={since}",
+                          "--no-renames", "--name-only", "--format=", r.ref).splitlines())
+        paths = sorted(p for p in start | set(r.tree) | touched if p and holders.get(p, set()) - {r.target})
+        if not paths:
+            continue
+        query = "".join(f"{c}:{p}\n" for p in paths for c in points)
+        found = subprocess.run(["git", "-C", str(r.path), "cat-file", "--batch-check=%(objectname) %(objecttype)"],
+                               input=query, capture_output=True, text=True, errors="replace").stdout.splitlines()
+        if len(found) != len(paths) * len(points):
+            raise UpliftError(f"verify: git answered {len(found)} of {len(paths) * len(points)} lookups in {r.target}")
+        moved = set()
+        for line in git(r.path, "log", "--first-parent", "--diff-merges=first-parent", f"--since={since}", "-M",
+                        "--diff-filter=R", "--name-status", "--format=", r.ref).splitlines():
+            parts = line.split("\t")
+            if len(parts) == 3:
+                moved.add(parts[1])
+        quiet = {c.sha for c in r.commits if c.ignored}
+        answers = iter(found)
+        for path in paths:
+            seq = [a.split()[0] if a.endswith(" blob") else None for a in (next(answers) for _ in points)]
+            now = r.tree.get(path)
+            versions = {v for v in seq if v and v != now and v != EMPTY_BLOB}
+            if not versions:
+                continue
+            changers = [points[i] for i in range(1, len(seq)) if seq[i] != seq[i - 1]]
+            if matches(cfg["ignore_paths"], path):
+                why = "an ignored path"
+            elif seq[0] == now:
+                why = "back where it started"
+            elif changers and all(c in quiet for c in changers):
+                why = "only ignored commits"
+            elif path in moved:
+                why = "a rename"
+            else:
+                why = ""
+            for other in holders[path] - {r.target}:
+                held = next(m.tree[path] for m in read if m.target == other)
+                if held in versions:
+                    truth.setdefault((path, other, now or DELETED), []).append(why)
+    listed = {(e["path"], b, e["post"] or DELETED) for e in doc["candidates"] + doc["rollouts"] for b in e["behind"]}
+    forked = {(f["path"], b) for f in doc["forks"] for b in f["behind"]}
+    explained: dict[str, int] = {}
+    unexplained: list[tuple[str, str]] = []
+    for key, reasons in truth.items():
+        if key in listed:
+            continue
+        if (key[0], key[1]) in forked:
+            reasons = ["a forked seed"]
+        if all(reasons):
+            for why in set(reasons):
+                explained[why] = explained.get(why, 0) + 1
+        else:
+            unexplained.append((key[0], key[1]))
+    return {"found": len(truth), "listed": len(listed), "both": len(listed & set(truth)),
+            "false_positives": sorted((k[0], k[1]) for k in listed - set(truth)),
+            "unexplained": sorted(unexplained), "explained": dict(sorted(explained.items()))}
+
+
 # -------------------------------------------------------------------------- CLI
 def parse_now(text: str | None) -> dt.datetime | None:
     if not text:
@@ -969,8 +1091,16 @@ def parse_now(text: str | None) -> dt.datetime | None:
 def run_scan(args: argparse.Namespace) -> tuple[dict, list[Repo], dict, Path]:
     hub = Path(args.hub).resolve() if args.hub else HUB
     projects = Path(args.projects).expanduser().resolve() if args.projects else default_projects_dir(hub)
+    if args.projects and not projects.is_dir():
+        raise UpliftError(f"no such folder: {projects} (--projects names the folder holding the submodule checkouts)")
     cfg, _ = load_config(hub)
     doc, members = scan(hub, projects, days=args.days, only=getattr(args, "repo", None) or None, now=parse_now(args.now))
+    others = [r for r in members if not r.is_hub]
+    if others and not any(r.read for r in others):
+        # an empty report here would read as a quiet fleet; it is a fleet nobody looked at
+        raise UpliftError(f"none of the {len(others)} fleet repos could be read under {projects} "
+                          f"({others[0].target}: {others[0].reason}); run from the checkout that holds the submodules, "
+                          "or pass --projects")
     return doc, members, cfg, hub
 
 
@@ -993,7 +1123,10 @@ def cmd_show(args: argparse.Namespace) -> int:
 
 def cmd_brief(args: argparse.Namespace) -> int:
     doc, members, cfg, _ = run_scan(args)
-    entries = [find(doc, k) for k in args.keys] if args.keys else doc["candidates"][: args.top]
+    entries = [find(doc, k) for k in args.keys] if args.keys else doc["candidates"][: max(args.top, 0)]
+    if not entries:
+        print("No candidates in this window: there is nothing to judge.")
+        return 0
     text = render_brief(entries, members, doc, cfg)
     if args.out:
         Path(args.out).write_text(text + "\n", encoding="utf-8")
@@ -1011,6 +1144,29 @@ def cmd_file(args: argparse.Namespace) -> int:
     if not args.apply and any(r["outcome"] == "preview" for r in results):
         print("\nNothing was filed. Read the preview(s), then add --apply to file exactly those bytes as hub issues.")
     return code
+
+
+def cmd_verify(args: argparse.Namespace) -> int:
+    doc, members, cfg, _ = run_scan(args)
+    res = verify(doc, members, cfg)
+    print(f"Fleet uplift verify — {doc['days']} days to {day(doc['generated_at'])} · {doc['counts']['read']} of "
+          f"{doc['counts']['repos']} repos read")
+    print(f"  found by the second method: {res['found']} (path, repo behind, new content)")
+    print(f"  listed by the scan:         {res['listed']}, of which {res['both']} are also found by the second method")
+    print(f"  listed and NOT found (false positives): {len(res['false_positives'])}")
+    for path, repo in res["false_positives"][: cfg["max_rows"]]:
+        print(f"      {path}  behind: {repo}")
+    left_out = sum(res["explained"].values())
+    print(f"  found and not listed, under a documented exclusion: {left_out}"
+          + (" (" + ", ".join(f"{n} {why}" for why, n in res["explained"].items()) + ")" if left_out else ""))
+    print(f"  found and not listed, UNEXPLAINED: {len(res['unexplained'])}")
+    for path, repo in res["unexplained"][: cfg["max_rows"]]:
+        print(f"      {path}  behind: {repo}")
+    bad = bool(res["false_positives"] or res["unexplained"])
+    print("\n" + ("FAIL: the scan and the second method disagree; the scan is wrong until this is explained."
+                  if bad else "OK: every listed repo is behind by the second method too, and nothing it found is missing "
+                              "without a documented reason."))
+    return 1 if bad else 0
 
 
 def cmd_status(args: argparse.Namespace) -> int:
@@ -1052,6 +1208,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("keys", nargs="+", metavar="KEY")
     p.add_argument("--apply", action="store_true", help="file exactly the previewed bytes (typed by a person)")
     p.set_defaults(fn=cmd_file)
+    p = sub.add_parser("verify", parents=[common], help="re-derive who is behind a second way and compare it with the scan")
+    p.set_defaults(fn=cmd_verify)
     p = sub.add_parser("status", parents=[common], help="the last scan's headline, without reading git")
     p.set_defaults(fn=cmd_status)
     return ap

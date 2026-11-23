@@ -6,18 +6,18 @@ The hub pushes out: kits through [`tools/fanout.sh`](../tools/fanout.sh), backlo
 
 **A repo changed a file. Which other repos still hold a version of that file the repo held before its change?**
 
-A byte-identical earlier version means the same change applies there without adaptation. That is a comparison, not an estimate, so the capture step needs no model. Judgment is asked for once, afterwards: is the change general, or specific to the repo that made it?
+A byte-identical earlier version means that repo never changed the file on its own, so it can take the new content as it is. That is a comparison, not an estimate, so the capture step needs no model. Judgment is asked for once, afterwards: is the change general, or specific to the repo that made it?
 
 | | |
 | --- | --- |
 | **Module** | [`tools/uplift.py`](../tools/uplift.py) (`fleet-uplift/v1`) |
 | **Config** | `_data/fleet.yml` `uplift:`; the owners compared are `hub.owners` |
-| **CLI** | `tools/dash uplift [scan \| show <key> \| brief \| file <key> \| status] [--days N] [--repo NAME] [--json]` |
+| **CLI** | `tools/dash uplift [scan \| show <key> \| brief \| file <key> \| verify \| status] [--days N] [--repo NAME] [--json]` |
 | **Console** | Operations → *Fleet uplift* (the `uplift` operation: the scan as a job); `tools/dash ops run uplift` and the `/harness:uplift` slash command run the same |
 | **Session** | the `uplift` skill ([`.claude/skills/uplift/`](../.claude/skills/uplift/SKILL.md)): a Claude Code session reads the work order, judges each candidate and previews the issues |
 | **Reads** | each submodule checkout's `origin/<branch>` as of its last fetch, and the hub's own; local git only |
 | **Writes** | `.fleet/uplift/` (the last scan, the issue previews; gitignored). `file --apply`, typed by a person, is the one GitHub write: an issue on the hub |
-| **Tests** | `python3 tools/test_uplift.py` (real git repositories in a temp dir, a stubbed `gh`) |
+| **Tests** | `python3 tools/test_uplift.py` (real git repositories in a temp dir, a stubbed `gh`); `tools/dash uplift verify` checks a live scan against a second method |
 
 ## Run it
 
@@ -28,6 +28,7 @@ tools/dash uplift show u-ad193bc4fd      # one candidate or rollout in full, wit
 tools/dash uplift brief --top 5          # the work order a session reads: the evidence, then the questions judgment answers
 tools/dash uplift file u-ad193bc4fd      # a preview of the hub issue, written to .fleet/uplift/previews/
 tools/dash uplift file u-ad193bc4fd --apply   # file exactly the previewed bytes (typed by the maintainer)
+tools/dash uplift verify                 # re-derive who is behind a second way and compare it with the scan
 tools/dash uplift status                 # the last scan's headline, without reading git
 ```
 
@@ -55,7 +56,7 @@ A chain of edits is one move. A repo that took a file from A to B to C in the wi
 
 A kit stamp separates a kit arriving from a repo's own edit. When the stamp is new, or newer than in the version just before, the repo took a kit upgrade and wrote nothing: a rollout. When the repo edits a stamped file and the stamp stays as it was, the edit is the repo's own, and its route is that kit.
 
-The diff a view or an issue shows runs from the earlier version most repos behind hold to what the changing repo holds now. After a kit upgrade and an edit on top, that is the edit alone, which is what those repos would actually receive.
+The diff a view or an issue shows runs from the earlier version most repos behind hold to what the changing repo holds now. After a kit upgrade and an edit on top, that is the edit alone, which is what those repos would actually receive. A repo behind on another earlier version takes the same new file, but that diff does not apply to it, and the view and the issue name those repos instead of claiming the diff fits everyone.
 
 ### The feature lane
 
@@ -66,8 +67,8 @@ No comparison can say whether a sibling wants a feature, so this lane only lists
 ## What proves nothing, and is not reported
 
 - An **empty file**. Every repo's empty `__init__.py` has the same contents, so it is evidence of nothing.
-- A **rename**. The file moved; it was neither edited nor deleted.
-- A file that **came back to where it started** inside the window.
+- A **rename**, with or without an edit before it. The file moved; by its old path it was neither improved nor deleted.
+- A file that **came back to where it started** inside the window: an edit that was reverted, or a file added and deleted again.
 - An **ignored path** (`uplift.ignore_paths`: changelogs, release manifests, lockfiles), an **ignored author** (`uplift.ignore_authors`: Dependabot and the Actions bots) and an **ignored subject** (`uplift.ignore_subjects`: release commits, submodule bumps).
 - A **new file**. It has no earlier version for anyone to be behind on. A new shared file reaches the scan only through the feature lane.
 
@@ -103,11 +104,28 @@ An issue for route `kit` carries no `applies_to:` line on purpose: a kit change 
 
 ## Design for failure
 
-- **A repo that cannot be read is said to be unread.** A missing checkout or a missing `origin/<branch>` is listed under NOT READ with the reason. It is never reported as a quiet repo.
+- **A repo that cannot be read is said to be unread.** A missing checkout, a checkout git cannot open (with git's own reason) or a missing `origin/<branch>` is listed under NOT READ. It is never reported as a quiet repo.
+- **A fleet nobody read is a refusal, not an empty report.** When no fleet repo can be read (a wrong `--projects`, a copy with no submodules), every command exits 2 and says so. `--days` below 1 and a `--projects` folder that does not exist are refused the same way.
 - **Stale is said.** A checkout last fetched more than `stale_days` ago is listed under STALE: commits pushed since are not seen. The daily workspace sync keeps the checkouts fresh; the scan itself never fetches.
 - **The hub is a member.** The registry lists submodules only, so the scan adds the hub itself (`hub.repo`) to the comparison. The hub can be behind, and its name is kept out of `applies_to:`, which takes fan-out targets.
 - **External upstreams and archived repos are never compared**, as an origin or as a repo behind. The fan-out engine never writes to them either.
 - **Nothing is published.** The scan can hold a private repo's commit titles and diffs, so it lives in `.fleet/uplift/` and never in `_data/`, which is public site data.
+
+## Check the scan itself
+
+`tools/dash uplift verify` re-derives who is behind a second way and compares the two. The scan reads each commit's raw diff and chains the versions a path went through. The check uses neither: for every commit of the window it asks git which blob each shared path held there, and calls a repo behind when what it holds now is one of those blobs. Every (path, repo behind, new content) the scan lists must be found this way, and everything found this way that the scan does not list must fall under an exclusion named above: an ignored path, only ignored commits, a forked seed, a rename, back where it started. Anything else fails the command with exit 1 and is a defect in the scan.
+
+Run on the live fleet on 2026-11-22:
+
+| Window | Commits | Listed by the scan | Confirmed by the second method | False positives | Unexplained |
+| --- | --- | --- | --- | --- | --- |
+| 14 days | 836 | 229 | 229 | 0 | 0 |
+| 90 days | 3,291 | 345 | 345 | 0 | 0 |
+| 365 days | 6,602 | 486 | 486 | 0 | 0 |
+
+The same validation pass checked what the comparison is used to claim. For the 17 edit candidates of the 14-day window, the shown change was applied with `git apply` to what each repo behind really holds: in 154 of 154 repos on the diff's starting version it applied and produced the origin's exact bytes, and in the 2 repos on another earlier version it did not, which is why the views and the issue now name those repos apart. Filing was run end to end against a recording stand-in for `gh`: a refused apply with no preview, then the preview, then the apply made exactly the calls expected (the label listing, two visibility reads, the label, the issue) and the filed body was byte-identical to the preview. The read-only calls were also run against GitHub itself. No issue has been filed on GitHub. Inside the console container, with the console's own interpreter, a scan of the fleet took 4 seconds.
+
+Found this way and fixed: a file edited and then renamed was reported as deleted; a file added and deleted again was reported as a deletion although the repo was back where it started; an unreadable checkout was reported as a missing branch; the issue text said the diff fits every repo behind; and `--days 0`, a negative window and a `--projects` folder that does not exist each gave an empty report that read as a quiet fleet.
 
 ## What it cannot see
 

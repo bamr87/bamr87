@@ -1,8 +1,8 @@
 ---
 description: Fleet uplift — what one repo improved that the others still lack, which rollouts have not landed, and the work order for judging the candidates ($0, reads local git only)
-argument-hint: '[scan | show <key> | brief [key …] | status] [--days N] [--repo name]'
+argument-hint: '[scan | show <key> | brief [key …] | verify | status] [--days N] [--repo name]'
 disable-model-invocation: true
-allowed-tools: Bash(tools/dash ops run uplift *), Bash(tools/dash uplift scan *), Bash(tools/dash uplift show *), Bash(tools/dash uplift brief *), Bash(tools/dash uplift status *)
+allowed-tools: Bash(tools/dash ops run uplift *), Bash(tools/dash uplift scan *), Bash(tools/dash uplift show *), Bash(tools/dash uplift brief *), Bash(tools/dash uplift verify *), Bash(tools/dash uplift status *)
 metadata:
   ops: [uplift]
 ---
@@ -14,6 +14,7 @@ View: $ARGUMENTS (blank means `scan`)
 - `scan`: `tools/dash ops run uplift`. Candidates (one repo changed a file other repos still hold in an earlier version, with the kit or patch route), rollouts in flight (a kit or hub change that has not reached everyone), forked seeds and the features each repo declared or shipped. For another window or one repo's changes: `tools/dash uplift scan --days N --repo <name>`.
 - `show <key>`: `tools/dash uplift show <key>`. One candidate or rollout in full, with its diff.
 - `brief`: `tools/dash uplift brief --top 5`, or `tools/dash uplift brief <key> …`. The work order: judge each candidate as the `uplift` skill sets out (is it general, where does it belong, who gets it, what proves it landed).
+- `verify`: `tools/dash uplift verify`. Re-derives who is behind a second way and fails when the scan disagrees; run it when a count looks wrong, and report a failure as a defect in the scan, not as a finding about the fleet.
 - `status`: `tools/dash uplift status`. The last scan's headline.
 
 It reads the local submodule checkouts, never GitHub, and calls no model (docs/UPLIFT.md). Report the candidates you judge general first, each with its key, the repos behind and its route; then the rollouts still in flight; then anything listed as NOT READ or STALE, which is unknown, not quiet.

@@ -136,6 +136,7 @@ def build(tmp: str) -> Fleet:
         "hubsrc.txt": "hub source v1\n", "hubnew.txt": "hub old\n", "gone.txt": "delete me\n", "empty.py": "",
         "CHANGELOG.md": "log\n", "bot.txt": "x\n", "fan.txt": "x\n", "two.txt": "base\n", "land.txt": "o\n",
         "moved.txt": "move me, a file long enough for git to follow\nacross a rename\n", "image.bin": b"\0\1\2old",
+        "modmove.txt": "edited and then moved: a file long enough for git\nto follow across a rename\nline three\nline four\n",
     }
     for name in OWNED:
         repo = f.repo(name)
@@ -146,22 +147,28 @@ def build(tmp: str) -> Fleet:
             files["features/features.yml"] += feature("A-002", "a second feature", "planned")
         if name == "b":
             files["chain.txt"] = "B\n"                     # b already holds what a passes through
+            files["flash.txt"] = "flash\n"                 # ...and a file a will add and delete again
             del files["features/features.yml"]
         f.commit(repo, files, "chore: seed", SEED)
     f.commit(f.repo("ext", owner="someone-else"), dict(shared), "chore: seed", SEED)
     f.commit(f.repo("old", status="archived"), dict(shared), "chore: seed", SEED)
     f.repo("ghost", checkout=False)
+    broken = f.repo("broken", checkout=False)              # a checkout whose git pointer leads nowhere
+    broken.mkdir(parents=True)
+    (broken / ".git").write_text("gitdir: /nonexistent/gitdir/for/the/uplift/test\n")
     a, b, c, d, e = (f.projects / n for n in OWNED)
 
     f.merge(a, "fix/ci", {"ci.yml": "v2\n"}, 7, "fix(ci): pin the action", RECENT)
-    f.commit(a, {"chain.txt": "B\n", "revert.txt": "B\n", "kitedit.yml": KIT_NEW}, "fix: first pass", EARLY)
+    f.commit(a, {"chain.txt": "B\n", "revert.txt": "B\n", "kitedit.yml": KIT_NEW, "flash.txt": "flash\n",
+                 "modmove.txt": shared["modmove.txt"] + "line five\n"}, "fix: first pass", EARLY)
     f.commit(a, {"chain.txt": "C\n", "revert.txt": "A\n", "kit.yml": "# kit: demo v1.0.0\nbody2\n",
                  "kitup.yml": "# kit: demo v1.1.0\nbody\n", "hubsrc.txt": "improved\n", "hubnew.txt": "hub new\n",
                  "gone.txt": None, "empty.py": "code\n", "CHANGELOG.md": "log\nmore\n", "only-a.txt": "mine too\n",
                  "image.bin": b"\0\1\2new", "roll.txt": "new\n", "seed.yml": "a's\n", "two.txt": "a way\n",
                  "land.txt": "n\n", "kitedit.yml": KIT_NEW.replace("body", "body fixed")}, "fix: second pass (#12)", RECENT)
     f.git(a, "mv", "moved.txt", "moved2.txt")
-    f.commit(a, {}, "refactor: rename", RECENT)
+    f.git(a, "mv", "modmove.txt", "modmove2.txt")
+    f.commit(a, {"flash.txt": None}, "refactor: rename", RECENT)
     f.commit(a, {"bot.txt": "y\n"}, "build(deps): bump x", RECENT, author="dependabot[bot]")
     f.merge(a, "chore/sdlc-kit", {"fan.txt": "y\n"}, 9, "chore(sdlc): adopt the sdlc kit (kit v9.9.9)", RECENT)
     f.commit(a, {"features/features.yml": FEATURES + feature("A-001", "a first feature")
@@ -272,9 +279,65 @@ class Scan(unittest.TestCase):
         seen = paths(self.doc, "candidates") | paths(self.doc, "rollouts")
         for path, why in (("revert.txt", "it came back to where it started"), ("empty.py", "an empty file is everyone's"),
                           ("CHANGELOG.md", "an ignored path"), ("bot.txt", "a bot's commit"),
-                          ("moved.txt", "a rename is not a deletion"), ("only-a.txt", "nobody else holds it")):
+                          ("moved.txt", "a rename is not a deletion"), ("only-a.txt", "nobody else holds it"),
+                          ("modmove.txt", "edited and then renamed: it moved, it was not deleted"),
+                          ("flash.txt", "added and deleted again: back where it started")):
             with self.subTest(path=path):
                 self.assertNotIn(path, seen, why)
+
+    def test_the_diff_is_said_to_apply_only_where_it_does(self) -> None:
+        # c, d and e hold the version the diff starts from; b holds the middle one, which the diff does not fit
+        chain = entry(self.doc, "chain.txt")
+        self.assertEqual((chain["behind"], chain["behind_other"]), (["b", "c", "d", "e"], ["b"]))
+        self.assertEqual(entry(self.doc, "ci.yml")["behind_other"], [])
+        shown = uplift.render_entry(chain, self.members, uplift.DEFAULTS)
+        self.assertIn("1 of them hold another earlier version than the one the diff below starts from (b)", shown)
+        body = uplift.issue_body(chain, self.members, uplift.DEFAULTS, "hub")
+        self.assertIn("The diff below applies as written to 3 of them; b hold another earlier version", body)
+        self.assertNotIn("without adaptation", body)
+        self.assertIn("The diff below applies to each as written.",
+                      uplift.issue_body(entry(self.doc, "ci.yml"), self.members, uplift.DEFAULTS, "hub"))
+        brief = uplift.render_brief([chain], self.members, self.doc, uplift.DEFAULTS)
+        self.assertIn("**On another earlier version (they take the new file, the diff below does not apply to them):** b", brief)
+
+    def test_the_shown_diff_really_applies_to_the_repos_on_its_base(self) -> None:
+        # not a claim about hashes: git applies the change to what each repo holds and the bytes come out the origin's
+        for path in ("ci.yml", "chain.txt", "kitedit.yml"):
+            e = entry(self.doc, path)
+            origin = next(r for r in self.members if r.target == e["from"]["repo"])
+            old, new = uplift.blob_bytes(origin.path, e["from"]["base"]), uplift.blob_bytes(origin.path, e["post"])
+            with tempfile.TemporaryDirectory() as tmp:
+                work = Path(tmp)
+                self.fleet.git(work, "init", "-q")
+                (work / "f").write_bytes(old)
+                self.fleet.git(work, "add", "f")
+                self.fleet.git(work, "commit", "-q", "-m", "base", when=SEED)
+                (work / "f").write_bytes(new)
+                patch = self.fleet.git(work, "diff")
+                for repo, held in e["behind_holds"].items():
+                    member = next(r for r in self.members if r.target == repo)
+                    (work / "f").write_bytes(uplift.blob_bytes(member.path, held))
+                    done = subprocess.run(["git", "-C", str(work), "apply", "-"], input=patch, text=True, capture_output=True)
+                    with self.subTest(path=path, repo=repo):
+                        if repo in e["behind_other"]:
+                            self.assertNotEqual(done.returncode, 0, "another earlier version: the diff must not be said to fit")
+                        else:
+                            self.assertEqual((done.returncode, (work / "f").read_bytes()), (0, new))
+
+    def test_a_second_method_finds_the_same_repos_behind(self) -> None:
+        res = uplift.verify(self.doc, self.members, uplift.DEFAULTS)
+        self.assertEqual((res["false_positives"], res["unexplained"]), ([], []))
+        self.assertEqual(res["both"], res["listed"])
+        self.assertGreater(res["listed"], 20)
+        self.assertEqual(set(res["explained"]), {"a forked seed", "a rename", "an ignored path", "back where it started",
+                                                 "only ignored commits"}, "each documented exclusion is exercised")
+
+    def test_the_second_method_catches_a_scan_that_is_wrong(self) -> None:
+        wrong = json.loads(json.dumps(self.doc))
+        entry(wrong, "ci.yml")["behind"].remove("d")                     # the scan missed a repo that is behind
+        entry(wrong, "gone.txt")["behind"].append("a")                   # ...and invented one that is not
+        res = uplift.verify(wrong, self.members, uplift.DEFAULTS)
+        self.assertEqual((res["unexplained"], res["false_positives"]), ([("ci.yml", "d")], [("gone.txt", "a")]))
 
     def test_a_deletion_others_still_hold_is_a_candidate(self) -> None:
         e = entry(self.doc, "gone.txt")
@@ -336,11 +399,15 @@ class Scan(unittest.TestCase):
                          {"ext": "external upstream (someone-else/ext)", "old": "archived"})
         everyone = {r for e in self.doc["candidates"] + self.doc["rollouts"] for r in e["behind"] + e["holders"]}
         self.assertFalse({"ext", "old"} & everyone, "an upstream we do not own and an archived repo are never compared")
-        ghost = next(r for r in self.doc["repos"] if r["repo"] == "ghost")
-        self.assertEqual((ghost["read"], ghost["reason"]), (False, "no checkout"))
-        self.assertIn("NOT READ (their activity is unknown, not absent): ghost (no checkout)",
+        unread = {r["repo"]: r["reason"] for r in self.doc["repos"] if not r["read"]}
+        self.assertEqual(unread["ghost"], "no checkout")
+        self.assertRegex(unread["broken"], r"^git cannot read it: \S",
+                         "git's own reason (its wording varies by version), not a missing branch: the ref was never looked for")
+        self.assertNotIn("no origin/", unread["broken"])
+        self.assertEqual(set(unread), {"ghost", "broken"})
+        self.assertIn("NOT READ (their activity is unknown, not absent): ghost (no checkout), broken (git cannot read it:",
                       uplift.render(self.doc, uplift.DEFAULTS))
-        self.assertEqual((self.doc["counts"]["repos"], self.doc["counts"]["read"]), (7, 6))
+        self.assertEqual((self.doc["counts"]["repos"], self.doc["counts"]["read"]), (8, 6))
 
     def test_keys_are_stable_and_candidates_are_ranked_by_who_is_behind(self) -> None:
         again, _ = uplift.scan(self.fleet.hub, self.fleet.projects, now=NOW)
@@ -563,7 +630,7 @@ class Cli(unittest.TestCase):
         self.assertEqual(json.loads((self.state / "scan.json").read_text())["counts"], doc["counts"])
         code, out, _ = self.run_cli("status", *self.base)
         self.assertEqual(code, 0)
-        self.assertIn("Last scan 2026-11-20 (0 day(s) ago), 14 days, 6 of 7 repos read", out)
+        self.assertIn("Last scan 2026-11-20 (0 day(s) ago), 14 days, 6 of 8 repos read", out)
         self.assertIn(uplift.headline(doc), out)
 
     def test_flags_alone_are_the_scan_and_the_other_views_run(self) -> None:
@@ -584,6 +651,39 @@ class Cli(unittest.TestCase):
         code, out, err = self.run_cli("show", "u-ffffffffff", *self.base)
         self.assertEqual((code, out), (2, ""))
         self.assertTrue(err.startswith("uplift: no candidate or rollout has the key"))
+
+    def test_a_window_nobody_meant_and_a_fleet_nobody_read_are_refused(self) -> None:
+        for days in ("0", "-3"):
+            code, out, err = self.run_cli("scan", *self.base, "--days", days)
+            self.assertEqual((code, out, err), (2, "", "uplift: --days must be 1 or more\n"))
+        hub = ["--hub", str(self.fleet.hub), "--now", NOW.isoformat()]
+        code, out, err = self.run_cli("scan", *hub, "--projects", str(self.fleet.hub / "no-such-folder"))
+        self.assertEqual((code, out), (2, ""))
+        self.assertIn("no such folder", err)
+        with tempfile.TemporaryDirectory() as empty:
+            for command in (["scan"], ["verify"], ["brief"]):
+                code, out, err = self.run_cli(*command, *hub, "--projects", empty)
+                with self.subTest(command=command):
+                    self.assertEqual((code, out), (2, ""), "an empty report would read as a quiet fleet")
+                    self.assertIn("none of the 7 fleet repos could be read", err)
+
+    def test_verify_and_an_empty_work_order(self) -> None:
+        code, out, _ = self.run_cli("verify", *self.base)
+        self.assertEqual(code, 0)
+        self.assertIn("listed and NOT found (false positives): 0", out)
+        self.assertIn("UNEXPLAINED: 0", out)
+        self.assertIn("OK: every listed repo is behind by the second method too", out)
+        code, out, _ = self.run_cli("brief", *self.base, "--days", "2")
+        self.assertEqual((code, out), (0, "No candidates in this window: there is nothing to judge.\n"))
+
+    def test_a_disagreement_fails_the_verify_command(self) -> None:
+        wrong = {"found": 3, "listed": 3, "both": 2, "false_positives": [("ci.yml", "zz")], "unexplained": [("gone.txt", "d")],
+                 "explained": {}}
+        with unittest.mock.patch.object(uplift, "verify", return_value=wrong):
+            code, out, _ = self.run_cli("verify", *self.base)
+        self.assertEqual(code, 1, "a job that ran it must show as failed")
+        for want in ("ci.yml  behind: zz", "gone.txt  behind: d", "FAIL: the scan and the second method disagree"):
+            self.assertIn(want, out)
 
     def test_status_without_a_scan(self) -> None:
         with tempfile.TemporaryDirectory() as empty, unittest.mock.patch.dict(os.environ, {"UPLIFT_STATE": empty}):

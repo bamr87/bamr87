@@ -645,8 +645,8 @@ pm:
 # scout, the evolution loop). Uplift carries an improvement one repo made back
 # up: it reads every fleet repo's default branch from the local submodule
 # checkouts and compares file contents. A repo that changed a file other repos
-# still hold in an earlier version, byte for byte, is a CANDIDATE: the same
-# change applies to them without adaptation. Content that is the hub's own,
+# still hold in an earlier version, byte for byte, is a CANDIDATE: they never
+# changed it on their own, so they can take the new content as it is. Content that is the hub's own,
 # that came in on a fan-out branch, that carries a newer kit stamp or that
 # `rollout_min` repos already hold is a ROLLOUT in flight, never one repo's
 # improvement. No GitHub read, no model, no schedule. `uplift file <key>`

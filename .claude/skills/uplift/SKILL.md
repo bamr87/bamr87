@@ -27,6 +27,7 @@ For each candidate: the key, the file, the origin, how many repos are behind, yo
 
 ## Rules
 
-- Counts come from the scan. Do not estimate who is behind; the comparison is exact, so quote it.
+- Counts come from the scan. Do not estimate who is behind; the comparison is exact, so quote it. If a count looks wrong, `tools/dash uplift verify` re-derives it a second way.
+- The diff applies as written only to the repos on the version it starts from. Where the view names repos on another earlier version, say so: they take the same new file, not that diff.
 - A private origin is never filed to the public hub; `file --apply` withholds it. Do not paste its diff into an issue, a pull request or a comment yourself.
 - An issue for route `kit` has no `applies_to:` line. Do not add one: a kit change deploys through the kit.
