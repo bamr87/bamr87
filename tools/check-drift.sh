@@ -2,7 +2,7 @@
 # ============================================================================
 # tools/check-drift.sh — hard drift gate for the dash
 #
-# Checks ((a,b,d,e,h,j,m,n,o,p,q) gate the exit status unless --report; (c,f,g,i,k,q) warn only):
+# Checks ((a,b,d,e,h,j,m,n,o,p,q,r,s) gate the exit status unless --report; (c,f,g,i,k,q) and (s)'s name check warn only):
 #   (a) registry <-> .gitmodules parity (paths, branches, AND urls) + no
 #       stray/unregistered project dirs. The url leg is offline, so it gates on
 #       every PR; the live GitHub side (renames/deletions) is (g) + `dash reconcile`.
@@ -64,6 +64,11 @@
 #       Advisory for (g)'s reason — a repo-scoped token 404s on a private repo
 #       exactly as on a deleted one — so unreadable repos are reported as
 #       UNREAD rather than counted clean.
+#   (s) the branch model (_data/fleet.yml `branches:`, docs/BRANCHING.md): the
+#       policy loads and honours constitution § 12.2 (merge commits, no
+#       linear history), which gates; and the branch under test (the pull
+#       request's head in CI, the checked-out branch locally) matches a
+#       declared prefix (UPS-QA-35), which warns. Offline.
 #
 # (e) is LOCAL-ONLY (skipped when submodules aren't checked out, e.g. CI).
 # (c) the internal-link check needs a built _site + lychee, so it is NOT part of
@@ -79,6 +84,23 @@
 #   --report    print a summary, never fail (used by `dash status`)
 # ============================================================================
 set -uo pipefail
+
+# bash 3.2 (stock macOS) misparses a quoted heredoc inside $( … ), which the
+# checks below use: every composite action then shows a false ✗ and the run
+# dies on a syntax error, on a tree CI calls green. Run again under a newer
+# bash when one is installed; otherwise say why and stop, since any failure
+# printed from here on would not be real.
+if (( BASH_VERSINFO[0] < 4 )); then
+  for newer_bash in /opt/homebrew/bin/bash /usr/local/bin/bash; do
+    if [[ -x "$newer_bash" ]] && "$newer_bash" -c '(( BASH_VERSINFO[0] >= 4 ))' 2>/dev/null; then
+      exec "$newer_bash" "${BASH_SOURCE[0]}" "$@"
+    fi
+  done
+  echo "check-drift: needs bash 4 or newer (this is ${BASH_VERSION}). Install one (brew install bash) or run it in the devenv container; nothing was checked." >&2
+  # --report never fails (`dash status` reads it), but it must not look like a pass either.
+  [[ "${1:-}" == "--report" ]] && exit 0
+  exit 2
+fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MODE="gate"
@@ -1036,6 +1058,30 @@ if [[ -f "$ROOT/tools/sprint_record.py" ]]; then
   fi
 else
   warn "skipped (tools/sprint_record.py absent)"
+fi
+
+# --- (s): the branch model (docs/BRANCHING.md, ADR 0015) --------------------
+# The policy is data every surface reads (dash protect, the PR queue's naming),
+# so a policy that no longer loads, or that asks for linear history, gates. The
+# branch's own name only warns: it is fixed once the pull request is open.
+echo "(s) branch model (_data/fleet.yml branches:)"
+if [[ -f "$ROOT/tools/branch_policy.py" ]] && "$PY" -c 'import yaml' >/dev/null 2>&1; then
+  s_branch="${GITHUB_HEAD_REF:-}"
+  [[ -n "$s_branch" ]] || s_branch="$(git -C "$ROOT" symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+  s_args=(classify --strict "${s_branch:-main}")
+  [[ "${GITHUB_ACTIONS:-}" == "true" ]] && s_args+=(--github)
+  s_rc=0
+  s_out="$("$PY" "$ROOT/tools/branch_policy.py" "${s_args[@]}" 2>&1)" || s_rc=$?
+  if [[ $s_rc -eq 0 ]]; then
+    ok "policy loads; ${s_branch:-a detached HEAD} is $(printf '%s' "$s_out" | head -1 | cut -f2)"
+  elif [[ $s_rc -eq 1 ]]; then
+    printf '%s\n' "$s_out" | grep '^::warning' || true
+    warn "${s_branch} matches no declared branch prefix (UPS-QA-35): use a work prefix, or declare the loop's in _data/fleet.yml branches:"
+  else
+    bad "$(printf '%s' "$s_out" | tail -1)"
+  fi
+else
+  warn "skipped (tools/branch_policy.py or PyYAML unavailable)"
 fi
 
 # --- (c): internal links ---------------------------------------------------

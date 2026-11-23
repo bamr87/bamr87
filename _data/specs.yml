@@ -804,8 +804,8 @@ requirements:
     level: SHOULD
     applies: [all]
     requirement: "Branch protection on the default branch requires the CI gate."
-    satisfied_by: "`tools/protect-branch.sh`"
-    seed: "hub tool"
+    satisfied_by: "`tools/dash protect <repo> --check`"
+    seed: "`tools/dash protect <repo> --checks <gate> --apply` (`tools/branch_policy.py`, the maintainer's)"
     gap: false
   - id: UPS-QA-30
     area: QA
@@ -819,9 +819,9 @@ requirements:
   - id: UPS-QA-31
     area: QA
     section: "Commits, branches, releases"
-    level: MUST
+    level: retired
     applies: [all]
-    requirement: "Default branch is `main`; work branches `feature/ fix/ docs/ refactor/ test/ chore/`; automation branches use their declared prefixes (`agent/issue-*`, `ai-evolution/*`, `chore/standardize-baseline`)."
+    requirement: "**Retired 2026-11-21 (ADR 0015) → UPS-QA-35: the prefixes are declared once in `_data/fleet.yml` `branches:`, a work branch may start with any Conventional Commit type (the hub's own fan-outs open `feat/`, `ci/` and `style/` branches), and session branches (`claude/`) are named.** Was: Default branch is `main`; work branches `feature/ fix/ docs/ refactor/ test/ chore/`; automation branches use their declared prefixes (`agent/issue-*`, `ai-evolution/*`, `chore/standardize-baseline`)."
     satisfied_by: "branch names"
     seed: "—"
     gap: true
@@ -852,6 +852,25 @@ requirements:
     satisfied_by: "`docs/SUBMODULES.md`"
     seed: "—"
     gap: true
+  - id: UPS-QA-35
+    area: QA
+    section: "Commits, branches, releases"
+    level: MUST
+    applies: [all]
+    requirement: "Default branch is `main`, the only long-lived branch. Every other branch is short-lived, lands by pull request with a merge commit (constitution § 12.2) and is named by a prefix: a work branch by a Conventional Commit type (UPS-QA-30) or `feature/`; a session or automation branch by a prefix declared in the hub's `_data/fleet.yml` `branches:` (`claude/` for a Claude Code session, `agent/issue-`, `ai-evolution/`, `chore/jev-`, `wip/mac/`, …). The longest declared prefix wins."
+    satisfied_by: "branch names; `tools/branch_policy.py classify` (a warning on each hub pull request)"
+    seed: "`_data/fleet.yml` `branches:`, [`docs/BRANCHING.md`](../docs/BRANCHING.md)"
+    gap: false
+  - id: UPS-QA-36
+    area: QA
+    section: "Commits, branches, releases"
+    level: SHOULD
+    applies: [all]
+    applies_notes: ["all except fork"]
+    requirement: "The default branch carries the fleet ruleset `fleet-default-branch`: changes arrive by pull request; a merge commit is the only merge method (§ 12.2); no linear-history rule from any source; no required approval unless the repo's own constitution asks for one (the review gate is the `needs-amr` label, § 12.3–12.4, and agents open pull requests with the maintainer's token, so a required approval is one nobody can give); no force push or deletion; and every required check is named as its check run reports on the default branch (a reusable-workflow caller job `ci` reports as `ci / ci`), since a check that never reports holds every pull request."
+    satisfied_by: "`tools/dash protect <repo> --check` passes"
+    seed: "`tools/dash protect <repo> --apply` (`tools/branch_policy.py`, ADR 0015; the maintainer's, constitution § 4)"
+    gap: false
   - id: UPS-QA-40
     area: QA
     section: "Dependencies"

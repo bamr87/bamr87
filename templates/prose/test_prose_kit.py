@@ -13,6 +13,9 @@ halves of that bargain:
     and pushes, so it never recreates a merged branch;
   * the branch name reaches the script through `env:`, never `${{ }}`;
   * the template starts with its comment header, not a blank line (yamllint);
+  * nothing filters the trigger by path: a path-filtered workflow never
+    starts, so a required `oneline` would never report (kit 0.6.0, #952);
+    the skip lives in the job, which always starts and reports;
   * every archived shape is distinct from the others and from the template,
     and VERSION lists every one of them — an edit that skips the archive
     strands the deployed copies as "hand-modified" (5c648c43 did, for ten).
@@ -34,6 +37,7 @@ except ImportError:  # the structural checks below still run on plain text
 
 KIT = Path(__file__).resolve().parent
 TEMPLATE = KIT / "markdown-oneline.yml"
+HUB_COPY = KIT.parent.parent / ".github" / "workflows" / "markdown-oneline.yml"
 ARCHIVE = KIT / "archive"
 SHAPE = re.compile(r"^markdown-oneline-(\d+\.\d+\.\d+)(-[a-z0-9-]+)?\.yml$")
 
@@ -97,6 +101,39 @@ class RepairPush(unittest.TestCase):
 
     def test_starts_with_header_not_blank_line(self):
         self.assertTrue(text().startswith("# Seeded by the bamr87 hub"))
+
+
+class AlwaysReports(unittest.TestCase):
+    """A check a ruleset may require must always produce a check run (#952)."""
+
+    def bodies(self) -> dict[str, str]:
+        out = {"template": rendered()}
+        if HUB_COPY.exists():  # absent when the kit is read outside the hub
+            out["hub copy"] = HUB_COPY.read_text(encoding="utf-8")
+        return out
+
+    def test_no_path_filter_on_the_trigger(self):
+        for name, body in self.bodies().items():
+            on = re.search(r"^on:\n(.*?)(?=^\S)", body, re.M | re.S)
+            self.assertIsNotNone(on, f"{name}: no on: block")
+            self.assertNotRegex(on.group(1), r"\bpaths(-ignore)?:",
+                                f"{name}: a workflow-level path filter means oneline never reports")
+
+    @unittest.skipIf(yaml is None, "PyYAML not installed")
+    def test_job_has_no_if_and_work_steps_are_gated(self):
+        for name, body in self.bodies().items():
+            job = yaml.safe_load(body)["jobs"]["oneline"]
+            self.assertNotIn("if", job, f"{name}: a job-level if: is fine, but this job gates by step")
+            steps = job["steps"]
+            self.assertEqual(steps[0].get("id"), "changes", f"{name}: detection must run first")
+            for s in steps[1:4]:
+                self.assertIn("steps.changes.outputs.markdown == 'true'", str(s.get("if", "")),
+                              f"{name}: {s.get('name') or s.get('uses')} is not gated on the detection")
+
+    def test_detection_defaults_to_checking(self):
+        for name, body in self.bodies().items():
+            self.assertIn("files=ALL\n", body, f"{name}: detection must default to running the check")
+            self.assertIn("pull-requests: read", body, f"{name}: the PR file list needs pull-requests: read")
 
 
 class Archive(unittest.TestCase):

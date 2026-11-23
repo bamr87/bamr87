@@ -112,7 +112,7 @@ To add or change a project, edit **only** `_data/projects.yml`. The portfolio, d
 | `tools/dash run <tool> [args]` | run a scripts/ submodule tool (forkme, stashme, ...) |
 | `tools/dash new <name> [args]` | scaffold a new project and register it |
 | `tools/dash adopt-release <repo>` | scaffold the release-please pipeline (--all for active repos) |
-| `tools/dash protect <repo>` | require the CI gate on a repo's default branch (--all) |
+| `tools/dash protect <repo>` | plan the fleet ruleset on a repo's default branch: merge commits only, the CI gate (--apply writes it; --check audits; --all; docs/BRANCHING.md) |
 | `tools/dash evolve` | how to evolve the monorepo itself (the local /loops:evolution hub loop; the CI pass was retired) |
 | `tools/dash evolve --repo <name>` | run the repo-evolution loop on one opted-in submodule now (draft PR in its own repo) |
 | `tools/dash evolve --all` | run the weekly repo-evolution loop on every auto_evolve submodule now |

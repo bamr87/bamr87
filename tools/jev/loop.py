@@ -31,6 +31,21 @@ Description: JEV capability two's runner — `python3 -m tools.jev loop`, the
              places it beside the brief in the clone, with a pointer in the
              clone's copy of the brief — the sealed agent only reads a file;
              `--context off` is the CI-identical run.
+             The engine is this module and seven siblings: loop_common.py
+             (exit codes, clock and JSON helpers, the run's options, the
+             subprocess environments), loop_budget.py (the monthly ceiling),
+             loop_runs.py (the run directory and its history), loop_host.py
+             (the gates and the host checks), loop_context.py (the engine's
+             side of the context pack), loop_publish.py (the publish token,
+             the preview, the filing) and loop_canary.py (the canary). Here:
+             the specs, the subprocess seams, the run context, planning, one
+             item's rehearsal or attempt, the run, the verbs and the CLI.
+             This module is the facade: it re-exports every name a sibling
+             defines. A seam tests replace (`DASH_GEN`, `dash_gen`,
+             `relay_dash_gen`, `auth_pin`, `sandbox_available`, `hub_state`,
+             `_fresh_dry`, `load_fleet`, …) is bound HERE only, and a sibling
+             reaches it as `engine.<name>` (a lazy `from . import loop as
+             engine`), so replacing it on this module replaces it everywhere.
 Author: bamr87
 Created: 2026-10-31
 Version: 0.2.0
@@ -45,16 +60,12 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import dataclasses
 import datetime as dt
-import fcntl
-import hashlib
 import json
 import math
 import os
 import platform
 import re
-import secrets
 import shutil
 import signal
 import subprocess
@@ -67,7 +78,6 @@ from collections import deque
 from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from types import SimpleNamespace
 
 from . import adapters, headless
 from . import context as cpack
@@ -76,38 +86,36 @@ from . import workspace as wsp
 from .adapters import REUSE_DAYS, Adapter, Item, PlanResult, PublishPlan, Verdict
 from .common import HUB, JevError, Run, dotenv_values, gh, git, hub_repo, is_bare_name, load_config, run
 from .ledger import BudgetState, Ledger, budget_state
+# The engine's sibling modules. Each block lists the WHOLE of what that module defines, used below or not:
+# `tools.jev.loop` is the facade callers and tests import, so a name dropped here leaves the engine's surface.
+from .loop_budget import (LEDGER_VERSION, _budget_dict, _ledger_cost, _spend,  # noqa: F401 - re-exported
+                          _sprint_budget, _unledgered_rows, _utc_month, budget_lock, budget_position, charge,
+                          ledger_path, local_spend, loops_budget, record_unledgered, unledgered_path)
+from .loop_canary import (CANARY_CAP_USD, CANARY_GRANTS, CANARY_MODEL, CANARY_TIMEOUT_S,  # noqa: F401 - re-exported
+                          CANARY_TURNS, _canary_fixture, _confirm_canary, _plant, canary_dir, canary_flags,
+                          canary_grants, run_canary)
+from .loop_common import (COST_LABEL, DAY_RX, EXIT, OUTER_GRACE_S, SEVERITY, TARGET_RX,  # noqa: F401 - re-exported
+                          Options, _sha, ai_run_env, deterministic_env, iso, now_utc, option_refusal, read_json,
+                          runs_dir, severest, write_json)
+from .loop_context import (CONTEXT_GRACE_S, REFRESH_ARGV, _finite, claude_projects_dir,  # noqa: F401 - re-exported
+                           context_backstop, context_bits, context_mode, context_preview, context_request,
+                           context_settings, context_status, host_ctx, item_pack, place_inputs, refresh_context)
+from .loop_host import (PAUSE_VARIABLE, SANDBOX_EXEC, HostReport, _is_off, _map,  # noqa: F401 - re-exported
+                        auth_choice, cache_key, cached, canary_key, gates, head_sha, host_check, map_paused, pause_gate,
+                        posture_breach, private_work_root, repo_paused, resolve_claude, store, switch_entries,
+                        work_root_problem)
+from .loop_publish import (NOTHING_FILED_RETRY, PUBLISH_PLAN_SCHEMA, PUBLISH_RESULT_SCHEMA,  # noqa: F401 - re-exported
+                           _already_applied, _bodies, _file_sha, _plan_md, _publish_target, apply_item, apply_refusal,
+                           item_values, preview, probe_publish_token, publish_env, publish_phase, publish_tier,
+                           publish_token, publish_values, review_gap)
+from .loop_runs import (ATTEMPT_SCHEMA, KEEP_RUNS, RUN_SCHEMA, History, LockHeld, RunDir,  # noqa: F401 - re-exported
+                        _finish, _summary, _totals, prune, step_lock)
 from .spec import (PATCH_OUTPUT, PUBLISH_REVIEWED_FLAGS, SPEC_ROOT, ContextSpec, StepSpec, StepSpecError,
                    allowed_models,
                    fleet_value, load_fleet, load_spec, render_argv, render_prompt, spec_files, values_from)
 
 DASH_GEN = HUB / "tools" / "dash-gen"
-RUN_SCHEMA = "jev-loop-run/v1"
-ATTEMPT_SCHEMA = "jev-loop-attempt/v1"
-KEEP_RUNS = 30
 TIER = "t1"   # P1 has one tier, built from the spec's resolved values; P3 adds `local.tiers`
-EXIT = {"ok": 0, "attention": 1, "usage": 2, "credential": 3, "host_unsafe": 4, "paused": 5, "no_cli": 127,
-        "interrupted": 130}
-#: § 17's fleet-wide agent pause (bamr87/bamr87#511): any case of 'true' pauses
-#: every agent step, as a workflow's `vars.FLEET_AGENTS_PAUSED != 'true'` reads it.
-#: The engine only reads it (`gh variable get`), never sets it.
-PAUSE_VARIABLE = "FLEET_AGENTS_PAUSED"
-PUBLISH_PLAN_SCHEMA = "jev-loop-publish-plan/v1"
-PUBLISH_RESULT_SCHEMA = "jev-loop-publish-result/v1"
-#: § 10.7: every AI dollar figure the engine prints carries this
-COST_LABEL = "API-equivalent (estimate)"
-#: the engine's backstop beyond the spec's wall clock (ai-run enforces the clock itself)
-OUTER_GRACE_S = 120
-#: the canary (`doctor --live`): the cheapest allowed model, a few turns, ten cents
-CANARY_MODEL = "claude-haiku-5-5"
-CANARY_TURNS = 12
-CANARY_CAP_USD = 0.10
-CANARY_TIMEOUT_S = 300
-SANDBOX_EXEC = Path("/usr/bin/sandbox-exec")
-#: `--target`: a registry name (scout), or a planner's own item key — the doctor's
-#: marker key `owner/repo:.github/workflows/x.yml`, `owner/repo/workflow` or a file
-#: stem. One token: no whitespace, no control character, never option-shaped.
-TARGET_RX = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_./:@-]{0,199}")
-DAY_RX = re.compile(r"\d{4}-\d{2}-\d{2}")
 #: the backstop's SIGTERM-to-SIGKILL grace: ai-run's own SIGINT-first ladder needs well under it
 BACKSTOP_KILL_S = 60
 #: Hub paths whose state decides what an engine run does, besides the spec
@@ -116,112 +124,10 @@ BACKSTOP_KILL_S = 60
 ENGINE_SOURCES = ("tools/jev/", "_data/fleet.yml", ".github/scripts/dash-gen/ai_activity.py", "tools/dash-gen")
 ALLOW_DIRTY_HELP = ("let --apply run with a dirty spec, adapter or engine (tools/jev/, _data/fleet.yml, ai-run, "
                     "tools/dash-gen)")
-#: the engine's backstop beyond the planes' own --deadline-s (they bound themselves; a timeout is a plane problem)
-CONTEXT_GRACE_S = 30
-#: `--refresh-context`: the lake's LOCAL import of this machine's Claude Code
-#: transcripts (claude_projects_dir() → the lake, nothing else written;
-#: dash-gen fleet_lake cmd_sessions). Never `lake sync`, which reads GitHub.
-REFRESH_ARGV = ("lake", "sessions")
 #: `loop doctor`'s one code-index probe query (an Ollama embedding, local and $0). It
 #: proves Qdrant and Ollama answer: a search that answers is an index that is UP,
 #: hit or no hit (with no query the planes would not ask the index at all)
 DOCTOR_QUERY = "the loop runner and its context pack"
-
-
-def runs_dir() -> Path:
-    """`.fleet/runs/` (gitignored); JEV_RUNS_DIR overrides it."""
-    return Path(os.environ.get("JEV_RUNS_DIR") or HUB / ".fleet" / "runs")
-
-
-def now_utc() -> dt.datetime:
-    return dt.datetime.now(dt.UTC)
-
-
-def iso(t: dt.datetime | None = None) -> str:
-    return (t or now_utc()).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def _sha(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
-
-
-def write_json(path: Path, obj: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(obj, indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8")
-
-
-def read_json(path: Path) -> dict:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    return data if isinstance(data, dict) else {}
-
-
-# --------------------------------------------------------------------------- #
-# options
-# --------------------------------------------------------------------------- #
-@dataclass
-class Options:
-    target: str = "all"
-    focus: str = ""
-    day: str | None = None
-    offline: bool = False
-    plan_file: str | None = None
-    item: str | None = None
-    rehearse: bool = False
-    apply: bool = False
-    scheduled: bool = False
-    fresh: bool = False
-    max_items: int | None = None
-    posture: str = "sandbox"
-    keep_workspace: bool = False
-    allow_dirty: bool = False
-    run_id: str | None = None
-    claude_bin: str = "claude"
-    json: bool = False
-    #: the context pack's mode for this run (None = the spec's local.context.mode)
-    context: str | None = None
-    refresh_context: bool = False
-
-    @classmethod
-    def from_args(cls, args: argparse.Namespace) -> Options:
-        return cls(**{k: getattr(args, k) for k in cls.__dataclass_fields__ if hasattr(args, k)})
-
-
-def option_refusal(opts: Options, *, verb: str) -> str | None:
-    """Why these options cannot run at all; None when they can."""
-    if opts.apply and opts.scheduled:
-        return ("--apply with --scheduled is refused: no unattended local filing until § 13.7 earned autonomy "
-                "exists (the publish action is tier high, § 13.6)")
-    if opts.apply and opts.rehearse:
-        return "--apply with --rehearse is refused: a rehearsal files nothing"
-    if opts.apply and opts.offline:
-        return "--apply with --offline is refused: filing needs the live recheck and a live dedupe"
-    if verb == "run" and opts.offline and not opts.rehearse:
-        return "--offline is for `plan` and `run --rehearse`: a live attempt needs its clone and a live dedupe"
-    if opts.posture == "reduced" and opts.scheduled:
-        return "--posture reduced is an explicit fallback and is never scheduled"
-    if bool(opts.plan_file) != bool(opts.item):
-        return "--plan-file and --item go together (one row of a saved plan)"
-    if opts.target != "all" and not TARGET_RX.fullmatch(opts.target or ""):
-        return f"--target {opts.target!r} is not a registry name or a planner item key (one plain token)"
-    if opts.day and not DAY_RX.fullmatch(opts.day):
-        return f"--day {opts.day!r} is not YYYY-MM-DD"
-    if any(c in (opts.focus or "") for c in "\0\r\n"):
-        return "--focus is one line of text"
-    if opts.max_items is not None and opts.max_items < 1:
-        return "--max-items must be at least 1"
-    if opts.run_id and not wsp.RUN_ID_RX.fullmatch(opts.run_id):
-        return f"--run-id {opts.run_id!r} must match {wsp.RUN_ID_RX.pattern}"
-    if opts.context is not None and opts.context not in cpack.MODES:
-        return f"--context {opts.context!r} is not one of {', '.join(cpack.MODES)}"
-    if opts.refresh_context and opts.scheduled:
-        return ("--refresh-context with --scheduled is refused: the session import reads this account's ~/.claude "
-                "transcripts, a hand-run step")
-    if opts.refresh_context and opts.context == "off":
-        return "--refresh-context with --context off is refused: there is no pack to refresh"
-    return None
 
 
 # --------------------------------------------------------------------------- #
@@ -259,43 +165,9 @@ def load_step(loop: str, step: str | None = None, *, fleet: dict | None = None) 
     return spec
 
 
-def publish_tier(spec: StepSpec) -> str | None:
-    pub = spec.local.publish if spec.local else None
-    if pub is None or not spec.risk:
-        return None
-    return str((spec.risk.get(pub.risk) or {}).get("tier"))
-
-
 # --------------------------------------------------------------------------- #
 # subprocess seams
 # --------------------------------------------------------------------------- #
-def deterministic_env() -> dict[str, str]:
-    """The planner's and the filer's environment: the user's own (their gh auth
-    reads GitHub), minus every Claude credential and auth override — those
-    commands talk to no model — and with PYTHON pinned to this interpreter, so
-    `tools/dash-gen` imports the same PyYAML."""
-    drop = {*headless.CREDENTIAL_ENV.values(), *headless.AUTH_OVERRIDE_ENV}
-    env = {k: v for k, v in os.environ.items() if k not in drop}
-    env["PYTHON"] = sys.executable
-    return env
-
-
-def ai_run_env(auth: headless.AuthChoice | None) -> dict[str, str]:
-    """`dash-gen ai-run`'s own environment: the user's, minus every GitHub and
-    Claude secret, the SSH agent and the CLI's other auth inputs, plus the ONE
-    chosen Claude credential (none for a stored login, which the CLI reads
-    itself). PYTHONPATH stays — on the maintainer's Mac PyYAML imports only
-    through it — and ai-run's --isolate builds claude's environment from scratch."""
-    drop = {*headless.SECRET_ENV, *headless.AUTH_OVERRIDE_ENV, "SSH_AUTH_SOCK"}
-    env = {k: v for k, v in os.environ.items() if k not in drop}
-    env["PYTHON"] = sys.executable
-    if auth is not None:
-        value = headless.credential_value(auth, os.environ, headless.hub_dotenv())
-        if value:
-            env[headless.CREDENTIAL_ENV[auth.method]] = value
-    return env
-
-
 def dash_gen(argv: list[str], *, timeout: int = 900, stdin: str | None = None, env: dict | None = None) -> Run:
     return run([str(DASH_GEN), *argv], cwd=HUB, env=deterministic_env() if env is None else env, timeout=timeout,
                stdin=stdin, inherit_env=False)
@@ -364,239 +236,8 @@ def relay_dash_gen(argv: list[str], *, env: dict[str, str], timeout: float) -> R
 
 
 # --------------------------------------------------------------------------- #
-# the monthly ceiling (budget.loops) and the publish token
+# the planner's argv and the JSON it prints
 # --------------------------------------------------------------------------- #
-def ledger_path() -> Path:
-    """The AI ledger ai-run writes one row per invocation to (DASH_AI_LEDGER)."""
-    return Path(os.environ.get("DASH_AI_LEDGER") or "~/.claude/ai-activity-ledger.json").expanduser()
-
-
-def loops_budget(fleet: dict) -> tuple[float, int]:
-    """`_data/fleet.yml` `budget.loops`: (monthly_usd, scheduled_stop_pct)."""
-    b = ((fleet.get("budget") or {}).get("loops") or {})
-    usd, pct = b.get("monthly_usd"), b.get("scheduled_stop_pct")
-    if (not isinstance(usd, (int, float)) or isinstance(usd, bool) or not math.isfinite(usd) or usd <= 0
-            or not isinstance(pct, int) or isinstance(pct, bool) or not 0 < pct <= 100):
-        raise StepSpecError("_data/fleet.yml budget.loops needs a finite monthly_usd > 0 and scheduled_stop_pct in "
-                            "1..100 — the local loops' monthly ceiling")
-    return float(usd), pct
-
-
-def _utc_month(ts: str) -> str | None:
-    try:
-        t = dt.datetime.fromisoformat(ts)
-    except ValueError:
-        return None
-    return (t if t.tzinfo else t.replace(tzinfo=dt.UTC)).astimezone(dt.UTC).strftime("%Y-%m")
-
-
-#: dash-gen ai_activity.LEDGER_VERSION (this package never imports dash-gen;
-#: tools/test_jev_loop.py holds the two equal)
-LEDGER_VERSION = 1
-
-
-def unledgered_path(ledger: Path | None = None) -> Path:
-    """Beside the AI ledger (never pruned with the runs): the engine's own
-    charge for an attempt whose ai-run left no ledger row — it died, the
-    backstop killed it, or its ledger write failed. budget_position counts
-    each one whose attempt_id the ledger does not have, so a later run, and
-    the canary, see that spend."""
-    p = ledger or ledger_path()
-    return p.with_name(p.name + ".loops-unledgered.jsonl")
-
-
-def record_unledgered(ctx: RunContext, row: dict, attempt_id: str, cost: float, source: str) -> None:
-    """Make an unledgered charge durable (under budget_lock, which the attempt
-    holds); kept in this run's memory as well only if the file cannot take it."""
-    # `repo` (the item's owner/repo, as ai-run's rows carry it) lets an expedite sprint count the charge
-    line = {"timestamp": iso(), "origin": "local", "loop": ctx.spec.loop, "step": ctx.spec.step,
-            "run_id": ctx.run.run_id, "attempt_id": attempt_id, "item": row.get("item"), "repo": row.get("nwo"),
-            "cost_usd": round(cost, 6), "cost_source": source}
-    try:
-        fd = os.open(unledgered_path(), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
-        with os.fdopen(fd, "a", encoding="utf-8") as fh:
-            fh.write(json.dumps(line, sort_keys=True) + "\n")
-    except OSError as exc:
-        print(f"jev loop: ! could not record the unledgered ${cost:g} charge in {unledgered_path()} ({exc}) — "
-              "only this run counts it", file=sys.stderr)
-        ctx.unledgered.append((cost, source))
-
-
-def budget_position(fleet: dict, *, scheduled: bool, path: Path | None = None,
-                    month: str | None = None) -> BudgetState:
-    """Where this UTC month stands against `budget.loops`, from the AI ledger's
-    rows with `origin: local` and a `loop` field (a plain `dash ai run` has
-    none, so hand runs never count against the loops) — the same BudgetState
-    arithmetic as the conflict engine. A ledger that exists but cannot be read
-    (not JSON, not an object, another version) refuses: an unreadable ledger is
-    not an empty month, and ai_activity's writers refuse to overwrite one."""
-    cap, pct = loops_budget(fleet)
-    m = month or now_utc().strftime("%Y-%m")
-    spent, estimated = local_spend(lambda rec: _utc_month(str(rec.get("timestamp") or "")) == m, path)
-    return BudgetState(month=m, spent_usd=round(spent, 4), estimated_usd=round(estimated, 4), cap_usd=cap,
-                       stop_usd=round(cap * pct / 100.0, 4), scheduled=scheduled)
-
-
-def local_spend(keep, path: Path | None = None) -> tuple[float, float]:
-    """(spent, estimated) over the AI ledger's local loop rows (`origin:
-    local` with a `loop` field) that `keep(row)` accepts, plus the engine's
-    unledgered charges it accepts that the ledger has no row for. The monthly
-    ceiling keeps one UTC month; an expedite sprint keeps its repositories
-    inside its time box (tools/jev/sprints.py). A row's cost is read only once
-    `keep` accepts it, and an unreadable ledger refuses."""
-    p = path or ledger_path()
-    rows: dict = {}
-    if p.exists():
-        try:
-            data = json.loads(p.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
-            raise JevError(f"the AI ledger {p} cannot be read ({exc}) — the monthly ceiling cannot be judged; repair "
-                           "it in place (moved aside, the month would read as $0)") from exc
-        if not isinstance(data, dict) or data.get("version") != LEDGER_VERSION:
-            found = f"version {data.get('version')!r}" if isinstance(data, dict) else f"a JSON {type(data).__name__}"
-            raise JevError(f"the AI ledger {p} is {found}, not version {LEDGER_VERSION} — the monthly ceiling cannot "
-                           "be judged; migrate it in place (moved aside, the month would read as $0)")
-        rows = data.get("runs") or {}
-        if not isinstance(rows, dict):     # every row skipped would read as $0 spent
-            raise JevError(f"the AI ledger {p} has a `runs` that is a JSON {type(rows).__name__}, not an object — "
-                           "the monthly ceiling cannot be judged; repair it in place")
-    spent = estimated = 0.0
-    for rec in rows.values():
-        if not isinstance(rec, dict) or rec.get("origin") != "local" or not rec.get("loop"):
-            continue
-        if not keep(rec):
-            continue
-        cost = _ledger_cost(rec, p)
-        spent += cost
-        if rec.get("cost_source") == "estimated":
-            estimated += cost
-    ledgered = {str(r.get("attempt_id")) for r in rows.values() if isinstance(r, dict) and r.get("attempt_id")}
-    for rec in _unledgered_rows(unledgered_path(p)):
-        if str(rec.get("attempt_id")) in ledgered or not keep(rec):
-            continue
-        spent += rec["cost_usd"]
-        if rec.get("cost_source") == "estimated":
-            estimated += rec["cost_usd"]
-    return round(spent, 4), round(estimated, 4)
-
-
-def _spend(value) -> float | None:
-    """A spend figure the ceiling can add: finite and not negative. JSON reads
-    `NaN` and `Infinity`, and one NaN would make every later comparison with
-    the ceiling false, which reads as "fits"; a negative figure would give
-    spend back."""
-    try:
-        cost = float(value)
-    except (TypeError, ValueError):
-        return None
-    return cost if math.isfinite(cost) and cost >= 0 else None
-
-
-def _ledger_cost(rec: dict, p: Path) -> float:
-    """A ledger row's cost; an unreadable figure is charged at its cap, and one
-    with no readable cap either refuses like an unreadable ledger. Only a
-    finite cap above 0 stands in: a missing, null or $0 cap would charge the
-    row $0, which is room, not a charge (ai-run writes the positive cap it
-    handed claude on every row)."""
-    cost = _spend(rec.get("total_cost_usd") or 0.0)
-    if cost is None:
-        cost = _spend(rec.get("cap_usd")) or None
-    if cost is None:
-        raise JevError(f"the AI ledger {p} has a row ({rec.get('session_id') or rec.get('attempt_id') or '?'}) whose "
-                       "cost and cap are both unreadable — the monthly ceiling cannot be judged; repair it in place")
-    return cost
-
-
-def _unledgered_rows(p: Path) -> list[dict]:
-    """The engine's durable unledgered charges; a line that cannot be read
-    refuses like an unreadable ledger (it is spend, not noise)."""
-    try:
-        text = p.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        return []
-    except OSError as exc:
-        raise JevError(f"{p} cannot be read ({exc}) — the monthly ceiling cannot be judged") from exc
-    out = []
-    for n, line in enumerate(text.splitlines(), 1):
-        if not line.strip():
-            continue
-        try:
-            rec = json.loads(line)
-            cost = _spend(rec["cost_usd"])
-            if cost is None:
-                raise ValueError(f"cost_usd {rec['cost_usd']!r} is not a finite figure of 0 or more")
-            rec["cost_usd"] = cost
-        except (ValueError, TypeError, KeyError) as exc:
-            raise JevError(f"{p} line {n} cannot be read ({exc}) — the monthly ceiling cannot be judged; repair "
-                           "the line, never drop it (it is this month's spend)") from exc
-        out.append(rec)
-    return out
-
-
-def charge(state: BudgetState, cost: float, source: str | None) -> None:
-    """This run's own spend, counted as it happens (the ledger has it too)."""
-    state.spent_usd = round(state.spent_usd + cost, 4)
-    if source == "estimated":
-        state.estimated_usd = round(state.estimated_usd + cost, 4)
-
-
-@contextlib.contextmanager
-def budget_lock() -> Iterator[bool]:
-    """Held from the ceiling check until ai-run has ledgered the attempt (or the
-    canary), so concurrent runs — of any step, from any checkout of the hub —
-    cannot each pass `affords()` on the same month. It lives beside the shared
-    AI ledger, not under this checkout's runs directory. Never waits: True when
-    this process holds it, False when another attempt does."""
-    p = ledger_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    with p.with_name(p.name + ".loops.lock").open("a") as fh:
-        try:
-            fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            held = False
-        else:
-            held = True
-        try:
-            yield held
-        finally:
-            if held:
-                fcntl.flock(fh, fcntl.LOCK_UN)
-
-
-def publish_token() -> tuple[str | None, str]:
-    """The token a filing runs with: FLEET_TOKEN from the environment, then from
-    the hub .env (that one name only, never sourced), else the ambient gh
-    login. Value and source; the value is never printed or recorded."""
-    if os.environ.get("FLEET_TOKEN"):
-        return os.environ["FLEET_TOKEN"], "env FLEET_TOKEN"
-    dotenv = dotenv_values(("FLEET_TOKEN",), Path(os.environ.get("JEV_DOTENV") or HUB / ".env"))
-    if dotenv.get("FLEET_TOKEN"):
-        return dotenv["FLEET_TOKEN"], ".env FLEET_TOKEN"
-    return None, "the ambient gh login"
-
-
-def publish_env(token: str | None) -> dict[str, str]:
-    """The filer's environment for an applied write: the deterministic one,
-    plus GH_TOKEN in this subprocess only when a FLEET_TOKEN was chosen."""
-    env = deterministic_env()
-    if token:
-        env["GH_TOKEN"] = token
-    return env
-
-
-def probe_publish_token() -> tuple[dict[str, str] | None, str]:
-    """Probe the publish token with `gh api user` (a read) BEFORE anything
-    spends or files — a token's presence proves nothing (AGENTS.md). Returns
-    the apply environment and who it is, or None and why."""
-    token, source = publish_token()
-    res = gh(["api", "user", "--jq", ".login"], env={"GH_TOKEN": token} if token else None, timeout=60)
-    login = res.out.strip()
-    if not res.ok or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}(\[bot\])?", login):
-        said = headless.Redactor(os.environ, {"FLEET_TOKEN": token or ""}).text((res.err or res.out).strip())[-200:]
-        return None, f"the publish token ({source}) was refused by `gh api user`: {said or f'exit {res.code}'}"
-    return publish_env(token), f"{login} ({source})"
-
-
 def planner_argv(spec: StepSpec, plan_dir: Path, opts: Options, *, target: str | None = None,
                  no_files: bool = False) -> list[str]:
     """The spec's planner argv with the engine options mapped through planner.flags."""
@@ -622,154 +263,6 @@ def parse_last_json(text: str) -> dict | None:
     except ValueError:
         return None
     return out if isinstance(out, dict) else None
-
-
-# --------------------------------------------------------------------------- #
-# the run directory and its history
-# --------------------------------------------------------------------------- #
-class RunDir:
-    """`.fleet/runs/<run_id>/` — run.json, attempts.jsonl, summary.md, plan/, items/."""
-
-    def __init__(self, path: Path):
-        self.path = path
-        self.run_id = path.name
-
-    @classmethod
-    def new(cls, loop: str, step: str, run_id: str | None = None) -> RunDir:
-        rid = run_id or f"{now_utc():%Y%m%dT%H%M%SZ}-{loop}-{step}-{uuid.uuid4().hex[:6]}"
-        base = runs_dir()
-        base.mkdir(parents=True, exist_ok=True)
-        base.chmod(0o700)   # run records hold repository content, private repos' included
-        path = base / rid
-        try:
-            path.mkdir(mode=0o700)
-        except FileExistsError as exc:
-            raise JevError(f"run {rid} already exists") from exc
-        return cls(path)
-
-    @classmethod
-    def load(cls, run_id: str) -> RunDir:
-        if not wsp.RUN_ID_RX.fullmatch(run_id or ""):
-            raise JevError(f"{run_id!r} is not a run id")
-        path = runs_dir() / run_id
-        if not (path / "run.json").is_file():
-            raise JevError(f"no run {run_id} under {runs_dir()}")
-        return cls(path)
-
-    def write_json(self, rel: str, obj: object) -> Path:
-        p = self.path / rel
-        write_json(p, obj)
-        return p
-
-    def append_attempt(self, row: dict) -> None:
-        with (self.path / "attempts.jsonl").open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps({"schema": ATTEMPT_SCHEMA, "ts": iso(), **row}, sort_keys=True, default=str) + "\n")
-
-
-class History:
-    """Earlier runs' attempts.jsonl — tier 0's memory."""
-
-    def __init__(self, base: Path | None = None):
-        self.base = base or runs_dir()
-
-    def rows(self) -> Iterator[tuple[str, dict]]:
-        for f in sorted(self.base.glob("*/attempts.jsonl")):
-            try:
-                lines = f.read_text(encoding="utf-8").splitlines()
-            except OSError:
-                continue
-            for line in lines:
-                try:
-                    row = json.loads(line)
-                except ValueError:
-                    continue
-                if isinstance(row, dict):
-                    yield f.parent.name, row
-
-    def completed(self, spec: StepSpec, item_key: str, reuse_key: str, *, within_days: int = REUSE_DAYS
-                  ) -> dict | None:
-        """The newest completed (`attempt`, outcome ok, validated) attempt of this
-        item with this reuse key within `within_days`, and whether it was published.
-
-        A publish is matched to the attempt by CONTENT, not by run: a later run
-        that reused this attempt's outputs (tier 0) and filed them writes its
-        `publish-apply` row in its own run directory. The row contract: every
-        `publish-apply` row (`loop run --apply`, `loop publish --apply`) carries
-        the `validated_sha256` of the file it published."""
-        horizon = now_utc() - dt.timedelta(days=within_days)
-        best: dict | None = None
-        published: set[str] = set()
-        for run_id, row in self.rows():
-            if row.get("loop") != spec.loop or row.get("step") != spec.step or row.get("item") != item_key:
-                continue
-            if row.get("decision") == "publish-apply" and row.get("published") and row.get("validated_sha256"):
-                published.add(str(row["validated_sha256"]))
-            if (row.get("decision") != "attempt" or row.get("outcome") != "ok"
-                    or row.get("reuse_key") != reuse_key or not row.get("validated_sha256")):
-                continue
-            try:
-                ts = dt.datetime.strptime(str(row.get("ts")), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.UTC)
-            except ValueError:
-                continue
-            if ts < horizon:
-                continue
-            item_dir = self.base / run_id / "items" / wsp.item_dirname(item_key)
-            if best is None or ts >= best["_ts"]:
-                best = {"_ts": ts, "run_id": run_id, "date": ts.date().isoformat(), "item_dir": str(item_dir),
-                        "validated_sha256": row["validated_sha256"], "validated_rel": row.get("validated_rel")}
-        if best is None:
-            return None
-        best["published"] = best["validated_sha256"] in published
-        best.pop("_ts")
-        return best
-
-    def published_run(self, spec: StepSpec, item_key: str, validated_sha256: str) -> str | None:
-        """The run that already filed these validated bytes for this item (a
-        `publish-apply` row with `published`, whole or partial), or None — so
-        two previews of one attempt (a tier-0 reuse) cannot both be filed."""
-        for run_id, row in self.rows():
-            if (row.get("loop") == spec.loop and row.get("step") == spec.step and row.get("item") == item_key
-                    and row.get("decision") == "publish-apply" and row.get("published")
-                    and row.get("validated_sha256") == validated_sha256):
-                return run_id
-        return None
-
-
-def prune(keep: int = KEEP_RUNS, *, current: str | None = None) -> list[str]:
-    """Remove the oldest run directories beyond `keep` (only ones this engine
-    wrote) — every run ends with this, so the newest KEEP_RUNS runs are kept."""
-    base = runs_dir()
-    runs = []
-    for d in base.iterdir() if base.is_dir() else []:
-        meta = read_json(d / "run.json") if d.is_dir() else {}
-        if meta.get("schema") == RUN_SCHEMA and d.name != current:
-            runs.append((str(meta.get("started") or ""), d))
-    runs.sort()
-    gone = []
-    for _, d in runs[: max(0, len(runs) - (keep - 1 if current else keep))]:
-        shutil.rmtree(d, ignore_errors=False)
-        gone.append(d.name)
-    return gone
-
-
-class LockHeld(JevError):
-    """Another run of the same loop step holds its lock."""
-
-
-@contextlib.contextmanager
-def step_lock(spec: StepSpec) -> Iterator[None]:
-    """One run per loop step at a time (a second one exits 2, it never waits)."""
-    locks = runs_dir() / ".locks"
-    locks.mkdir(parents=True, exist_ok=True)
-    fh = (locks / f"{spec.loop}-{spec.step}.lock").open("w")
-    try:
-        try:
-            fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as exc:
-            raise LockHeld(f"{spec.loop}/{spec.step} is already running (lock {fh.name})") from exc
-        yield
-    finally:
-        fh.close()
 
 
 # --------------------------------------------------------------------------- #
@@ -843,306 +336,11 @@ class RunContext:
 
 
 # --------------------------------------------------------------------------- #
-# gates and the host
+# the sandbox check, the hub's state, the ai-run argv and the plan's prompts
 # --------------------------------------------------------------------------- #
-def gates(ctx: RunContext) -> tuple[int, str] | None:
-    """The kill switch, read the way CI reads it — GitHub compares strings
-    ignoring case, so 'True' arms an `== 'true'` gate and 'FALSE' trips a
-    `!= 'false'` one. (exit code, message) to stop."""
-    sw = ctx.spec.local.switch
-    if sw is None:
-        if ctx.opts.scheduled:   # AGENTS.md: every scheduled agent loop has a kill switch
-            return EXIT["usage"], (f"--scheduled: {ctx.spec.loop}/{ctx.spec.step} declares no local.switch — a "
-                                   "scheduled run refuses without a kill switch")
-        return None
-    if fleet_value(ctx.fleet, sw.config) is not True:
-        return EXIT["ok"], f"disabled: _data/fleet.yml {sw.config} is false"
-    if not ctx.opts.scheduled:
-        print(f"jev loop: manual run — bypasses vars.{sw.variable} exactly as a workflow_dispatch does",
-              file=sys.stderr)
-        return None
-    hub = hub_repo(ctx.fleet)
-    res = gh(["variable", "get", sw.variable, "-R", hub])
-    if res.ok:
-        value: str | None = res.out.strip()
-    elif "not found" in (res.err or "").lower():
-        # gh says "not found" for any 404 — a repository this auth cannot see too.
-        # Unset arms a default-on switch, so that reading needs the hub shown readable.
-        if sw.default == "on" and not gh(["api", f"repos/{hub}", "--jq", ".full_name"]).ok:
-            return EXIT["usage"], (f"--scheduled: vars.{sw.variable} reads as not found, but {hub} is not readable "
-                                   "with this gh auth — a scheduled run refuses rather than guess its switch")
-        value = None
-    else:
-        return EXIT["usage"], (f"--scheduled: cannot read vars.{sw.variable} ({(res.err or res.out).strip()[-200:]})"
-                               " — a scheduled run refuses rather than guess its switch")
-    v = value.lower() if value is not None else None
-    armed = v == "true" if sw.default == "off" else v != "false"
-    if not armed:
-        return EXIT["ok"], f"switched off: vars.{sw.variable} is {value!r} (default {sw.default})"
-    return None
-
-
-def _is_off(level: object) -> bool:
-    """A `switches:` level that is off. An unquoted YAML `off` loads as False: off too."""
-    state = level.get("state") if isinstance(level, dict) else None
-    return state is False or (isinstance(state, str) and state.strip().lower() == "off")
-
-
-def _map(fleet: dict, key: str) -> dict:
-    sw = fleet.get("switches")
-    level = sw.get(key) if isinstance(sw, dict) else None
-    return level if isinstance(level, dict) else {}
-
-
-def switch_entries(fleet: dict, spec: StepSpec) -> list[tuple[str, dict]]:
-    """The step's `switches.loops` entries: the hub's own, for the step's
-    workflow (`hub/repo-scout` for repo-scout.yml). [] for a workflow the map
-    does not list (fanout.yml is dispatch-only)."""
-    hub, wf = hub_repo(fleet), f".github/workflows/{spec.workflow_file}"
-    return [(k, e) for k, e in _map(fleet, "loops").items()
-            if isinstance(e, dict) and e.get("repo") == hub and e.get("workflow") == wf]
-
-
-def repo_paused(fleet: dict, nwo: str) -> str | None:
-    """Why `switches.repos[<nwo>]` pauses agent work on that repository, or None."""
-    level = _map(fleet, "repos").get(nwo)
-    if not _is_off(level):
-        return None
-    return f"switches.repos[{nwo}] is off" + (f": {level['reason']}" if level.get("reason") else "")
-
-
-def map_paused(fleet: dict, spec: StepSpec) -> str | None:
-    """Why `_data/fleet.yml` `switches:` pauses this step, or None (§ 17.2:
-    the most restrictive level wins): the global level, the group and the
-    loop entry of the step's workflow, then the hub's own repo level. A step
-    with no entry (fanout) answers to the global and repo levels only. An
-    `expires` date does not resume anything by itself; the drift check
-    reports it."""
-    levels = [("switches.global", _map(fleet, "global"))]
-    for key, entry in switch_entries(fleet, spec):
-        group = entry.get("group")
-        levels += [(f"switches.groups.{group}", _map(fleet, "groups").get(group)), (f"switches.loops[{key}]", entry)]
-    for name, level in levels:
-        if _is_off(level):
-            return f"{name} is off" + (f": {level['reason']}" if level.get("reason") else "")
-    return repo_paused(fleet, hub_repo(fleet))
-
-
-def pause_gate(fleet: dict, spec: StepSpec, *, repos: tuple[str, ...] = ()) -> tuple[int, str] | None:
-    """The fleet-wide pause and the central switch map, honoured by every run
-    that could spend or file — `run`, `run --apply`, `publish --apply` and the
-    `doctor --live` canary, manual and scheduled alike (bamr87/bamr87#550,
-    § 17). `plan`, `run --rehearse` and `doctor` without `--live` never call
-    it. The map first (a file read), then `vars.FLEET_AGENTS_PAUSED` on the
-    hub, read the way CI reads it; an unreadable variable refuses rather than
-    guess. `repos` are the items' own repositories (`switches.repos`).
-    (exit code, why) to stop: exit 5 paused, exit 2 unreadable."""
-    why = map_paused(fleet, spec) or next(filter(None, (repo_paused(fleet, r) for r in repos)), None)
-    if why is None:
-        hub = hub_repo(fleet)
-        res = gh(["variable", "get", PAUSE_VARIABLE, "-R", hub])
-        if res.ok:
-            value = res.out.strip()
-            if value.lower() != "true":
-                return None
-            why = f"vars.{PAUSE_VARIABLE} is {value!r} on {hub}"
-        elif "not found" not in (res.err or "").lower():
-            return EXIT["usage"], (f"cannot read vars.{PAUSE_VARIABLE} ({(res.err or res.out).strip()[-200:]}) — "
-                                   "refusing rather than guess the fleet-wide pause")
-        elif gh(["api", f"repos/{hub}", "--jq", ".full_name"]).ok:
-            return None   # unset: not paused
-        else:
-            # gh says "not found" for a repository this auth cannot see too
-            return EXIT["usage"], (f"vars.{PAUSE_VARIABLE} reads as not found, but {hub} is not readable with this "
-                                   "gh auth — refusing rather than guess the fleet-wide pause")
-    return EXIT["paused"], (f"paused: {why} — nothing runs that could spend or file (§ 17); `loop plan` and "
-                            "`run --rehearse` still do")
-
-
 def sandbox_available() -> bool:
     """P1's sandbox posture is Seatbelt: macOS with sandbox-exec."""
     return sys.platform == "darwin" and SANDBOX_EXEC.is_file()
-
-
-def cache_key(cli: tuple[int, int, int] | None, spec: StepSpec, posture: headless.Posture) -> str:
-    return f"{headless.version_str(cli)}|{headless.posture_template_sha(spec, posture)}"
-
-
-def canary_key(cli: tuple[int, int, int] | None, spec: StepSpec, posture: headless.Posture,
-               auth: headless.AuthChoice | None) -> str:
-    """The canary's cache key: the probe's, plus the credential variable the
-    session carries (`headless.credential_exposure`). A canary run on a stored
-    login had no credential in claude's environment to hide from Bash, so its
-    pass never unlocks a run that puts CLAUDE_CODE_OAUTH_TOKEN or
-    ANTHROPIC_API_KEY there."""
-    return f"{cache_key(cli, spec, posture)}|cred={headless.credential_exposure(auth) or 'none'}"
-
-
-def cached(name: str, key: str) -> dict | None:
-    """A cached probe (.probe.json) or canary (.canary.json) result for `key`."""
-    entry = read_json(runs_dir() / name).get(key)
-    return entry if isinstance(entry, dict) else None
-
-
-def store(name: str, key: str, entry: dict) -> None:
-    path = runs_dir() / name
-    data = read_json(path)
-    data[key] = entry
-    write_json(path, data)
-
-
-def resolve_claude(claude_bin: str) -> str | None:
-    found = shutil.which(claude_bin)
-    return str(Path(found).resolve()) if found else None
-
-
-def auth_choice(fleet: dict, claude: str) -> tuple[headless.AuthChoice | None, str]:
-    """The credential a live attempt would use — method and source, never the value."""
-    try:
-        order = headless.auth_order(fleet, os.environ)
-        choice = headless.choose_auth(order, os.environ, headless.hub_dotenv(),
-                                      lambda: headless.stored_login(claude, os.environ))
-    except JevError as exc:   # NoCredential, or an unknown method in the order
-        return None, str(exc)
-    return choice, str(choice)
-
-
-@dataclass
-class HostReport:
-    claude: str | None = None
-    version: tuple[int, int, int] | None = None
-    problems: list[tuple[int, str]] = field(default_factory=list)   # (exit code, why)
-    notes: list[str] = field(default_factory=list)
-    auth: headless.AuthChoice | None = None
-    probe: str = "absent"
-    canary: str = "absent"
-
-    def refusal(self) -> tuple[int, str] | None:
-        """The most severe problem: no CLI, then host safety, then the credential."""
-        if not self.problems:
-            return None
-        code = severest([c for c, _w in self.problems])
-        return code, "; ".join(why for c, why in self.problems if c == code)
-
-    def as_dict(self) -> dict:
-        return {"claude": self.claude, "version": headless.version_str(self.version),
-                "problems": [why for _, why in self.problems], "notes": self.notes,
-                "auth": {"method": self.auth.method, "source": self.auth.source} if self.auth else None,
-                "probe": self.probe, "canary": self.canary}
-
-
-def work_root_problem(root: Path | None = None) -> str | None:
-    """Why the work root cannot hold a workspace (host safety, exit 4); None
-    when it can (`headless.work_root_problem`: not in the hub, not in a Claude
-    temp root)."""
-    return headless.work_root_problem(root)
-
-
-def private_work_root() -> Path:
-    root = headless.work_root()
-    root.mkdir(parents=True, exist_ok=True)
-    root.chmod(0o700)
-    return root
-
-
-def host_check(spec: StepSpec, posture: headless.Posture, fleet: dict, claude_bin: str, scratch: Path | None, *,
-               live: bool, preflight: bool, probe_cache: bool = True, report: bool = False) -> HostReport:
-    """What the host proves before an attempt. `live=False` (doctor, rehearse)
-    reports a missing probe, canary or credential as a note; a live attempt
-    refuses on each of them. `probe_cache=False` skips the cached
-    probe (doctor runs it afresh). A work root inside the hub is refused first
-    (exit 4), before any CLI runs — except with `report=True` (`loop plan`,
-    which exits on no host problem and writes nothing under the work root):
-    the problem is recorded and the CLI, probe and credential are still read.
-    The flag preflight runs in `scratch`, or with None in a throwaway directory
-    under the work root — never inside the hub, where a session would reach
-    the hub's CLAUDE.md. Nothing here reaches a model."""
-    rep = HostReport()
-    inside = work_root_problem()
-    if inside:
-        rep.problems.append((EXIT["host_unsafe"], inside))
-        if not report or preflight:
-            return rep
-
-    def gap(code: int, why: str) -> None:
-        if live:
-            rep.problems.append((code, why))
-        else:
-            rep.notes.append(why)
-
-    rep.claude = resolve_claude(claude_bin)
-    if rep.claude is None:
-        rep.problems.append((EXIT["no_cli"], f"{claude_bin} is not on PATH (npm install -g @anthropic-ai/claude-code)"))
-        return rep
-    rep.version = headless.cli_version(rep.claude)
-    if not headless.at_least(rep.version):
-        rep.problems.append((EXIT["host_unsafe"], f"Claude Code {headless.version_str(rep.version)} is older than "
-                                                  f"{headless.version_str(headless.MIN_CLI)} (--permission-prompts)"))
-        return rep
-    if posture.name == "sandbox" and not sandbox_available():
-        rep.problems.append((EXIT["host_unsafe"], f"no sandbox here ({SANDBOX_EXEC} on macOS) — `--posture reduced` "
-                                                  "runs the agent without Bash"))
-    if preflight:
-        own = scratch is None
-        scratch = Path(tempfile.mkdtemp(prefix=".preflight-", dir=private_work_root())) if own else scratch
-        try:
-            scratch.mkdir(parents=True, exist_ok=True)
-            settings = scratch / "settings.json"
-            write_json(settings, headless.settings_doc(posture))
-            argv = [*headless.run_prefix(spec.resolved.max_budget_usd, stream=True),
-                    *headless.claude_flags(spec, posture, settings_path=settings, session_id=str(uuid.uuid4()),
-                                           debug_path=scratch / "preflight.debug.log")]
-            problem = headless.preflight_parse(rep.claude, argv, cwd=scratch)
-        finally:
-            if own:
-                shutil.rmtree(scratch, ignore_errors=True)
-        if problem:
-            rep.problems.append((EXIT["host_unsafe"], f"flag preflight: {problem}"))
-        else:
-            rep.notes.append("flag preflight: every flag parses and nothing reports the --settings document skipped "
-                             "($0)")
-    key = cache_key(rep.version, spec, posture)
-    if probe_cache:
-        probe = cached(".probe.json", key)
-        rep.probe = "absent" if probe is None else ("ok" if probe.get("ok") else "failed")
-        if rep.probe == "failed":
-            rep.problems.append((EXIT["host_unsafe"], "the isolation probe failed for this CLI and posture "
-                                                      "template: " + "; ".join(probe.get("problems") or [])[:400]))
-        elif rep.probe == "absent":
-            gap(EXIT["host_unsafe"], "isolation probe: not run for this CLI and posture template — "
-                                     "`tools/dash loop doctor` ($0); a live attempt refuses without it")
-    rep.auth, said = auth_choice(fleet, rep.claude)
-    if rep.auth is None:
-        gap(EXIT["credential"], f"credential: {said} — a live attempt exits 3")
-    else:
-        rep.notes.append(f"credential: {said} (the first present in CLAUDE_AUTH_ORDER; never retried with another)")
-    if posture.name == "sandbox":
-        canary = cached(".canary.json", canary_key(rep.version, spec, posture, rep.auth))
-        rep.canary = "absent" if canary is None else ("ok" if canary.get("ok") else "failed")
-        if rep.canary != "ok":
-            carried = headless.credential_exposure(rep.auth) or "no credential variable"
-            gap(EXIT["host_unsafe"], f"canary: none passing for this CLI, posture template and credential exposure "
-                                     f"({carried}; {rep.canary}) — the one-time ≤ $0.10 canary under this same "
-                                     "auth: `tools/dash loop doctor --live` (the maintainer's § 10.5 yes); a live "
-                                     "sandbox-posture attempt refuses without it")
-    return rep
-
-
-def head_sha(nwo: str, branch: str) -> tuple[str | None, str]:
-    """The branch head, read with the user's gh auth. '' = an empty repository
-    (GitHub's 409 "Git Repository is empty."); None = unread, with why. A 422
-    "No commit found" is a branch that does not exist — registry drift, said
-    so, and the clone then fails the item loudly, as CI's checkout would."""
-    res = gh(["api", f"repos/{nwo}/commits/{branch}", "--jq", ".sha"])
-    if res.ok and re.fullmatch(r"[0-9a-f]{40}", res.out.strip()):
-        return res.out.strip(), ""
-    err = (res.err or res.out).strip()
-    if re.search(r"Git Repository is empty|HTTP 409", err, re.I):
-        return "", ""
-    if re.search(r"No commit found|HTTP 422", err, re.I):
-        return None, (f"{nwo} has no branch `{branch}` (HTTP 422) — registry branch drift? check "
-                      "_data/projects.yml and .gitmodules")
-    return None, f"could not read {nwo}@{branch} HEAD ({err[-160:]}) — tier 0 reuse is off for this item"
 
 
 def hub_state(paths: list[str]) -> dict:
@@ -1150,19 +348,6 @@ def hub_state(paths: list[str]) -> dict:
     dirty = git(["status", "--porcelain=v1", "--", *paths], cwd=HUB)
     return {"head": head.out.strip() if head.ok else None,
             "dirty_paths": sorted({line[3:] for line in dirty.out.splitlines() if len(line) > 3})}
-
-
-def item_values(ctx: RunContext, item: Item, *, validated: Path | str | None = None,
-                apply: bool = False) -> dict[str, str]:
-    """The argv tokens for one item. `{validated}` is the adapter's
-    `Verdict.publish_file` (the engine never names an output file), so a
-    publish without a verdict leaves it unfilled and render_argv refuses it."""
-    out = {"plan_dir": str(ctx.plan_dir), "nwo": item.nwo, "name": item.name, "branch": item.branch,
-           "item_dir": str(ctx.item_dir(item)), "bodies_dir": str(ctx.bodies_dir(item, apply=apply)),
-           "run_ref": ctx.run_ref()}
-    if validated is not None:
-        out["validated"] = str(validated)
-    return out
 
 
 def auth_pin(auth: headless.AuthChoice | None) -> list[str]:
@@ -1318,144 +503,8 @@ def explain_empty(ctx: RunContext, result: PlanResult) -> str:
 
 
 # --------------------------------------------------------------------------- #
-# the context pack (tools/jev/context.py): built on the host, read by the sealed agent
+# the context planes for `loop doctor` (the pack's engine side is loop_context.py)
 # --------------------------------------------------------------------------- #
-def context_settings(spec: StepSpec) -> ContextSpec:
-    """The spec's `local.context` (the loader always sets it; a LocalSpec made
-    by hand without one gets the loader's defaults)."""
-    if spec.local is not None and spec.local.context is not None:
-        return spec.local.context
-    return ContextSpec(mode=cpack.DEFAULT_MODE, file="context.md", providers=cpack.PROVIDERS,
-                       max_chars=cpack.DEFAULT_MAX_CHARS, deadline_s=cpack.DEFAULT_DEADLINE_S, days=cpack.DEFAULT_DAYS)
-
-
-def context_mode(ctx: RunContext) -> str:
-    """`--context` when given, else the spec's mode — except for a step with
-    no brief (`workspace.no_brief`), which is always `off`: the spec loader
-    refuses any other mode there, and the CLI override would otherwise build
-    and place a pack nothing points at (or block the item under `require`)."""
-    if ctx.spec.workspace.no_brief:
-        return "off"
-    return ctx.opts.context or context_settings(ctx.spec).mode
-
-
-def context_backstop(argv: list[str]) -> int:
-    """`dash-gen context`'s subprocess timeout: its own --deadline-s plus CONTEXT_GRACE_S."""
-    said = next((a.split("=", 1)[1] for a in argv if a.startswith("--deadline-s=")), "")
-    try:
-        secs = cpack.check_deadline(said)
-    except ValueError:
-        secs = cpack.MAX_DEADLINE_S
-    return int(math.ceil(secs)) + CONTEXT_GRACE_S
-
-
-def _finite(value) -> float | None:
-    try:
-        v = float(value)
-    except (TypeError, ValueError):
-        return None
-    return v if math.isfinite(v) else None
-
-
-def context_status(statuses: dict[str, str]) -> str:
-    """The attempt row's compact form: `history:ok,lake_ci:stale,…`."""
-    return ",".join(f"{k}:{v}" for k, v in statuses.items())
-
-
-def context_request(ctx: RunContext, item: Item) -> cpack.ContextRequest | None:
-    """The adapter's request with the spec's window; None when it asks for no pack."""
-    req = ctx.adapter.context_request(ctx, item)
-    return None if req is None else dataclasses.replace(req, days=context_settings(ctx.spec).days)
-
-
-def item_pack(ctx: RunContext, item: Item, report: dict, row: dict, *,
-              target_dir: Path | None = None) -> cpack.Pack | None:
-    """Build this item's pack into its run directory (`context.build`) and
-    record it: `report["context"]`, and on `row` (every later attempt row) the
-    pack's sha256 and a compact status. Mode 'off' builds and places nothing,
-    and the adapter is not asked; an adapter that asks for no pack (None) is
-    'none'. `target_dir` is the item's clone (None offline): the planes check
-    the target's code-index hits against its files, the ones the agent
-    reads, passed as its realpath. A plane that is down is a status in the
-    pack, never an exception here; an error that does raise (a bad request,
-    an unwritable run directory) is the engine's own and is not caught."""
-    cs = context_settings(ctx.spec)
-    mode = context_mode(ctx)
-    req = cpack.ContextRequest(item.nwo, item.name, days=cs.days) if mode == "off" else context_request(ctx, item)
-    if req is not None and mode != "off" and target_dir is not None:
-        req = dataclasses.replace(req, target_dir=os.path.realpath(target_dir))
-    if req is None:
-        report["context"] = {"mode": mode, "sha256": None, "bytes": 0, "file": cs.file, "statuses": {},
-                             "missing": [], "ages": {}, "elapsed_ms": 0,
-                             "notes": ["context: the adapter asks for no pack for this item"],
-                             "line": "context none (the adapter asks for no pack for this item)"}
-        row.update(context_sha256=None, context_status="none")
-        return None
-    pack = cpack.build(ctx, item, req, mode=mode, sections=cs.providers, max_chars=cs.max_chars, file=cs.file,
-                       deadline_s=cs.deadline_s)
-    report["context"] = {"mode": pack.mode, "sha256": pack.sha256, "bytes": pack.bytes, "file": cs.file,
-                         "statuses": dict(pack.sections), "missing": list(pack.missing),
-                         "ages": {k: _finite(v) for k, v in pack.ages.items()}, "elapsed_ms": pack.elapsed_ms,
-                         "notes": list(pack.notes), "queries": len(req.queries), "line": cpack.status_line(pack)}
-    row.update(context_sha256=pack.sha256, context_status="off" if pack.path is None else context_status(pack.sections))
-    return pack
-
-
-def place_inputs(ctx: RunContext, ws: wsp.Workspace, brief: Path | None, pack: cpack.Pack | None) -> None:
-    """The brief and (when one was built) the pack into the clone's brief
-    directory, each as a NEW file (workspace.place_bytes: O_EXCL, no link
-    followed). With a pack, the clone's copy of the brief is the plan's
-    bytes + "\n" + `context.pointer` — written once, never placed and then
-    rewritten. The plan directory's brief is never touched, so the adapter's
-    reuse key, computed from it, and with it tier 0, are the same with or
-    without a pack. Without one (mode off) the clone gets the plan's brief
-    byte for byte, as it always did."""
-    bd = ctx.spec.workspace.brief_dir
-    built = pack is not None and pack.path is not None
-    file = context_settings(ctx.spec).file
-    if built and brief is not None and brief.name.lower() == file.lower():
-        raise JevError(f"the brief {brief.name} and the context pack {file} would be one file in {bd}/")
-    if brief is not None:
-        data = brief.read_bytes()
-        if built:
-            data += b"\n" + cpack.pointer(bd, file).encode("utf-8")
-        # a step whose prompt reads the brief by a fixed name gets it in the clone root (workspace.brief_file)
-        wsp.place_bytes(ws, data, ctx.spec.workspace.brief_file or f"{bd}/{brief.name}")
-    if built:
-        data = pack.path.read_bytes()
-        if hashlib.sha256(data).hexdigest() != pack.sha256:
-            raise JevError(f"the context pack {pack.path} changed since it was built")
-        wsp.place_bytes(ws, data, f"{bd}/{file}", mode=0o600)
-
-
-def context_preview(ctx: RunContext, item: Item) -> dict | None:
-    """`loop plan`'s look at what this item's pack would hold: each
-    section's status and age (no rows, nothing written anywhere), or None
-    under mode 'off'."""
-    mode = context_mode(ctx)
-    if mode == "off":
-        return None
-    req = context_request(ctx, item)
-    if req is None:
-        return {"mode": mode, "statuses": {}, "ages": {}, "missing": [], "queries": 0, "would_block": False,
-                "note": "the adapter asks for no pack for this item"}
-    cs = context_settings(ctx.spec)
-    doc = cpack.gather(ctx, req, sections=cs.providers, deadline_s=cs.deadline_s, item_key=item.key)
-    secs = doc["sections"]
-    statuses = {k: str(secs[k].get("status")) for k in secs}
-    missing = [k for k in cpack.PLANE_SECTIONS if statuses.get(k) == "unavailable"]
-    return {"mode": mode, "statuses": statuses, "ages": {k: _finite(secs[k].get("age_hours")) for k in secs},
-            "missing": missing, "queries": len(req.queries), "would_block": mode == "require" and bool(missing)}
-
-
-def context_bits(statuses: dict[str, str], ages: dict[str, float | None]) -> str:
-    out = []
-    for k, v in statuses.items():
-        age = ages.get(k)
-        out.append(f"{k} {v}" + (f"({age:.0f}h)" if v == "stale" and age is not None else ""))
-    return " · ".join(out)
-
-
 REFRESH_CMD_RX = re.compile(r"`(tools/dash [^`]+)`")
 
 
@@ -1484,26 +533,9 @@ def doctor_planes(fleet: dict, spec: StepSpec) -> dict:
     return out
 
 
-def host_ctx() -> SimpleNamespace:
-    """What `context.redact` reads to mask this machine, without a RunContext."""
-    return SimpleNamespace(home=Path.home(), work_root=headless.work_root(), hostname=platform.node().split(".")[0])
-
-
 # --------------------------------------------------------------------------- #
 # one item: rehearsal or attempt
 # --------------------------------------------------------------------------- #
-def _file_sha(p: Path) -> str | None:
-    try:
-        return hashlib.sha256(Path(p).read_bytes()).hexdigest()
-    except OSError:
-        return None
-
-
-def _bodies(d: Path) -> dict[str, str]:
-    """name → sha256 of every body file a publish phase wrote in `d`."""
-    return {p.name: _file_sha(p) or "" for p in sorted(d.glob("*.md"))} if d.is_dir() else {}
-
-
 def usage_block(ctx: RunContext) -> tuple[str, str] | None:
     """(decision, why) for an item that would call the model after a usage
     window spent earlier in this run. Asked after tier 0, so a $0 reuse or
@@ -1799,57 +831,6 @@ def _write_tree(d: Path, tree) -> None:
                                            *(f"untracked {p}" for p in tree.untracked)]) + "\n", encoding="utf-8")
 
 
-def posture_breach(spec: StepSpec, posture: headless.Posture, outcome: dict, debug: list[str],
-                   events: list[dict]) -> str | None:
-    """Why this attempt's session cannot be trusted to have run in the posture
-    the probe and the canary proved — None when it can. Checked BEFORE any
-    output is read: a breach destroys the outputs unread and stops the run.
-
-    A session with no init record is unverifiable only if there is evidence it
-    ran: a reported cost, a result kind, a tool use or a trace event. A cap
-    ESTIMATE alone (the wall clock before init, an ai-run that died) is
-    accounting, not evidence: that attempt fails as attention instead. Bash
-    calls the permission layer denied never ran, so only executed ones need
-    the sandbox line (and its fences); without per-tool denials (an older
-    outcome) every call counts as executed. `debug` is `headless.posture_lines`:
-    the reduced debug log plus the sandbox runtime's stderr lines the outcome
-    carries, since 2.1.308 logs the per-command line only there (#560,
-    decision 4c: the document's read-fence line AND the per-command line,
-    each failing closed)."""
-    applied = headless.user_settings_env_keys(debug)
-    if applied:
-        return (f"a user settings env block was applied to the session ({', '.join(applied)}): a settings file "
-                "was read")
-    init = headless.init_event(events)
-    expected = headless.tool_families(headless.posture_tools(spec.allowed_tools, posture))
-    kind = outcome.get("kind")
-    tool_uses = outcome.get("tool_uses") or {}
-    if init is not None:
-        problems = headless.init_problems(init, expected)
-        if problems:
-            return "the session's init is not the probed posture: " + "; ".join(problems)
-    elif ((outcome.get("cost_source") == "reported" and float(outcome.get("cost_usd") or 0) > 0)
-          or kind in ("ok", "budget_hit", "max_turns") or tool_uses or events):
-        return "the session reported a result or tool use but left no init record, so its posture cannot be checked"
-    if init is not None and posture.name == "sandbox":
-        fence = headless.settings_fence_problems(debug)
-        if fence:
-            return "the --settings document is not proven applied to this session: " + "; ".join(fence)
-    bash = int(tool_uses.get("Bash") or 0)
-    if bash and posture.name == "reduced":
-        return f"Bash ran {bash} time(s) under the reduced posture, which grants none"
-    denied = outcome.get("denied_tools")
-    executed = bash - int(denied.get("Bash") or 0) if isinstance(denied, dict) else bash
-    if executed > 0 and not headless.sandbox_engaged(debug):
-        return (f"Bash executed {executed} time(s) but no sandbox engaged: neither the debug log nor the sandbox "
-                f"runtime's stderr ({headless.SANDBOX_DEBUG_ENV}) shows a wrapped command — the outputs are "
-                "destroyed unread; re-run `tools/dash loop doctor` and the canary")
-    fences = headless.sandbox_fence_problems(debug) if executed > 0 else []
-    if fences:
-        return f"Bash executed {executed} time(s) without its full sandbox: " + "; ".join(fences)
-    return None
-
-
 def attempt(ctx: RunContext, item: Item, ws, posture: headless.Posture, argv: list[str], host: HostReport,
             report: dict, row: dict) -> dict:
     """One model invocation through `tools/dash-gen ai-run`, then what the
@@ -1987,106 +968,8 @@ def attempt(ctx: RunContext, item: Item, ws, posture: headless.Posture, argv: li
 
 
 # --------------------------------------------------------------------------- #
-# publishing: the dry-run preview, then (with --apply) the filing
+# publishing (loop_publish.py): the live dry run the filing and `loop publish` share
 # --------------------------------------------------------------------------- #
-def publish_phase(ctx: RunContext, item: Item, verdict: Verdict, report: dict, row: dict) -> dict:
-    """The preview always; the filing only with --apply (the maintainer's
-    § 13.6 yes, typed on this command line) and only when the preview is
-    publishable."""
-    if ctx.spec.local.publish is None:
-        report.update(status="validated")
-        return report
-    doc = preview(ctx, item, verdict)
-    report.update(status="previewed", plan_id=doc["plan_id"], publishable=doc["publishable"],
-                  would_file=len(doc["rows"]), reason=report.get("reason") or "; ".join(doc["blockers"]) or
-                  ("nothing to file" if not doc["rows"] else f"{len(doc['rows'])} issue(s) previewed"))
-    ctx.run.append_attempt({**row, "decision": "publish-preview", "plan_id": doc["plan_id"],
-                            "publishable": doc["publishable"], "would_file": len(doc["rows"]), "cost_usd": 0.0,
-                            "cost_source": "no-spend"})
-    if not ctx.opts.apply:
-        return report
-    if not doc["publishable"]:
-        report["reason"] = f"--apply: nothing filed — {report['reason']}"
-        return report
-    result = apply_item(ctx, item, doc)
-    report.update(status=result["status"], reason=result["reason"], code=result["code"],
-                  published=result.get("published", 0), urls=result.get("urls", []))
-    return report
-
-
-def publish_values(ctx: RunContext, item: Item, validated: Path, *, apply: bool,
-                   bodies_dir: Path | None = None, reviewed: Path | None = None) -> list[str]:
-    """The publish argv; with `apply`, the filer's apply flag and its reviewed
-    flag naming `reviewed` (the preview's bodies), so the filing itself files
-    no byte nobody reviewed and nothing it cannot dedupe."""
-    pub = ctx.spec.local.publish
-    values = item_values(ctx, item, validated=validated, apply=apply)
-    if bodies_dir is not None:
-        values["bodies_dir"] = str(bodies_dir)
-    argv = render_argv(pub.argv, values)
-    if not apply:
-        return argv
-    if reviewed is None:
-        raise JevError("internal: an apply argv without the reviewed bodies")
-    return [*argv, pub.apply_flag, PUBLISH_REVIEWED_FLAGS[argv[0]], str(reviewed)]
-
-
-def preview(ctx: RunContext, item: Item, verdict: Verdict) -> dict:
-    """The spec's publish argv WITHOUT its apply flag (a live dedupe read with
-    the user's gh auth), into `items/<dir>/bodies/`: the exact bytes --apply
-    would file, written down as publish-plan.json and publish-plan.md."""
-    d = ctx.item_dir(item)
-    argv = publish_values(ctx, item, verdict.publish_file, apply=False)
-    plan = ctx.adapter.publish(ctx, item, verdict, lambda: ctx.dash_gen(argv))
-    bodies = _bodies(ctx.bodies_dir(item, apply=False))
-    vsha = _file_sha(verdict.publish_file)
-    plan_id = _sha(json.dumps({"nwo": item.nwo, "validated_sha256": vsha, "argv": argv, "bodies": bodies},
-                              sort_keys=True))[:16]
-    labels = sorted({lab for r in plan.rows for lab in (r.get("labels") or [])})
-    doc = {"schema": PUBLISH_PLAN_SCHEMA, "run_id": ctx.run.run_id, "plan_id": plan_id,
-           "item": {"key": item.key, "name": item.name, "nwo": item.nwo, "branch": item.branch},
-           "risk": ctx.spec.local.publish.risk, "tier": publish_tier(ctx.spec),
-           "validated_rel": str(verdict.publish_file.relative_to(d)), "validated_sha256": vsha,
-           "argv": argv, "apply_flag": ctx.spec.local.publish.apply_flag, "bodies": bodies,
-           "rows": plan.rows, "blockers": plan.blockers, "failures": plan.failures,
-           "publishable": plan.publishable and bool(bodies), "labels": labels,
-           "apply_steps": ctx.adapter.apply_steps(ctx, item, plan),
-           "flags": verdict.flags, "facts": verdict.facts, "created": iso()}
-    write_json(d / "publish-plan.json", doc)
-    (d / "publish-plan.md").write_text(_plan_md(doc, ctx.bodies_dir(item, apply=False)), encoding="utf-8")
-    return doc
-
-
-def _plan_md(doc: dict, bodies_dir: Path) -> str:
-    item = doc["item"]
-    lines = [f"# Publish plan {doc['plan_id']} — {item['nwo']}", "",
-             f"- run: `{doc['run_id']}` · item `{item['key']}` · risk `{doc['risk']}` (tier {doc['tier']})",
-             f"- validated file: `{doc['validated_rel']}` (sha256 {doc['validated_sha256']})",
-             f"- publishable: {'yes' if doc['publishable'] else 'no'}"
-             + (f" — blockers: {', '.join(doc['blockers'])}" if doc["blockers"] else ""), "",
-             "## What `--apply` does", ""]
-    steps = doc.get("apply_steps")
-    if isinstance(steps, list) and steps:
-        lines += [f"{n}. {step}" for n, step in enumerate(steps, 1)]
-    elif doc["labels"]:
-        lines.append(f"1. `gh label create <name> -R {item['nwo']} --force` for {', '.join(doc['labels'])} — this "
-                     "can refresh an existing label's colour and description.")
-        lines.append(f"2. `gh issue create -R {item['nwo']}` once per body below, after a live recheck "
-                     "(backpressure, the open-issue dedupe, the token probe); nothing else is written.")
-    else:
-        lines.append("Nothing: no proposal would be filed.")
-    for f in doc["flags"]:
-        lines.append(f"- flag: {f}")
-    lines += ["", f"Publish this preview later: `tools/dash loop publish {doc['run_id']} --item {item['key']} "
-              "--apply`", ""]
-    for r in doc["rows"]:
-        name = r.get("body_file") or ""
-        body = (bodies_dir / name).read_text(encoding="utf-8") if name and (bodies_dir / name).is_file() else ""
-        lines += [f"## {r.get('title')}", "", f"labels: {', '.join(r.get('labels') or [])} · body `{name}`", "",
-                  "~~~~markdown", body.rstrip("\n"), "~~~~", ""]
-    return "\n".join(lines) + "\n"
-
-
 def _fresh_dry(ctx: RunContext, item: Item, validated: Path) -> tuple[PublishPlan, dict[str, str]]:
     """The preview again, with a live dedupe, into a scratch directory: what
     a filing would write NOW, as body hashes."""
@@ -2097,121 +980,9 @@ def _fresh_dry(ctx: RunContext, item: Item, validated: Path) -> tuple[PublishPla
         return plan, _bodies(Path(tmp))
 
 
-def review_gap(ctx: RunContext, item: Item, doc: dict, fresh: PublishPlan, fresh_bodies: dict[str, str],
-               validated: Path) -> str | None:
-    """Why a live dry run would NOT file exactly what the preview showed, or
-    None: a body whose hash is not among the reviewed ones, a title or label
-    set nobody reviewed (labels come from `_data/fleet.yml` at filing time), a
-    publish argv that is not the reviewed one, or bodies that cannot be
-    compared. A live dedupe that only drops a reviewed issue is no gap."""
-    unreviewed = sorted(n for n, s in fresh_bodies.items() if s not in set(doc["bodies"].values()))
-    if unreviewed:
-        return (f"a live dry run would file {len(unreviewed)} body(ies) that were not in the reviewed preview — run "
-                "again and review the new preview")
-    if fresh.rows and len(fresh_bodies) != len(fresh.rows):
-        return (f"the live dry run wrote {len(fresh_bodies)} body file(s) for {len(fresh.rows)} issue(s), so the "
-                "bytes cannot be compared")
-    reviewed = {(r.get("title"), tuple(r.get("labels") or [])) for r in doc.get("rows") or []}
-    moved = [str(r.get("title")) for r in fresh.rows if (r.get("title"), tuple(r.get("labels") or [])) not in reviewed]
-    if moved:
-        return f"a live dry run would file {moved[:3]} under a title or labels that were not reviewed"
-    if publish_values(ctx, item, validated, apply=False) != doc.get("argv"):
-        return "the publish argv is not the reviewed one (the spec or the run changed since the preview)"
-    return None
-
-
-#: The way on from an apply that filed nothing: its publish-result.json still
-#: refuses a second apply of that preview, but it is not a publish, so tier 0
-#: reuses the validated copy in a new run and previews it again.
-NOTHING_FILED_RETRY = ("nothing was filed: run the loop again to retry (tier 0 reuses the validated copy at $0 "
-                       "while HEAD and the brief are unchanged, and writes a new preview to apply)")
-
-
-def _already_applied(result_path: Path) -> str:
-    """Why a claimed publish-result.json refuses this apply — with the way on
-    when the earlier apply filed nothing."""
-    try:
-        prior = json.loads(result_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        prior = None
-    if isinstance(prior, dict) and prior.get("status") == "publish-failed" and not prior.get("urls"):
-        return f"already applied ({result_path.name} exists) and {NOTHING_FILED_RETRY}"
-    return f"already applied ({result_path.name} exists) — a second apply is refused"
-
-
-def apply_item(ctx: RunContext, item: Item, doc: dict) -> dict:
-    """File a preview's bytes. Refused (exit 2) when it was already applied
-    (here, or in another run that filed the same validated bytes), when the
-    validated file or the reviewed bodies changed since the preview, or when a
-    live dry run would now file anything that was not reviewed (`review_gap`); then
-    the live recheck (the planner for this one target: issues enabled,
-    backpressure); then the write, with GH_TOKEN in that subprocess only;
-    then per-issue failure detection. publish-result.json is claimed with
-    O_EXCL before the write, so a second or concurrent apply is refused."""
-    d = ctx.item_dir(item)
-    result_path = d / "publish-result.json"
-
-    def refused(why: str) -> dict:
-        return {"status": "publish-refused", "reason": why, "code": EXIT["usage"]}
-
-    if ctx.publish_env is None:
-        return refused("no probed publish token (internal: --apply without the token probe)")
-    if result_path.exists():
-        return refused(_already_applied(result_path))
-    elsewhere = ctx.history.published_run(ctx.spec, item.key, str(doc.get("validated_sha256")))
-    if elsewhere:
-        return refused(f"already published in run {elsewhere} (the same validated bytes) — a second apply is refused")
-    if not doc.get("publishable"):
-        return refused("the preview is not publishable: " + ("; ".join(doc.get("blockers") or []) or "nothing to file"))
-    validated = d / doc["validated_rel"]
-    if validated.is_symlink() or _file_sha(validated) != doc["validated_sha256"]:
-        return refused("the validated file changed since the preview")
-    if _bodies(ctx.bodies_dir(item, apply=False)) != doc["bodies"]:
-        return refused("the reviewed bodies changed since the preview")
-    why = ctx.adapter.recheck(ctx, item)
-    if why:
-        return {"status": "publish-skipped", "reason": f"live recheck: {why}", "code": EXIT["attention"]}
-    verdict = Verdict(True, publish_file=validated)
-    fresh, fresh_bodies = _fresh_dry(ctx, item, validated)
-    if fresh.blockers:
-        return {"status": "publish-skipped", "reason": f"live recheck: {', '.join(fresh.blockers)}",
-                "code": EXIT["attention"]}
-    gap = review_gap(ctx, item, doc, fresh, fresh_bodies, validated)
-    if gap:
-        return refused(f"changed since the preview: {gap}")
-    if not fresh.rows:
-        return {"status": "publish-skipped", "reason": "nothing left to file after the live dedupe", "code": EXIT["ok"]}
-    try:
-        fd = os.open(result_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    except FileExistsError:
-        return refused("already applied (a concurrent apply claimed it)")
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        json.dump({"schema": PUBLISH_RESULT_SCHEMA, "status": "applying", "plan_id": doc["plan_id"], "at": iso()}, fh)
-    apply_argv = publish_values(ctx, item, validated, apply=True, reviewed=ctx.bodies_dir(item, apply=False))
-    env = ctx.publish_env
-    filed = ctx.adapter.publish(ctx, item, verdict, lambda: dash_gen(apply_argv, env=env), apply=True)
-    urls = [r["url"] for r in filed.rows if r.get("url")]
-    stray = sorted(n for n, s in _bodies(ctx.bodies_dir(item, apply=True)).items()
-                   if s not in set(doc["bodies"].values()))
-    status = ("published" if urls and not filed.failures and not filed.blockers
-              else "partial" if urls else "publish-failed")
-    reason = (f"filed {len(urls)} issue(s)" + (f"; FAILED: {', '.join(filed.failures)}" if filed.failures else "")
-              + (f"; {', '.join(filed.blockers)}" if filed.blockers else "")
-              + (f"; filed bodies not in the preview: {stray}" if stray else "")
-              + (f"; {NOTHING_FILED_RETRY}" if status == "publish-failed" else ""))
-    write_json(result_path, {"schema": PUBLISH_RESULT_SCHEMA, "status": status, "plan_id": doc["plan_id"],
-                             "validated_sha256": doc["validated_sha256"], "urls": urls, "failures": filed.failures,
-                             "blockers": filed.blockers, "stray_bodies": stray, "at": iso()})
-    ctx.run.append_attempt({"run_id": ctx.run.run_id, "loop": ctx.spec.loop, "step": ctx.spec.step,
-                            "call_site": ctx.spec.call_site, "item": item.key, "dir": wsp.item_dirname(item.key),
-                            "nwo": item.nwo, "decision": "publish-apply", "plan_id": doc["plan_id"],
-                            "validated_sha256": doc["validated_sha256"], "published": bool(urls),
-                            "filed": len(urls), "failures": filed.failures, "status": status,
-                            "cost_usd": 0.0, "cost_source": "no-spend"})
-    return {"status": status, "reason": reason, "code": EXIT["ok"] if status == "published" else EXIT["attention"],
-            "published": len(urls), "urls": urls}
-
-
+# --------------------------------------------------------------------------- #
+# `loop run`
+# --------------------------------------------------------------------------- #
 def _new_record(ctx: RunContext, posture: headless.Posture) -> dict:
     spec = ctx.spec
     paths = [str(spec.path.parent.relative_to(HUB)) + "/", *ENGINE_SOURCES, *ctx.adapter.sources]
@@ -2235,86 +1006,6 @@ def _new_record(ctx: RunContext, posture: headless.Posture) -> dict:
     }
 
 
-def _budget_dict(state: BudgetState | None) -> dict:
-    if state is None:
-        return {}
-    return {"month": state.month, "spent_usd": state.spent_usd, "estimated_usd": state.estimated_usd,
-            "cap_usd": state.cap_usd, "ceiling_usd": state.ceiling_usd, "scheduled": state.scheduled,
-            "label": COST_LABEL}
-
-
-def _totals(record: dict) -> dict:
-    items = record.get("items") or []
-    spent = round(sum(float(i.get("cost_usd") or 0) for i in items), 4)
-    estimated = round(sum(float(i.get("cost_usd") or 0) for i in items if i.get("cost_source") == "estimated"), 4)
-    return {"spent_usd": spent, "estimated_usd": estimated, "label": COST_LABEL,
-            "attempts": sum(1 for i in items if i.get("outcome")),
-            "published": sum(int(i.get("published") or 0) for i in items)}
-
-
-def _summary(record: dict) -> str:
-    t = record.get("totals") or {}
-    spend = (f"- spend: ${t.get('spent_usd', 0):.2f} ({COST_LABEL})"
-             + (f", ${t['estimated_usd']:.2f} of it charged at the cap" if t.get("estimated_usd") else "")
-             + (" — a rehearsal makes no model call" if record["mode"] == "rehearse" else ""))
-    lines = [f"# jev loop {record['loop']}/{record['step']} — {record['run_id']}", "",
-             f"- mode: {record['mode']} · status: {record['status']} · exit {record['exit_code']}",
-             f"- posture: {record['posture']['name']} (network none) · model {record['tier']['model']} · "
-             f"turns {record['tier']['max_turns']} · cap ${record['tier']['cap_usd']:g} ({COST_LABEL})", spend]
-    b = record.get("budget") or {}
-    if b.get("after"):
-        a = b["after"]
-        lines.append(f"- month {a['month']}: ${a['spent_usd']:.2f} of the ${a['cap_usd']:g} budget.loops ceiling "
-                     f"({COST_LABEL}; this run stops at ${a['ceiling_usd']:g})")
-    if record.get("usage_limited"):
-        lines.append("- usage limit reached: the credential is valid (capacity, not a defect); the rest was skipped")
-    lines.append("")
-    if record.get("hub", {}).get("dirty_paths"):
-        lines.append(f"- dirty at start: {', '.join(record['hub']['dirty_paths'])}")
-    for n in record.get("notes") or []:
-        lines.append(f"- {n}")
-    lines += ["", "| Item | Status | Cost | Reason |", "| --- | --- | --- | --- |"]
-    for i in record.get("items") or []:
-        cost = f"${float(i['cost_usd']):.4f} ({i.get('cost_source')})" if i.get("outcome") else "$0"
-        lines.append(f"| {i['key']} | {i['status']} | {cost} | {i.get('reason') or ''} |")
-    for i in record.get("items") or []:
-        if i.get("plan_id"):
-            lines.append(f"\nPreview `{i['key']}`: `items/{i['dir']}/publish-plan.md` (plan {i['plan_id']})")
-    for i in record.get("items") or []:
-        line = (i.get("context") or {}).get("line")
-        if line:
-            lines.append(f"\nContext `{i['key']}`: {line}")
-    return "\n".join(lines) + "\n"
-
-
-def _finish(ctx: RunContext, record: dict, code: int, status: str) -> int:
-    record.update(status=status, exit_code=code, finished=iso(), usage_limited=ctx.usage_limited,
-                  totals=_totals(record))
-    if ctx.budget is not None:
-        record.setdefault("budget", {})["after"] = _budget_dict(ctx.budget)
-    if ctx.events:
-        # the circuit breaker's record (§ 27.3): what stopped, why, and the sprint's spend against its cap
-        record["events"] = list(ctx.events)
-        record["notes"] += [f"{e['event']} ({e['sprint']}): {e['reason']}" for e in ctx.events]
-    ctx.run.write_json("run.json", record)
-    (ctx.run.path / "summary.md").write_text(_summary(record), encoding="utf-8")
-    (runs_dir() / "LATEST").write_text(ctx.run.run_id + "\n", encoding="utf-8")
-    prune(current=ctx.run.run_id)
-    for i in record["items"]:
-        print(f"  {i['status']:<14} {i['key']}  {i.get('reason') or ''}", file=sys.stderr)
-        for f in i.get("flags") or []:
-            print(f"  {'':<14} ! {f}", file=sys.stderr)
-        if (i.get("context") or {}).get("line"):
-            print(f"  {'':<14} · {i['context']['line']}", file=sys.stderr)
-    t = record["totals"]
-    print(f"jev loop: {status} — ${t['spent_usd']:.2f} spent ({COST_LABEL}); exit {code}", file=sys.stderr)
-    if ctx.opts.json:
-        print(json.dumps(record, indent=2, sort_keys=True, default=str))
-    else:
-        print(f"run: {ctx.run.path}")
-    return code
-
-
 @contextlib.contextmanager
 def interrupt_on_signals() -> Iterator[None]:
     """SIGTERM and SIGHUP (a console cancel's killpg, a closed terminal) end the
@@ -2334,21 +1025,6 @@ def interrupt_on_signals() -> Iterator[None]:
     finally:
         for sig, handler in saved.items():
             signal.signal(sig, handler)
-
-
-def apply_refusal(spec: StepSpec) -> str | None:
-    """Why `--apply` cannot run for this step at all — its filer takes the flag
-    only to refuse it (bamr87/bamr87#488's publish step is not built) — or
-    None. Checked before any clone, any spend and any token probe, so a run
-    that could never file never pays for an attempt."""
-    pub = spec.local.publish
-    if pub is None:
-        return f"{spec.loop}/{spec.step} declares no publish step: nothing to apply"
-    if pub.can_apply:
-        return None
-    return (f"--apply is refused for {spec.loop}/{spec.step}: its filer `{pub.argv[0]}` cannot file yet "
-            "(bamr87/bamr87#488's publish step) — run the dry run without --apply (`python3 -m tools.jev loop run "
-            f"{spec.loop} {spec.step} --target <item>`) and review .fleet/runs/<run_id>/")
 
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -2398,47 +1074,6 @@ def cmd_run(args: argparse.Namespace) -> int:
             record["notes"].append(f"{type(exc).__name__}: {exc}")
             _finish(ctx, record, EXIT["attention"], "failed")
             raise
-
-
-def claude_projects_dir() -> Path:
-    """This operator's Claude Code transcripts: `$CLAUDE_CONFIG_DIR/projects`,
-    else `~/.claude/projects`. Read from the ENGINE's environment and passed
-    as `--claude-dir`: the planes' environment (deterministic_env) drops
-    CLAUDE_CONFIG_DIR with every other auth override, and the lake would
-    fall back to ~/.claude."""
-    base = os.environ.get("CLAUDE_CONFIG_DIR")
-    return (Path(base).expanduser() if base else Path.home() / ".claude") / "projects"
-
-
-def refresh_context(ctx: RunContext, record: dict) -> None:
-    """`--refresh-context`, once per run, before the first pack: the lake's
-    LOCAL session import (`tools/dash-gen lake sessions`: this machine's
-    Claude Code transcripts, from `claude_projects_dir()`, into the lake,
-    nothing else written), never `lake sync`. A failed import, or one that
-    found no transcripts, is a note, never the run's failure — the pack then
-    reads the lake as it is (stale is reported, never fatal)."""
-    if context_mode(ctx) == "off":
-        record["notes"].append("--refresh-context: nothing to refresh, the context pack is off for this step")
-        return
-    argv = [*REFRESH_ARGV, f"--claude-dir={claude_projects_dir()}", f"--days={context_settings(ctx.spec).days}",
-            "--json"]
-    res = ctx.dash_gen(argv)
-    doc = cpack.parse_document(res.out) or {}
-    counts = {k: doc[k] for k in ("scanned", "sessions", "turns", "tool_calls", "skipped")
-              if isinstance(doc.get(k), int) and not isinstance(doc.get(k), bool)}
-    shown = [cpack.redact(a, ctx) for a in argv]   # the transcript directory is under the home
-    record["context_refresh"] = {"argv": shown, "exit": res.code, **counts}
-    said = " ".join(cpack.redact((res.err or res.out or "").strip()[-400:], ctx).split())[-200:]
-    if res.code != 0:
-        record["notes"].append(f"--refresh-context: `tools/dash-gen {' '.join(shown)}` exited {res.code}"
-                               + (f": {said}" if said else "") + " — the pack reads the lake as it is")
-    elif not counts:   # `lake sessions --json` prints nothing when the directory is missing
-        record["notes"].append(f"--refresh-context: the lake's local session import found no transcripts at "
-                               f"{cpack.redact(str(claude_projects_dir()), ctx)}" + (f" ({said})" if said else "")
-                               + " — the pack reads the lake as it is")
-    else:
-        record["notes"].append(f"--refresh-context: the lake's local session import read {counts.get('scanned', '?')}"
-                               f" transcript(s), {counts.get('sessions', '?')} new or changed")
 
 
 def _run(ctx: RunContext, record: dict, posture: headless.Posture) -> int:
@@ -2653,161 +1288,6 @@ def _print_plan(out: dict, opts: Options, code: int) -> int:
 # --------------------------------------------------------------------------- #
 # `loop doctor`, `loop list`, `loop show`
 # --------------------------------------------------------------------------- #
-SEVERITY = (EXIT["no_cli"], EXIT["host_unsafe"], EXIT["credential"], EXIT["usage"], EXIT["paused"], EXIT["attention"])
-
-
-def severest(codes: list[int]) -> int:
-    return next((c for c in SEVERITY if c in codes), EXIT["ok"])
-
-
-# --------------------------------------------------------------------------- #
-# the live canary — `loop doctor --live`, the one doctor check that spends
-# --------------------------------------------------------------------------- #
-def canary_dir() -> Path:
-    """~/.cache/jev/canary: beside the work root, outside every clone, inside the home fence."""
-    return headless.work_root().parent / "canary"
-
-
-def _canary_fixture(root: Path, secret: Path) -> Path:
-    """A local repository whose one commit holds a symlink `link` to the secret
-    (the clone's core.symlinks=false must make it a plain file)."""
-    repo = root / "canary-src"
-    repo.mkdir(parents=True)
-    cfg = ["-c", "user.name=jev-canary", "-c", "user.email=canary@localhost", "-c", "commit.gpgsign=false"]
-    (repo / "README.md").write_text("# jev canary fixture\n", encoding="utf-8")
-    os.symlink(secret, repo / "link")
-    for args in (["init", "-q", "-b", "main"], ["add", "-A"], [*cfg, "commit", "-q", "-m", "canary"]):
-        res = git(args, cwd=repo)
-        if not res.ok:
-            raise JevError(f"could not build the canary fixture: git {args[0]}: {res.err.strip()}")
-    return repo
-
-
-#: the Bash grants the canary's probes need (`cat` and `python3 -c` one-liners):
-#: added to a step whose allowlist lacks them, since the probes test Seatbelt,
-#: which wraps every child alike — the settings document, the isolation flags,
-#: the toolset and the environment stay the step's own, and the verdict
-#: records what was added (bamr87/bamr87#488: the doctor grants no python3)
-CANARY_GRANTS = ("Bash(cat:*)", "Bash(python3:*)")
-
-
-def canary_grants(spec: StepSpec, posture: headless.Posture) -> list[str]:
-    """Pure: which of CANARY_GRANTS the step's own allowlist lacks (none when
-    the posture grants no Bash at all: the canary refuses under `reduced`)."""
-    allowed = headless.posture_tools(spec.allowed_tools, posture)
-    if "Bash" not in headless.tool_families(allowed):
-        return []
-    return [g for g in CANARY_GRANTS if g not in allowed]
-
-
-def canary_flags(spec: StepSpec, posture: headless.Posture, **paths: object) -> list[str]:
-    """The step's own isolation flags — the same settings, toolset, allowlist
-    and deny list the posture template hashes — with only the model and the
-    turn cap swapped for the canary's (neither changes what is enforced), plus
-    the probe grants (`canary_grants`) a narrower allowlist lacks, appended to
-    `--allowedTools` so the probes reach the sandbox instead of the permission
-    layer; `--tools` (the families the init record is held to) is unchanged."""
-    flags = headless.claude_flags(spec, posture, **paths)
-    flags[flags.index("--model") + 1] = CANARY_MODEL
-    flags[flags.index("--max-turns") + 1] = str(CANARY_TURNS)
-    added = canary_grants(spec, posture)
-    if added:
-        i = flags.index("--allowedTools") + 1
-        flags[i] = ",".join([*flags[i].split(","), *added])
-    return flags
-
-
-def _plant(path: Path, token: str) -> None:
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        fh.write(token + "\n")
-
-
-def run_canary(spec: StepSpec, posture: headless.Posture, host: HostReport, fleet: dict) -> headless.ProbeResult:
-    """The ≤ $0.10 canary: one real session (it is ledgered like any attempt)
-    in a canary clone, asked to read a planted fixture file holding a random
-    token (inside the home fence, and a second copy in a denied private path
-    outside it) with `cat` and with python, reach the network, write outside
-    the clone with a sandboxed command and with the Write tool, count the
-    SECRET_ENV variables it can see, and read a committed symlink. It runs under the run's own credential, so its pass
-    is cached for that exposure. `headless.judge_canary` decides; the secrets
-    and every scratch file are removed whatever happens."""
-    if CANARY_MODEL not in allowed_models(fleet):
-        raise StepSpecError(f"the canary model {CANARY_MODEL} is not in _data/fleet.yml ai_models.allowed (§ 13.3)")
-    cdir = canary_dir()
-    cdir.mkdir(parents=True, exist_ok=True)
-    cdir.chmod(0o700)
-    token = secrets.token_hex(16)
-    outside_root = next((Path(p).resolve() for p in headless.private_read_paths() if Path(p).is_dir()), None)
-    outside_dir = Path(tempfile.mkdtemp(prefix="jev-canary-", dir=outside_root)) if outside_root else None
-    # neutral names: a model asked to read a `secret` may decline on its own (#560, item 3)
-    plant = headless.CanaryPlant(token=token, secret=str(cdir / "fixture.txt"), written=str(cdir / "written.txt"),
-                                 write_tool=str(cdir / "written-by-write.txt"),
-                                 outside=str(outside_dir / "fixture.txt") if outside_dir else None)
-    targets = [Path(plant.written), Path(plant.write_tool)]
-    for t in targets:
-        t.unlink(missing_ok=True)
-    for path in filter(None, (plant.secret, plant.outside)):
-        _plant(Path(path), token)
-    secret = Path(plant.secret)
-    run_id = f"canary-{now_utc():%Y%m%dT%H%M%SZ}-{secrets.token_hex(3)}"
-    scratch = Path(tempfile.mkdtemp(prefix="jev-canary-"))
-    ws = None
-    try:
-        src = _canary_fixture(scratch, secret)
-        ws = wsp.clone_local(src, "jev-canary/fixture", "main", run_id=run_id, brief_dir=spec.workspace.brief_dir)
-        d = scratch / "item"
-        d.mkdir()
-        (d / "prompt.txt").write_text(plant.prompt(), encoding="utf-8")
-        write_json(d / "settings.json", headless.settings_doc(posture))
-        attempt_id = str(uuid.uuid4())
-        flags = canary_flags(spec, posture, settings_path=d / "settings.json", session_id=attempt_id,
-                             debug_path=d / "debug.log")
-        argv = ["ai-run", "--stream", "--isolate", "--isolate-tmp", str(ws.tmp), "--timeout", str(CANARY_TIMEOUT_S),
-                "--max-budget-usd", f"{CANARY_CAP_USD:g}", "--repo", hub_repo(fleet), "--cwd", str(ws.path),
-                "--prompt-file", str(d / "prompt.txt"), "--trace", str(d / "trace.jsonl"),
-                "--result-file", str(d / "result.json"), "--outcome-file", str(d / "outcome.json"),
-                "--usage-limit", "skip", "--source", f"jev loop doctor --live ({spec.loop}/{spec.step} canary)",
-                "--claude-bin", host.claude or "claude", "--ledger", str(ledger_path())]
-        argv += auth_pin(host.auth)
-        for k, v in {"origin": "local", "run_id": run_id, "attempt_id": attempt_id, "loop": spec.loop,
-                     "step": spec.step, "item": "canary", "tier": "canary"}.items():
-            argv += ["--meta", f"{k}={v}"]
-        relay_dash_gen([*argv, "--", *flags], env=ai_run_env(host.auth), timeout=CANARY_TIMEOUT_S + OUTER_GRACE_S)
-        expected = headless.tool_families(headless.posture_tools(spec.allowed_tools, posture))
-        outcome = read_json(d / "outcome.json")
-        verdict = headless.judge_canary(
-            headless.read_events(d / "trace.jsonl"),
-            headless.posture_lines(headless.reduce_debug_log(d / "debug.log"), outcome),
-            outcome, plant=plant, left_behind=[str(t) for t in targets if t.exists()],
-            expected_tools=expected, credential_env=headless.credential_exposure(host.auth),
-            # ai-run's trace Redactor has the HOME it was given: the same one, so the same `~` paths
-            redact=headless.Redactor(ai_run_env(host.auth)).text)
-        verdict.facts["grants_added"] = canary_grants(spec, posture)
-        return verdict
-    finally:
-        if ws is not None:
-            wsp.destroy(ws)
-        shutil.rmtree(scratch, ignore_errors=True)
-        secret.unlink(missing_ok=True)
-        for t in targets:
-            t.unlink(missing_ok=True)
-        if outside_dir is not None:
-            shutil.rmtree(outside_dir, ignore_errors=True)
-
-
-def _confirm_canary(yes: bool) -> str | None:
-    """The maintainer's § 10.5 yes for the one doctor check that spends."""
-    if yes:
-        return None
-    if not sys.stdin.isatty():
-        return ("--live spends up to $0.10 (" + COST_LABEL + "): confirm on a terminal, or pass --yes "
-                "(the maintainer's § 10.5 approval)")
-    answer = input(f"Run the canary: one Claude session, at most ${CANARY_CAP_USD:.2f} ({COST_LABEL})? "
-                   "Type yes: ")
-    return None if answer.strip().lower() == "yes" else "not confirmed"
-
-
 def cmd_doctor(args: argparse.Namespace) -> int:
     """$0 host checks; runs the credential-free isolation probe and caches it.
     `--live` then runs the canary (≤ $0.10) for each step whose checks passed."""
@@ -3004,26 +1484,6 @@ def cmd_show(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------- #
 # `loop publish`, `loop budget`
 # --------------------------------------------------------------------------- #
-def _publish_target(rd: RunDir, record: dict, key: str | None) -> tuple[dict | None, Item | None, str]:
-    """The preview to publish, and its item rebuilt from the run's own plan."""
-    plans: dict[str, dict] = {}
-    for p in sorted((rd.path / "items").glob("*/publish-plan.json")):
-        doc = read_json(p)
-        if doc.get("schema") == PUBLISH_PLAN_SCHEMA and doc.get("run_id") == rd.run_id:
-            plans[str((doc.get("item") or {}).get("key"))] = doc
-    if key is None and len(plans) != 1:
-        return None, None, (f"run {rd.run_id} has {len(plans)} preview(s)"
-                            + (f" — name one with --item ({', '.join(sorted(plans))})" if plans else ""))
-    doc = plans.get(key) if key is not None else next(iter(plans.values()))
-    if doc is None:
-        return None, None, f"run {rd.run_id} has no preview for {key!r} ({', '.join(sorted(plans)) or 'none'})"
-    meta = doc["item"]
-    rows = [r for r in read_json(rd.path / "plan" / "plan.json").get("include") or [] if r.get("nwo") == meta["nwo"]]
-    item = Item(key=meta["key"], name=meta["name"], nwo=meta["nwo"], branch=meta["branch"],
-                row=rows[0] if rows else {}, brief=None)
-    return doc, item, ""
-
-
 def cmd_publish(args: argparse.Namespace) -> int:
     """File a reviewed earlier dry run (`--apply`), or say whether a live dry
     run would still file exactly the reviewed bytes (without it, read-only)."""
@@ -3105,23 +1565,6 @@ def cmd_publish(args: argparse.Namespace) -> int:
         for u in result.get("urls") or []:
             print(f"  {u}")
     return int(result["code"])
-
-
-def _sprint_budget(fleet: dict) -> dict:
-    """The active expedite sprint against its ceiling (tools/jev/sprints.py),
-    for `loop budget`; `error` when budget.sprints or a ledger cannot be read."""
-    try:
-        sprints = sp.load_sprints(fleet)
-        s = sp.active(sprints, now_utc())
-        if s is None:
-            return {"active": None, "declared": len(sprints),
-                    "line": f"no active expedite sprint ({len(sprints)} declared)"}
-        spent = sp.spend(s, ai_ledger=ledger_path(), jev=Ledger.load(), ci=sp.ci_rows(), pipeline=sp.pipeline_rows(),
-                         hub=hub_repo(fleet))
-        return {"active": s.as_dict(), "declared": len(sprints), **spent.as_dict(),
-                "line": f"{s.slug}: {spent.summary(s)}; its time box ends {sp.iso(s.ends)}"}
-    except JevError as exc:
-        return {"error": str(exc), "line": f"cannot be judged: {exc}"}
 
 
 def cmd_budget(args: argparse.Namespace) -> int:

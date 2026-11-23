@@ -92,7 +92,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash run <tool> [args]${c_off} run a scripts/ submodule tool (forkme, stashme, ...)
   ${c_bold}dash new <name> [args]${c_off}  scaffold a new project and register it
   ${c_bold}dash adopt-release <repo>${c_off} scaffold the release-please pipeline (--all for active repos)
-  ${c_bold}dash protect <repo>${c_off}    require the CI gate on a repo's default branch (--all)
+  ${c_bold}dash protect <repo>${c_off}    plan the fleet ruleset on a repo's default branch: merge commits only, the CI gate (--apply writes it; --check audits; --all; docs/BRANCHING.md)
   ${c_bold}dash evolve${c_off}            how to evolve the monorepo itself (the local /loops:evolution hub loop; the CI pass was retired)
   ${c_bold}dash evolve --repo <name>${c_off}  run the repo-evolution loop on one opted-in submodule now (draft PR in its own repo)
   ${c_bold}dash evolve --all${c_off}      run the weekly repo-evolution loop on every auto_evolve submodule now
@@ -505,7 +505,15 @@ cmd_adopt_release() {
 cmd_protect() {
   if [[ "${1:-}" == "--all" ]]; then
     shift
-    local r
+    local r a
+    # The audit is read-only and reports every repo in one summary.
+    for a in "$@"; do
+      if [[ "$a" == "--check" ]]; then
+        # shellcheck disable=SC2046  # one repo name per word, by construction
+        "${TOOLS}/protect-branch.sh" $(_active_repos) "$@"
+        return
+      fi
+    done
     for r in $(_active_repos); do
       echo "${c_bold}== protect: ${r} ==${c_off}"
       "${TOOLS}/protect-branch.sh" "$r" "$@" || echo "${c_dim}   (skipped ${r})${c_off}"

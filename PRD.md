@@ -183,6 +183,9 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-131](features/features.yml) | AI analysis of every failed CI run on a pull request | shipped | [`.github/scripts/dash-gen/pr_ai_analysis.py`](.github/scripts/dash-gen/pr_ai_analysis.py) · [`templates/pr-review/README.md`](templates/pr-review/README.md) | FR144 |
 | [HUB-132](features/features.yml) | AI review: a pull request that is marked ready gets a review and who does what next | partial | [`.github/workflows/pr-ai-review.yml`](.github/workflows/pr-ai-review.yml) · [`templates/pr-review/README.md`](templates/pr-review/README.md) | FR61, FR137 |
 | [HUB-133](features/features.yml) | Fleet uplift: what one repo improved that the others still lack, captured for the hub and deployed by the loops it already has | shipped | [`tools/uplift.py`](tools/uplift.py) · [`docs/UPLIFT.md`](docs/UPLIFT.md) | FR145 |
+| [HUB-134](features/features.yml) | Structure contract: the hub's own code held to declared layers and limits | shipped | [`tools/architecture.py`](tools/architecture.py) · [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | NFR33 |
+| [HUB-135](features/features.yml) | Focus: the checks a change owes, in one pass | shipped | [`tools/focus.py`](tools/focus.py) · [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | FR146 |
+| [HUB-136](features/features.yml) | The branch model, declared once, and one ruleset per repo that allows only merge commits | shipped | [`tools/branch_policy.py`](tools/branch_policy.py) · [`docs/BRANCHING.md`](docs/BRANCHING.md) | FR147 |
 
 **Requirement → feature trace**
 
@@ -364,6 +367,9 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR143 | HUB-130 |
 | FR144 | HUB-131 |
 | FR145 | HUB-133 |
+| NFR33 | HUB-134 |
+| FR146 | HUB-135 |
+| FR147 | HUB-136 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -503,6 +509,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR143: The Harness Console must be buildable as a named site for another address, taking that site's title, mark and front door from the instance's settings and not from code, with the default public build unchanged when no site is named; the first such site is the front door of the bash-365 platform: the bashOS desktop with an icon for every repo and application the registry declares, the BASH Consulting site among them.
 - FR144: Every failed CI run on a pull request must get an AI analysis in the PR's one sticky comment (root cause, whether the PR caused it, the fix), once per failed run attempt, through a capped, tool-less, one-turn fleet harness call behind its own switch; it never fails a check or approves, and a PR from outside the collaborators is analysed once a maintainer labels it (constitution § 19.11).
 - FR145: The hub must notice an improvement one fleet repo made that other repos still lack, from the repos' own history and without a model, say exactly which repos lack it and where the change belongs (the kit that seeded the file, or each repo), and hand it to the existing delivery loops as one reviewed hub issue; it must tell a hub rollout that has not finished apart from a repo's own improvement, and show the rollout's progress.
+- FR146: The product must name, and on request run, exactly the gates and tests a given change owes from one registry of checks, so a missing companion entry is found in one local pass.
+- FR147: The hub must declare the fleet's branch model once (the default branch, the merge method, and the work, session and automation branch prefixes with each automation prefix's owner) and project the default branch's protection from it as one named repository ruleset that allows only the merge commit constitution § 12.2 requires, requires no approval unless a repo asks for one, never requires linear history and names only required checks that have reported on the default branch; the tool must plan before it writes, write only on the maintainer's explicit apply, leave every other ruleset and setting unchanged, and audit a repo's live protection from every source read-only.
 
 **Non-functional**
 
@@ -538,6 +546,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - NFR30: The conversation must live on GitHub Discussions in this repository. The hub must not keep a second store of posts, comments or reactions. If Discussions cannot accept the post, publishing must fail closed and must not open an issue instead.
 - NFR31: A post, comment or draft must contain no token, secret, credential or private-repository body. A cost figure that is an estimate must be labelled API-equivalent (estimate). A failed publish must not fail the actor's underlying work.
 - NFR32: A self-hosted GitHub Actions runner on an on-premise node must never run a job from a fork's pull request: only schedule and workflow_dispatch workflows on the default branch target its labels and a drift check fails any workflow reachable from a fork-raisable event that does; the repository requires approval for fork pull-request workflows from all external contributors; the runner is ephemeral, runs as its own unprivileged user in a container or VM with no access to the maintainer's home, keys, Claude credentials or .env, has a kill switch, and stays off until the maintainer registers it (constitution § 30.5).
+- NFR33: The hub's own code must keep to a declared structure contract (import layers, a source-file line limit, no new sys.path changes, a size limit on committed data files) that is checked on every pull request, with existing exceptions recorded in a ledger that can only shrink.
 
 ## 6. Success metrics (proposed — not defined in sources)
 

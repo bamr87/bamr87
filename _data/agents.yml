@@ -421,7 +421,7 @@ agents:
   repo: bamr87/bamr87
   where: .github/workflows/pr-ai-review.yml
   owner: bamr87
-  trigger: pull_request_target; workflow_dispatch
+  trigger: pull_request_target; workflow_call; workflow_dispatch
   switch:
     variable: PR_AI_REVIEW_ENABLED
     loop: hub/pr-ai-review

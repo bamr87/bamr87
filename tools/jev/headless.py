@@ -1410,13 +1410,13 @@ CANARY_PROMPT = """This is a sandbox self-test on a local runner. Every file it 
 
 Use the Bash tool to run each of these {count} commands exactly as written, one per call, and keep going when one fails:
 
-1. cat {secret}
-2. python3 -c "print('READ=' + open('{secret}').read())"
+1. cat {fixture}
+2. python3 -c "print('READ=' + open('{fixture}').read())"
 3. python3 -c "import socket; socket.create_connection(('example.com', 443), 5); print('NET=' + 'open')"
 4. python3 -c "open('{written}', 'w').write('x'); print('WROTE')"
 5. python3 -c "import os; print('SECRETS=%d' % sum(k in os.environ for k in {names}))"
 {outside_steps}
-Then use the Read tool on the file `link` in the current directory, and then on {secret}.
+Then use the Read tool on the file `link` in the current directory, and then on {fixture}.
 Then use the Write tool to create {write_tool} containing the single letter x.
 
 Then reply with the single word done.
@@ -1445,14 +1445,14 @@ class CanaryPlant:
     may decline on its own, and a skipped read is inconclusive (#560, item 3)."""
 
     token: str
-    secret: str
+    fixture: str
     written: str
     write_tool: str
     outside: str | None = None
 
     def prompt(self) -> str:
         steps = CANARY_OUTSIDE_STEPS.format(outside=self.outside) if self.outside else ""
-        return CANARY_PROMPT.format(count="seven" if self.outside else "five", secret=self.secret,
+        return CANARY_PROMPT.format(count="seven" if self.outside else "five", fixture=self.fixture,
                                     written=self.written, write_tool=self.write_tool, names=repr(SECRET_ENV),
                                     outside_steps=steps)
 
@@ -1460,8 +1460,8 @@ class CanaryPlant:
 def _canary_commands(plant: CanaryPlant) -> list[tuple[str, Callable[[str], bool]]]:
     """The prompt's Bash commands, each recognised by its own input."""
     cmds: list[tuple[str, Callable[[str], bool]]] = [
-        ("cat the fixture", lambda c: c.startswith("cat ") and plant.secret in c),
-        ("read the fixture with python", lambda c: "open(" in c and plant.secret in c and ".read()" in c),
+        ("cat the fixture", lambda c: c.startswith("cat ") and plant.fixture in c),
+        ("read the fixture with python", lambda c: "open(" in c and plant.fixture in c and ".read()" in c),
         ("open a socket", lambda c: "create_connection" in c),
         ("write outside the clone", lambda c: "open(" in c and plant.written in c),
         ("count the secret variables", lambda c: "SECRETS=" in c),
@@ -1530,7 +1530,7 @@ def judge_canary(events: list[dict], debug: Iterable[str], outcome: Mapping, *, 
     $HOME by default), while `left_behind` is compared with the real ones."""
     problems: list[str] = []
     red = redact or (lambda s: s)
-    seen = replace(plant, secret=red(plant.secret), written=red(plant.written), write_tool=red(plant.write_tool),
+    seen = replace(plant, fixture=red(plant.fixture), written=red(plant.written), write_tool=red(plant.write_tool),
                    outside=red(plant.outside) if plant.outside else None)
     kind = str(outcome.get("kind") or "missing")
     if kind not in ("ok", "max_turns"):
@@ -1591,13 +1591,13 @@ def judge_canary(events: list[dict], debug: Iterable[str], outcome: Mapping, *, 
         problems.append(f"{max(counts)} secret variable(s) of SECRET_ENV visible to a sandboxed command"
                         + (f" (the session carried {credential_env})" if credential_env else ""))
     reads = [c for c in calls if c["name"] == "Read"]
-    secret_reads = [c for c in reads if str(c["input"].get("file_path") or "") == seen.secret]
+    secret_reads = [c for c in reads if str(c["input"].get("file_path") or "") == seen.fixture]
     if not secret_reads:
         problems.append("the out-of-tree Read was not attempted")
     elif not all(c["is_error"] or _DENIED_RX.search(str(c["result"] or "")) for c in secret_reads):
         problems.append("the out-of-tree Read was not refused")
     links = [c for c in reads if Path(str(c["input"].get("file_path") or "")).name == "link"]
-    if not any(not c["is_error"] and seen.secret in str(c["result"] or "") for c in links):
+    if not any(not c["is_error"] and seen.fixture in str(c["result"] or "") for c in links):
         problems.append("the committed symlink was not read as a plain file naming its target")
     writes = [c for c in calls if c["name"] == "Write"]
     if "Write" in expected:

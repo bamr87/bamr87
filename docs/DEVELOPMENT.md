@@ -78,7 +78,7 @@ The workspace image (`.devcontainer/`) is also a VS Code Dev Container; its post
 | Anything | `tools/run-all-tests.sh` — the hub's checks plus every checked-out submodule's own suite (skips what lacks deps, and says why) |
 | Registry, `.gitmodules`, a `SCHEMA.md`, README, workflows | `tools/check-drift.sh` — the gate CI runs (bash ≥ 4) |
 | A directory's contents | `python3 tools/schema_lint.py check .` (`--fix` registers strays) |
-| `tools/console/` | `python3 tools/console/test_console.py && python3 tools/console/test_pages.py`; `cd tools/console/web && npm run build` |
+| `tools/console/` | `python3 tools/console/test_console.py && python3 tools/console/test_pages.py`; `cd tools/console/web && npm run build && npm test` (the page's type-check, build and unit tests) |
 | The site or a dash page | `CONSOLE_BASE=/ OUT=_site tools/console/build-pages.sh`, serve `_site`, then `node verify/runner.mjs` ([VERIFICATION.md](VERIFICATION.md)) |
 | dash-gen | `python3 .github/scripts/dash-gen/test_<module>.py` |
 | Shell | `shellcheck --severity=warning tools/*.sh` |

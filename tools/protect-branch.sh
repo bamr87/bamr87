@@ -1,58 +1,49 @@
 #!/usr/bin/env bash
 # ============================================================================
-# tools/protect-branch.sh — require the CI gate before merging to the default
-# branch of a repo. Needs admin on the repo.
+# tools/protect-branch.sh — the fleet ruleset on a repo's default branch
+# (UPS-QA-24, UPS-QA-36, ADR 0015). A thin wrapper over tools/branch_policy.py;
+# the policy itself is _data/fleet.yml `branches:` and docs/BRANCHING.md says why.
 #
 # Usage:
-#   tools/protect-branch.sh <repo> [--owner bamr87] [--checks "CI / ci"] [--enforce-admins]
+#   tools/protect-branch.sh <repo> [--checks "a,b"] [--approvals N] [--apply]
+#   tools/protect-branch.sh <repo>... --check          # read-only audit
 #
-# By default it requires a PR (1 approving review), linear history, and the named
-# status checks. Inspect a repo's exact check context names with:
-#   gh pr checks <num> -R owner/repo
+#   <repo>             owner/name, a registry name, or projects/<dir>
+#   --checks "a,b"     required check names, as the check runs are named (a
+#                      reusable-workflow caller job `ci` reports as "ci / ci");
+#                      a name not seen on the default branch is refused unless
+#                      --allow-unseen. Omitted, the live ruleset's are kept.
+#   --approvals N      required approvals (default 0: the review gate is the
+#                      needs-amr label, constitution § 12.3-12.4)
+#   --enforce-admins   no admin bypass   --strict   head must be up to date
+#   --drop-classic     with --apply, delete the classic protection it replaces
+#   --owner X          owner for a bare name the registry does not know
+#   --apply            write the plan (needs admin: the maintainer's, § 4)
+#
+# A DRY RUN BY DEFAULT: without --apply it prints the plan and the audit and
+# writes nothing. The ruleset allows merge commits only (§ 12.2), never adds a
+# linear-history rule, and is created or updated by name, so other rulesets
+# and settings a person made are left alone.
+#
+# Until 2026-11 this script PUT classic protection with linear history and one
+# required approval: the first forbids the merge commit § 12.2 requires, and the
+# second can never be given on a pull request opened with the maintainer's
+# token. `--check` finds a repo still carrying that; `--apply --drop-classic`
+# replaces it.
 # ============================================================================
 set -euo pipefail
 
-OWNER="bamr87"
-# GitHub branch protection wants the FULL status-check context, i.e.
-# "<workflow name> / <job name>". The scaffolded caller (templates/release-pipeline/ci.yml)
-# is `name: CI` with job id `ci`, so its context is "CI / ci". Override with --checks
-# for repos whose CI job/workflow names differ.
-CHECKS_DEFAULT="CI / ci"
-ENFORCE_ADMINS=false   # admins can bypass by default; pass --enforce-admins to gate them too
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PY="${PYTHON:-python3}"
 
-[[ $# -ge 1 ]] || { echo "usage: tools/protect-branch.sh <repo> [--owner X] [--checks \"a,b\"] [--enforce-admins]" >&2; exit 1; }
-REPO="${1#projects/}"; REPO="${REPO%/}"; shift
-CHECKS="$CHECKS_DEFAULT"
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --owner) OWNER="$2"; shift 2;;
-    --checks) CHECKS="$2"; shift 2;;
-    --enforce-admins) ENFORCE_ADMINS=true; shift;;
-    *) echo "unknown arg: $1" >&2; exit 1;;
-  esac
+[[ $# -ge 1 ]] || { sed -n '7,21p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+
+for arg in "$@"; do
+  if [[ "$arg" == "--check" ]]; then
+    rest=()
+    for a in "$@"; do [[ "$a" == "--check" ]] || rest+=("$a"); done
+    exec "$PY" "$HERE/branch_policy.py" check "${rest[@]}"
+  fi
 done
 
-command -v gh >/dev/null || { echo "gh required" >&2; exit 1; }
-command -v jq >/dev/null || { echo "jq required" >&2; exit 1; }
-
-SLUG="${OWNER}/${REPO}"
-BRANCH="$(gh api "repos/${SLUG}" --jq .default_branch)"
-echo "▸ Protecting ${SLUG}@${BRANCH} — requiring checks: ${CHECKS} (enforce_admins=${ENFORCE_ADMINS})"
-
-# Build the required-status-checks contexts array from the comma list.
-CONTEXTS="$(printf '%s' "$CHECKS" | jq -R 'split(",") | map(gsub("^\\s+|\\s+$";""))')"
-
-gh api -X PUT "repos/${SLUG}/branches/${BRANCH}/protection" \
-  --input - <<JSON
-{
-  "required_status_checks": { "strict": true, "contexts": ${CONTEXTS} },
-  "enforce_admins": ${ENFORCE_ADMINS},
-  "required_pull_request_reviews": { "required_approving_review_count": 1 },
-  "restrictions": null,
-  "required_linear_history": true,
-  "allow_force_pushes": false,
-  "allow_deletions": false
-}
-JSON
-
-echo "✓ Branch protection applied. Verify: gh api repos/${SLUG}/branches/${BRANCH}/protection --jq '.required_status_checks.contexts'"
+exec "$PY" "$HERE/branch_policy.py" protect "$@"

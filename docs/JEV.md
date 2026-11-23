@@ -181,7 +181,7 @@ The maintainer's standing direction is that every fleet loop can run locally wit
 
 | | |
 | --- | --- |
-| **Engine** | [`tools/jev/loop.py`](../tools/jev/loop.py) — no loop-specific code; all policy comes from the spec, its `local:` block, `_data/fleet.yml` and the adapter |
+| **Engine** | [`tools/jev/loop.py`](../tools/jev/loop.py) and its `loop_*.py` sibling modules (shared ground, the ceiling, the run directory, the gates and host checks, the context pack's engine side, publishing, the canary; `loop.py` re-exports every name) — no loop-specific code; all policy comes from the spec, its `local:` block, `_data/fleet.yml` and the adapter |
 | **Workspaces** | [`tools/jev/workspace.py`](../tools/jev/workspace.py) — a hardened clone per item under `~/.cache/jev/work/<run_id>/<item dir>/` (0700, `JEV_WORK_ROOT`), outside the hub tree, beside an engine-held copy of its fresh `.git` |
 | **Adapters** | [`tools/jev/adapters/`](../tools/jev/adapters/README.md) — one per loop, named by the spec's `local.adapter` through a vetted `REGISTRY`; `repo_scout` (P1), `fleet_pulse_doctor` and `repo_evolution_evolve` (P3) |
 | **Spec key** | `local:` — `adapter`, `switch {config, variable, default}`, `planner {argv, flags}`, `publish {argv, apply_flag, risk}`, `on_budget_hit`, `harvest` (`outputs` or `patch`), `context {mode, file, providers, max_chars, deadline_s, days}` ([steps/README.md](../tools/jev/steps/README.md)) |
