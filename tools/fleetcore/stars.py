@@ -1197,13 +1197,14 @@ def groups_basis(doc: dict) -> str:
 
 def review_candidates(doc: dict, ai: dict | None, cfg: dict, now: datetime | None = None,
                       limit: int | None = None) -> list[str]:
-    """The repos the next AI pass reviews, most useful first: the review list, then the stars (newest
-    first), then the trending repos like a fleet project. Never a suspect or fleet-owned repo, and never
-    one whose review is current (same inputs, younger than ai.max_age_days). At most batch × max_batches."""
+    """The repos the next AI pass reviews, most useful first: every repo the account starred (newest first,
+    the third-party ones: its own are the fleet), then the rest of the review list, then the trending repos
+    like a fleet project. Never a suspect or fleet-owned repo, and never one whose review is current (same
+    inputs, younger than ai.max_age_days). At most batch × max_batches."""
     now = now or datetime.now(timezone.utc)
     repos = doc.get("repos") or {}
     reviews = (ai or {}).get("reviews") or {}
-    order = [*(i["repo"] for i in doc.get("incorporate") or []), *(doc.get("starred") or []),
+    order = [*(doc.get("starred") or []), *(i["repo"] for i in doc.get("incorporate") or []),
              *(n for t in doc.get("trending") or [] for n in t.get("repos") or [] if (repos.get(n) or {}).get("matches"))]
     out = []
     for n in dict.fromkeys(order):

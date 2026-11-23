@@ -423,7 +423,8 @@ class AiPass(unittest.TestCase):
 
     def test_candidates_skip_suspect_own_and_current_reviews(self):
         names = stars.review_candidates(self.doc, None, self.cfg, NOW)
-        self.assertEqual(names[0], self.doc["incorporate"][0]["repo"])
+        self.assertEqual(names[0], "acme/agent-kit")  # the account's stars first, newest first
+        self.assertLess(names.index("jane/jekyll-docs-theme"), names.index("new/actions-reviewer"))
         for bad in ("spam12345/claude-code-pro", "bamr87/zer0-mistakes"):
             self.assertNotIn(bad, names)
         got = stars.parse_reviews(self.answer(names), self.doc, names, model="m", now=NOW)

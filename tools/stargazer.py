@@ -500,6 +500,8 @@ def review_cmd(args) -> int:
     if not cfg.get("enabled", True):
         print("stars review: off (_data/fleet.yml stars.ai.enabled is false)", file=sys.stderr)
         return 1
+    if args.batches:
+        cfg = {**cfg, "max_batches": max(1, min(int(args.batches), 20))}
     names = [] if args.groups_only else stars.review_candidates(doc, ai, cfg, now, args.limit)
     size = max(1, int(cfg["batch"]))
     batches = [names[i:i + size] for i in range(0, len(names), size)]
@@ -662,6 +664,7 @@ def main(argv: list[str] | None = None) -> int:
     rv = sub.add_parser("review", help="the AI pass: reviews and groups (a plan until --yes)")
     rv.add_argument("--yes", action="store_true", help="run it: capped sessions that spend (API-equivalent)")
     rv.add_argument("--limit", type=int, default=0, help="review at most this many repos")
+    rv.add_argument("--batches", type=int, default=0, help="sessions this run (default stars.ai.max_batches; at most 20)")
     g = rv.add_mutually_exclusive_group()
     g.add_argument("--groups", action="store_true", help="regroup the stars even if the groups are current")
     g.add_argument("--no-groups", action="store_true")

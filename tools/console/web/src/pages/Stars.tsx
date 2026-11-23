@@ -418,7 +418,7 @@ function MapView({ doc, open }: { doc: StarsDoc; open: (n: string) => void }) {
   return (
     <>
       <Group justify="space-between" mb="xs" wrap="wrap">
-        <Text size="sm" c="dimmed" maw={760}>Every repo close to a fleet project: further right is closer to the fleet, higher has more stars, a bigger dot is rising faster. Upper right is where to look first. Pick a dot to open it.</Text>
+        <Text size="sm" c="dimmed" maw={760}>Every repo you starred, and every other repo close to a fleet project: further right is closer to the fleet (a star like no fleet project sits on the left edge), higher has more stars, a bigger dot is rising faster. Upper right is where to look first. Pick a dot to open it.</Text>
         <Switch label="Starred only" checked={starredOnly} onChange={(e) => setStarredOnly(e.currentTarget.checked)} />
       </Group>
       <Paper p="sm" withBorder>
@@ -441,7 +441,7 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 
 function RepoDetail({ r, doc }: { r: StarRepo; doc: StarsDoc }) {
   const cat = doc.categories.find((c) => c.id === r.category)?.title ?? r.category;
-  const target = r.matches?.[0]?.project ?? HUB;
+  const target = r.ai?.project ?? r.matches?.[0]?.project ?? HUB;  // the AI's judgement first: it reads what the keywords miss
   const prompt = `claude "Review github.com/${r.name} for ${target}: what it does, how it compares with what ${target} has, and whether to adopt it, borrow from it or skip it"`;
   return (
     <Stack gap="md">

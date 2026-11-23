@@ -23,3 +23,17 @@ The page reads the committed `_data/stars.json`, which is public data, so the re
 The running Grafana mounts the main checkout's dashboards, so the dashboard was checked in a throwaway container instead: `docker run --rm --pull never --network fleet -p 127.0.0.1:3091:3000` with the worktree's `provisioning/` and `dashboards/` mounted read-only, reading the stack's own Prometheus through the pinned `fleet-prometheus` datasource. It was stopped and removed afterwards; nothing in the running stack changed except the pushed `fleet_stars_*` series.
 
 **One defect found while capturing it, fixed in the same change:** the collector test ran a full `refresh`, which pushes metrics by default, and with no endpoint configured it pushed the fixture radar into the live collector. Its rows (`new/actions-reviewer`, `jane/jekyll-docs-theme`, `old/jekyll-relic`) are visible in *Closest to the fleet* in this image. `tools/test_stargazer.py` now points every push at a dead port. Prometheus runs without its admin API, so the fixture series could not be deleted; they leave the tables' two-day window on 2026-11-25, and the shared series (totals, categories, languages) were overwritten by the next real push.
+
+## The live console (deployed locally)
+
+The branch was then deployed as a live console from the worktree (`CONSOLE_PORT=4011 DASH_CONSOLE_GITHUB_WRITES=off tools/console/run.sh`, serving `/api/stars` and the job API), beside a throwaway Grafana on `:3091` carrying `fleet-stars`, and driven in headless Chromium: [`live-validation.json`](live-validation.json), **34 of 34 checks passed**. They cover the API document and the three operations, every tab and filter, a map dot opening the drawer, the AI review in the drawer, **Push to Grafana** running as a job that succeeded, **Review with AI** stopping at its spend confirm (Cancel started nothing), the Stargazer loop page, the dashboard the page links to, phone width on four tabs, and no page errors. **Read GitHub now** clicked from the page ran a full refresh that succeeded and kept the AI layer (156 reviews, 10 themes). The replayable scenario passes against the live console too.
+
+All 132 third-party stars were reviewed before this, in 11 capped sessions, $1.00 in all (API-equivalent, an estimate); the AI pass now takes the account's stars first.
+
+Fixed while validating: the spend confirm for **Review with AI** used the generic text ("opens pull requests or writes secrets/variables", "tick rehearse"), now its own; the drawer's review command now names the project the AI review chose when the keyword match found none.
+
+| Image | What to look at |
+| --- | --- |
+| `live-drawer-ai-review.png` | a third-party star the keyword match did not tie to any project, which the AI review places (`borrow`, for README) with two ideas; the review command names README |
+| `live-review-confirm.png` | *This spends Claude budget* with what the pass does, what it caps and what it writes; Cancel and Run it |
+| `live-map-all-stars.png` | every star on the map: the ones like no fleet project on the left edge, the rest by similarity |

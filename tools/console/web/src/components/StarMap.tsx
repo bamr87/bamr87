@@ -37,7 +37,8 @@ export default function StarMap({ repos, categories, onPick, height = 420 }: Sta
       title: c.title,
       fill: color(i),
       points: repos
-        .filter((r) => r.category === c.id && r.matches?.length && !r.suspect?.length)
+        // every starred repo (one like no fleet project sits at x = 0), and any other repo like a fleet project
+        .filter((r) => r.category === c.id && (r.matches?.length || r.starred_at) && !r.suspect?.length)
         .map<Point>((r) => ({
           x: Math.round((r.matches?.[0]?.score ?? 0) * 100),
           y: Math.round(Math.log10(Math.max(1, r.stars)) * 100) / 100,
