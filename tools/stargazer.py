@@ -17,18 +17,27 @@ writes and prints.
     tools/dash stars show <owner/repo>       one repo, every field
     tools/dash stars brief [--project P | --cwd DIR]   the session brief
     tools/dash stars hook [--install --yes]  the user-level SessionStart hook
+    tools/dash stars review [--yes] [--limit N] [--groups | --no-groups | --groups-only]
+                                             the AI pass: a summary, a verdict (adopt · borrow ·
+                                             watch · skip), the project it serves and ideas per
+                                             repo, and themes over the stars; a plan until --yes
+    tools/dash stars metrics [--push]        the radar as Prometheus gauges (to the OTel collector)
+    tools/dash stars grafana [--write]       the fleet-stars Grafana dashboard, rendered
 
 Every read command takes --json and --limit. A refresh needs a token (GH_TOKEN,
 GITHUB_TOKEN or `gh auth token`); it reads public data only, and a private
-repository or star list never reaches the document. Read-only on GitHub, $0.
+repository or star list never reaches the document. Read-only on GitHub, $0 — except `review --yes`, which runs capped, tool-less Claude sessions through
+`dash-gen ai-run` (API-equivalent cost, an estimate, recorded in the AI ledger).
 """
 from __future__ import annotations
 
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -41,6 +50,13 @@ from fleetcore import stars  # noqa: E402
 
 DOC = ROOT / "_data" / "stars.json"
 HISTORY = ROOT / "_data" / "stars_history.json"
+AI_FILE = ROOT / "_data" / "stars_ai.json"
+GRAFANA_FILE = ROOT / "tools" / "observability" / "grafana" / "dashboards" / "fleet-stars.json"
+DASH_GEN = ROOT / "tools" / "dash-gen"
+#: The review sessions read only their prompt: every tool is denied, no MCP server is attached, and the
+#: working directory is an empty temporary one (no CLAUDE.md, nothing to read).
+DENIED_TOOLS = ("Bash", "Read", "Write", "Edit", "MultiEdit", "NotebookEdit", "Grep", "Glob", "WebFetch", "WebSearch",
+                "Agent", "Task", "TodoWrite")
 UA = "bamr87-stargazer"
 GRAPHQL = "https://api.github.com/graphql"
 REPO_BATCH = 25     # repository(...) fields per query
@@ -280,7 +296,7 @@ def refresh(args) -> int:
     except GhError as exc:
         print(f"stars refresh: {exc}; nothing written", file=sys.stderr)
         return 1
-    doc, nxt = stars.build(raw, registry=reg, fleet=fleet, history=hist, now=now)
+    doc, nxt = stars.build(raw, registry=reg, fleet=fleet, history=hist, now=now, ai=stars.load_ai(AI_FILE))
     t = doc["totals"]
     print(f"stars refresh: {t['starred']} starred, {t['trending']} trending, {t['repos']} repos on the radar, "
           f"{t['relevant']} relevant to the fleet, {t['incorporate']} to review, {t['suspect']} suspect — "
@@ -293,6 +309,8 @@ def refresh(args) -> int:
     DOC.write_text(stars.dump(doc), encoding="utf-8")
     HISTORY.write_text(stars.dump_history(nxt), encoding="utf-8")
     print(f"  wrote {_rel(DOC)} and {_rel(HISTORY)}")
+    if not args.no_push:
+        print(f"  metrics: {push_metrics(doc, fleet)}")
     return 0
 
 
@@ -438,6 +456,175 @@ def hook_cmd(args) -> int:
     return 0
 
 
+# --------------------------------------------------------------------------- #
+# the AI pass
+# --------------------------------------------------------------------------- #
+def run_session(prompt: str, cfg: dict, hub_repo: str) -> tuple[str, dict]:
+    """One capped, tool-less `claude -p` session through `dash-gen ai-run` (the AI ledger, the dollar cap,
+    the usage-limit skip): the prompt on stdin, an empty working directory, no MCP server, every tool denied.
+    Returns the answer's text and what the run cost."""
+    with tempfile.TemporaryDirectory(prefix="stars-review-") as tmp:
+        t = Path(tmp)
+        (t / "prompt.txt").write_text(prompt, encoding="utf-8")
+        (t / "mcp.json").write_text('{"mcpServers": {}}', encoding="utf-8")
+        work = t / "work"
+        work.mkdir()
+        argv = [str(DASH_GEN), "ai-run", "--source", "stars review", "--repo", hub_repo, "--cwd", str(work),
+                "--prompt-file", str(t / "prompt.txt"), "--result-file", str(t / "result.json"),
+                "--outcome-file", str(t / "outcome.json"), "--timeout", str(int(cfg["timeout_s"])),
+                "--max-budget-usd", f"{float(cfg['budget_usd']):g}", "--usage-limit", "skip", "--meta", "origin=local",
+                "--", "--model", str(cfg["model"]), "--max-turns", str(int(cfg["max_turns"])),
+                "--permission-mode", "dontAsk", "--setting-sources", "user", "--strict-mcp-config",
+                "--mcp-config", str(t / "mcp.json"), "--disallowedTools", *DENIED_TOOLS]
+        proc = subprocess.run(argv, capture_output=True, text=True, timeout=int(cfg["timeout_s"]) + 120)
+
+        def read(name: str) -> dict:
+            try:
+                out = json.loads((t / name).read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                return {}
+            return out if isinstance(out, dict) else {}
+        result, outcome = read("result.json"), read("outcome.json")
+    cost = outcome.get("cost_usd") if isinstance(outcome.get("cost_usd"), (int, float)) else result.get("total_cost_usd")
+    return str(result.get("result") or ""), {"cost_usd": round(float(cost), 4) if isinstance(cost, (int, float)) else None,
+                                             "turns": result.get("num_turns"), "outcome": outcome.get("kind"),
+                                             "exit": proc.returncode, "stderr": proc.stderr[-600:]}
+
+
+def review_cmd(args) -> int:
+    fleet = fleet_yml()
+    cfg = stars.config(fleet)["ai"]
+    doc = _need_doc()
+    ai = stars.load_ai(AI_FILE)
+    now = datetime.now(timezone.utc)
+    if not cfg.get("enabled", True):
+        print("stars review: off (_data/fleet.yml stars.ai.enabled is false)", file=sys.stderr)
+        return 1
+    names = [] if args.groups_only else stars.review_candidates(doc, ai, cfg, now, args.limit)
+    size = max(1, int(cfg["batch"]))
+    batches = [names[i:i + size] for i in range(0, len(names), size)]
+    stale_groups = (ai.get("groups") or {}).get("basis") != stars.groups_basis(doc)
+    groups = not args.no_groups and (args.groups or args.groups_only or stale_groups)
+    sessions = len(batches) + (1 if groups else 0)
+    cap = float(cfg["budget_usd"])
+    print(f"stars review: {len(names)} repo(s) to review in {len(batches)} session(s)"
+          f"{', and the groups over ' + str(len(doc.get('starred') or [])) + ' stars' if groups else ''} — "
+          f"{cfg['model']}, at most ${cap:g} a session, ${cap * sessions:g} in all ({stars.COST_LABEL})")
+    for n in names[:12]:
+        print(f"  {n}")
+    if len(names) > 12:
+        print(f"  … and {len(names) - 12} more")
+    if not sessions:
+        print("  nothing to do: every review is current and the groups match the stars")
+        return 0
+    if not args.yes:
+        print("  plan only: add --yes to run it (it spends; each session is capped and recorded in the AI ledger)")
+        return 0
+    if not shutil.which("claude"):
+        print("stars review: no `claude` CLI on PATH; nothing run", file=sys.stderr)
+        return 2
+    hub_repo = str((fleet.get("hub") or {}).get("repo") or "bamr87/bamr87")
+    failed = 0
+
+    def record(kind: str, count: int, meta: dict) -> None:
+        ai.setdefault("runs", []).append({"at": stars._iso(datetime.now(timezone.utc)), "kind": kind, "model": cfg["model"],
+                                          "repos": count, "cost_usd": meta.get("cost_usd"), "turns": meta.get("turns"),
+                                          "outcome": meta.get("outcome")})
+        ai["runs"] = ai["runs"][-50:]
+        ai["updated_at"] = stars._iso(datetime.now(timezone.utc))
+        AI_FILE.write_text(stars.dump_ai(ai), encoding="utf-8")
+
+    queue = [(str(i), b, True) for i, b in enumerate(batches, 1)]
+    while queue:
+        label, batch, may_split = queue.pop(0)
+        text, meta = run_session(stars.review_prompt(doc, batch), cfg, hub_repo)
+        try:
+            got = stars.parse_reviews(text, doc, batch, model=str(cfg["model"]), now=datetime.now(timezone.utc))
+        except ValueError as exc:
+            record("reviews", 0, meta)
+            said = " ".join(text.split())[:200]
+            print(f"  session {label}: no usable answer ({exc}; outcome {meta.get('outcome')}, exit {meta.get('exit')})"
+                  + (f" — it said: {said}" if said else ""), file=sys.stderr)
+            if may_split and len(batch) > 1:  # once, as two halves: a shorter answer is the one that comes back
+                half = (len(batch) + 1) // 2
+                queue[:0] = [(f"{label}a", batch[:half], False), (f"{label}b", batch[half:], False)]
+                sessions += 1
+            else:
+                failed += 1
+            continue
+        ai.setdefault("reviews", {}).update(got)
+        record("reviews", len(got), meta)
+        print(f"  session {label}: {len(got)} of {len(batch)} reviewed · ${meta.get('cost_usd') or 0:.4f} {stars.COST_LABEL}")
+    if groups:
+        text, meta = run_session(stars.groups_prompt(doc, cfg, ai), cfg, hub_repo)
+        try:
+            ai["groups"] = stars.parse_groups(text, doc, cfg, model=str(cfg["model"]), now=datetime.now(timezone.utc))
+            record("groups", len(doc.get("starred") or []), meta)
+            print(f"  groups: {len(ai['groups']['items'])} themes · ${meta.get('cost_usd') or 0:.4f} {stars.COST_LABEL}")
+        except ValueError as exc:
+            failed += 1
+            record("groups", 0, meta)
+            print(f"  groups: no usable answer ({exc}; outcome {meta.get('outcome')})", file=sys.stderr)
+    stars.attach_ai(doc, ai)
+    DOC.write_text(stars.dump(doc), encoding="utf-8")
+    print(f"  wrote {_rel(AI_FILE)} and {_rel(DOC)}; metrics: {push_metrics(doc, fleet)}")
+    return 1 if failed and failed == sessions else 0
+
+
+# --------------------------------------------------------------------------- #
+# metrics and the Grafana dashboard
+# --------------------------------------------------------------------------- #
+def otlp_endpoint(fleet: dict, override: str | None = None) -> str:
+    cfg = stars.config(fleet)["metrics"]
+    claude = ((fleet.get("observability") or {}).get("claude_code") or {}) if isinstance(fleet, dict) else {}
+    base = override or os.environ.get("STARS_OTLP_ENDPOINT") or cfg.get("endpoint") or claude.get("endpoint") \
+        or "http://127.0.0.1:4318"
+    return str(base).rstrip("/") + "/v1/metrics"
+
+
+def push_metrics(doc: dict, fleet: dict, endpoint: str | None = None) -> str:
+    """POST the radar's gauges to the OTel collector (OTLP/JSON). Best effort: a collector that is not running
+    is the ordinary state (`tools/dash observe up --profile metrics` starts it), never an error."""
+    if not stars.config(fleet)["metrics"].get("push", True) and not endpoint:
+        return "push off (stars.metrics.push)"
+    url = otlp_endpoint(fleet, endpoint)
+    samples = stars.metrics(doc)
+    body = json.dumps(stars.otlp_payload(samples, datetime.now(timezone.utc))).encode()
+    req = urllib.request.Request(url, data=body, method="POST", headers={"Content-Type": "application/json", "User-Agent": UA})
+    try:
+        with urllib.request.urlopen(req, timeout=float(stars.config(fleet)["metrics"]["timeout_s"])) as resp:
+            resp.read()
+    except urllib.error.HTTPError as exc:
+        return f"the collector at {url} answered {exc.code}; not pushed"
+    except (urllib.error.URLError, OSError):
+        return f"no collector at {url}; not pushed (the metrics profile is off)"
+    return f"{len(samples)} gauges pushed to {url} → Prometheus → Grafana dashboard {stars.GRAFANA_UID}"
+
+
+def metrics_cmd(args) -> int:
+    doc = _need_doc()
+    if args.push:
+        msg = push_metrics(doc, fleet_yml(), args.endpoint or None)
+        print(msg)
+        return 0 if "pushed to" in msg else 1
+    print(stars.prom_text(stars.metrics(doc)), end="")
+    return 0
+
+
+def grafana_cmd(args) -> int:
+    text = json.dumps(stars.grafana_dashboard(), indent=2, sort_keys=True) + "\n"
+    if args.write:
+        GRAFANA_FILE.write_text(text, encoding="utf-8")
+        print(f"wrote {_rel(GRAFANA_FILE)}")
+        return 0
+    current = GRAFANA_FILE.read_text(encoding="utf-8") if GRAFANA_FILE.is_file() else ""
+    if current != text:
+        print(f"DRIFT {_rel(GRAFANA_FILE)}: run `tools/dash stars grafana --write`")
+        return 1
+    print(f"ok    {_rel(GRAFANA_FILE)}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="tools/dash stars", description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd")
@@ -468,9 +655,22 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--no-trending", action="store_true")
     r.add_argument("--no-discover", action="store_true")
     r.add_argument("--budget", type=float, default=240, help="wall clock in seconds (default 240)")
+    r.add_argument("--no-push", action="store_true", help="do not push the gauges to the OTel collector")
     b = sub.add_parser("brief", help="the text a local Claude Code session starts with")
     b.add_argument("--project", default="")
     b.add_argument("--cwd", default="")
+    rv = sub.add_parser("review", help="the AI pass: reviews and groups (a plan until --yes)")
+    rv.add_argument("--yes", action="store_true", help="run it: capped sessions that spend (API-equivalent)")
+    rv.add_argument("--limit", type=int, default=0, help="review at most this many repos")
+    g = rv.add_mutually_exclusive_group()
+    g.add_argument("--groups", action="store_true", help="regroup the stars even if the groups are current")
+    g.add_argument("--no-groups", action="store_true")
+    g.add_argument("--groups-only", action="store_true")
+    m = sub.add_parser("metrics", help="the radar as Prometheus gauges; --push sends them to the OTel collector")
+    m.add_argument("--push", action="store_true")
+    m.add_argument("--endpoint", default="", help="the collector's OTLP/HTTP base URL (default from fleet.yml)")
+    gr = sub.add_parser("grafana", help="the fleet-stars Grafana dashboard: check it, or --write it")
+    gr.add_argument("--write", action="store_true")
     h = sub.add_parser("hook", help="the user-level SessionStart hook for sessions outside the hub")
     h.add_argument("--install", action="store_true")
     h.add_argument("--yes", action="store_true")
@@ -484,6 +684,12 @@ def main(argv: list[str] | None = None) -> int:
         return brief_cmd(args)
     if args.cmd == "hook":
         return hook_cmd(args)
+    if args.cmd == "review":
+        return review_cmd(args)
+    if args.cmd == "metrics":
+        return metrics_cmd(args)
+    if args.cmd == "grafana":
+        return grafana_cmd(args)
     return read_cmd(args)
 
 

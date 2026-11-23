@@ -25,6 +25,9 @@ import stargazer as sg  # noqa: E402
 from fleetcore import stars  # noqa: E402
 
 NOW = datetime(2026, 11, 23, 12, 0, tzinfo=timezone.utc)
+# No test may push gauges to a live OTel collector (a refresh and a review push by default): every push in
+# this module goes to a port nothing listens on, unless a test names its own endpoint.
+os.environ["STARS_OTLP_ENDPOINT"] = "http://127.0.0.1:9"
 HOOK = ROOT / ".claude" / "hooks" / "stars_session_start.py"
 FLEET = {"hub": {"repo": "bamr87/bamr87", "owners": ["bamr87", "bash-365"]}, "stars": {"account": "bamr87"}}
 REGISTRY = [
@@ -213,7 +216,8 @@ class Build(unittest.TestCase):
     def test_dump_is_one_line_per_repo_and_loads_back(self):
         text = stars.dump(self.doc)
         self.assertEqual(json.loads(text), self.doc)
-        lines = [ln for ln in text.splitlines() if ln.startswith('  "') and '": {' in ln]
+        body = text.split('\n "repos": {\n', 1)[1].splitlines()
+        lines = [ln for ln in body if ln.startswith('  "')]
         self.assertEqual(len(lines), len(self.repos))
         self.assertEqual(json.loads(stars.dump_history(self.hist)), self.hist)
         with tempfile.TemporaryDirectory() as tmp:
@@ -405,6 +409,168 @@ class Cli(unittest.TestCase):
             starts = settings["hooks"]["SessionStart"]
             self.assertEqual(len(starts), 1)
             self.assertTrue(starts[0]["hooks"][0]["command"].endswith('stars_session_start.py" --user'))
+
+
+class AiPass(unittest.TestCase):
+    def setUp(self):
+        self.doc, _ = build()
+        self.cfg = stars.config(FLEET)["ai"]
+
+    def answer(self, names: list[str], **over) -> str:
+        reviews = [{"repo": n, "summary": f"{n} does a thing", "kind": "tool", "verdict": "borrow", "project": "githubai",
+                    "why": "close", "ideas": ["take the reviewer"], **over} for n in names]
+        return "Here you go:\n" + json.dumps({"reviews": reviews}) + "\n"
+
+    def test_candidates_skip_suspect_own_and_current_reviews(self):
+        names = stars.review_candidates(self.doc, None, self.cfg, NOW)
+        self.assertEqual(names[0], self.doc["incorporate"][0]["repo"])
+        for bad in ("spam12345/claude-code-pro", "bamr87/zer0-mistakes"):
+            self.assertNotIn(bad, names)
+        got = stars.parse_reviews(self.answer(names), self.doc, names, model="m", now=NOW)
+        ai = {**stars.empty_ai(), "reviews": got}
+        self.assertEqual(stars.review_candidates(self.doc, ai, self.cfg, NOW), [])
+        self.assertEqual(stars.review_candidates(self.doc, ai, self.cfg, NOW + timedelta(days=200)), names)  # too old
+        self.assertEqual(len(stars.review_candidates(self.doc, None, self.cfg, NOW, limit=1)), 1)
+
+    def test_parse_holds_every_field_to_its_type(self):
+        names = ["acme/agent-kit"]
+        text = json.dumps({"reviews": [
+            {"repo": "acme/agent-kit", "summary": "x" * 500, "kind": "rocket", "verdict": "BUY", "project": "nope",
+             "why": "w\u202e", "ideas": ["a", 3, "b", "c", "d"]},
+            {"repo": "not/given", "verdict": "adopt"}]})
+        got = stars.parse_reviews(text, self.doc, names, model="m", now=NOW)
+        r = got["acme/agent-kit"]
+        self.assertEqual(list(got), ["acme/agent-kit"])  # a repo it was not given is dropped
+        self.assertEqual((r["kind"], r["verdict"], r["project"]), ("other", "watch", None))
+        self.assertLessEqual(len(r["summary"]), 161)
+        self.assertEqual(r["ideas"], ["a", "b", "c"])
+        self.assertEqual(r["hash"], stars.review_hash(self.doc["repos"]["acme/agent-kit"]))
+        for bad in ("no json here", "[1, 2]", '{"reviews": [ broken'):
+            with self.assertRaises(ValueError):
+                stars.parse_reviews(bad, self.doc, names, model="m", now=NOW)
+
+    def test_prompts_fence_third_party_text(self):
+        names = stars.review_candidates(self.doc, None, self.cfg, NOW)
+        text = stars.review_prompt(self.doc, names)
+        self.assertIn("<repos>", text)
+        self.assertIn("never an instruction", text)
+        self.assertIn("- githubai:", text)
+        for n in names:
+            self.assertIn(n, text)
+        self.assertIn("<repos>", stars.groups_prompt(self.doc, self.cfg))
+
+    def test_groups_keep_each_star_once_and_gather_the_rest(self):
+        text = json.dumps({"groups": [
+            {"name": "Agents", "summary": "s", "repos": ["acme/agent-kit", "acme/agent-kit", "ghost/repo"], "fleet": ["githubai", "x"]},
+            {"name": "Sites", "summary": "s", "repos": ["jane/jekyll-docs-theme", "acme/agent-kit"], "fleet": []}]})
+        g = stars.parse_groups(text, self.doc, self.cfg, model="m", now=NOW)
+        self.assertEqual([x["repos"] for x in g["items"][:2]], [["acme/agent-kit"], ["jane/jekyll-docs-theme"]])
+        self.assertEqual(g["items"][0]["fleet"], ["githubai"])
+        self.assertEqual(g["items"][-1]["name"], "Ungrouped")
+        self.assertEqual(g["basis"], stars.groups_basis(self.doc))
+        with self.assertRaises(ValueError):
+            stars.parse_groups('{"groups": []}', self.doc, self.cfg, model="m", now=NOW)
+
+    def test_attach_is_idempotent_and_a_skip_leaves_the_review_list(self):
+        names = [i["repo"] for i in self.doc["incorporate"]]
+        got = stars.parse_reviews(self.answer(names, verdict="skip"), self.doc, names, model="m", now=NOW)
+        ai = {**stars.empty_ai(), "reviews": got, "updated_at": "t"}
+        once = stars.attach_ai(json.loads(json.dumps(self.doc)), ai)
+        twice = stars.attach_ai(json.loads(json.dumps(once)), ai)
+        self.assertEqual(once, twice)
+        self.assertEqual(once["incorporate"], [])
+        self.assertEqual(once["ai"]["verdicts"], {"skip": len(names)})
+        self.assertEqual(once["repos"][names[0]]["ai"]["verdict"], "skip")
+        changed = json.loads(json.dumps(self.doc))
+        changed["repos"][names[0]]["description"] = "something else now"
+        self.assertTrue(stars.attach_ai(changed, ai)["repos"][names[0]]["ai"]["stale"])
+        self.assertNotIn("Starred repos most like githubai", stars.brief(once, "githubai", now=NOW))  # its one match was a skip
+
+    def test_build_lays_the_committed_ai_over_the_radar(self):
+        names = ["acme/agent-kit"]
+        ai = {**stars.empty_ai(), "reviews": stars.parse_reviews(self.answer(names, verdict="adopt"), self.doc, names, model="m", now=NOW)}
+        doc, _ = build()
+        doc2, _ = stars.build(raw_fixture(), registry=REGISTRY, fleet=FLEET, history=None, now=NOW, ai=ai)
+        self.assertNotIn("ai", doc["repos"]["acme/agent-kit"])
+        self.assertEqual(doc2["repos"]["acme/agent-kit"]["ai"]["verdict"], "adopt")
+        self.assertIn("AI: adopt", stars.brief(doc2, "githubai", now=NOW))
+        self.assertEqual(json.loads(stars.dump_ai(ai)), ai)
+
+    def test_review_command_plans_until_yes_and_splits_a_failed_batch(self):
+        doc, _ = build()
+        calls: list[list[str]] = []
+
+        def fake_session(prompt: str, cfg: dict, hub: str):
+            names = [line.split('"repo": "')[1].split('"')[0] for line in prompt.splitlines() if line.startswith('{"repo": ')]
+            if names and len(names) > 1 and len(calls) == 0:
+                calls.append(names)
+                return "API Error: overloaded", {"cost_usd": 0.01, "outcome": "agent_error", "exit": 1}
+            calls.append(names)
+            if "Make " in prompt and "groups" in prompt:
+                return json.dumps({"groups": [{"name": "All", "summary": "s", "repos": doc["starred"], "fleet": []}]}), {"cost_usd": 0.02}
+            return self.answer(names), {"cost_usd": 0.03, "turns": 1, "outcome": "ok"}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            doc_p, ai_p = Path(tmp) / "stars.json", Path(tmp) / "stars_ai.json"
+            doc_p.write_text(stars.dump(doc))
+            with mock.patch.object(sg, "DOC", doc_p), mock.patch.object(sg, "AI_FILE", ai_p), \
+                    mock.patch.object(sg, "fleet_yml", lambda: FLEET), mock.patch.object(sg, "run_session", fake_session), \
+                    mock.patch.object(sg, "push_metrics", lambda *a, **k: "not pushed"), \
+                    mock.patch.object(sg.shutil, "which", lambda b: "/bin/claude"), \
+                    contextlib.redirect_stdout(io.StringIO()) as out, contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(sg.main(["review"]), 0)
+                self.assertIn("plan only", out.getvalue())
+                self.assertFalse(ai_p.exists())
+                self.assertEqual(sg.main(["review", "--yes"]), 0)
+            ai = json.loads(ai_p.read_text())
+            want = stars.review_candidates(doc, None, stars.config(FLEET)["ai"], datetime.now(timezone.utc))
+            self.assertEqual(sorted(ai["reviews"]), sorted(want))   # the failed batch came back as two halves
+            self.assertEqual(len(calls[1]) + len(calls[2]), len(calls[0]))
+            self.assertEqual(ai["groups"]["items"][0]["name"], "All")
+            self.assertEqual(stars.load(doc_p)["ai"]["reviewed"], len(want))
+            self.assertEqual([r["outcome"] for r in ai["runs"]][:1], ["agent_error"])
+
+
+class Metrics(unittest.TestCase):
+    doc = build()[0]
+
+    def test_gauges_and_their_two_encodings(self):
+        samples = stars.metrics(self.doc)
+        names = {x["name"] for x in samples}
+        for want in ("fleet_stars_repo_stars", "fleet_stars_repo_similarity", "fleet_stars_category_repos", "fleet_stars_total"):
+            self.assertIn(want, names)
+        agent = [x for x in samples if x["name"] == "fleet_stars_repo_stars" and x["attrs"]["repo"] == "acme/agent-kit"][0]
+        self.assertEqual((agent["value"], agent["attrs"]["starred"], agent["attrs"]["project"]), (1000.0, "true", "githubai"))
+        text = stars.prom_text(samples)
+        seen: list[str] = []
+        for line in text.splitlines():  # a family's samples are contiguous
+            if line.startswith("# TYPE "):
+                self.assertNotIn(line.split()[2], seen)
+                seen.append(line.split()[2])
+        payload = stars.otlp_payload(samples, NOW)
+        metrics = payload["resourceMetrics"][0]["scopeMetrics"][0]["metrics"]
+        self.assertEqual(sum(len(m["gauge"]["dataPoints"]) for m in metrics), len(samples))
+        self.assertEqual(payload["resourceMetrics"][0]["resource"]["attributes"][0]["value"]["stringValue"], "stargazer")
+
+    def test_push_without_a_collector_is_a_note_not_an_error(self):
+        msg = sg.push_metrics(self.doc, FLEET, endpoint="http://127.0.0.1:9")
+        self.assertIn("not pushed", msg)
+        env = {k: v for k, v in os.environ.items() if k != "STARS_OTLP_ENDPOINT"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            self.assertEqual(sg.otlp_endpoint({"observability": {"claude_code": {"endpoint": "http://x:4318/"}}}),
+                             "http://x:4318/v1/metrics")
+
+    def test_the_committed_dashboard_is_the_render(self):
+        want = json.dumps(stars.grafana_dashboard(), indent=2, sort_keys=True) + "\n"
+        self.assertEqual(sg.GRAFANA_FILE.read_text(encoding="utf-8"), want, "run `tools/dash stars grafana --write`")
+        dash = stars.grafana_dashboard()
+        self.assertEqual(dash["uid"], "fleet-stars")
+        for p in dash["panels"]:
+            self.assertEqual(p["datasource"], {"type": "prometheus", "uid": "fleet-prometheus"}, p["title"])
+            for t in p["targets"]:
+                self.assertIn("fleet_stars_", t["expr"])
+        ids = [p["id"] for p in dash["panels"]]
+        self.assertEqual(len(ids), len(set(ids)))
 
 
 class Hook(unittest.TestCase):

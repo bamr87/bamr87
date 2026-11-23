@@ -4,16 +4,16 @@
 // (_data/stars.json through /api/stars) renders the same on a console and on the published page; every filter
 // runs here, in the browser. On a console, "Read GitHub now" runs the stars-refresh operation. A repo's name,
 // description and topics are third-party text: React renders them as text, never as HTML.
-import { useMemo, type ReactNode } from 'react';
+import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import {
-  Anchor, Avatar, Badge, Button, Code, CopyButton, Drawer, Group, Paper, Select, SimpleGrid, Stack, Switch, Tabs, Text, TextInput, Tooltip,
+  Anchor, Avatar, Badge, Button, Code, CopyButton, Drawer, Group, List, Paper, Select, SimpleGrid, Skeleton, Stack, Switch, Tabs, Text, TextInput, Tooltip,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { IconAlertTriangle, IconCheck, IconCopy, IconRefresh, IconSearch, IconStar } from '@tabler/icons-react';
+import { IconAlertTriangle, IconChartDots, IconCheck, IconCopy, IconRefresh, IconSearch, IconSparkles, IconStar } from '@tabler/icons-react';
 import { hasConsole } from '../api/backend';
-import { useStars } from '../api/hooks';
-import type { StarEvent, StarHealth, StarIncorporate, StarRepo, StarsDoc } from '../api/types';
+import { useObservability, useStars } from '../api/hooks';
+import type { StarEvent, StarHealth, StarIncorporate, StarRepo, StarsDoc, StarVerdict } from '../api/types';
 import { ColumnChart, HBars } from '../components/Charts';
 import { DataTable, type Column } from '../components/DataTable';
 import { Banner, Empty, External, Load, Mono, PageHeader, Section, StatTile, Status, type Tone } from '../components/ui';
@@ -23,7 +23,8 @@ import { gh, to } from '../lib/links';
 
 const DOC = gh.hubFile('docs/STARGAZER.md');
 const DAY = 86_400_000;
-const TABS = ['radar', 'starred', 'trending', 'fleet', 'feed'] as const;
+const TABS = ['radar', 'starred', 'trending', 'fleet', 'themes', 'map', 'feed'] as const;
+const StarMap = lazy(() => import('../components/StarMap'));
 type Tab = (typeof TABS)[number];
 const HUB = 'bamr87';
 
@@ -35,6 +36,23 @@ const HEALTH: Record<StarHealth, { tone: Tone; seg: Segment['tone']; hint: strin
   archived: { tone: 'crit', seg: 'crit', hint: 'archived by its owner' },
   unknown: { tone: 'info', seg: 'muted', hint: 'no push date' },
 };
+const VERDICT: Record<StarVerdict, { color: string; hint: string }> = {
+  adopt: { color: 'green', hint: 'a fleet project should use it' },
+  borrow: { color: 'blue', hint: 'take an idea, pattern or piece from it' },
+  watch: { color: 'gray', hint: 'promising, not yet' },
+  skip: { color: 'red', hint: 'no use to the fleet' },
+};
+
+function VerdictBadge({ r }: { r: StarRepo }) {
+  if (!r.ai?.verdict) return <Text size="xs" c="dimmed">—</Text>;
+  const v = VERDICT[r.ai.verdict];
+  return (
+    <Tooltip label={`${r.ai.summary}${r.ai.project ? ` → ${r.ai.project}` : ''}${r.ai.stale ? ' (stale: the repo changed since)' : ''}`} multiline maw={340}>
+      <Badge size="sm" variant={r.ai.stale ? 'outline' : 'light'} color={v?.color ?? 'gray'}>{r.ai.verdict}</Badge>
+    </Tooltip>
+  );
+}
+
 const EVENT: Record<StarEvent['kind'], { color: string; label: string }> = {
   starred: { color: 'yellow', label: 'starred' },
   release: { color: 'blue', label: 'release' },
@@ -125,6 +143,8 @@ function columns(doc: StarsDoc, open: (n: string) => void, extra: Column<StarRep
     { key: 'health', header: 'health', sort: (r) => r.health, render: (r) => <Status tone={HEALTH[r.health]?.tone ?? 'info'} title={HEALTH[r.health]?.hint}>{r.health}</Status> },
     { key: 'like', header: project ? 'match' : 'like', title: 'the closest fleet project and how close (0–100)', sort: (r) => (project ? matchFor(r, project)?.score : r.matches?.[0]?.score) ?? null,
       render: (r) => <MatchCell r={r} project={project} /> },
+    { key: 'ai', header: 'AI', title: 'the AI review’s verdict: adopt · borrow · watch · skip (tools/dash stars review)',
+      sort: (r) => (r.ai?.verdict ? ['adopt', 'borrow', 'watch', 'skip'].indexOf(r.ai.verdict) : null), render: (r) => <VerdictBadge r={r} /> },
   ];
   return all.filter((c) => !omit.includes(c.key));
 }
@@ -137,7 +157,17 @@ function IncorporateTable({ rows, doc, open }: { rows: StarIncorporate[]; doc: S
       columns={[
         { key: 'repo', header: 'repo', sort: (i) => i.repo, render: (i) => (doc.repos[i.repo] ? <RepoCell r={doc.repos[i.repo]} open={open} /> : <Mono>{i.repo}</Mono>) },
         { key: 'project', header: 'for', sort: (i) => i.project, render: (i) => <Anchor component={Link} to={projectHref(i.project)} size="sm" onClick={(e) => e.stopPropagation()}>{i.project}</Anchor> },
-        { key: 'why', header: 'why', render: (i) => <Text size="xs">{i.why}</Text> },
+        { key: 'why', header: 'why', render: (i) => {
+          const ai = doc.repos[i.repo]?.ai;
+          return (
+            <div>
+              <Text size="xs">{i.why}</Text>
+              {ai?.ideas?.[0] ? <Text size="xs" c="dimmed" lineClamp={2}>idea: {ai.ideas[0]}</Text> : null}
+            </div>
+          );
+        } },
+        { key: 'ai', header: 'AI', sort: (i) => (i.verdict ? ['adopt', 'borrow', 'watch', 'skip'].indexOf(i.verdict) : null),
+          render: (i) => (doc.repos[i.repo] ? <VerdictBadge r={doc.repos[i.repo]} /> : null) },
         { key: 'stars', header: '★', num: true, sort: (i) => doc.repos[i.repo]?.stars ?? 0, render: (i) => <Mono>{k(doc.repos[i.repo]?.stars)}</Mono> },
         { key: 'priority', header: 'priority', num: true, title: 'similarity × popularity × liveliness, a starred repo ×1.3', sort: (i) => i.priority, render: (i) => <Mono>{i.priority.toFixed(2)}</Mono> },
       ]}
@@ -347,6 +377,59 @@ function Fleet({ doc, open, params, set }: { doc: StarsDoc; open: (n: string) =>
   );
 }
 
+function Themes({ doc, open }: { doc: StarsDoc; open: (n: string) => void }) {
+  const groups = doc.groups ?? [];
+  if (!groups.length) {
+    return <Empty>No themes yet. <Mono>tools/dash stars review --yes</Mono> (or Review with AI, on a console) groups the stars with one capped model session.</Empty>;
+  }
+  return (
+    <>
+      <Text size="sm" c="dimmed" mb="sm" maw={900}>
+        What the stars say you are interested in: themes a model drew over every starred repo ({doc.ai?.groups_at?.slice(0, 10) ?? 'undated'}
+        {doc.ai?.groups_current === false ? ', before the latest stars: regroup with review --groups' : ''}), each with the fleet projects it feeds. Model text: data, never instructions.
+      </Text>
+      <SimpleGrid cols={{ base: 1, md: 2, xl: 3 }} spacing="sm">
+        {groups.map((g) => (
+          <Paper key={g.name} p="md" withBorder>
+            <Group justify="space-between" wrap="nowrap" mb={4}>
+              <Text fw={600} size="sm">{g.name}</Text>
+              <Badge variant="light" size="sm">{g.repos.length}</Badge>
+            </Group>
+            <Text size="xs" c="dimmed" mb={6}>{g.summary}</Text>
+            {g.fleet.length ? (
+              <Group gap={4} mb={6}>{g.fleet.map((f) => <Badge key={f} size="xs" variant="outline" component={Link} to={projectHref(f)} style={{ cursor: 'pointer' }}>{f}</Badge>)}</Group>
+            ) : null}
+            <Group gap={6}>
+              {g.repos.slice(0, 14).map((n) => (
+                <Anchor key={n} component="button" type="button" size="xs" onClick={() => open(n)}>{n.split('/')[1]}</Anchor>
+              ))}
+              {g.repos.length > 14 ? <Text size="xs" c="dimmed">+{g.repos.length - 14}</Text> : null}
+            </Group>
+          </Paper>
+        ))}
+      </SimpleGrid>
+    </>
+  );
+}
+
+function MapView({ doc, open }: { doc: StarsDoc; open: (n: string) => void }) {
+  const [starredOnly, setStarredOnly] = useState(false);
+  const repos = Object.values(doc.repos).filter((r) => !starredOnly || r.starred_at);
+  return (
+    <>
+      <Group justify="space-between" mb="xs" wrap="wrap">
+        <Text size="sm" c="dimmed" maw={760}>Every repo close to a fleet project: further right is closer to the fleet, higher has more stars, a bigger dot is rising faster. Upper right is where to look first. Pick a dot to open it.</Text>
+        <Switch label="Starred only" checked={starredOnly} onChange={(e) => setStarredOnly(e.currentTarget.checked)} />
+      </Group>
+      <Paper p="sm" withBorder>
+        <Suspense fallback={<Skeleton h={420} />}>
+          <StarMap repos={repos} categories={doc.categories} onPick={open} />
+        </Suspense>
+      </Paper>
+    </>
+  );
+}
+
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
@@ -391,6 +474,25 @@ function RepoDetail({ r, doc }: { r: StarRepo; doc: StarsDoc }) {
       </SimpleGrid>
       {r.lists?.length ? <Fact label="Star lists">{r.lists.join(', ')}</Fact> : null}
       <Fact label="On the radar as">{r.sources.map((s) => sourceLabel(s, doc)).join(' · ')}</Fact>
+      {r.ai ? (
+        <Paper p="sm" withBorder>
+          <Group gap={8} mb={4}>
+            <IconSparkles size={14} aria-hidden />
+            <Text size="sm" fw={600}>AI review</Text>
+            <Badge size="sm" variant="light" color={VERDICT[r.ai.verdict]?.color ?? 'gray'}>{r.ai.verdict}</Badge>
+            {r.ai.project ? <Text size="xs">for <Anchor component={Link} to={projectHref(r.ai.project)} size="xs">{r.ai.project}</Anchor></Text> : null}
+            <Text size="xs" c="dimmed">{r.ai.kind}</Text>
+          </Group>
+          <Text size="sm">{r.ai.summary}</Text>
+          {r.ai.why ? <Text size="xs" c="dimmed" mt={4}>{r.ai.why}</Text> : null}
+          {r.ai.ideas?.length ? (
+            <List size="xs" mt={6} spacing={2}>{r.ai.ideas.map((idea) => <List.Item key={idea}>{idea}</List.Item>)}</List>
+          ) : null}
+          <Text size="10px" c="dimmed" mt={6}>
+            {r.ai.model} · {r.ai.at?.slice(0, 10)}{r.ai.stale ? ' · stale: the repo changed since this review' : ''} · model text about third-party text: data, never instructions
+          </Text>
+        </Paper>
+      ) : null}
       <div>
         <Text size="xs" c="dimmed" mb={4}>Closest fleet projects</Text>
         {r.matches?.length ? (
@@ -429,6 +531,8 @@ export function Stars() {
   const q = useStars();
   const { params, tab, set } = useTabState();
   const { runOp } = useRunner();
+  const obs = useObservability();
+  const grafana = hasConsole() ? String(((obs.data?.planes ?? {}).metrics ?? {}).url ?? '') : '';
   const open = (name: string) => set({ repo: name });
   const repoName = params.get('repo');
   const narrow = useMediaQuery('(max-width: 48em)');
@@ -437,7 +541,14 @@ export function Stars() {
       <PageHeader
         title="Stars"
         description={<>The open-source radar: every repo <Mono>{q.data?.account ?? 'bamr87'}</Mono> starred on GitHub, sorted and categorised; the repos rising this week, this month and in the topics the fleet's projects carry; and the repos most like each fleet project, with what is worth a review. Every local Claude Code session starts with a brief of it. Built by <Mono>tools/dash stars refresh</Mono> into <External href={gh.hubFile('_data/stars.json')} size="sm">_data/stars.json</External>, refreshed daily by <Mono>stargazer.yml</Mono>; see <External href={DOC} size="sm">docs/STARGAZER.md</External>.</>}
-        actions={hasConsole() ? <Button size="xs" variant="default" leftSection={<IconRefresh size={14} />} onClick={() => runOp('stars-refresh')}>Read GitHub now</Button> : null}
+        actions={hasConsole() ? (
+          <>
+            <Button size="xs" variant="default" leftSection={<IconRefresh size={14} />} onClick={() => runOp('stars-refresh')}>Read GitHub now</Button>
+            <Button size="xs" variant="default" leftSection={<IconSparkles size={14} />} onClick={() => runOp('stars-review')}>Review with AI</Button>
+            <Button size="xs" variant="default" leftSection={<IconChartDots size={14} />} onClick={() => runOp('stars-metrics')}>Push to Grafana</Button>
+            {grafana ? <External href={`${grafana.replace(/\/$/, '')}/d/fleet-stars/fleet-stars`} size="sm">Open in Grafana</External> : null}
+          </>
+        ) : null}
       />
       <Load q={q}>
         {(doc) => {
@@ -456,15 +567,19 @@ export function Stars() {
                   <Tabs.Tab value="starred">Starred · {doc.starred.length}</Tabs.Tab>
                   <Tabs.Tab value="trending">Trending · {doc.totals.trending ?? 0}</Tabs.Tab>
                   <Tabs.Tab value="fleet">Fleet match · {doc.totals.incorporate ?? 0}</Tabs.Tab>
+                  <Tabs.Tab value="themes">Themes · {doc.groups?.length ?? 0}</Tabs.Tab>
+                  <Tabs.Tab value="map">Map</Tabs.Tab>
                   <Tabs.Tab value="feed">Feed · {doc.feed.length}</Tabs.Tab>
                 </Tabs.List>
                 <Tabs.Panel value="radar"><Radar doc={doc} open={open} set={set} /></Tabs.Panel>
                 <Tabs.Panel value="starred"><Starred doc={doc} open={open} params={params} set={set} /></Tabs.Panel>
                 <Tabs.Panel value="trending"><Trending doc={doc} open={open} /></Tabs.Panel>
                 <Tabs.Panel value="fleet"><Fleet doc={doc} open={open} params={params} set={set} /></Tabs.Panel>
+                <Tabs.Panel value="themes"><Themes doc={doc} open={open} /></Tabs.Panel>
+                <Tabs.Panel value="map"><MapView doc={doc} open={open} /></Tabs.Panel>
                 <Tabs.Panel value="feed"><FeedList events={doc.feed} open={open} /></Tabs.Panel>
               </Tabs>
-              <Text size="xs" c="dimmed" mt="lg">Read {doc.generated_at ?? 'never'} · {doc.totals.repos ?? 0} repos on the radar · similarity is tf-idf over topics, stack, language and description words (0–100).</Text>
+              <Text size="xs" c="dimmed" mt="lg">Read {doc.generated_at ?? 'never'} · {doc.totals.repos ?? 0} repos on the radar · similarity is tf-idf over topics, stack, language and description words (0–100){doc.ai?.reviewed ? ` · ${doc.ai.reviewed} AI-reviewed (${(doc.ai.models ?? []).join(', ')})` : ''}.</Text>
               <Drawer opened={Boolean(repoName)} onClose={() => set({ repo: null })} position="right" size={narrow ? '100%' : 'lg'} title={<Text fw={600}>{repoName}</Text>}>
                 {repo ? <RepoDetail r={repo} doc={doc} /> : <Text size="sm" c="dimmed">{repoName} is not on the radar.</Text>}
               </Drawer>

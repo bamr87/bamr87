@@ -887,6 +887,28 @@ stars:
     enabled: true                   # the SessionStart brief; STARS_SESSION_BRIEF=0 silences it per session
     max_repos: 5
     max_chars: 2200
+  # The AI pass (`tools/dash stars review --yes`, the console's stars-review op behind the spend confirm):
+  # tool-less sessions through dash-gen ai-run, each capped at budget_usd (API-equivalent, an estimate)
+  # and recorded in the AI ledger; harness.agents local:stars-review. A review is redone only when the
+  # repo's inputs change or it is older than max_age_days, so a daily pass reviews only what is new.
+  ai:
+    enabled: true
+    model: claude-sonnet-5-5        # an exact id in ai_models.allowed (§ 13.3)
+    budget_usd: 1.0                 # the cap of ONE session
+    max_turns: 2
+    timeout_s: 420
+    batch: 12                       # repos per review session (a long answer is the one that fails)
+    max_batches: 4                  # review sessions per run (+ one for the groups when the stars changed;
+                                    # a batch that fails is retried once as two halves)
+    max_age_days: 90
+    groups_min: 6
+    groups_max: 12
+  # The radar as gauges to the local OTel collector (observability.claude_code.endpoint) → Prometheus →
+  # the Grafana dashboard `fleet-stars`; pushed after a refresh or a review, best effort.
+  metrics:
+    push: true
+    endpoint: ""                    # "" = observability.claude_code.endpoint
+    timeout_s: 3
 
 # Budget — the dollar ceiling on a single headless agent invocation.
 #
@@ -1321,6 +1343,14 @@ harness:
       path: _data/fleet.yml
       writer: maintainer (reviewed PR)
       slo: on-change
+    stars-radar:
+      path: _data/stars.json
+      writer: stargazer.yml (tools/dash stars refresh)
+      slo_days: 3
+    stars-ai:
+      path: _data/stars_ai.json
+      writer: local:stars-review (tools/dash stars review --yes)
+      slo: on-change
     registry:
       path: _data/projects.yml
       writer: maintainer (reviewed PR); reconcile-registry.yml proposes the changes
@@ -1486,6 +1516,21 @@ harness:
       switch: {config: pr_queue.agent.enabled}
       run_record: ai-ledger
       local_entry: tools/dash prs apply --plan-id <id> --apply
+    local:stars-review:
+      # The open-source radar's AI pass (docs/STARGAZER.md): tool-less, capped sessions that review
+      # the radar's repos (summary, verdict, the fleet project served, ideas) and group the stars into
+      # themes; repo text is data to the model. No schedule, no installer: a person runs it.
+      declare:
+        kind: local-job
+        where: tools/stargazer.py
+        trigger: "on demand: tools/dash stars review --yes, or the console's stars-review operation behind the spend confirm"
+        runs: ["tools/dash-gen ai-run --source 'stars review' (one tool-less session per batch, one for the groups)"]
+      reads: [stars-radar, stars-ai, registry]
+      model_from: stars.ai.model
+      budget_from: {per_run_usd: stars.ai.budget_usd}
+      switch: {config: stars.ai.enabled}
+      run_record: ai-ledger
+      local_entry: tools/dash stars review --yes
     local:console-assist:
       # The console's assistant (tools/console/README.md "The assistant", ADR 0013): one capped,
       # read-only session per message a person sends from the dock or the Assist page; no
