@@ -1,6 +1,7 @@
 # The Harness Console's page (tools/console/web): type-check and build it on
 # every PR that touches it — or the console that serves it — the way the
-# console serves it locally. The static public build GitHub Pages publishes
+# console serves it locally, then run its unit tests (Vitest, src/**/*.test.ts:
+# the pure logic, offline). The static public build GitHub Pages publishes
 # (build-pages.sh: base /bamr87/, VITE_STATIC=1, plus the API snapshot) is
 # build-dash.yml's PR build, whose paths cover every path here; it asserts
 # the public build's invariants, so this workflow no longer repeats it.
@@ -62,3 +63,9 @@ jobs:
             echo "::error file=tools/console/web/index.html::inline script in the built page — app.py's CSP would block it"
             exit 1
           fi
+
+      # After the build, so a red here means "the page builds, its logic is
+      # wrong" (the tests are type-checked by the build's `tsc -b`). No network:
+      # every test stubs fetch.
+      - name: Unit tests
+        run: npm test

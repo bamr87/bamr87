@@ -429,6 +429,26 @@
       "problemMatcher": []
     },
     {
+      "label": "Gate: architecture",
+      "detail": "python3 tools/architecture.py check — layers, sizes, sys.path and data files against _data/architecture.yml",
+      "type": "shell",
+      "command": "python3 tools/architecture.py check",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "test",
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Gate: checks this change owes",
+      "detail": "python3 tools/focus.py --run --keep-going — only the checks the change against origin/main touched (_data/checks.yml)",
+      "type": "shell",
+      "command": "python3 tools/focus.py --run --keep-going",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "test",
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": true },
+      "problemMatcher": []
+    },
+    {
       "label": "Gate: shellcheck",
       "detail": "shellcheck tools/*.sh tools/observability/*.sh (gcc-style output → Problems panel)",
       "type": "shell",
@@ -451,7 +471,7 @@
     {
       // Everything above that runs offline, in order, stopping at the first failure.
       "label": "Gate: all offline checks",
-      "detail": "drift (report) → schema → docs index → specs → catalog → generated guard → workflows lint → governance → shellcheck → actionlint",
+      "detail": "drift (report) → schema → docs index → specs → catalog → generated guard → workflows lint → governance → architecture → shellcheck → actionlint",
       "dependsOrder": "sequence",
       "dependsOn": [
         "Gate: drift (report)",
@@ -462,6 +482,7 @@
         "Gate: generated guard (JEV)",
         "Gate: workflows lint",
         "Gate: governance lint",
+        "Gate: architecture",
         "Gate: shellcheck",
         "Gate: actionlint"
       ],

@@ -4,6 +4,7 @@ Illustrations of the six-layer harness and its loops, drawn as **typed, validate
 
 | Diagram | Shows |
 | --- | --- |
+| `hub-architecture.architecture` | The hub's code as a control plane: registries → generators → snapshots → shared core → surfaces, the loops and kits that reach the fleet, and the gates and governance above them ([docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md)) |
 | `harness-layers.architecture` | The six layers as components of the hub; the model and the human outside the boundary |
 | `fleet-pulse.workflow` | The daily loop: gather → scorecard → one `publish-data` commit → remediate queue → doctor → draft PR / fallback issue |
 | `fleet-signals.dataflow` | GitHub signals → `dash-gen` → `_data/*.yml` → fix queue (agent) + scorecard (people) |
