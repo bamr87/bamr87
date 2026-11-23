@@ -20,6 +20,9 @@ Description: The eval runner (constitution § 13.1–13.2). Each agent role keep
                               `ai_models.allowed` and is capped by
                               `budget.local_usd`.
                                 t1-intake       one `claude -p` per case.
+                                pr-ai-analysis  one `claude -p` per case: the CI
+                                                failure analyst's shipped prompt
+                                                (pr_ai_analysis.compose, SYSTEM).
                                 console-assist  the console's assistant (the
                                                 `assist` op, its shipped prompt
                                                 and tool allowlist, the real MCP
@@ -902,7 +905,141 @@ def run_console_assist(data: dict, res: RoleResult, *, cfg: dict, dry_run: bool,
             return
 
 
-ADAPTERS = {"console-assist": run_console_assist, "jev-classify": run_jev_classify, "t1-intake": run_t1_intake}
+# --------------------------------------------------------------------------- #
+# adapter: pr-ai-analysis — the CI failure analyst of pr-review.yml (§ 19.11)
+#
+# The prompt under test is the SHIPPED one: pr_ai_analysis.compose() builds the
+# user prompt from a case's recorded run material and pr_ai_analysis.SYSTEM is
+# the system prompt, both imported at run time, never copied here. The answer is
+# read with the shipped parser (parse_answer), so a reply the workflow would
+# refuse fails the case. A dry run checks the set and that every case's prompt
+# composes under the workflow's byte budget, at $0.
+# --------------------------------------------------------------------------- #
+ANALYSIS_VERDICTS = ("yes", "no", "unclear")
+ANALYSIS_MIN_CASES = 10
+
+
+def _analysis_module():
+    path = str(ROOT / ".github" / "scripts" / "dash-gen")
+    if path not in sys.path:
+        sys.path.insert(0, path)
+    import pr_ai_analysis  # noqa: PLC0415 - the module under test, imported where it is used
+    return pr_ai_analysis
+
+
+def analysis_material(case: dict) -> dict:
+    """A case's recorded input in the shape pr_ai_analysis.compose() takes."""
+    inp = case["input"]
+    runs = []
+    for i, r in enumerate(inp["runs"]):
+        rid = int(r.get("id") or i + 1)
+        jobs = [{"job": j["job"], "step": j.get("step") or "", "reason": j.get("reason") or "",
+                 "class": j.get("class") or "defect", "cause": j.get("cause") or "",
+                 "log_tail": [line for line in str(j.get("log") or "").split("\n")]} for j in r.get("jobs") or []]
+        runs.append({"plan": {"id": rid, "name": r["name"], "conclusion": r.get("conclusion") or "failure",
+                              "attempt": int(r.get("attempt") or 1), "path": r.get("path") or ""},
+                     "report": {"note": r.get("note") or "", "this_pr": r.get("this_pr") or "", "jobs": jobs},
+                     "workflow": r.get("workflow") or ""})
+    return {"pr": int(inp.get("pr") or 1), "sha": str(inp.get("sha") or "0" * 40), "repo": inp["repo"],
+            "title": inp.get("title") or "", "base": inp.get("base") or "main", "runs": runs,
+            "files": list(inp.get("files") or []), "patches": [str(inp.get("diff") or "")]}
+
+
+def validate_pr_ai_analysis(data: dict, cfg: dict) -> list[str]:
+    errs = []
+    analysis = _analysis_module()
+    if data.get("model") not in allowed_models(cfg):
+        errs.append(f"model {data.get('model')!r} is not in _data/fleet.yml ai_models.allowed")
+    if data.get("model") != analysis.MODEL:
+        errs.append(f"model {data.get('model')!r} is not the shipped analyst's ({analysis.MODEL}): "
+                    "the set must test the model the workflow runs")
+    if len(data.get("cases") or []) < ANALYSIS_MIN_CASES:
+        errs.append(f"fewer than {ANALYSIS_MIN_CASES} cases")
+    for case in data.get("cases") or []:
+        cid, inp, exp = case.get("id"), case.get("input") or {}, case.get("expected") or {}
+        for key in ("repo", "title", "runs", "files", "diff"):
+            if key not in inp:
+                errs.append(f"{cid}: input.{key} missing")
+        for r in inp.get("runs") or []:
+            if not isinstance(r, dict) or not r.get("name") or not (r.get("jobs") or r.get("note")):
+                errs.append(f"{cid}: each run needs a `name` and `jobs` (or a `note` for a run with no job)")
+            for j in (r.get("jobs") or []) if isinstance(r, dict) else []:
+                if not isinstance(j, dict) or not j.get("job") or not str(j.get("log") or "").strip():
+                    errs.append(f"{cid}: each job needs `job` and a non-empty `log`")
+        if exp.get("caused_by_pr") not in ANALYSIS_VERDICTS:
+            errs.append(f"{cid}: expected.caused_by_pr must be one of {ANALYSIS_VERDICTS}")
+        terms = exp.get("root_cause_any")
+        if not isinstance(terms, list) or not terms or not all(isinstance(t, str) and t.strip() for t in terms):
+            errs.append(f"{cid}: expected.root_cause_any must be a non-empty list of phrases")
+        if errs:
+            continue
+        prompt = analysis.compose(analysis_material(case))
+        if len(prompt.encode("utf-8")) > analysis.MAX_PROMPT_BYTES:
+            errs.append(f"{cid}: the composed prompt is over the workflow's {analysis.MAX_PROMPT_BYTES}-byte budget")
+    return errs
+
+
+def grade_pr_ai_analysis(exp: dict, entry: dict | None) -> list[str]:
+    if not entry:
+        return ["the answer analysed no run"]
+    problems = []
+    if entry["caused_by_pr"] != exp["caused_by_pr"]:
+        problems.append(f"caused_by_pr {entry['caused_by_pr']!r} != expected {exp['caused_by_pr']!r}")
+    said = " ".join(str(entry.get(k) or "") for k in ("summary", "root_cause", "evidence")).lower()
+    if not any(t.lower() in said for t in exp["root_cause_any"]):
+        problems.append(f"the root cause names none of {exp['root_cause_any']}")
+    return problems
+
+
+def run_pr_ai_analysis(data: dict, res: RoleResult, *, cfg: dict, dry_run: bool,
+                       model: str | None = None, **_) -> None:
+    errs = validate_pr_ai_analysis(data, cfg)
+    if errs:
+        res.errors.extend(errs)
+        return
+    if dry_run:
+        for case in data["cases"]:
+            res.cases.append(CaseResult(case["id"], True, case["expected"], detail="schema valid, prompt composes (dry run)"))
+        return
+    analysis = _analysis_module()
+    allowed = allowed_models(cfg)
+    model = model or data.get("model")
+    if model not in allowed:
+        res.errors.append(f"model {model!r} is not in _data/fleet.yml ai_models.allowed {allowed}")
+        return
+    if shutil.which("claude") is None:
+        res.errors.append("the `claude` CLI is not installed; use --dry-run for an offline check")
+        return
+    res.model = model
+    cap = budget_cap(cfg)
+    for case in data["cases"]:
+        remaining = cap - res.cost_usd
+        if remaining <= 0:
+            res.errors.append(f"budget.local_usd ${cap:.2f} spent before case {case['id']}")
+            return
+        material = analysis_material(case)
+        ids = [int(r["plan"]["id"]) for r in material["runs"]]
+        try:
+            proc = subprocess.run(
+                ["claude", "-p", analysis.compose(material), "--append-system-prompt", analysis.SYSTEM,
+                 "--model", model, "--max-turns", "1", "--permission-mode", "default",
+                 "--max-budget-usd", f"{remaining:.2f}", "--output-format", "json"],
+                capture_output=True, text=True, timeout=300, check=False)
+            if proc.returncode != 0:
+                raise RuntimeError(f"claude exited {proc.returncode}: {proc.stderr.strip()[:200]}")
+            envelope = json.loads(proc.stdout)
+            res.cost_usd += float(envelope.get("total_cost_usd") or 0)
+            parsed = analysis.parse_answer(str(envelope.get("result") or ""), ids)
+        except (RuntimeError, ValueError, subprocess.TimeoutExpired) as exc:
+            res.cases.append(CaseResult(case["id"], False, case["expected"], detail=str(exc)[:300]))
+            continue
+        entry = parsed.get(ids[0])
+        problems = grade_pr_ai_analysis(case["expected"], entry)
+        res.cases.append(CaseResult(case["id"], not problems, case["expected"], entry, "; ".join(problems)))
+
+
+ADAPTERS = {"console-assist": run_console_assist, "jev-classify": run_jev_classify,
+            "pr-ai-analysis": run_pr_ai_analysis, "t1-intake": run_t1_intake}
 
 
 # --------------------------------------------------------------------------- #

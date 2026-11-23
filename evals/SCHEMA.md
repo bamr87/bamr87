@@ -21,6 +21,7 @@ coverage: listed
 | `README.md` | file | What an eval set is, the case format, and how to run and grow one | required |
 | `console-assist/` | dir | The console's assistant (`assist` op): a question, a recorded page and deterministic rules; validated offline, model-run by hand on a canary subset | required |
 | `jev-classify/` | dir | JEV's deterministic conflict classifier (`tools/jev/classify.py`), run fully offline | required |
+| `pr-ai-analysis/` | dir | The CI failure analyst of `pr-review.yml` (§ 19.11): past failed PR runs, the caused-by-PR verdict and the root cause; schema-checked offline, model-run locally | required |
 | `t1-intake/` | dir | Issue-pipeline tier 1 intake: ready / blocked and the type label; schema-checked offline, model-run locally | required |
 
 ## Placement

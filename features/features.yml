@@ -3315,3 +3315,29 @@ features:
     - FR58
     - FR77
     - FR143
+  - id: HUB-131
+    title: AI analysis of every failed CI run on a pull request
+    description: 'Every failed CI run on a pull request gets an AI analysis in the fleet''s one sticky PR
+      comment, under the deterministic summary: the most likely root cause, whether the PR caused it, the
+      evidence line and the smallest fix, from the run''s log, its workflow file and the PR''s diff (constitution
+      § 19.11, amendment ai-ci-failure-analysis). The ai-analysis job of .github/workflows/pr-review.yml
+      runs .github/scripts/dash-gen/pr_ai_analysis.py: one claude-run call per pass (claude-sonnet-5-5,
+      no tools, one turn, $1 cap at budget.call_sites pr-review.yml:ai-analysis), the answer validated and
+      escaped before it is written, once per failed run attempt, behind vars.PR_AI_ANALYSIS_ENABLED. A PR
+      from outside the collaborators waits for the ai-analysis label. The same pass runs locally with `pr_ai_analysis.py
+      local`.'
+    implemented: true
+    status: shipped
+    surface: infra
+    link: .github/scripts/dash-gen/pr_ai_analysis.py
+    docs: templates/pr-review/README.md
+    tags:
+    - ci
+    - review
+    - ai
+    date: 2026-11-23
+    tests:
+    - .github/scripts/dash-gen/test_pr_ai_analysis.py
+    - .github/scripts/dash-gen/test_pr_review.py
+    prd:
+    - FR144

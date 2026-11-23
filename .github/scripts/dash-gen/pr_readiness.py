@@ -122,17 +122,23 @@ def _digest(rd: dict) -> str:
     return hashlib.sha256(json.dumps([rd.get("verdict"), seen], sort_keys=True).encode()).hexdigest()[:12]
 
 
-def render(sha: str, reports: list[dict], extra: int, state: dict, signature: str, section: str) -> str:
+def render(sha: str, reports: list[dict], extra: int, state: dict, signature: str, section: str, ai: str = "") -> str:
     """pr_review's comment with the readiness section under it; with no failed run the section is the
-    whole comment. The footer always survives, as in pr_review.render."""
+    whole comment. The footer always survives, as in pr_review.render, and the AI region (§ 19.11)
+    sits between the failed runs and the readiness section, outside their size budget."""
     footer = f"<!-- fleet:pr-review-state {json.dumps(state, separators=(',', ':'))} -->\n{signature}"
     tail = ("\n" + section) if section else ""
     if not reports:
         return (P.MARKER + tail)[:P.MAX_BODY - len(footer) - 1] + "\n" + footer
+    region = ai or P.ai_region([])
     body = P._body(sha, reports, extra, excerpts=True) + tail
     if len(body) + len(footer) > P.MAX_BODY:
         body = P._body(sha, reports, extra, excerpts=False) + "\nLog excerpts are left out because this comment got too long.\n" + tail
-    return body[:P.MAX_BODY - len(footer) - 1] + "\n" + footer
+    body = body[:P.MAX_BODY - len(footer) - 1]
+    if tail and body.endswith(tail):
+        return body[:-len(tail)] + "\n" + region + "\n\n" + tail.lstrip("\n") + "\n" + footer
+    # No readiness section: exactly pr_review.render's comment.
+    return body + "\n" + region + "\n" + footer
 
 
 def sync(gh: Gh, number: int, sha: str, dry_run: bool, trigger: str, self_url: str, say=print, row_of=live_readiness) -> str:
@@ -168,7 +174,8 @@ def sync(gh: Gh, number: int, sha: str, dry_run: bool, trigger: str, self_url: s
     bad.sort(key=lambda r: (r.get("conclusion") in P.HELD, r.get("name") or ""))
     reports = [P.describe_run(gh, r, default_branch) for r in bad[:P.MAX_RUNS]]
     signature = f"<!-- fleet:source={'ci-failure' if bad else 'merge-readiness'} trigger={trigger} run={self_url} -->"
-    body = render(sha, reports, len(bad) - len(reports), state, signature, readiness_section(sha, rd, bool(bad)) if left else "")
+    body = render(sha, reports, len(bad) - len(reports), state, signature, readiness_section(sha, rd, bool(bad)) if left else "",
+                  ai=P.ai_region(P.carried(current, bad)))
     say(body)
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
