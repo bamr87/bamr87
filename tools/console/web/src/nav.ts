@@ -11,6 +11,7 @@ import {
 } from '@tabler/icons-react';
 
 import { BASENAME } from './api/backend';
+import { to } from './lib/links';
 
 /** window.location.pathname without the base path (the router's own view of it). */
 export const appPath = (path: string): string => (BASENAME && path.startsWith(BASENAME) ? path.slice(BASENAME.length) || '/' : path);
@@ -37,7 +38,7 @@ export const NAV: NavSection[] = [
   {
     label: 'Profile',
     items: [
-      { label: 'Home', to: '/', icon: IconHome, exact: true, hint: 'who, what the fleet looks like, what the site is for' },
+      { label: 'Home', to: to.home(), icon: IconHome, exact: true, hint: 'who, what the fleet looks like, what the site is for' },
       { label: 'About', to: '/about', icon: IconUser, hint: 'background and stack' },
       { label: 'Experience', to: '/experience', icon: IconBriefcase, hint: '15+ years across ERP, finance systems and engineering' },
       { label: 'Portfolio', to: '/portfolio', icon: IconLayoutGrid, hint: 'every project, featured first' },
@@ -51,7 +52,7 @@ export const NAV: NavSection[] = [
     label: 'Fleet',
     items: [
       { label: 'Projects', to: '/projects', icon: IconAppWindow, hint: 'every registry project — the TUI’s Apps view' },
-      { label: 'Desktop', to: '/desktop', icon: IconDeviceDesktop, hint: 'the bashOS desktop: an icon per app, each in a window with the same controls' },
+      { label: 'Desktop', to: to.desktop(), icon: IconDeviceDesktop, exact: to.desktop() === '/', hint: 'the bashOS desktop: an icon per app, each in a window with the same controls' },
       { label: 'Apps', to: '/apps', icon: IconApps, hint: 'every fleet frontend, opened here: the live site or a local stack' },
       { label: 'Inbox', to: '/inbox', icon: IconInbox, hint: 'flagged issues, PRs and failing workflows' },
       { label: 'PR queue', to: '/prs', icon: IconGitPullRequest, hint: 'every open pull request, who moves it next, and bulk actions an agent carries out once you confirm' },

@@ -12,7 +12,9 @@ What these hold, in order of how badly breaking them would hurt:
   * a page on the Pages origin reaches a console only while the console
     requires its token;
   * every route the app declares gets a page of its own in the build (a deep
-    link answers 200), and every retired Jekyll URL still lands somewhere.
+    link answers 200), and every retired Jekyll URL still lands somewhere;
+  * a site build (CONSOLE_SITE) takes its identity and its front door from
+    _data/profile.yml, and the default site is what it was without one.
 
 Dependency-light like test_console.py: no pytest; run `python3
 tools/console/test_pages.py`. The FastAPI checks skip without fastapi.
@@ -34,6 +36,8 @@ HERE = Path(__file__).resolve().parent
 # container — the console's own Tests job does — that was the RUNNING
 # console's index. core reads this at import, so it is set before any import.
 os.environ["DASH_CONSOLE_JOBS"] = tempfile.mkdtemp(prefix="console-test-jobs-")
+# Nor the checkout's page audit (.fleet/assist/): a test's page commands are not what a person did.
+os.environ["DASH_CONSOLE_PAGE_AUDIT"] = str(Path(os.environ["DASH_CONSOLE_JOBS"]) / "assist" / "page-audit.jsonl")
 
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
@@ -254,8 +258,11 @@ def test_every_app_route_has_a_page_in_the_build():
     nav = (WEB / "nav.ts").read_text()
     paths = set(re.findall(r'<Route path="([^"*:]+)"', main))
     paths |= set(re.findall(r"'([a-z-]+)'", re.search(r"PROFILE_PAGES = \[([^\]]*)\]", nav).group(1)))
-    missing = sorted(p for p in paths if p not in snapshot.STATIC_ROUTES and p != "auth")
+    # /home exists only where the desktop is the front door: it has its own table.
+    missing = sorted(p for p in paths if p not in snapshot.STATIC_ROUTES and p not in snapshot.FRONT_DOOR_ROUTES and p != "auth")
     assert not missing, f"routes with no page in the static build: {missing} — add them to snapshot.STATIC_ROUTES"
+    assert set(snapshot.FRONT_DOOR_ROUTES) <= paths, "FRONT_DOOR_ROUTES names a route main.tsx does not declare"
+    assert not set(snapshot.FRONT_DOOR_ROUTES) & set(snapshot.STATIC_ROUTES), "a front-door route is also a default route"
     legacy_ts = (WEB / "lib" / "legacy.ts").read_text()
     legacy = set(re.findall(r"^\s+'?([a-z-]+)'?: '/", legacy_ts, re.M))
     assert legacy == set(snapshot.LEGACY_ROUTES), \
@@ -278,6 +285,8 @@ def test_build_writes_a_page_per_route_and_the_feeds():
         sitemap = (out / "sitemap.xml").read_text()
         assert "https://example.test/bamr87/portfolio" in sitemap and "/bamr87/triage<" not in sitemap
         assert not (out / "snapshot" / "auth.json").exists()
+        # The default site: no site key, no /home page, the console's own mark.
+        assert "site" not in manifest and not (out / "home").exists() and "/bamr87/home<" not in sitemap
         # The link card: the image the profile names ships in web/public/, every
         # page's og:image points at it, and a wide image gets the large card.
         ident = site_docs.profile().get("site") or {}
@@ -287,6 +296,165 @@ def test_build_writes_a_page_per_route_and_the_feeds():
             assert f'og:image" content="https://example.test/bamr87/{ident["image"]}"' in home
             assert 'twitter:card" content="summary_large_image"' in home
             assert f'name="description" content="{html.escape(" ".join(ident["description"].split()))}"' in home
+
+
+@contextlib.contextmanager
+def profile_file(text: str):
+    """site_docs reading a scratch _data/profile.yml instead of the hub's."""
+    saved = site_docs.DATA
+    with tempfile.TemporaryDirectory() as tmp:
+        (Path(tmp) / "profile.yml").write_text(text, encoding="utf-8")
+        site_docs.DATA = Path(tmp)
+        try:
+            yield
+        finally:
+            site_docs.DATA = saved
+
+
+def test_the_default_site_is_untouched_by_the_sites_it_declares():
+    """`sites:` is build configuration. Without CONSOLE_SITE the site document
+    is profile.yml's own `site:` block and nothing of any other site."""
+    raw = site_docs._load(site_docs.DATA / "profile.yml")
+    assert isinstance(raw.get("sites"), dict) and raw["sites"], "profile.yml declares no other site"
+    prof = site_docs.profile()
+    assert "sites" not in prof and prof["site"] == site_docs._plain(raw["site"]) == site_docs.site_settings()
+    assert not {"key", "front_door", "mark", "desktop", "name"} & set(prof["site"]), "a site build's setting leaked into the default site"
+    published = docs()["site"]["profile"]
+    assert published == prof, "the snapshot's site document is not the default profile"
+    blob = json.dumps(docs()["site"])
+    for key, entry in raw["sites"].items():
+        assert str(entry.get("title")) != str(raw["site"].get("title")), f"sites.{key} has the default site's title"
+        assert str(entry["url"]) not in blob, f"sites.{key}'s address is in the default site document"
+    assert not set(snapshot.FRONT_DOOR_ROUTES) & set(snapshot.routes(docs())), "the default build has a front-door page"
+    # ...and with no site named, the build script's defaults are the ones it always had.
+    script = (HERE / "build-pages.sh").read_text()
+    assert 'BASE="${CONSOLE_BASE:-${SITE_DEFAULT_BASE:-/bamr87/}}"' in script
+    assert 'SITE_URL="${SITE_URL:-${SITE_DEFAULT_URL:-https://bamr87.github.io/bamr87}}"' in script
+    assert '${SITE:+--site "$SITE"}' in script and 'if [[ -n "$SITE" ]]; then' in script
+
+
+def test_every_declared_site_is_valid_and_a_bad_one_is_refused():
+    raw = site_docs._load(site_docs.DATA / "profile.yml")
+    known = {r["id"] for r in docs()["apps"]["repos"]} | {a["id"] for a in docs()["apps"]["apps"]}
+    for key in raw["sites"]:
+        s = site_docs.site_settings(key)
+        assert s["key"] == key and s["front_door"] in site_docs.FRONT_DOORS and s.get("title") and s.get("url")
+        env = site_docs.build_env(key)
+        assert env["SITE_FRONT_DOOR"] == s["front_door"] and env["SITE_DEFAULT_URL"] == s["url"].rstrip("/")
+        assert env["SITE_DEFAULT_BASE"].startswith("/") and env["SITE_DEFAULT_BASE"].endswith("/")
+        if s.get("mark"):
+            assert (HERE / "web" / "public" / s["mark"]).is_file() and env["SITE_MARK"] == s["mark"]
+        # A pinned id is a registry id: the desktop drops any other, so a typo would pin nothing.
+        unknown = sorted(set((s.get("desktop") or {}).get("pinned") or []) - known)
+        assert not unknown, f"sites.{key}.desktop.pinned names ids the registry does not declare: {unknown}"
+        assert site_docs.profile(key)["site"] == s and "sites" not in site_docs.profile(key)
+    base = "site: { title: t, url: 'https://example.test/x' }\nsites:\n  a:\n"
+    cases = {
+        "nope": (base + "    title: A\n", KeyError),
+        "A": (base + "    title: A\n", KeyError),  # a key is lower-case: it is typed into a shell
+        "a": (base + "    front_door: lobby\n", ValueError),
+    }
+    for key, (text, error) in cases.items():
+        with profile_file(text):
+            try:
+                site_docs.site_settings(key)
+            except error:
+                continue
+            raise AssertionError(f"site {key!r} was not refused: {text!r}")
+    for bad in ("../../secret.svg", "nope.svg", "favicon.svg onload=x", "headshot.jpg"):
+        with profile_file(base + f"    mark: '{bad}'\n"):
+            try:
+                site_docs.site_settings("a")
+            except ValueError:
+                continue
+            raise AssertionError(f"mark {bad!r} was not refused")
+    for bad in ("desktop: nope", "desktop: { icons: everything }", "desktop: { pinned: bash }"):
+        with profile_file(base + f"    {bad}\n"):
+            try:
+                site_docs.site_settings("a")
+            except ValueError:
+                continue
+            raise AssertionError(f"{bad!r} was not refused")
+    with profile_file(base + "    title: A\n    front_door: desktop\n"):
+        s = site_docs.site_settings("a")
+        assert s["title"] == "A" and s["url"] == "https://example.test/x", "an entry is laid over site:, it does not replace it"
+        assert site_docs.build_env("a")["SITE_DEFAULT_BASE"] == "/x/", "the base is the path of the site's address"
+        assert site_docs.main(["build-env", "a"]) == 0 and site_docs.main(["build-env", "b"]) == 2
+
+
+def test_a_site_build_names_itself_and_moves_home_behind_the_desktop():
+    """A site whose front door is the desktop: `/` and every page carry that
+    site's title and mark, the profile Home gets a page at /home, and the
+    documents are the default build's but for the site document."""
+    raw = site_docs._load(site_docs.DATA / "profile.yml")
+    key = next((k for k, v in raw["sites"].items() if v.get("front_door") == "desktop"), None)
+    assert key, "no declared site has the desktop as its front door"
+    want = site_docs.site_settings(key)
+    built = snapshot.site_documents(key)
+    assert built["site"]["profile"]["site"] == want and "sites" not in built["site"]["profile"]
+    assert {k: v for k, v in built.items() if k != "site"} == {k: v for k, v in snapshot.site_documents().items() if k != "site"}
+    base = {k: v for k, v in docs().items() if k != "site"}
+    routes = snapshot.routes(base | built)
+    assert set(routes) - set(snapshot.routes(docs())) == set(snapshot.FRONT_DOOR_ROUTES), "a site build adds only the front-door pages"
+    assert routes["home"][0] == "Profile" and site_docs.profile()["name"] in routes["home"][1]
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp)
+        (out / "index.html").write_text("<!doctype html><html><head><title>x</title></head><body></body></html>")
+        manifest = snapshot.build(out, "/", "https://example.test", site=key)
+        assert manifest["site"] == key
+        front = (out / "index.html").read_text()
+        by = want.get("name") or site_docs.profile()["name"]
+        assert f"<title>{html.escape(want['title'])} — {html.escape(by)}</title>" in front
+        assert f'name="description" content="{html.escape(" ".join(want["description"].split()))}"' in front
+        card = want.get("image") or want.get("mark")
+        if card:
+            assert f'og:image" content="https://example.test/{card}"' in front
+        home = (out / "home" / "index.html").read_text()
+        assert f"<title>Profile · {html.escape(want['title'])}</title>" in home
+        assert "https://example.test/home<" in (out / "sitemap.xml").read_text()
+        doc = json.loads((out / "snapshot" / "site.json").read_text())
+        assert doc["profile"]["site"]["front_door"] == "desktop" and "sites" not in doc["profile"]
+    try:
+        snapshot.documents("no-such-site")
+    except KeyError:
+        pass
+    else:
+        raise AssertionError("a site profile.yml does not declare was built")
+
+
+def test_the_front_door_and_identity_are_settings_not_literals():
+    """The page learns its front door and mark from the build, and its name
+    from the site document. No site's name is written into the page, the
+    build or the snapshot (ADR 0011: no new hard-coded identity)."""
+    backend = (WEB / "api" / "backend.ts").read_text()
+    assert "import.meta.env.VITE_FRONT_DOOR === 'desktop' ? 'desktop' : 'home'" in backend, "anything but `desktop` is the profile Home"
+    assert "import.meta.env.VITE_SITE_MARK || 'favicon.svg'" in backend
+    main = (WEB / "main.tsx").read_text()
+    assert "{desktopFirst ? <Route index element={desktop} /> : null}" in main
+    assert '{desktopFirst ? <Route path="home" element={<Home />} /> : <Route index element={<Home />} />}' in main
+    assert '<Route path="desktop" element={desktop} />' in main, "/desktop answers in every build"
+    links = (WEB / "lib" / "links.ts").read_text()
+    assert "home: () => (DESKTOP_FIRST ? '/home' : '/')" in links and "desktop: () => (DESKTOP_FIRST ? '/' : '/desktop')" in links
+    # The public page frames another origin only in a site build, and then only the launcher's.
+    vite = (HERE / "web" / "vite.config.ts").read_text()
+    assert """["frame-src 'self'", ...FRAME_SRC].join(' ')""" in vite and "process.env.CONSOLE_FRAME_SRC ?? ''" in vite
+    script = (HERE / "build-pages.sh").read_text()
+    assert "apps.target_origins(" in script and script.index("apps.target_origins(") > script.index('if [[ -n "$SITE" ]]; then')
+    raw = site_docs._load(site_docs.DATA / "profile.yml")
+    # What only a site's settings say: who it is by, its address, its mark...
+    own = {str(v[k]) for v in raw["sites"].values() for k in ("name", "url", "mark") if v.get(k)}
+    own |= {str(v["url"]).split("://", 1)[-1] for v in raw["sites"].values() if v.get("url")}
+    everywhere = [*WEB.rglob("*.ts"), *WEB.rglob("*.tsx"), HERE / "web" / "vite.config.ts", HERE / "web" / "index.html",
+                  HERE / "build-pages.sh", HERE / "snapshot.py", HERE / "site_docs.py"]
+    # ...and its key and title, which may also be a GitHub owner's name on some
+    # other page, so they are looked for in the files that build the front door.
+    front_door = [WEB / "main.tsx", WEB / "nav.ts", WEB / "api" / "backend.ts", WEB / "lib" / "links.ts", WEB / "pages" / "Desktop.tsx",
+                  WEB / "components" / "Shell.tsx", WEB / "components" / "CommandCenter.tsx", *everywhere[-5:]]
+    keys = set(raw["sites"]) | {str(v["title"]) for v in raw["sites"].values() if v.get("title")}
+    for path in everywhere:
+        names = own | (keys if path in front_door else set())
+        hit = sorted(n for n in names if n in path.read_text(encoding="utf-8"))
+        assert not hit, f"{path.relative_to(HERE)} names a site ({hit}): a site's identity lives in _data/profile.yml"
 
 
 def test_site_documents_are_json_and_refuse_what_is_not_listed():

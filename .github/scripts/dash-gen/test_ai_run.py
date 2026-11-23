@@ -78,7 +78,7 @@ STUB = textwrap.dedent(r'''
     with open(os.path.join(HERE, "calls.log"), "a") as fh:
         fh.write("call\n")
     with open(os.path.join(HERE, "env.json"), "w") as fh:
-        kept = ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "TMPDIR", "GH_CONFIG_DIR")
+        kept = ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "TMPDIR", "GH_CONFIG_DIR", "OTEL_RESOURCE_ATTRIBUTES")
         json.dump({k: os.environ[k] for k in os.environ if k in kept} | {"_keys": sorted(os.environ)}, fh)
     try:
         scenario = open(os.path.join(HERE, "scenario")).read().strip()
@@ -668,6 +668,39 @@ def test_a_refused_credential_and_a_budget_hit_are_loud():
 # --------------------------------------------------------------------------- #
 # environment and auth
 # --------------------------------------------------------------------------- #
+def test_the_session_is_labelled_in_claude_codes_own_telemetry():
+    """Claude Code attaches OTEL_RESOURCE_ATTRIBUTES to every metric and event it exports. ai-run sets it,
+    so a capped fleet run (the console's assistant, a loop step) can be told from any other local session
+    in the telemetry plane. The operator's own labels are kept and win; an isolated run takes none of the
+    caller's OTEL_* and so carries these alone."""
+    assert ai_activity.telemetry_label("console assist") == "console-assist"
+    assert ai_activity.telemetry_label("jev loop doctor --live (fleet-pulse/doctor canary)") == "jev-loop-doctor-live-fleet-pulse/doctor-canary"
+    assert ai_activity.telemetry_label('a,b="c";d\\e=f') == "a-b-c-d-e-f", "nothing the format forbids survives"
+    assert ai_activity.telemetry_label(None) == ""
+    got = ai_activity.telemetry_attributes("team=ops, fleet.source=mine", source="console assist", call_site=None,
+                                  meta={"loop": "repo-scout", "step": "scout"})
+    assert got == "team=ops,fleet.source=mine,fleet.call_site=local,fleet.loop=repo-scout,fleet.step=scout", got
+    assert ai_activity.telemetry_attributes(None, source="console assist", call_site="issue-pipeline.yml:tier1", meta={}) == \
+        "fleet.source=console-assist,fleet.call_site=issue-pipeline.yml:tier1"
+
+    rig = Rig()
+    out = rig.run("--source", "console assist", env={"OTEL_RESOURCE_ATTRIBUTES": "team=ops"})
+    assert out.returncode == 0, out.stderr
+    assert rig.child_env()["OTEL_RESOURCE_ATTRIBUTES"] == "team=ops,fleet.source=console-assist,fleet.call_site=local"
+    assert rig.rows()[0]["source"] == "console assist", "the label is the ledger row's source, in label form"
+
+    rig = Rig()
+    out = rig.run("--isolate", "--auth-order", "oauth", "--source", "jev loop repo-scout/scout",
+                  "--meta", "loop=repo-scout", "--meta", "step=scout",
+                  env={"OTEL_RESOURCE_ATTRIBUTES": "team=ops", "OTEL_EXPORTER_OTLP_ENDPOINT": "http://127.0.0.1:4318",
+                       "CLAUDE_CODE_OAUTH_TOKEN": OAUTH})
+    assert out.returncode == 0, out.stderr
+    env = rig.child_env()
+    assert env["OTEL_RESOURCE_ATTRIBUTES"] == \
+        "fleet.source=jev-loop-repo-scout/scout,fleet.call_site=local,fleet.loop=repo-scout,fleet.step=scout", env
+    assert "OTEL_EXPORTER_OTLP_ENDPOINT" not in env["_keys"], "isolation still passes none of the caller's OTEL_*"
+
+
 def test_isolate_builds_claudes_env_from_scratch_while_ai_run_keeps_pythonpath():
     rig = Rig()
     pythonpath = os.pathsep.join(p for p in (os.environ.get("PYTHONPATH"), str(rig.dir / "site")) if p)

@@ -34,6 +34,11 @@ Usage (after `CONSOLE_BASE=/bamr87/ VITE_STATIC=1 npm run build` in web/):
     python3 tools/console/snapshot.py --out tools/console/web/dist \\
         --base /bamr87/ --site-url https://bamr87.github.io/bamr87
 tools/console/build-pages.sh does both.
+
+`--site <key>` builds one of the other sites `_data/profile.yml` declares under
+`sites:` (site_docs.site_settings): the same documents with that site's
+identity laid over `site:`, and, where its front door is the desktop, a page
+for the profile Home at /home. Without it nothing here changes.
 """
 from __future__ import annotations
 
@@ -123,6 +128,14 @@ STATIC_ROUTES: dict[str, tuple[str, str]] = {
     "connect": ("Connect", "Connect this page to GitHub or to a running console."),
 }
 
+# The pages a site build adds when its front door is the bashOS desktop
+# (`front_door: desktop` in _data/profile.yml `sites:`): `/` is then the
+# desktop, so the profile Home answers at /home. The default build has no such
+# route and writes no such page.
+FRONT_DOOR_ROUTES: dict[str, tuple[str, str]] = {
+    "home": ("Profile", ""),  # empty: the page says who the profile is about
+}
+
 # The retired Jekyll site's URLs, kept alive: the app redirects each to the
 # page that replaced it (web/src/lib/legacy.ts), and a stub here makes the old
 # link return 200 rather than 404 first.
@@ -203,8 +216,9 @@ def observability() -> dict:
             "planes": {}, "datasets": [], "embeds": {}, "shipments": {"count": 0, "last": None}}
 
 
-def documents() -> dict[str, object]:
-    """path under snapshot/ (no .json) → document."""
+def documents(site: str | None = None) -> dict[str, object]:
+    """path under snapshot/ (no .json) → document. `site` names a build from
+    _data/profile.yml `sites:`; it changes the site document and nothing else."""
     registry = [p for p in core.load_yaml(core.DATA / "projects.yml") or [] if isinstance(p, dict) and p.get("name")]
     now = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
     docs: dict[str, object] = {
@@ -223,6 +237,7 @@ def documents() -> dict[str, object]:
         "sprints": core.sprints_doc(),
         "refine": core.refine_doc(local=False),
         "assist": core.assist_doc(local=False),
+        "assist/activity": core.assist_activity_doc(local=False),
         "lake": lake(),
         "lake/runs": [],
         "lake/lines": [],
@@ -256,7 +271,7 @@ def documents() -> dict[str, object]:
         docs[f"fleet/{sort}"] = view
     for p in registry:
         docs[f"project/{p['name']}"] = project(p["name"])
-    docs.update(site_documents())
+    docs.update(site_documents(site))
     for name in site_docs.PUBLIC_DATA:
         value = site_docs.data(name)
         if value is not None:
@@ -264,10 +279,10 @@ def documents() -> dict[str, object]:
     return docs
 
 
-def site_documents() -> dict[str, object]:
+def site_documents(site: str | None = None) -> dict[str, object]:
     """The site's own documents, drafts left out: its index, each long-form
     page and each published post, one document per address."""
-    docs: dict[str, object] = {"site": site_docs.site_index(include_drafts=False)}
+    docs: dict[str, object] = {"site": site_docs.site_index(include_drafts=False, site=site)}
     for meta in docs["site"]["pages"]:
         docs[f"site/page/{meta['slug']}"] = site_docs.page(meta["slug"])
     for meta in docs["site"]["posts"]:
@@ -281,6 +296,10 @@ def site_documents() -> dict[str, object]:
 def routes(docs: dict) -> dict[str, tuple[str, str]]:
     """Every path a crawler or a pasted link can land on → (title, description)."""
     out = dict(STATIC_ROUTES)
+    prof = docs["site"]["profile"]
+    if (prof.get("site") or {}).get("front_door") == "desktop":
+        about = " — ".join(str(x) for x in (prof.get("name"), prof.get("title")) if x)
+        out.update({path: (title, desc or about) for path, (title, desc) in FRONT_DOOR_ROUTES.items()})
     for meta in docs["site"]["pages"]:
         out[meta["slug"]] = (meta["title"], meta["description"])
     for meta in docs["site"]["posts"]:
@@ -354,7 +373,8 @@ def _feed(posts: list[dict], site: dict, updated: str) -> str:
             + "".join(entries) + "</feed>\n")
 
 
-def build(out: Path, base: str, site_url: str) -> dict:
+def build(out: Path, base: str, site_url: str, site: str | None = None) -> dict:
+    site_key = site or None  # `site` below is the identity every page carries
     out = out.resolve()
     index = out / "index.html"
     if not index.is_file():
@@ -364,7 +384,7 @@ def build(out: Path, base: str, site_url: str) -> dict:
     if snap_dir.exists():
         shutil.rmtree(snap_dir)
 
-    docs = documents()
+    docs = documents(site_key)
     for key, doc in docs.items():
         _json(snap_dir / f"{key}.json", doc)
 
@@ -373,8 +393,9 @@ def build(out: Path, base: str, site_url: str) -> dict:
     ident = prof.get("site") or {}
     # The link card: the profile's wide site.image when it names one (a large
     # card), else the square avatar (a small one).
-    card_image = ident.get("image") or prof.get("avatar") or "favicon.svg"
-    site = {"title": ident.get("title") or HUB, "name": prof.get("name") or "",
+    # A site build names who it is by and its own mark (site_docs.site_settings).
+    card_image = ident.get("image") or ident.get("mark") or prof.get("avatar") or "favicon.svg"
+    site = {"title": ident.get("title") or HUB, "name": ident.get("name") or prof.get("name") or "",
             "description": ident.get("description") or "", "url": site_url,
             "feed": f"{site_url}/feed.xml", "image": f"{site_url}/{card_image}",
             "card": "summary_large_image" if ident.get("image") else "summary"}
@@ -405,6 +426,8 @@ def build(out: Path, base: str, site_url: str) -> dict:
         "run_url": f"{server}/{os.environ.get('GITHUB_REPOSITORY', HUB)}/actions/runs/{run}" if run else None,
         "documents": len(docs), "routes": len(pages),
     }
+    if site_key:
+        manifest["site"] = site_key
     _json(snap_dir / "manifest.json", manifest)
     return manifest
 
@@ -414,9 +437,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", type=Path, default=HERE / "web" / "dist", help="the built page (vite's dist/)")
     ap.add_argument("--base", default="/bamr87/", help="the path the site is served under")
     ap.add_argument("--site-url", default="https://bamr87.github.io/bamr87", help="absolute URL of the site root")
+    ap.add_argument("--site", default=None, help="a site from _data/profile.yml `sites:` (default: the site itself)")
     args = ap.parse_args(argv)
     try:
-        manifest = build(args.out, args.base, args.site_url)
+        manifest = build(args.out, args.base, args.site_url, args.site or None)
+    except (KeyError, ValueError) as exc:
+        raise SystemExit(f"snapshot: {exc.args[0] if exc.args else exc}")
     finally:
         shutil.rmtree(_EMPTY_LAKE, ignore_errors=True)
     print(f"snapshot: {manifest['documents']} documents, {manifest['routes']} routes → {args.out}")

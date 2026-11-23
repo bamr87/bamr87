@@ -1,0 +1,146 @@
+# A site build of the console (CONSOLE_SITE, docs/CONSOLE-PAGES.md "Site builds"): the bashOS desktop is the front door, and it takes its name, its mark and what it shows from that site's settings.
+# Runs against a site build whose front door is the desktop, never the default build:
+#   CONSOLE_SITE=bash-365 SITE_URL=http://127.0.0.1:4150 OUT=<dir> tools/console/build-pages.sh && python3 -m http.server 4150 -d <dir>
+#   node verify/runner.mjs --scenarios verify/sites --base http://127.0.0.1:4150
+id: site-front-door
+feature: HUB-NEW:console-site-builds
+title: "A site build opens on the bashOS desktop: an icon for every repo, the site's own app first, and the profile and the console one click away"
+description: "In a site build whose settings say front_door: desktop, / is the bashOS desktop under that site's title and mark. The dock holds an icon for every repo in the registry, in groups: the site's pinned apps, the framed frontends, the repos that open as the generated repo app, then Fleet, Profile and Console. Nothing is fetched from another origin until an app is opened. The pinned app opens the live site in a frame the page's own policy admits; a repo with no frontend opens as the repo app; the profile that / used to be answers at /home, in a window or as a page of the classic console, whose header carries the site's name and leads back to the desktop. The palette opens from the menu bar. At a phone's width the same icons are a home screen. Nothing scrolls sideways."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_"]
+steps:
+  - goto: /
+  - expect: { status: 200 }
+  - wait: { selector: "nav[aria-label='Apps'][data-grouped]" }
+  # The name and the mark are the site's settings (snapshot/site.json), not the console's.
+  - eval:
+      name: identity_is_the_sites
+      script: |
+        (async () => {
+          const site = (await (await fetch('snapshot/site.json')).json()).profile.site;
+          if (site.front_door !== 'desktop') throw new Error(`this build's front door is ${site.front_door}`);
+          const by = site.name;
+          if (document.title !== `${site.title} — ${by}`) throw new Error(`title: ${document.title}`);
+          const crumb = document.querySelector('header').innerText;
+          if (!crumb.includes(site.title)) throw new Error(`the menu bar does not name the site: ${crumb}`);
+          const icon = document.querySelector("link[rel='icon']").getAttribute('href');
+          if (!icon.endsWith(site.mark)) throw new Error(`tab icon: ${icon}`);
+          const mark = document.querySelector('header img');
+          if (!mark || !mark.src.endsWith(site.mark) || !mark.naturalWidth) throw new Error('the mark is not drawn in the menu bar');
+          return { title: document.title, mark: site.mark };
+        })()
+  # One icon for every repo the registry lists, plus Fleet, Profile and Console; the pinned app is the first.
+  - eval:
+      name: an_icon_for_every_repo
+      script: |
+        (async () => {
+          const doc = await (await fetch('snapshot/apps.json')).json();
+          const site = (await (await fetch('snapshot/site.json')).json()).profile.site;
+          const labels = [...document.querySelectorAll("nav[aria-label='Apps'] button, nav[aria-label='Apps'] a")].map((b) => b.innerText.trim());
+          const missing = doc.repos.map((r) => r.name).filter((n) => !labels.includes(n));
+          if (missing.length) throw new Error(`no icon for: ${missing.join(', ')}`);
+          if (labels.length !== doc.repos.length + 3) throw new Error(`${labels.length} icons for ${doc.repos.length} repos`);
+          const first = doc.repos.find((r) => r.id === site.desktop.pinned[0]).name;
+          if (labels[0] !== first) throw new Error(`the first icon is ${labels[0]}, not the pinned ${first}`);
+          for (const tail of ['Fleet', 'Profile', 'Console']) if (!labels.slice(-3).includes(tail)) throw new Error(`no ${tail} icon`);
+          return { icons: labels.length, repos: doc.repos.length, first };
+        })()
+  # The desktop is icons and ids: it has asked no other site anything, and holds no frame.
+  - eval: { name: off_site_requests, script: "(() => { const n = performance.getEntriesByType('resource').filter((e) => !e.name.startsWith(location.origin)).length; if (n) throw new Error(n + ' off-site request(s) from the desktop'); return n; })()" }
+  - expect: { count: { selector: "iframe", max: 0 } }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: front-door
+  # The site's own app: the live site, framed. The page's policy names that origin and no wildcard.
+  - eval:
+      name: open_the_pinned_app
+      script: |
+        (async () => {
+          const site = (await (await fetch('snapshot/site.json')).json()).profile.site;
+          const doc = await (await fetch('snapshot/apps.json')).json();
+          const app = doc.apps.find((a) => a.id === site.desktop.pinned[0]);
+          const live = new URL(app.targets.find((t) => t.kind === 'live').url);
+          const policy = document.querySelector("meta[http-equiv='Content-Security-Policy']").content;
+          const frames = /frame-src ([^;]*)/.exec(policy)[1].split(' ');
+          if (!frames.includes(live.origin)) throw new Error(`frame-src does not admit ${live.origin}`);
+          if (frames.some((f) => f === '*' || f === 'https:' || f === 'http:')) throw new Error(`frame-src has a wildcard: ${frames}`);
+          sessionStorage.setItem('verify_live', live.href);
+          [...document.querySelectorAll("nav[aria-label='Apps'] button")].find((b) => b.innerText.trim() === app.name).click();
+          return { app: app.id, live: live.href, admitted: frames.length };
+        })()
+  - wait: { selector: "iframe[title$='— Live']" }
+  - eval:
+      name: the_live_site_is_framed
+      script: |
+        (() => {
+          const frame = document.querySelector("iframe[title$='— Live']");
+          if (frame.src !== sessionStorage.getItem('verify_live')) throw new Error(`framed ${frame.src}`);
+          const sandbox = frame.getAttribute('sandbox');
+          if (sandbox.includes('allow-top-navigation')) throw new Error('a framed app could take the tab');
+          return { src: frame.src, same_origin_kept: sandbox.includes('allow-same-origin') };
+        })()
+  # Give the live site a moment to paint, so the image shows it.
+  - wait: { ms: 4000 }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: site-app-window
+  # A repo with no frontend opens as the repo app the shell generates.
+  - eval: { name: back_to_the_icons, script: "(() => { const back = document.querySelector(\"button[aria-label='Home']\"); if (back) back.click(); return Boolean(back); })()" }
+  - click: "nav[aria-label='Apps'] button:has-text('kvlite')"
+  - wait: { selector: "text=has no interface of its own" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: repo-app-window
+  # The profile that `/` used to be: one icon away, at /home.
+  - eval: { name: back_to_the_icons_again, script: "(() => { const back = document.querySelector(\"button[aria-label='Home']\"); if (back) back.click(); return Boolean(back); })()" }
+  - eval:
+      name: open_the_profile
+      script: |
+        (() => {
+          const icon = [...document.querySelectorAll("nav[aria-label='Apps'] button, nav[aria-label='Apps'] a")].find((b) => b.innerText.trim() === 'Profile');
+          const how = icon.tagName === 'A' ? `link to ${icon.getAttribute('href')}` : 'window';
+          icon.click();
+          return how;
+        })()
+  - eval:
+      name: the_profile_is_at_home
+      script: |
+        (async () => {
+          const name = (await (await fetch(`${document.baseURI.replace(/[^/]*$/, '')}snapshot/site.json`.replace(/\/home\/snapshot/, '/snapshot'))).json()).profile.name;
+          for (let i = 0; i < 40; i += 1) {
+            const frame = document.querySelector("iframe[title='Console page /home']");
+            const text = frame ? frame.contentDocument?.body?.innerText ?? '' : (location.pathname.replace(/\/$/, '').endsWith('/home') ? document.body.innerText : '');
+            if (text.includes(name)) return { where: frame ? 'a window on the desktop' : location.pathname, name };
+            await new Promise((r) => setTimeout(r, 250));
+          }
+          throw new Error('the profile did not open at /home');
+        })()
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: profile
+  # The classic console keeps every page; its header carries the site's name and leads back to the desktop.
+  - goto: /home
+  - expect: { status: 200 }
+  - wait: { selector: "h1" }
+  - eval:
+      name: classic_console_names_the_site
+      script: |
+        (async () => {
+          const site = (await (await fetch(new URL('../snapshot/site.json', location.href))).json()).profile.site;
+          const brand = document.querySelector("header a[href]");
+          for (let i = 0; i < 20 && !brand.innerText.includes(site.title); i += 1) await new Promise((r) => setTimeout(r, 250));
+          if (!brand.innerText.includes(site.title)) throw new Error(`the header says: ${brand.innerText}`);
+          if (!brand.querySelector('img').src.endsWith(site.mark)) throw new Error('the header mark is not the site\'s');
+          if (new URL(brand.href).pathname !== new URL('../', location.href).pathname) throw new Error(`the brand leads to ${brand.href}`);
+          return { brand: brand.innerText.replace(/\n/g, ' '), leads_to: new URL(brand.href).pathname };
+        })()
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: classic-console-home
+  # /desktop still answers, and the palette opens from the desktop's menu bar.
+  - goto: /desktop
+  - expect: { status: 200 }
+  - wait: { selector: "nav[aria-label='Apps'][data-grouped]" }
+  - click: "button[aria-label='Search every page, project and app']"
+  - wait: { selector: "input[placeholder^='Go to a page']" }
+  - fill: { selector: "input[placeholder^='Go to a page']", value: "Portfolio" }
+  - wait: { selector: ".mantine-Spotlight-action:has-text('Portfolio')" }
+  - wait: { ms: 300 }
+  - screenshot: palette
+  - press: Escape
+  - expect: { no_horizontal_scroll: true }

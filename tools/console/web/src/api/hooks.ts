@@ -10,7 +10,7 @@ import type {
   AppsDoc, AuthDoc, Capabilities, ProjectReadme, ConfigDoc, DockerView, FleetView, Job, LakeLine, LakeRun, Op,
   ProjectDetail, StateDoc, TuiStatus, Dict, GithubStatus, GhRepo, GhRepoDetail, GhAction, GhIssue,
   SiteIndex, SitePage, SitePost, GithubFleet, PullSpecs, WorkBoard, WorkItemDetail, WorkPlan,
-  WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint, RefineDoc, EvidenceDoc, TextFile, AssistDoc, JobTail, PrQueue, NodesDoc, SprintsDoc, VoicesDoc,
+  WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint, RefineDoc, EvidenceDoc, TextFile, AssistDoc, AssistActivity, JobTail, PrQueue, NodesDoc, SprintsDoc, VoicesDoc,
   GhProjectsDoc, GhProjectItemsDoc, DecisionsDoc,
 } from './types';
 
@@ -223,7 +223,7 @@ export const useGhProjectItems = (projectId: string | null) =>
   });
 
 // --- The site: profile, pages, posts, public registries (site_docs.py) -----
-export const useSite = () => useQuery({ queryKey: ['site'], queryFn: () => api<SiteIndex>('/api/site'), staleTime: 10 * minute });
+export const useSite = (enabled = true) => useQuery({ queryKey: ['site'], queryFn: () => api<SiteIndex>('/api/site'), staleTime: 10 * minute, enabled });
 export const useSitePage = (slug: string) =>
   useQuery({ queryKey: ['site', 'page', slug], queryFn: () => api<SitePage>(`/api/site/page/${encodeURIComponent(slug)}`), staleTime: 10 * minute });
 export const useSitePost = (slug: string) =>
@@ -261,6 +261,15 @@ export const useReviewFile = (runId: string | null, path: string | null) =>
 // --- The fleet voice model (tools/voices.py; constitution § 23 rule 7) -------
 export const useVoices = () => useQuery({ queryKey: ['voices'], queryFn: () => api<VoicesDoc>('/api/voices'), staleTime: minute });
 export const useAssist = () => useQuery({ queryKey: ['assist'], queryFn: () => api<AssistDoc>('/api/assist'), staleTime: minute });
+/** How the assistant is observed: its messages, the page audit, the fleet pages shared now, its inventory
+ *  entry. `live` re-reads it while the Assist page is open (the console caches both files by version). */
+export const useAssistActivity = (days: number, live = false) =>
+  useQuery({
+    queryKey: ['assist-activity', days],
+    queryFn: () => api<AssistActivity>(`/api/assist/activity?days=${days}&limit=40`),
+    staleTime: 10_000,
+    refetchInterval: live ? 15_000 : false,
+  });
 /** One job's tail from offset 0: the Assist page reads a finished answer through it. */
 export const useJobTail = (id: string | null, live = false) =>
   useQuery({

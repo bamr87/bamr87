@@ -15,26 +15,26 @@ contract:
     R5: its run records reach the reflector
     R6: a local entry point
 totals:
-  agents: 142
+  agents: 143
   by_category:
     ci-agent-step: 129
     local-loop-step: 5
     jev-tier: 3
-    scheduled-local-job: 5
+    scheduled-local-job: 6
   by_kind:
     ci-scheduled: 51
     ci-event: 36
     ci-mention: 42
     loop-step: 5
     jev-tier: 3
-    local-job: 5
-  with_gaps: 133
+    local-job: 6
+  with_gaps: 134
   gaps_by_rule:
     R1: 115
-    R2: 133
+    R2: 134
     R3: 0
     R4: 0
-    R5: 3
+    R5: 4
     R6: 77
 kpis:
   accepted_per_usd:
@@ -204,6 +204,10 @@ sources:
     path: ~/.claude/projects/
     writer: Claude Code (every local session)
     slo: live
+  assist-page-audit:
+    path: .fleet/assist/page-audit.jsonl (DASH_CONSOLE_PAGE_AUDIT)
+    writer: the console's page bridge (tools/console/page_bridge.py, one line per page command, pairing and operator's end)
+    slo: on-change
   github-live:
     path: the GitHub API at run time (the triggering event, the repo, its issues, PRs and run logs)
     writer: GitHub
@@ -4217,6 +4221,45 @@ agents:
   first_seen: '2026-11-07'
   gaps:
   - R2:missing:turns,permission_denials,tool_errors
+- id: local:console-assist
+  kind: local-job
+  category: scheduled-local-job
+  repo: bamr87/bamr87
+  where: tools/console/core.py
+  owner: bamr87
+  trigger: 'on demand: a message a person sends from the console''s docked assistant or its Assist page, behind the spend
+    confirm (the assist operation)'
+  runs:
+  - tools/dash-gen ai-run --source 'console assist' (one session per message)
+  switch:
+    config: assistant.enabled
+  budget:
+    per_run_usd: 2.0
+  model: claude-sonnet-5-5
+  kpis:
+    accepted_per_usd: null
+    accepted_per_actions_min: null
+    time_to_outcome_h: null
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    fleet-triage: fleet-pulse.yml (dash-gen triage)
+    harness-health: fleet-pulse.yml (dash-gen harness)
+    harness-library: maintainer (reviewed PR; tools/dash refine library, the reflector's draft PRs)
+    harness-registry: fleet-pulse.yml (dash-gen harnesses)
+    lake: local:harness-review
+    loop-runs: the JEV loop runner (tools/dash loop run, one directory per run)
+    registry: maintainer (reviewed PR); reconcile-registry.yml proposes the changes
+    telemetry: Claude Code's OpenTelemetry through the local collector (tools/dash observe claude enable)
+    work-queue: maintainer (the console's work board, through a reviewed PR)
+  run_record: ai-ledger
+  feeds_reflector: false
+  local_entry: tools/dash ops run assist question=<text> --confirm
+  first_seen: '2026-11-20'
+  gaps:
+  - R2:missing:permission_denials,tool_errors
+  - R5:no-reflector
 - id: local:harness-review
   kind: local-job
   category: scheduled-local-job
@@ -4226,6 +4269,7 @@ agents:
   trigger: 'launchd com.bamr87.harness-review: daily 06:23 local'
   runs:
   - tools/dash-gen lake sessions --days 2
+  - tools/dash-gen lake assist --days 7
   - tools/dash-gen lake sync --days 2 --jobs ai --logs ai
   - tools/dash-gen lake review --days 7 --json
   - tools/dash refine reflect --scheduled
@@ -4243,6 +4287,8 @@ agents:
     false_signal_pct: 20
     silent_failure_pct: 5
   reads:
+    assist-page-audit: the console's page bridge (tools/console/page_bridge.py, one line per page command, pairing and operator's
+      end)
     claude-transcripts: Claude Code (every local session)
     fleet-config: maintainer (reviewed PR)
     github-live: GitHub

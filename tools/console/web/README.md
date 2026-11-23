@@ -5,6 +5,7 @@ The browser front end of the [Harness Console](../README.md). It is a React + Ty
 ```bash
 npm install && npm run build   # dist/ — what the console serves (run.sh does this on start)
 ../build-pages.sh              # dist-pages/ — the public site: base /bamr87/, VITE_STATIC=1, plus the snapshot
+CONSOLE_SITE=bash-365 ../build-pages.sh   # another site of the same console: its title, mark and front door from _data/profile.yml `sites:`
 npm run dev                    # :5173 with hot reload, proxied to a console on :4001 (CONSOLE_URL to change)
 npm run typecheck
 ```
@@ -41,4 +42,5 @@ Rules the code keeps:
 - The public build lives under `/bamr87/`: navigate through React Router (it carries the `basename`), point at files with `asset()` from `api/backend.ts`, and never write a bare `/path` into an `href` or `src`.
 - A page never asks which backend it is on to fetch data — only to decide what to offer (`hasConsole()`): a lever that needs a console says so (`LocalOnly`, `runnableHere`) instead of failing.
 - A view, key or colour the terminal dash shows too comes from `tools/fleetcore` through the API (`/api/fleet`, `/api/keys`, `/theme.css`, `/api/theme`) and is never copied here.
+- **A site's identity is a setting.** What `/` is (`FRONT_DOOR`) and the mark (`MARK`) come from the build (`api/backend.ts`, set by `../build-pages.sh` from `_data/profile.yml` `sites:`); the title, who the site is by and what the desktop shows come from the site document. `to.home()` and `to.desktop()` (`lib/links.ts`) say where each is in this build, so no page writes `/` or `/desktop` for either, and no site's name is written in `src/` (`../test_pages.py` holds that; [docs/CONSOLE-PAGES.md](../../../docs/CONSOLE-PAGES.md#site-builds-the-same-console-at-another-address)).
 - The bundle carries no inline script, so the console's `script-src 'self'` policy holds.

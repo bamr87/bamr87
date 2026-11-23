@@ -1,0 +1,888 @@
+{
+  "id": "site-front-door",
+  "title": "A site build opens on the bashOS desktop: an icon for every repo, the site's own app first, and the profile and the console one click away",
+  "features": [
+    "HUB-NEW:console-site-builds"
+  ],
+  "path": "verify/sites/site-front-door.yml",
+  "started": "2026-11-20T22:18:02.785Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/",
+          "ok": true,
+          "ms": 622
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "nav[aria-label='Apps'][data-grouped]"
+          },
+          "ok": true,
+          "ms": 19
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "identity_is_the_sites",
+            "script": "(async () => {\n  const site = (await (await fetch('snapshot/site.json')).json()).profile.site;\n  if (site.front_door !== 'desktop') throw new Error(`this build's front door is ${site.front_door}`);\n  const by = site.name;\n  if (document.title !== `${site.title} — ${by}`) throw new Error(`title: ${document.title}`);\n  const crumb = document.querySelector('header').innerText;\n  if (!crumb.includes(site.title)) throw new Error(`the menu bar does not name the site: ${crumb}`);\n  const icon = document.querySelector(\"link[rel='icon']\").getAttribute('href');\n  if (!icon.endsWith(site.mark)) throw new Error(`tab icon: ${icon}`);\n  const mark = document.querySelector('header img');\n  if (!mark || !mark.src.endsWith(site.mark) || !mark.naturalWidth) throw new Error('the mark is not drawn in the menu bar');\n  return { title: document.title, mark: site.mark };\n})()\n"
+          },
+          "ok": true,
+          "value": {
+            "title": "bash-365 — BASH Consulting",
+            "mark": "bash-365-mark.svg"
+          },
+          "ms": 2
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "an_icon_for_every_repo",
+            "script": "(async () => {\n  const doc = await (await fetch('snapshot/apps.json')).json();\n  const site = (await (await fetch('snapshot/site.json')).json()).profile.site;\n  const labels = [...document.querySelectorAll(\"nav[aria-label='Apps'] button, nav[aria-label='Apps'] a\")].map((b) => b.innerText.trim());\n  const missing = doc.repos.map((r) => r.name).filter((n) => !labels.includes(n));\n  if (missing.length) throw new Error(`no icon for: ${missing.join(', ')}`);\n  if (labels.length !== doc.repos.length + 3) throw new Error(`${labels.length} icons for ${doc.repos.length} repos`);\n  const first = doc.repos.find((r) => r.id === site.desktop.pinned[0]).name;\n  if (labels[0] !== first) throw new Error(`the first icon is ${labels[0]}, not the pinned ${first}`);\n  for (const tail of ['Fleet', 'Profile', 'Console']) if (!labels.slice(-3).includes(tail)) throw new Error(`no ${tail} icon`);\n  return { icons: labels.length, repos: doc.repos.length, first };\n})()\n"
+          },
+          "ok": true,
+          "value": {
+            "icons": 44,
+            "repos": 41,
+            "first": "bash-365.com"
+          },
+          "ms": 2
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "off_site_requests",
+            "script": "(() => { const n = performance.getEntriesByType('resource').filter((e) => !e.name.startsWith(location.origin)).length; if (n) throw new Error(n + ' off-site request(s) from the desktop'); return n; })()"
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "iframe",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "front-door",
+          "ok": true,
+          "file": "../../../../../../private/tmp/claude-501/-Users-bamr87-bamr87-projects-bash-365-com--claude-worktrees-brave-elion-1a2aef/0ab58c02-a374-4ce3-95ab-2be2408213d3/scratchpad/evidence/site-front-door/desktop-front-door.png",
+          "ms": 35
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "open_the_pinned_app",
+            "script": "(async () => {\n  const site = (await (await fetch('snapshot/site.json')).json()).profile.site;\n  const doc = await (await fetch('snapshot/apps.json')).json();\n  const app = doc.apps.find((a) => a.id === site.desktop.pinned[0]);\n  const live = new URL(app.targets.find((t) => t.kind === 'live').url);\n  const policy = document.querySelector(\"meta[http-equiv='Content-Security-Policy']\").content;\n  const frames = /frame-src ([^;]*)/.exec(policy)[1].split(' ');\n  if (!frames.includes(live.origin)) throw new Error(`frame-src does not admit ${live.origin}`);\n  if (frames.some((f) => f === '*' || f === 'https:' || f === 'http:')) throw new Error(`frame-src has a wildcard: ${frames}`);\n  sessionStorage.setItem('verify_live', live.href);\n  [...document.querySelectorAll(\"nav[aria-label='Apps'] button\")].find((b) => b.innerText.trim() === app.name).click();\n  return { app: app.id, live: live.href, admitted: frames.length };\n})()\n"
+          },
+          "ok": true,
+          "value": {
+            "app": "bash-365.com",
+            "live": "https://www.bash-365.com/",
+            "admitted": 25
+          },
+          "ms": 13
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "iframe[title$='— Live']"
+          },
+          "ok": true,
+          "ms": 179
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "the_live_site_is_framed",
+            "script": "(() => {\n  const frame = document.querySelector(\"iframe[title$='— Live']\");\n  if (frame.src !== sessionStorage.getItem('verify_live')) throw new Error(`framed ${frame.src}`);\n  const sandbox = frame.getAttribute('sandbox');\n  if (sandbox.includes('allow-top-navigation')) throw new Error('a framed app could take the tab');\n  return { src: frame.src, same_origin_kept: sandbox.includes('allow-same-origin') };\n})()\n"
+          },
+          "ok": true,
+          "value": {
+            "src": "https://www.bash-365.com/",
+            "same_origin_kept": true
+          },
+          "ms": 1
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "ms": 4000
+          },
+          "ok": true,
+          "ms": 4002
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 2
+        },
+        {
+          "step": "screenshot",
+          "arg": "site-app-window",
+          "ok": true,
+          "file": "../../../../../../private/tmp/claude-501/-Users-bamr87-bamr87-projects-bash-365-com--claude-worktrees-brave-elion-1a2aef/0ab58c02-a374-4ce3-95ab-2be2408213d3/scratchpad/evidence/site-front-door/desktop-site-app-window.png",
+          "ms": 64
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "back_to_the_icons",
+            "script": "(() => { const back = document.querySelector(\"button[aria-label='Home']\"); if (back) back.click(); return Boolean(back); })()"
+          },
+          "ok": true,
+          "value": false,
+          "ms": 1
+        },
+        {
+          "step": "click",
+          "arg": "nav[aria-label='Apps'] button:has-text('kvlite')",
+          "ok": true,
+          "ms": 43
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=has no interface of its own"
+          },
+          "ok": true,
+          "ms": 30
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 4
+        },
+        {
+          "step": "screenshot",
+          "arg": "repo-app-window",
+          "ok": true,
+          "file": "../../../../../../private/tmp/claude-501/-Users-bamr87-bamr87-projects-bash-365-com--claude-worktrees-brave-elion-1a2aef/0ab58c02-a374-4ce3-95ab-2be2408213d3/scratchpad/evidence/site-front-door/desktop-repo-app-window.png",
+          "ms": 60
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "back_to_the_icons_again",
+            "script": "(() => { const back = document.querySelector(\"button[aria-label='Home']\"); if (back) back.click(); return Boolean(back); })()"
+          },
+          "ok": true,
+          "value": false,
+          "ms": 2
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "open_the_profile",
+            "script": "(() => {\n  const icon = [...document.querySelectorAll(\"nav[aria-label='Apps'] button, nav[aria-label='Apps'] a\")].find((b) => b.innerText.trim() === 'Profile');\n  const how = icon.tagName === 'A' ? `link to ${icon.getAttribute('href')}` : 'window';\n  icon.click();\n  return how;\n})()\n"
+          },
+          "ok": true,
+          "value": "window",
+          "ms": 7
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "the_profile_is_at_home",
+            "script": "(async () => {\n  const name = (await (await fetch(`${document.baseURI.replace(/[^/]*$/, '')}snapshot/site.json`.replace(/\\/home\\/snapshot/, '/snapshot'))).json()).profile.name;\n  for (let i = 0; i < 40; i += 1) {\n    const frame = document.querySelector(\"iframe[title='Console page /home']\");\n    const text = frame ? frame.contentDocument?.body?.innerText ?? '' : (location.pathname.replace(/\\/$/, '').endsWith('/home') ? document.body.innerText : '');\n    if (text.includes(name)) return { where: frame ? 'a window on the desktop' : location.pathname, name };\n    await new Promise((r) => setTimeout(r, 250));\n  }\n  throw new Error('the profile did not open at /home');\n})()\n"
+          },
+          "ok": true,
+          "value": {
+            "where": "a window on the desktop",
+            "name": "Amr Abdel-Motaleb"
+          },
+          "ms": 266
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 5
+        },
+        {
+          "step": "screenshot",
+          "arg": "profile",
+          "ok": true,
+          "file": "../../../../../../private/tmp/claude-501/-Users-bamr87-bamr87-projects-bash-365-com--claude-worktrees-brave-elion-1a2aef/0ab58c02-a374-4ce3-95ab-2be2408213d3/scratchpad/evidence/site-front-door/desktop-profile.png",
+          "ms": 65
+        },
+        {
+          "step": "goto",
+          "arg": "/home",
+          "ok": true,
+          "ms": 557
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "h1"
+          },
+          "ok": true,
+          "ms": 24
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "classic_console_names_the_site",
+            "script": "(async () => {\n  const site = (await (await fetch(new URL('../snapshot/site.json', location.href))).json()).profile.site;\n  const brand = document.querySelector(\"header a[href]\");\n  for (let i = 0; i < 20 && !brand.innerText.includes(site.title); i += 1) await new Promise((r) => setTimeout(r, 250));\n  if (!brand.innerText.includes(site.title)) throw new Error(`the header says: ${brand.innerText}`);\n  if (!brand.querySelector('img').src.endsWith(site.mark)) throw new Error('the header mark is not the site\\'s');\n  if (new URL(brand.href).pathname !== new URL('../', location.href).pathname) throw new Error(`the brand leads to ${brand.href}`);\n  return { brand: brand.innerText.replace(/\\n/g, ' '), leads_to: new URL(brand.href).pathname };\n})()\n"
+          },
+          "ok": true,
+          "value": {
+            "brand": "bash-365  Harness Console",
+            "leads_to": "/"
+          },
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "classic-console-home",
+          "ok": true,
+          "file": "../../../../../../private/tmp/claude-501/-Users-bamr87-bamr87-projects-bash-365-com--claude-worktrees-brave-elion-1a2aef/0ab58c02-a374-4ce3-95ab-2be2408213d3/scratchpad/evidence/site-front-door/desktop-classic-console-home.png",
+          "ms": 42
+        },
+        {
+          "step": "goto",
+          "arg": "/desktop",
+          "ok": true,
+          "ms": 723
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "nav[aria-label='Apps'][data-grouped]"
+          },
+          "ok": true,
+          "ms": 15
+        },
+        {
+          "step": "click",
+          "arg": "button[aria-label='Search every page, project and app']",
+          "ok": true,
+          "ms": 43
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "input[placeholder^='Go to a page']"
+          },
+          "ok": true,
+          "ms": 37
+        },
+        {
+          "step": "fill",
+          "arg": {
+            "selector": "input[placeholder^='Go to a page']",
+            "value": "Portfolio"
+          },
+          "ok": true,
+          "ms": 6
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": ".mantine-Spotlight-action:has-text('Portfolio')"
+          },
+          "ok": true,
+          "ms": 5
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "ms": 300
+          },
+          "ok": true,
+          "ms": 302
+        },
+        {
+          "step": "screenshot",
+          "arg": "palette",
+          "ok": true,
+          "file": "../../../../../../private/tmp/claude-501/-Users-bamr87-bamr87-projects-bash-365-com--claude-worktrees-brave-elion-1a2aef/0ab58c02-a374-4ce3-95ab-2be2408213d3/scratchpad/evidence/site-front-door/desktop-palette.png",
+          "ms": 89
+        },
+        {
+          "step": "press",
+          "arg": "Escape",
+          "ok": true,
+          "ms": 7
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "../../../../../../private/tmp/claude-501/-Users-bamr87-bamr87-projects-bash-365-com--claude-worktrees-brave-elion-1a2aef/0ab58c02-a374-4ce3-95ab-2be2408213d3/scratchpad/evidence/site-front-door/desktop-front-door.png",
+        "../../../../../../private/tmp/claude-501/-Users-bamr87-bamr87-projects-bash-365-com--claude-worktrees-brave-elion-1a2aef/0ab58c02-a374-4ce3-95ab-2be2408213d3/scratchpad/evidence/site-front-door/desktop-site-app-window.png",
+        "../../../../../../private/tmp/claude-501/-Users-bamr87-bamr87-projects-bash-365-com--claude-worktrees-brave-elion-1a2aef/0ab58c02-a374-4ce3-95ab-2be2408213d3/scratchpad/evidence/site-front-door/desktop-repo-app-window.png",
+        "../../../../../../private/tmp/claude-501/-Users-bamr87-bamr87-projects-bash-365-com--claude-worktrees-brave-elion-1a2aef/0ab58c02-a374-4ce3-95ab-2be2408213d3/scratchpad/evidence/site-front-door/desktop-profile.png",
+        "../../../../../../private/tmp/claude-501/-Users-bamr87-bamr87-projects-bash-365-com--claude-worktrees-brave-elion-1a2aef/0ab58c02-a374-4ce3-95ab-2be2408213d3/scratchpad/evidence/site-front-door/desktop-classic-console-home.png",
+        "../../../../../../private/tmp/claude-501/-Users-bamr87-bamr87-projects-bash-365-com--claude-worktrees-brave-elion-1a2aef/0ab58c02-a374-4ce3-95ab-2be2408213d3/scratchpad/evidence/site-front-door/desktop-palette.png"
+      ],
+      "evals": {
+        "identity_is_the_sites": {
+          "title": "bash-365 — BASH Consulting",
+          "mark": "bash-365-mark.svg"
+        },
+        "an_icon_for_every_repo": {
+          "icons": 44,
+          "repos": 41,
+          "first": "bash-365.com"
+        },
+        "off_site_requests": 0,
+        "open_the_pinned_app": {
+          "app": "bash-365.com",
+          "live": "https://www.bash-365.com/",
+          "admitted": 25
+        },
+        "the_live_site_is_framed": {
+          "src": "https://www.bash-365.com/",
+          "same_origin_kept": true
+        },
+        "back_to_the_icons": false,
+        "back_to_the_icons_again": false,
+        "open_the_profile": "window",
+        "the_profile_is_at_home": {
+          "where": "a window on the desktop",
+          "name": "Amr Abdel-Motaleb"
+        },
+        "classic_console_names_the_site": {
+          "brand": "bash-365  Harness Console",
+          "leads_to": "/"
+        }
+      },
+      "final_url": "http://127.0.0.1:4150/desktop/"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/",
+          "ok": true,
+          "ms": 590
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "nav[aria-label='Apps'][data-grouped]"
+          },
+          "ok": true,
+          "ms": 26
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "identity_is_the_sites",
+            "script": "(async () => {\n  const site = (await (await fetch('snapshot/site.json')).json()).profile.site;\n  if (site.front_door !== 'desktop') throw new Error(`this build's front door is ${site.front_door}`);\n  const by = site.name;\n  if (document.title !== `${site.title} — ${by}`) throw new Error(`title: ${document.title}`);\n  const crumb = document.querySelector('header').innerText;\n  if (!crumb.includes(site.title)) throw new Error(`the menu bar does not name the site: ${crumb}`);\n  const icon = document.querySelector(\"link[rel='icon']\").getAttribute('href');\n  if (!icon.endsWith(site.mark)) throw new Error(`tab icon: ${icon}`);\n  const mark = document.querySelector('header img');\n  if (!mark || !mark.src.endsWith(site.mark) || !mark.naturalWidth) throw new Error('the mark is not drawn in the menu bar');\n  return { title: document.title, mark: site.mark };\n})()\n"
+          },
+          "ok": true,
+          "value": {
+            "title": "bash-365 — BASH Consulting",
+            "mark": "bash-365-mark.svg"
+          },
+          "ms": 4
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "an_icon_for_every_repo",
+            "script": "(async () => {\n  const doc = await (await fetch('snapshot/apps.json')).json();\n  const site = (await (await fetch('snapshot/site.json')).json()).profile.site;\n  const labels = [...document.querySelectorAll(\"nav[aria-label='Apps'] button, nav[aria-label='Apps'] a\")].map((b) => b.innerText.trim());\n  const missing = doc.repos.map((r) => r.name).filter((n) => !labels.includes(n));\n  if (missing.length) throw new Error(`no icon for: ${missing.join(', ')}`);\n  if (labels.length !== doc.repos.length + 3) throw new Error(`${labels.length} icons for ${doc.repos.length} repos`);\n  const first = doc.repos.find((r) => r.id === site.desktop.pinned[0]).name;\n  if (labels[0] !== first) throw new Error(`the first icon is ${labels[0]}, not the pinned ${first}`);\n  for (const tail of ['Fleet', 'Profile', 'Console']) if (!labels.slice(-3).includes(tail)) throw new Error(`no ${tail} icon`);\n  return { icons: labels.length, repos: doc.repos.length, first };\n})()\n"
+          },
+          "ok": true,
+          "value": {
+            "icons": 44,
+            "repos": 41,
+            "first": "bash-365.com"
+          },
+          "ms": 2
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "off_site_requests",
+            "script": "(() => { const n = performance.getEntriesByType('resource').filter((e) => !e.name.startsWith(location.origin)).length; if (n) throw new Error(n + ' off-site request(s) from the desktop'); return n; })()"
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "iframe",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "front-door",
+          "ok": true,
+          "file": "../../../../../../private/tmp/claude-501/-Users-bamr87-bamr87-projects-bash-365-com--claude-worktrees-brave-elion-1a2aef/0ab58c02-a374-4ce3-95ab-2be2408213d3/scratchpad/evidence/site-front-door/mobile-front-door.png",
+          "ms": 15
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "open_the_pinned_app",
+            "script": "(async () => {\n  const site = (await (await fetch('snapshot/site.json')).json()).profile.site;\n  const doc = await (await fetch('snapshot/apps.json')).json();\n  const app = doc.apps.find((a) => a.id === site.desktop.pinned[0]);\n  const live = new URL(app.targets.find((t) => t.kind === 'live').url);\n  const policy = document.querySelector(\"meta[http-equiv='Content-Security-Policy']\").content;\n  const frames = /frame-src ([^;]*)/.exec(policy)[1].split(' ');\n  if (!frames.includes(live.origin)) throw new Error(`frame-src does not admit ${live.origin}`);\n  if (frames.some((f) => f === '*' || f === 'https:' || f === 'http:')) throw new Error(`frame-src has a wildcard: ${frames}`);\n  sessionStorage.setItem('verify_live', live.href);\n  [...document.querySelectorAll(\"nav[aria-label='Apps'] button\")].find((b) => b.innerText.trim() === app.name).click();\n  return { app: app.id, live: live.href, admitted: frames.length };\n})()\n"
+          },
+          "ok": true,
+          "value": {
+            "app": "bash-365.com",
+            "live": "https://www.bash-365.com/",
+            "admitted": 25
+          },
+          "ms": 13
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "iframe[title$='— Live']"
+          },
+          "ok": true,
+          "ms": 281
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "the_live_site_is_framed",
+            "script": "(() => {\n  const frame = document.querySelector(\"iframe[title$='— Live']\");\n  if (frame.src !== sessionStorage.getItem('verify_live')) throw new Error(`framed ${frame.src}`);\n  const sandbox = frame.getAttribute('sandbox');\n  if (sandbox.includes('allow-top-navigation')) throw new Error('a framed app could take the tab');\n  return { src: frame.src, same_origin_kept: sandbox.includes('allow-same-origin') };\n})()\n"
+          },
+          "ok": true,
+          "value": {
+            "src": "https://www.bash-365.com/",
+            "same_origin_kept": true
+          },
+          "ms": 2
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "ms": 4000
+          },
+          "ok": true,
+          "ms": 4001
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 6
+        },
+        {
+          "step": "screenshot",
+          "arg": "site-app-window",
+          "ok": true,
+          "file": "../../../../../../private/tmp/claude-501/-Users-bamr87-bamr87-projects-bash-365-com--claude-worktrees-brave-elion-1a2aef/0ab58c02-a374-4ce3-95ab-2be2408213d3/scratchpad/evidence/site-front-door/mobile-site-app-window.png",
+          "ms": 80
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "back_to_the_icons",
+            "script": "(() => { const back = document.querySelector(\"button[aria-label='Home']\"); if (back) back.click(); return Boolean(back); })()"
+          },
+          "ok": true,
+          "value": true,
+          "ms": 6
+        },
+        {
+          "step": "click",
+          "arg": "nav[aria-label='Apps'] button:has-text('kvlite')",
+          "ok": true,
+          "ms": 37
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=has no interface of its own"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "repo-app-window",
+          "ok": true,
+          "file": "../../../../../../private/tmp/claude-501/-Users-bamr87-bamr87-projects-bash-365-com--claude-worktrees-brave-elion-1a2aef/0ab58c02-a374-4ce3-95ab-2be2408213d3/scratchpad/evidence/site-front-door/mobile-repo-app-window.png",
+          "ms": 46
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "back_to_the_icons_again",
+            "script": "(() => { const back = document.querySelector(\"button[aria-label='Home']\"); if (back) back.click(); return Boolean(back); })()"
+          },
+          "ok": true,
+          "value": true,
+          "ms": 2
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "open_the_profile",
+            "script": "(() => {\n  const icon = [...document.querySelectorAll(\"nav[aria-label='Apps'] button, nav[aria-label='Apps'] a\")].find((b) => b.innerText.trim() === 'Profile');\n  const how = icon.tagName === 'A' ? `link to ${icon.getAttribute('href')}` : 'window';\n  icon.click();\n  return how;\n})()\n"
+          },
+          "ok": true,
+          "value": "link to /home",
+          "ms": 2
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "the_profile_is_at_home",
+            "script": "(async () => {\n  const name = (await (await fetch(`${document.baseURI.replace(/[^/]*$/, '')}snapshot/site.json`.replace(/\\/home\\/snapshot/, '/snapshot'))).json()).profile.name;\n  for (let i = 0; i < 40; i += 1) {\n    const frame = document.querySelector(\"iframe[title='Console page /home']\");\n    const text = frame ? frame.contentDocument?.body?.innerText ?? '' : (location.pathname.replace(/\\/$/, '').endsWith('/home') ? document.body.innerText : '');\n    if (text.includes(name)) return { where: frame ? 'a window on the desktop' : location.pathname, name };\n    await new Promise((r) => setTimeout(r, 250));\n  }\n  throw new Error('the profile did not open at /home');\n})()\n"
+          },
+          "ok": true,
+          "value": {
+            "where": "/home",
+            "name": "Amr Abdel-Motaleb"
+          },
+          "ms": 32
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 4
+        },
+        {
+          "step": "screenshot",
+          "arg": "profile",
+          "ok": true,
+          "file": "../../../../../../private/tmp/claude-501/-Users-bamr87-bamr87-projects-bash-365-com--claude-worktrees-brave-elion-1a2aef/0ab58c02-a374-4ce3-95ab-2be2408213d3/scratchpad/evidence/site-front-door/mobile-profile.png",
+          "ms": 60
+        },
+        {
+          "step": "goto",
+          "arg": "/home",
+          "ok": true,
+          "ms": 556
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "h1"
+          },
+          "ok": true,
+          "ms": 24
+        },
+        {
+          "step": "eval",
+          "arg": {
+            "name": "classic_console_names_the_site",
+            "script": "(async () => {\n  const site = (await (await fetch(new URL('../snapshot/site.json', location.href))).json()).profile.site;\n  const brand = document.querySelector(\"header a[href]\");\n  for (let i = 0; i < 20 && !brand.innerText.includes(site.title); i += 1) await new Promise((r) => setTimeout(r, 250));\n  if (!brand.innerText.includes(site.title)) throw new Error(`the header says: ${brand.innerText}`);\n  if (!brand.querySelector('img').src.endsWith(site.mark)) throw new Error('the header mark is not the site\\'s');\n  if (new URL(brand.href).pathname !== new URL('../', location.href).pathname) throw new Error(`the brand leads to ${brand.href}`);\n  return { brand: brand.innerText.replace(/\\n/g, ' '), leads_to: new URL(brand.href).pathname };\n})()\n"
+          },
+          "ok": true,
+          "value": {
+            "brand": "bash-365",
+            "leads_to": "/"
+          },
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "classic-console-home",
+          "ok": true,
+          "file": "../../../../../../private/tmp/claude-501/-Users-bamr87-bamr87-projects-bash-365-com--claude-worktrees-brave-elion-1a2aef/0ab58c02-a374-4ce3-95ab-2be2408213d3/scratchpad/evidence/site-front-door/mobile-classic-console-home.png",
+          "ms": 22
+        },
+        {
+          "step": "goto",
+          "arg": "/desktop",
+          "ok": true,
+          "ms": 529
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "nav[aria-label='Apps'][data-grouped]"
+          },
+          "ok": true,
+          "ms": 15
+        },
+        {
+          "step": "click",
+          "arg": "button[aria-label='Search every page, project and app']",
+          "ok": true,
+          "ms": 21
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "input[placeholder^='Go to a page']"
+          },
+          "ok": true,
+          "ms": 29
+        },
+        {
+          "step": "fill",
+          "arg": {
+            "selector": "input[placeholder^='Go to a page']",
+            "value": "Portfolio"
+          },
+          "ok": true,
+          "ms": 8
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": ".mantine-Spotlight-action:has-text('Portfolio')"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "ms": 300
+          },
+          "ok": true,
+          "ms": 302
+        },
+        {
+          "step": "screenshot",
+          "arg": "palette",
+          "ok": true,
+          "file": "../../../../../../private/tmp/claude-501/-Users-bamr87-bamr87-projects-bash-365-com--claude-worktrees-brave-elion-1a2aef/0ab58c02-a374-4ce3-95ab-2be2408213d3/scratchpad/evidence/site-front-door/mobile-palette.png",
+          "ms": 61
+        },
+        {
+          "step": "press",
+          "arg": "Escape",
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "../../../../../../private/tmp/claude-501/-Users-bamr87-bamr87-projects-bash-365-com--claude-worktrees-brave-elion-1a2aef/0ab58c02-a374-4ce3-95ab-2be2408213d3/scratchpad/evidence/site-front-door/mobile-front-door.png",
+        "../../../../../../private/tmp/claude-501/-Users-bamr87-bamr87-projects-bash-365-com--claude-worktrees-brave-elion-1a2aef/0ab58c02-a374-4ce3-95ab-2be2408213d3/scratchpad/evidence/site-front-door/mobile-site-app-window.png",
+        "../../../../../../private/tmp/claude-501/-Users-bamr87-bamr87-projects-bash-365-com--claude-worktrees-brave-elion-1a2aef/0ab58c02-a374-4ce3-95ab-2be2408213d3/scratchpad/evidence/site-front-door/mobile-repo-app-window.png",
+        "../../../../../../private/tmp/claude-501/-Users-bamr87-bamr87-projects-bash-365-com--claude-worktrees-brave-elion-1a2aef/0ab58c02-a374-4ce3-95ab-2be2408213d3/scratchpad/evidence/site-front-door/mobile-profile.png",
+        "../../../../../../private/tmp/claude-501/-Users-bamr87-bamr87-projects-bash-365-com--claude-worktrees-brave-elion-1a2aef/0ab58c02-a374-4ce3-95ab-2be2408213d3/scratchpad/evidence/site-front-door/mobile-classic-console-home.png",
+        "../../../../../../private/tmp/claude-501/-Users-bamr87-bamr87-projects-bash-365-com--claude-worktrees-brave-elion-1a2aef/0ab58c02-a374-4ce3-95ab-2be2408213d3/scratchpad/evidence/site-front-door/mobile-palette.png"
+      ],
+      "evals": {
+        "identity_is_the_sites": {
+          "title": "bash-365 — BASH Consulting",
+          "mark": "bash-365-mark.svg"
+        },
+        "an_icon_for_every_repo": {
+          "icons": 44,
+          "repos": 41,
+          "first": "bash-365.com"
+        },
+        "off_site_requests": 0,
+        "open_the_pinned_app": {
+          "app": "bash-365.com",
+          "live": "https://www.bash-365.com/",
+          "admitted": 25
+        },
+        "the_live_site_is_framed": {
+          "src": "https://www.bash-365.com/",
+          "same_origin_kept": true
+        },
+        "back_to_the_icons": true,
+        "back_to_the_icons_again": true,
+        "open_the_profile": "link to /home",
+        "the_profile_is_at_home": {
+          "where": "/home",
+          "name": "Amr Abdel-Motaleb"
+        },
+        "classic_console_names_the_site": {
+          "brand": "bash-365",
+          "leads_to": "/"
+        }
+      },
+      "final_url": "http://127.0.0.1:4150/desktop/"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-11-20T22:18:16.959Z",
+  "base": "http://127.0.0.1:4150"
+}

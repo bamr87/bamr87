@@ -438,6 +438,139 @@ class FleetPages(unittest.TestCase):
         self.assertEqual((line["action"], line["target"]), ("attach", self.ORIGIN))
 
 
+class Observed(unittest.TestCase):
+    """What the audit says about whose page a command reached, and where a copy of each line goes."""
+
+    ORIGIN = "http://127.0.0.1:4010"
+
+    def setUp(self):
+        self.audit = Path(tempfile.mkdtemp(prefix="page-bridge-")) / "assist" / "page-audit.jsonl"
+        self.b = pb.PageBridge(audit_path=self.audit, ceiling=lambda: "act")
+        self.b.fleet_ceiling = lambda: "act"
+
+    def lines(self) -> list[dict]:
+        return [json.loads(line) for line in self.audit.read_text().splitlines()] if self.audit.exists() else []
+
+    def test_a_line_says_whose_page_it_was_and_has_an_id_of_its_own(self):
+        con = self.b.open("look")["sid"]
+        fleet = self.b.open("look", self.ORIGIN, {"repo": "bamr87/it-journey", "source": "index.md"})["sid"]
+        self.b.command(con, "click", {"ref": "e1"})       # refused by the mode, before any page is needed
+        self.b.command(fleet, "click", {"ref": "e1"}, client="paired")
+        a, b = self.lines()
+        self.assertEqual((a["kind"], a.get("origin"), a.get("repo")), ("console", None, None))
+        self.assertEqual((b["kind"], b["origin"], b["repo"], b["client"]),
+                         ("fleet", self.ORIGIN, "bamr87/it-journey", "paired"))
+        self.assertRegex(a["id"], r"^[0-9a-f]{12}$")
+        self.assertNotEqual(a["id"], b["id"], "a line is addressable: the lake keys on its id")
+        text = self.audit.read_text()
+        self.assertNotIn(con, text)
+        self.assertNotIn(fleet, text)
+
+    def test_each_line_is_also_printed_where_the_log_plane_collects_it(self):
+        import io
+        out = io.StringIO()
+        self.b.audit_stream = out
+        sid = self.b.open("look")["sid"]
+        self.b.command(sid, "fill", {"ref": "e2", "text": "hunter2"})
+        printed = out.getvalue().strip().splitlines()
+        self.assertEqual(len(printed), 1)
+        self.assertTrue(printed[0].startswith("page-bridge audit {"))
+        row = json.loads(printed[0].removeprefix("page-bridge audit "))
+        self.assertEqual(row, self.lines()[0], "the printed line is the file's line")
+        self.assertNotIn("hunter2", printed[0])
+        self.assertNotIn(sid, printed[0])
+
+    def test_a_bridge_with_a_stream_and_no_file_still_records(self):
+        import io
+        b = pb.PageBridge(ceiling=lambda: "act")
+        b.audit_stream = out = io.StringIO()
+        b.command(b.open("look")["sid"], "navigate", {"path": "/jobs"})
+        self.assertIn('"action": "navigate"', out.getvalue())
+
+
+class OperatorEnds(unittest.TestCase):
+    """The operator ends a fleet page's sharing from the console, by the eight characters the list shows."""
+
+    ORIGIN = "http://127.0.0.1:4010"
+
+    def setUp(self):
+        self.audit = Path(tempfile.mkdtemp(prefix="page-bridge-")) / "assist" / "page-audit.jsonl"
+        self.now = [1000.0]
+        self.b = pb.PageBridge(audit_path=self.audit, ceiling=lambda: "act", clock=lambda: self.now[0])
+        self.b.fleet_ceiling = lambda: "act"
+
+    def test_the_list_names_a_session_by_eight_characters_and_end_takes_only_those(self):
+        sid = self.b.open("ask", self.ORIGIN, {"repo": "bamr87/x"})["sid"]
+        row = [s for s in self.b.sessions() if s["kind"] == "fleet"][0]
+        self.assertEqual(row["id"], sid[:8])
+        self.assertNotIn(sid, json.dumps(self.b.sessions()))
+        for bad in (sid, sid[:7], sid[:8].upper() + "!", "", None, 12345678):
+            with self.assertRaises(ValueError):
+                self.b.end(bad)
+        out = self.b.end(row["id"])
+        self.assertEqual((out["ended"], out["id"], out["origin"]), (True, sid[:8], self.ORIGIN))
+        self.assertNotIn(sid, json.dumps(out))
+        self.assertEqual(self.b.sessions(), [])
+
+    def test_an_unknown_id_is_refused_and_an_ambiguous_one_is_never_guessed(self):
+        with self.assertRaises(pb.NoSession):
+            self.b.end("0" * 8)
+        a = self.b.open("ask", self.ORIGIN)["sid"]
+        b = self.b.open("ask", self.ORIGIN)["sid"]
+        twin = self.b._sessions.pop(b)          # force the collision 32 bits make unlikely
+        twin.sid = a[:8] + b[8:]
+        self.b._sessions[twin.sid] = twin
+        with self.assertRaises(pb.Ambiguous):
+            self.b.end(a[:8])
+        self.assertEqual(len(self.b.sessions()), 2, "nothing was ended")
+
+    def test_the_consoles_own_tab_is_not_ended_this_way(self):
+        sid = self.b.open("ask")["sid"]
+        with self.assertRaises(pb.NoSession):
+            self.b.end(sid[:8])
+        self.assertTrue(self.b.has(sid))
+
+    def test_the_page_and_a_paired_session_are_both_told_who_ended_it(self):
+        sid = self.b.open("act", self.ORIGIN, {"repo": "bamr87/x"})["sid"]
+        self.b.end(sid[:8])
+        with self.assertRaises(pb.Ended) as page_side:
+            self.b.fleet_next(sid, self.ORIGIN, 0)
+        self.assertIn("operator ended", str(page_side.exception.args[0]))
+        with self.assertRaises(pb.Ended) as session_side:
+            self.b.command(sid, "snapshot", client="paired")
+        self.assertIn("operator ended", str(session_side.exception.args[0]))
+        self.assertIsInstance(page_side.exception, pb.NoSession, "a caller that only knows NoSession still stops")
+        # the reason is remembered for a while, then the session is simply gone
+        self.now[0] += pb.ENDED_TTL_S + 1
+        with self.assertRaises(pb.NoSession) as later:
+            self.b.command(sid, "snapshot", client="paired")
+        self.assertNotIsInstance(later.exception, pb.Ended)
+
+    def test_a_command_in_flight_is_answered_with_the_reason(self):
+        b = pb.PageBridge(audit_path=self.audit, ceiling=lambda: "act")      # the real clock: a thread waits on it
+        b.fleet_ceiling = lambda: "act"
+        sid = b.open("act", self.ORIGIN)["sid"]
+        b.fleet_next(sid, self.ORIGIN, 0)                                    # the page is live and takes nothing
+        got: dict = {}
+        t = threading.Thread(target=lambda: got.update(b.command(sid, "snapshot", client="paired")), daemon=True)
+        t.start()
+        for _ in range(200):
+            if b._sessions[sid].pending:
+                break
+            threading.Event().wait(0.01)
+        b.end(sid[:8])
+        t.join(5)
+        self.assertEqual((got.get("ok"), got.get("kind")), (False, "closed"))
+        self.assertIn("operator ended", got["error"])
+
+    def test_ending_leaves_one_audit_line(self):
+        sid = self.b.open("ask", self.ORIGIN, {"repo": "bamr87/x"})["sid"]
+        self.b.end(sid[:8])
+        (line,) = [json.loads(x) for x in self.audit.read_text().splitlines()]
+        self.assertEqual((line["action"], line["client"], line["outcome"], line["kind"], line["origin"], line["session"]),
+                         ("end", "operator", "ok", "fleet", self.ORIGIN, sid[:8]))
+
+
 class OneContract(unittest.TestCase):
     """The broker, the console's page and the kit's payload each hold the lists the others rely on."""
 

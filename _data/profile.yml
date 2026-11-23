@@ -32,6 +32,39 @@ site:
   # Undated on purpose (no KPI tiles, no snapshot chip): every page carries it
   # while the site rebuilds daily, so it must not show one day's numbers.
   image: social-preview.png
+# Other public builds of this same console, each for an address of its own
+# (tools/console/build-pages.sh with CONSOLE_SITE=<key>; docs/CONSOLE-PAGES.md
+# "Site builds"). A build lays its entry over `site:` above, so its title, who
+# it is by, its description, link card and mark are settings and not code, and
+# it may make the bashOS desktop its front door. Built without CONSOLE_SITE the
+# site is the one above, exactly as before, and none of this is published.
+#   front_door      what `/` is: `home` (the profile, the default) or `desktop`
+#                   (the bashOS desktop; the profile Home moves to /home)
+#   mark            the tab icon and the header mark, under tools/console/web/public/
+#   desktop.icons   `apps` (an icon per framed frontend, the default) or `repos`
+#                   (an icon for every repo: its frontend, else the repo app)
+#   desktop.pinned  registry ids shown first on the desktop and offered on Welcome
+#   desktop.welcome the Welcome window's first paragraph
+sites:
+  bash-365:
+    title: "bash-365"
+    name: "BASH Consulting"
+    # Provisional. Where this build is served (a subdomain, or a path of the
+    # main domain) is the maintainer's decision; SITE_URL overrides it.
+    url: "https://os.bash-365.com"
+    description: >-
+      The front door of the bash-365 platform: BASH Consulting's site and every
+      repository and application behind it, each opened in a window.
+    mark: bash-365-mark.svg
+    image: null                  # no wide link card yet: cards show the mark
+    front_door: desktop
+    desktop:
+      icons: repos
+      pinned: [bash-365.com]
+      welcome: >-
+        This is the front door of the bash-365 platform. BASH Consulting's
+        site and every repository and application behind it is an icon here,
+        and each one opens in a window with the same controls.
 links:
   - { label: "GitHub", icon: github, url: "https://github.com/bamr87" }
   - { label: "LinkedIn", icon: linkedin, url: "https://linkedin.com/in/amrabdel" }

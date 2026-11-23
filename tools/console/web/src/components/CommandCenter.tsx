@@ -14,12 +14,12 @@ import { useOps, useStateDoc } from '../api/hooks';
 import type { AppsDoc, Dict, WorkflowAtlas } from '../api/types';
 import { useRunner } from '../jobs/JobRunner';
 import { FLAT } from '../nav';
-import { to } from '../lib/links';
+import { onDesktop as isDesktop, to } from '../lib/links';
 import { recentPages, type RecentPage } from '../lib/prefs';
 
 export function CommandCenter() {
   const routerNavigate = useNavigate();
-  const onDesktop = useLocation().pathname.startsWith('/desktop');
+  const onDesktop = isDesktop(useLocation().pathname);
   const state = useStateDoc();
   const ops = useOps();
   const qc = useQueryClient();
