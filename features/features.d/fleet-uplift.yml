@@ -1,0 +1,20 @@
+id: HUB-NEW
+slug: fleet-uplift
+title: "Fleet uplift: what one repo improved that the others still lack, captured for the hub and deployed by the loops it already has"
+description: "tools/dash uplift reads every fleet repo's default branch from the local submodule checkouts and compares file contents: a repo that changed a file other repos still hold in an earlier version, byte for byte, is a candidate, listed with exactly the repos behind and the route the contents imply (the kit that seeded the file, or the same patch in each repo). Content that is the hub's own, that came in on a fan-out branch, that carries a newer kit stamp or that several repos already hold is a rollout in flight, shown with the repos that have not taken it. A second lane lists the features each repo declared or shipped in its feature index. uplift file previews one hub issue per candidate for the issue pipeline and files only the bytes a person previewed, never from a repo less visible than the hub, never twice, inside its caps. uplift verify re-derives who is behind a second way and fails when the scan disagrees. It reads no GitHub and calls no model; the judgment (is the change general?) is a Claude Code session's, through the uplift skill and the work order uplift brief renders."
+implemented: true
+status: shipped
+surface: cli
+link: tools/uplift.py
+docs: docs/UPLIFT.md
+tags: [ uplift, fleet, kits, fan-out, monitoring, cli ]
+date: 2026-11-20
+tests:
+  - tools/test_uplift.py
+scenarios: []
+evidence: []
+prd: ["FR-NEW:fleet-uplift"]
+prd_new:
+  - key: fleet-uplift
+    kind: FR
+    text: "The hub must notice an improvement one fleet repo made that other repos still lack, from the repos' own history and without a model, say exactly which repos lack it and where the change belongs (the kit that seeded the file, or each repo), and hand it to the existing delivery loops as one reviewed hub issue; it must tell a hub rollout that has not finished apart from a repo's own improvement, and show the rollout's progress."

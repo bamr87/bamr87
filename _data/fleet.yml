@@ -642,6 +642,78 @@ pm:
     max_per_kind: 20
 
 # --------------------------------------------------------------------------- #
+# Uplift — the hub's INBOUND arc (docs/UPLIFT.md, `tools/dash uplift`).
+#
+# The hub pushes out (kits, the backlog fan-out) and works inside one repo (the
+# scout, the evolution loop). Uplift carries an improvement one repo made back
+# up: it reads every fleet repo's default branch from the local submodule
+# checkouts and compares file contents. A repo that changed a file other repos
+# still hold in an earlier version, byte for byte, is a CANDIDATE: they never
+# changed it on their own, so they can take the new content as it is. Content that is the hub's own,
+# that came in on a fan-out branch, that carries a newer kit stamp or that
+# `rollout_min` repos already hold is a ROLLOUT in flight, never one repo's
+# improvement. No GitHub read, no model, no schedule. `uplift file <key>`
+# previews a hub issue for the issue pipeline and `--apply`, typed by a person,
+# files exactly the previewed bytes, inside the caps below. tools/uplift.py
+# carries the same values as its fallback; test_uplift.py holds the two equal.
+# --------------------------------------------------------------------------- #
+uplift:
+  days: 14                  # the window of default-branch history a scan reads
+  rollout_min: 3            # content this many repos hold is a rollout, not one repo's improvement
+  fork_min: 3               # this many different contents made from one earlier version is a seed each repo fills in
+  stale_days: 3             # a checkout last fetched longer ago is reported: newer commits are not seen
+  max_rows: 40              # rows printed per section; the counts and --json are always whole
+  diff_lines: 120           # a longer diff is cut, in a view and in an issue, with a link to the rest
+  hub_sources:              # hub paths the fleet is seeded from: a repo's earlier version found here routes to the kit,
+    - templates/            # and new content found here is the hub's own rollout
+    - .editorconfig
+    - tools/unwrap-prose.py
+    - tools/schema_lint.py
+    - tools/docs_index.py
+  ignore_paths:             # globs (`*` crosses `/`): files that differ by design
+    - CHANGELOG.md
+    - "*/CHANGELOG.md"
+    - .release-please-manifest.json
+    - "*/.release-please-manifest.json"
+    - "*.lock"
+    - "*package-lock.json"
+    - "*pnpm-lock.yaml"
+  ignore_authors:           # commit authors, matched whole: their changes are never an origin
+    - "dependabot[bot]"
+    - "github-actions[bot]"
+    - github-actions
+    - GitHub Action
+    - "renovate[bot]"
+    - "release-please[bot]"
+  ignore_subjects:          # regexes on a commit's subject and its pull request's title
+    - '^chore\(main\): release'
+    - '^chore: release'
+    - 'release-please--branches--'
+    - '^chore\(submodule\)'
+    - '^chore\(jev\)'
+  rollout_branches:         # branch prefixes that carry a hub rollout, beside every kit branch read from tools/fanout.sh
+    - chore/governance-baseline
+    - chore/root-tidy
+    - backlog/
+    - ci/verify-kit-
+    - chore/kit-
+  rollout_subjects:         # regexes (any case) that mark a commit as a kit landing
+    - '\badopt(s|ed)? the .+ kit\b'
+    - '\(kit v\d'
+    - '\bkit v\d+\.\d+'
+    - '\badopt standardization baseline\b'
+    - '\badopt Pyramid Schema\b'
+  features:
+    files: [features/features.yml]   # the feature index read at the window's start and now
+    max_rows: 40
+  file:                     # `uplift file`: one hub issue per candidate, previewed first
+    label: uplift
+    marker: fleet-uplift    # <!-- fleet-uplift key="u-…" --> is the body's first line: a candidate is filed once, ever
+    max_per_run: 3          # keys one run accepts
+    max_open: 10            # backpressure: with this many uplift issues open, nothing more is filed
+    hold: false             # true adds `agent:hold`, so the issue pipeline waits for a person
+
+# --------------------------------------------------------------------------- #
 # Decisions — the decision index (docs/DECISION-INDEX.md, `tools/dash decisions`,
 # /api/decisions, the MCP's decision_queue).
 #
