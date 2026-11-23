@@ -181,6 +181,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-129](features/features.yml) | Fleet link check: every live link, checked once | shipped | [`tools/link_check.py`](tools/link_check.py) · [`docs/LINK-CHECK.md`](docs/LINK-CHECK.md) | FR142 |
 | [HUB-130](features/features.yml) | Site builds: the console published at another address, with the bashOS desktop as its front door | partial | [`tools/console/build-pages.sh`](tools/console/build-pages.sh) · [`docs/CONSOLE-PAGES.md`](docs/CONSOLE-PAGES.md) | FR58, FR77, FR143 |
 | [HUB-131](features/features.yml) | AI analysis of every failed CI run on a pull request | shipped | [`.github/scripts/dash-gen/pr_ai_analysis.py`](.github/scripts/dash-gen/pr_ai_analysis.py) · [`templates/pr-review/README.md`](templates/pr-review/README.md) | FR144 |
+| [HUB-132](features/features.yml) | AI review: a pull request that is marked ready gets a review and who does what next | partial | [`.github/workflows/pr-ai-review.yml`](.github/workflows/pr-ai-review.yml) · [`templates/pr-review/README.md`](templates/pr-review/README.md) | FR61, FR137 |
 
 **Requirement → feature trace**
 
@@ -257,7 +258,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR58 | HUB-062, HUB-078, HUB-079, HUB-080, HUB-130 |
 | FR59 | HUB-063, HUB-073 |
 | FR60 | HUB-064, HUB-072, HUB-073, HUB-082, HUB-088 |
-| FR61 | HUB-065 |
+| FR61 | HUB-065, HUB-132 |
 | FR62 | HUB-066 |
 | FR63 | HUB-067, HUB-073, HUB-113 |
 | FR64 | HUB-068, HUB-116 |
@@ -353,7 +354,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR134 | HUB-117 |
 | FR135 | HUB-117 |
 | FR136 | HUB-118 |
-| FR137 | HUB-121 |
+| FR137 | HUB-121, HUB-132 |
 | FR138 | HUB-122 |
 | FR139 | HUB-125, HUB-128 |
 | FR140 | HUB-126 |
