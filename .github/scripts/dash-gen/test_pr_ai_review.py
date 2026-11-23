@@ -478,11 +478,22 @@ def test_the_workflow_never_runs_or_trusts_the_pull_request():
     review = wf["jobs"]["review"]
     assert review["permissions"] == {"contents": "read"} and review["needs"] == "plan" and review["timeout-minutes"] <= 30
     assert not any("write" in str(v) for job in wf["jobs"].values() for v in (job.get("permissions") or {}).values())
-    for job in wf["jobs"].values():
-        for step in job["steps"]:
-            if str(step.get("uses") or "").startswith("actions/checkout"):
-                # No ref at all: the default on pull_request_target is the base branch.
-                assert step["with"]["persist-credentials"] is False and not {"ref", "repository"} & set(step["with"]), step
+    checkouts = [s for job in wf["jobs"].values() for s in job["steps"] if str(s.get("uses") or "").startswith("actions/checkout")]
+    for step in checkouts:
+        assert step["with"]["persist-credentials"] is False, step
+        if step["with"].get("repository"):
+            # The hub's tooling, named so a fleet repo's call reads the hub and not itself, at the
+            # caller's pinned hub-ref, else this event's own ref (the base branch on pull_request_target).
+            assert step["with"]["repository"] == "bamr87/bamr87" and step["with"]["ref"] == "${{ inputs.hub-ref || github.ref }}", step
+            assert ".github/scripts/dash-gen" in step["with"]["sparse-checkout"], "only the hub's tooling is named"
+        else:
+            # The caller's own code: the base branch, the event's default, never a ref of the pull request.
+            assert "ref" not in step["with"], step
+    assert sum(1 for s in checkouts if not s["with"].get("repository")) == 1, "exactly one checkout of the caller: base/"
+    # Reusable from a fleet repo's stub (kit pr-review): the caller's event, variables and secret.
+    call = on["workflow_call"]
+    assert set(call["inputs"]) == {"hub-ref", "pr"} and set(call["secrets"]) == {"CLAUDE_CODE_OAUTH_TOKEN"}
+    assert call["secrets"]["CLAUDE_CODE_OAUTH_TOKEN"]["required"] is False
     agent = next(s for s in review["steps"] if "claude-run" in str(s.get("uses")))
     assert agent["uses"] == "./.fleet-hub/.github/actions/claude-run"
     assert agent["with"]["tools"] == "Read,Grep,Glob" and agent["with"]["permission-mode"] == "default"

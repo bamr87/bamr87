@@ -11,14 +11,14 @@
     "cycle_days": 42,
     "total": 38,
     "day": 25,
-    "processed": 13,
+    "processed": 14,
     "counts": {
-      "pending": 25,
+      "pending": 24,
       "in_progress": 0,
-      "done": 13,
+      "done": 14,
       "skipped": 0
     },
-    "progress": 0.3421,
+    "progress": 0.3684,
     "today": {
       "date": "2026-11-23",
       "cycle": 1,
@@ -35,9 +35,9 @@
       "kind": "scheduled",
       "repo": "rsa-challenge"
     },
-    "last": "ocrmd",
-    "last_date": "2026-11-18",
-    "avg_score": 50.5,
+    "last": "cv-pro",
+    "last_date": "2026-11-23",
+    "avg_score": 51.9,
     "open_issues": 32,
     "open_prs": 0
   },
@@ -605,16 +605,30 @@
       "day": 25,
       "repo": "cv-pro",
       "scheduled": "2026-11-23",
-      "status": "pending",
-      "last_processed": null,
+      "status": "done",
+      "last_processed": "2026-11-23",
       "cycle": 1,
-      "issues": [],
-      "prs": [],
+      "issues": [
+        "https://github.com/bamr87/cv-pro/issues/27",
+        "https://github.com/bamr87/cv-pro/issues/28",
+        "https://github.com/bamr87/cv-pro/issues/29",
+        "https://github.com/bamr87/cv-pro/issues/15",
+        "https://github.com/bamr87/cv-pro/issues/30",
+        "https://github.com/bamr87/cv-pro/issues/31",
+        "https://github.com/bamr87/cv-pro/issues/32",
+        "https://github.com/bamr87/cv-pro/issues/33",
+        "https://github.com/bamr87/cv-pro/issues/34",
+        "https://github.com/bamr87/cv-pro/issues/35"
+      ],
+      "prs": [
+        "https://github.com/bamr87/cv-pro/pull/37",
+        "https://github.com/bamr87/cv-pro/pull/36"
+      ],
       "open_issues": 0,
       "open_prs": 0,
-      "findings": "",
-      "score": null,
-      "next_focus": ""
+      "findings": "Public repo, main @ a60d087 (v0.3.0, merge of #26). Live state at review: 0 open PRs, 1 open issue (#16); Nov 20 pushedAt was branch deletions. cv/ lint clean, 10/10 tests pass, schema copies identical, cv.json and the Cypress fixture validate. standard-ci.yml@v2 never runs cv/ or app/ tests (no root package.json); schema cmp is ungated; main CI/Conformance for HEAD were cancelled (last green main is #24). App Markdown/ASCII exporters drifted from cv/builder; ASCII drops projects, certs, languages and some links; CVPRO-004 is shipped but the app has no PDF export. Import and localStorage skip the JSON Schema; zod v4 from #6 is unused. Amendment 0002 and CVPRO-007 still said proposed/planned after #23. #15 had been closed completed without shipping version/health probes. Verify kit has empty start, port 4000, smoke-home TODO-001. #16's blocker (hub #554/#566) is stale since Nov 1; no platform work started. 390px tab bar is a 7-up grid; no app print CSS; no guided empty state. Filed #27-#33, reopened #15, FRs #34-#35 (CVPRO-008..009), docs PRs #36-#37, comment on #16. UPS 53/69, 9 MUST failing. A known private finding in the AI settings path.",
+      "score": 71.0,
+      "next_focus": "Gate cv/ and app/ tests plus the schema cmp in CI and complete the cancelled main runs; unify app exporters with cv/builder and either ship in-app PDF or mark CVPRO-004 partial; validate import and localStorage against the contract and drop or use the zod leftover; record amendment 0002 as ratified; ship the reopened #15 version/health probes; point the verify kit at the real app; then JSON Resume interchange and the typographic preview."
     },
     {
       "day": 26,

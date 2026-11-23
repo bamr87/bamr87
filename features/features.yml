@@ -3374,3 +3374,80 @@ features:
     prd:
     - FR61
     - FR137
+  - id: HUB-133
+    title: 'Fleet uplift: what one repo improved that the others still lack, captured for the hub and deployed
+      by the loops it already has'
+    description: 'tools/dash uplift reads every fleet repo''s default branch from the local submodule checkouts
+      and compares file contents: a repo that changed a file other repos still hold in an earlier version,
+      byte for byte, is a candidate, listed with exactly the repos behind and the route the contents imply
+      (the kit that seeded the file, or the same patch in each repo). Content that is the hub''s own, that
+      came in on a fan-out branch, that carries a newer kit stamp or that several repos already hold is
+      a rollout in flight, shown with the repos that have not taken it. A second lane lists the features
+      each repo declared or shipped in its feature index. uplift file previews one hub issue per candidate
+      for the issue pipeline and files only the bytes a person previewed, never from a repo less visible
+      than the hub, never twice, inside its caps. uplift verify re-derives who is behind a second way and
+      fails when the scan disagrees. It reads no GitHub and calls no model; the judgment (is the change
+      general?) is a Claude Code session''s, through the uplift skill and the work order uplift brief renders.'
+    implemented: true
+    status: shipped
+    surface: cli
+    link: tools/uplift.py
+    docs: docs/UPLIFT.md
+    tags:
+    - uplift
+    - fleet
+    - kits
+    - fan-out
+    - monitoring
+    - cli
+    date: 2026-11-20
+    tests:
+    - tools/test_uplift.py
+    scenarios: []
+    evidence: []
+    prd:
+    - FR145
+  - id: HUB-134
+    title: 'Structure contract: the hub''s own code held to declared layers and limits'
+    description: 'tools/architecture.py holds the hub''s own source to _data/architecture.yml (architecture/v1):
+      a code unit imports from its own layer or a lower one (generators < core < engines < surfaces), a
+      non-test module does not change sys.path, a source file stays under 1,500 lines and a committed _data
+      file under 512 KB. What already breaks a rule is recorded (a layer exception with a why, a ledger
+      entry with the number the file is held to), and the ledger only shrinks: `ledger --write` lowers and
+      drops entries and never raises one. `check` prints each problem with its fix, `report [--json]` the
+      measurements; tools/test_architecture.py runs it against the live tree on every pull request.'
+    implemented: true
+    status: shipped
+    surface: infra
+    link: tools/architecture.py
+    docs: docs/ARCHITECTURE.md
+    tags:
+    - architecture
+    - gate
+    - quality
+    date: 2026-11-22
+    tests:
+    - tools/test_architecture.py
+    prd:
+    - NFR33
+  - id: HUB-135
+    title: 'Focus: the checks a change owes, in one pass'
+    description: 'tools/focus.py reads the change against origin/main (committed, staged, unstaged and untracked),
+      looks up _data/checks.yml (checks/v1) and lists, or with --run runs, only the gates and tests whose
+      paths the change touched, plus the test file beside each changed module. It adds no rule: every entry
+      is an existing gate or test and the registry only says which paths owe it. A check whose `needs:`
+      is missing on the machine is reported as not run, never as passed; tools/test_focus.py holds every
+      registry command to a tool that exists.'
+    implemented: true
+    status: shipped
+    surface: cli
+    link: tools/focus.py
+    docs: docs/ARCHITECTURE.md
+    tags:
+    - gate
+    - developer-experience
+    date: 2026-11-22
+    tests:
+    - tools/test_focus.py
+    prd:
+    - FR146

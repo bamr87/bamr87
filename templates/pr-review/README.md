@@ -43,7 +43,7 @@ python3 .github/scripts/dash-gen/pr_ai_analysis.py local --repo bamr87/<repo> --
 python3 .github/scripts/dash-gen/pr_ai_analysis.py local --repo bamr87/<repo> --pr <n> --post   # and writes them
 ```
 
-A fleet repo needs kit 0.3.0, whose stub passes `CLAUDE_CODE_OAUTH_TOKEN` (and nothing else) to the reusable workflow. **Seed 0.3.0 only after the `v2` tag carries the `ai-analysis` job:** an older reusable workflow does not declare that secret, and a caller that passes an undeclared secret does not start. A 0.2.0 stub keeps working and gets the "no credential" note.
+A fleet repo needs kit 0.3.0 or later, whose stub passes `CLAUDE_CODE_OAUTH_TOKEN` (and nothing else) to the reusable workflow. **Seed 0.3.0 or later only after the `v2` tag carries the `ai-analysis` job:** an older reusable workflow does not declare that secret, and a caller that passes an undeclared secret does not start. A 0.2.0 stub keeps working and gets the "no credential" note.
 
 ## Findings: how a repo check reports
 
@@ -110,11 +110,11 @@ The review is a comment. It never approves, never counts as a required review (�
 
 `.github/scripts/dash-gen/pr_readiness.py` writes it: it calls `pr_review.py` for everything about a failed run and adds the rest. The items come from the PR queue's model, read for that one pull request with a single query, so the comment, `tools/dash prs ready --pr` and the console agree ([docs/PR-QUEUE.md](../../docs/PR-QUEUE.md#merge-readiness)). Every string that comes from the pull request (a task's words, a file path, a check's name) is escaped before it reaches the comment.
 
-In the hub the workflow also runs on the pull-request events that start no workflow of their own: opened, reopened, marked ready, converted to a draft, pushed to, labelled, unlabelled and edited. It takes them through `pull_request_target`, under the rule the failure summary already follows: it checks out the hub's tooling, never the pull request. The stub in this kit does not have that trigger yet, so a fleet repo that sets the variable gets the readiness section when a workflow finishes and not when a pull request is only marked ready; kit 0.3.0 adds the trigger.
+In the hub the workflow also runs on the pull-request events that start no workflow of their own: opened, reopened, marked ready, converted to a draft, pushed to, labelled, unlabelled and edited. It takes them through `pull_request_target`, under the rule the failure summary already follows: it checks out the hub's tooling, never the pull request. The kit's stub carries the same trigger from 0.4.0, so a fleet repo's readiness section is current when a pull request is only marked ready or labelled; a 0.3.0 stub updates it only when a workflow finishes.
 
 ## AI review
 
-A pull request that is marked ready is read once by a model, which comments with what it found and who does what next (constitution § 19.7; [ADR 0012](../../docs/adr/0012-merge-readiness.md), stage B). It runs in the hub today, from `.github/workflows/pr-ai-review.yml`; the fleet gets it with a later kit version (see [Not built yet](#not-built-yet)).
+A pull request that is marked ready is read once by a model, which comments with what it found and who does what next (constitution § 19.7; [ADR 0012](../../docs/adr/0012-merge-readiness.md), stage B). It runs in the hub from `.github/workflows/pr-ai-review.yml`, which is also a reusable workflow: a fleet repo's stub (kit 0.5.0, seeded once `v2` carries it) calls it on the same three events and passes `hub-ref` and the repo's `CLAUDE_CODE_OAUTH_TOKEN`. A called workflow sees the caller's event, variables and repository, so every rule below holds there unchanged; only the hub's tooling is checked out by name (`bamr87/bamr87` at `hub-ref`). The model, the turn cap, the dollar cap and the daily cap are the hub's (`_data/fleet.yml` `pr_ai_review`).
 
 | When | What happens |
 | --- | --- |
@@ -188,7 +188,9 @@ tools/fanout.sh --kit pr-review --target <name|all> --apply               # one 
 tools/fanout.sh --kit pr-review --target <name|all> --upgrade --apply     # refresh untouched older stubs
 ```
 
-The stub calls the hub at `@v2`, so a repo adopts it after the tag that carries `pr-review.yml`.
+The stubs call the hub at `@v2`, so a repo adopts them after the tag that carries what they call. Kit 0.4.0 needs a `v2` cut that carries the readiness and `ai-analysis` jobs; the AI review's stub (0.5.0) also needs that cut to carry the reusable `pr-ai-review.yml`, and lands in the kit only then, because `tools/test_template_pins.py` refuses a kit pin its ref cannot serve.
+
+The switches are repo variables, projected from the hub's `_data/fleet.yml` `variables:` (`PR_READINESS_ENABLED`, `PR_AI_REVIEW_ENABLED`, `PR_AI_ANALYSIS_ENABLED`) by `tools/dash config sync --apply` on demand and by `token-rotation.yml` weekly. A repo that wants one off sets its own variable to `false` and drops it from the projection with a per-repo override.
 
 `--upgrade` replaces a repo's stub only when it is byte-identical to the current template or to a shape in `archive/`; a hand-edited copy is left alone. Snapshot the outgoing stub into `archive/pr-review-<version>.yml` (with `__KIT_VERSION__` rendered) before changing the template. To refresh a stub that was appended to an open PR rather than merged, set `FANOUT_BRANCH` and `FANOUT_BASE_BRANCH` to that PR's head branch and `FANOUT_PR_APPEND=1`.
 
@@ -212,7 +214,7 @@ ai-world-view.github.io carries the same `docs-warden.yml` as year-of-ai and fol
 
 ## Not built yet
 
-- **AI review in the fleet.** [AI review](#ai-review) runs in the hub. A fleet repo needs a stub that carries the `pull_request_target` trigger and passes `CLAUDE_CODE_OAUTH_TOKEN` to a reusable form of `pr-ai-review.yml`: a later kit version, a `v2` cut that carries it, and one fan-out pull request per repo.
+- **The AI review's fleet stub (kit 0.5.0).** `pr-ai-review.yml` is reusable; its fleet caller joins the kit after the `v2` cut that carries it, then one fan-out pull request per repo.
 - **An eval set for the reviewer (§ 13.1).** About 20 past pull requests with the findings a review must and must not report. Until it exists the findings are advisory: they never fail a build, and merge readiness does not count them. With it, an `error` finding becomes a `todo` item in the readiness list, as ADR 0012 stage B describes.
 - **Handing work off without a person (ADR 0012, stage C).** The review names who does what and prints the hand-off. Starting the agent from an `error` finding, at most twice and then `needs-amr`, is the next stage; so is letting the PR queue's `address-review` task take a comment-only review as its brief.
 - **The other two reviews.** The completeness review (§ 15.5, bamr87/bamr87#492) and the direction review (§ 28.3) are separate reviewers with their own markers; this one reviews the code.

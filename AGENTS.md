@@ -8,11 +8,11 @@
 
 A monorepo of Git submodules under `projects/` that doubles as a self-managing **dash** and a GitHub profile README. Each submodule is a separate repository with its own stack, branch and release cycle; there is no shared build. The root (`tools/`, `.github/`, `_data/`, `specs/`, `templates/`, `docs/`, `pages/`) is the machinery that manages, monitors, documents and standardizes them, and the published site at bamr87.github.io/bamr87 is the Harness Console built static.
 
-A change is done when `tools/check-drift.sh` is green, the focused tests for what you touched pass (table below), the nearest `README.md` and `SCHEMA.md` say what changed, and any generated projection you affected has been regenerated.
+A change is done when `tools/check-drift.sh` is green, the focused tests for what you touched pass (`tools/focus.py`, table below), the nearest `README.md` and `SCHEMA.md` say what changed, and any generated projection you affected has been regenerated.
 
 ## Stack & commands
 
-Python 3.12 (stdlib + PyYAML, PyGithub), Bash, a FastAPI + React console, GitHub Actions. Toolchain versions live in `_data/fleet.yml` `toolchain:`. Prefer the `devenv` container (`/workspace`); copy `.env.example` to `.env` before the first start.
+Python 3.12 (stdlib + PyYAML, PyGithub), Bash, a FastAPI + Django + React console, GitHub Actions. Toolchain versions live in `_data/fleet.yml` `toolchain:`. Prefer the `devenv` container (`/workspace`); copy `.env.example` to `.env` before the first start.
 
 ```bash
 tools/dash up                                                  # shared core: devenv, console, one Postgres, one Redis
@@ -58,7 +58,7 @@ See [`SCHEMA.md`](SCHEMA.md) and the chain of `SCHEMA.md` files down to where yo
 ## Conventions
 
 - **Backlog of record:** GitHub Issues with the fleet labels; cross-repo initiatives in `_data/roadmap.yml`. **Definition of Done:** `.github/pull_request_template.md`. **Decisions:** `docs/adr/`.
-- **Commits:** Conventional Commits (`feat fix docs style refactor test chore perf ci`). **Branches:** `<type>/` or `feature/`; merge commits ([BRANCHING.md](docs/BRANCHING.md)).
+- **Commits:** Conventional Commits (`feat fix docs style refactor test chore perf ci`). **Branches:** `<type>/…` ([BRANCHING.md](docs/BRANCHING.md)).
 - **README-First, README-Last:** read the nearest `README.md` before changing a directory and update it after.
 - **SCHEMA protocol:** place files per the nearest `SCHEMA.md` `## Placement`; a new directory is created with its `SCHEMA.md` (from `templates/schema/SCHEMA.template.md`) and a row in its parent; any add, remove or rename updates the local `SCHEMA.md` in the same commit. `python3 tools/schema_lint.py check . --fix` fixes mechanical drift. The kit is vendored from bamr87/SCHEMA: improvements go upstream first, then re-vendor ([docs/SCHEMA-FRAMEWORK.md](docs/SCHEMA-FRAMEWORK.md)).
 - **Dependencies are always latest:** no exact pins, no ceilings, no committed lockfiles. Actions ride major tags; pre-commit `rev:` pins and `toolchain:` versions are the exceptions ([docs/DEPENDENCIES.md](docs/DEPENDENCIES.md)).

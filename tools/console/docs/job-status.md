@@ -45,6 +45,6 @@ On the published page the Jobs list holds the hub's workflow runs read from GitH
 
 ## Code and tests
 
-`stall_threshold`, `collector_lag` and `JobManager.status` / `_progress` in [`../core.py`](../core.py), `collector_age` in [`../live.py`](../live.py), the route in [`../app.py`](../app.py), `job_status` and `jobs_list` in [`../mcp_layer/server.py`](../mcp_layer/server.py), and `JobStatus` / `JobDiagnostics` in [`../web/src/jobs/JobStatus.tsx`](../web/src/jobs/JobStatus.tsx).
+`stall_threshold`, `collector_lag` and `JobManager.status` / `_progress` in [`../core_jobs.py`](../core_jobs.py) (each still reached as `core.<name>`: [`../core.py`](../core.py) re-exports them), `collector_age` in [`../live.py`](../live.py), the route in [`../app.py`](../app.py), `job_status` and `jobs_list` in [`../mcp_layer/server.py`](../mcp_layer/server.py), and `JobStatus` / `JobDiagnostics` in [`../web/src/jobs/JobStatus.tsx`](../web/src/jobs/JobStatus.tsx).
 
 `python3 tools/console/test_console.py` covers each state and diagnostic, the per-operation threshold, the index keeping its shape, and (with FastAPI) the route and its 404. `python3 tools/console/test_mcp_layer.py` covers `job_status`, its errors and the `state` filter. Evidence: [`test/evidence/console-job-status/`](../../../test/evidence/console-job-status/README.md).
