@@ -466,6 +466,7 @@ def test_context_request_reads_the_items_brief_and_the_default_asks_for_no_queri
 
 
 ENGINE_FILES = [HUB / "tools" / "jev" / n for n in ("loop.py", "workspace.py")] + \
+    sorted((HUB / "tools" / "jev").glob("loop_*.py")) + \
     sorted((HUB / "tools" / "jev" / "adapters").glob("*.py"))
 
 

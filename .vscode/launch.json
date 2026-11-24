@@ -976,6 +976,24 @@
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "4-generate", "order": 23 }
     },
+    // Fleet uplift (docs/UPLIFT.md): the inbound arc. Reads the local submodule
+    // checkouts only; filing a candidate is `tools/dash uplift file <key> --apply`, typed.
+    {
+      "name": "⬆️ Fleet uplift: what one repo improved that the others still lack",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash uplift scan",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 24 }
+    },
+    {
+      "name": "⬆️ Fleet uplift: the work order for the top candidates",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash uplift brief --top 5",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 25 }
+    },
 
     // ----------------------------------------------------------------- LOOPS
     // Every loop's agent step runs locally through JEV (docs/JEV.md): `plan`
@@ -1919,6 +1937,10 @@
         "python3 tools/gen-catalog.py --check",
         "python3 -m tools.jev generated guard --base origin/main",
         "python3 tools/governance_lint.py check .",
+        "python3 tools/architecture.py check",
+        "python3 tools/architecture.py report",
+        "python3 tools/focus.py",
+        "python3 tools/focus.py --run --keep-going",
         "tools/dash agents --check --verbose",
         "tools/dash workflows lint --strict",
         "tools/dash-gen compose --check",

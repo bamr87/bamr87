@@ -227,6 +227,7 @@ The architecture and its four loops are drawn as **typed, validated diagrams** r
 | Diagram | Type | What it shows |
 | --- | --- | --- |
 | [`harness-layers.architecture`](../diagrams/harness-layers.architecture.json) | architecture | The six layers as components of the hub, the model and the human outside the boundary, and which layer feeds which |
+| [`hub-architecture.architecture`](../diagrams/hub-architecture.architecture.json) | architecture | The hub's code as a control plane: registries, generators, snapshots, the shared core and the surfaces along the data path, the loops and kits that reach the fleet, and the gates and governance above them ([ARCHITECTURE.md](ARCHITECTURE.md)) |
 | [`fleet-pulse.workflow`](../diagrams/fleet-pulse.workflow.json) | workflow | The daily loop as lanes: deterministic `pulse` gather → one `publish-data` commit → `remediate` queue → token probe → `doctor` agent → draft PR, with the fallback issue in the exception lane |
 | [`fleet-signals.dataflow`](../diagrams/fleet-signals.dataflow.json) | dataflow | How GitHub signals become committed `_data/*.yml` and then split into the fix queue (for the doctor) and the scorecard (for people) |
 | [`issue-pipeline.lifecycle`](../diagrams/issue-pipeline.lifecycle.json) | lifecycle | The label state machine — `agent:queued` → T1 → `agent:ready` → T2 → T3 → human merge — with `agent:hold`, `human-review`, and `agent:blocked` as the non-terminal gates |

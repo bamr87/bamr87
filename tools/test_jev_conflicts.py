@@ -716,6 +716,37 @@ def test_gitattributes_decide_a_files_kind_before_any_built_in_glob():
     assert cf._attribute_kinds(d, []) == {}
 
 
+def test_a_root_pattern_with_no_slash_reaches_every_depth():
+    """Why the hub writes `/README.md`: git applies a slash-free pattern at every
+    depth, and tier 0 resolves a generated file by keeping the branch's copy."""
+    d = conflicted_repo("/file.txt merge=jev-regen\n")
+    (d / "sub").mkdir()
+    assert cf._attribute_kinds(d, ["file.txt", "sub/file.txt"]) == {"file.txt": cls.GENERATED}
+    d2 = conflicted_repo("file.txt merge=jev-regen\n")
+    assert cf._attribute_kinds(d2, ["sub/file.txt"]) == {"sub/file.txt": cls.GENERATED}, \
+        "git's own rule; if this stops holding, the leading slashes in .gitattributes are no longer needed"
+
+
+def test_the_hubs_generated_files_are_exactly_the_ones_it_names():
+    """Every `merge=jev-regen` line in the hub's .gitattributes reaches the one
+    file it names and nothing else. A bare `README.md` line once reached all 124
+    README.md files, so tier 0 would have kept a pull request's copy of a
+    hand-written README and dropped main's side; a hand-written README is source."""
+    hub = Path(__file__).resolve().parents[1]
+    named = set()
+    for line in (hub / ".gitattributes").read_text(encoding="utf-8").splitlines():
+        fields = line.split()
+        if fields and not fields[0].startswith("#") and "merge=jev-regen" in fields[1:]:
+            assert "*" not in fields[0], f"{fields[0]}: a glob marks files nobody listed as generated"
+            named.add(fields[0].lstrip("/"))
+    tracked = git(["ls-files"], cwd=hub).out.split()
+    attrs = git(["check-attr", "merge", "--", *tracked], cwd=hub).out.splitlines()
+    marked = {line.rsplit(": ", 2)[0] for line in attrs if line.endswith(": merge: jev-regen")}
+    assert marked == named & set(tracked), sorted(marked ^ named)[:10]
+    kinds = cf._attribute_kinds(hub, ["README.md", ".vscode/README.md", "tools/README.md", "docs/README.md"])
+    assert kinds == {"README.md": cls.GENERATED, "docs/README.md": cls.GENERATED}, kinds
+
+
 def test_validation_catches_a_conflict_marker_left_behind():
     d = conflicted_repo()
     good, problems = cf.validate(d)

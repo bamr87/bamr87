@@ -83,6 +83,9 @@ scout-workorders/
 # dash pm: the routine PM review's local files (model, review, board plan preview);
 # the public snapshot is committed as _data/pm_review.yml.
 .fleet/pm/
+# dash uplift: the last scan and the issue previews (docs/UPLIFT.md). Read from local
+# git, so it can hold a private repo's commit titles and diffs: local, never published.
+.fleet/uplift/
 # dash decisions: the decision index (index.json: every open pull request and
 # gate-labelled issue of the fleet, read from GitHub; it can hold a private repo's
 # titles, so it is local, owner-only and never published; docs/DECISION-INDEX.md).

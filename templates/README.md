@@ -175,10 +175,10 @@ The prose style kit, seeded by `tools/fanout.sh --kit prose` (branch `style/mark
 
 | File | Purpose |
 | --- | --- |
-| `markdown-oneline.yml` | CI gate enforcing one-paragraph-per-line markdown (`__DEFAULT_BRANCH__` substituted); the fan-out also vendors the Liquid-safe `tools/unwrap-prose.py` and runs a one-time unwrap (SCHEMA.md/CHANGELOG.md skipped). On a same-repo PR it unwraps and pushes the repair to the PR's branch; it checks out the head by SHA, not branch name, and skips the push when the branch is already gone, so an auto-merged PR whose branch was deleted before the job started stays green (kit 0.5.0) |
+| `markdown-oneline.yml` | CI gate enforcing one-paragraph-per-line markdown (`__DEFAULT_BRANCH__` substituted); the fan-out also vendors the Liquid-safe `tools/unwrap-prose.py` and runs a one-time unwrap (SCHEMA.md/CHANGELOG.md skipped). On a same-repo PR it unwraps and pushes the repair to the PR's branch; it checks out the head by SHA, not branch name, and skips the push when the branch is already gone, so an auto-merged PR whose branch was deleted before the job started stays green (kit 0.5.0). The trigger carries no `paths:` filter: the job always starts, reads the changed files from the API and checks only when markdown changed, so `oneline` always reports and a ruleset may require it (kit 0.6.0, #952) |
 | `VERSION` | Kit version and changelog; `fanout.sh` stamps nothing into the seed, so identity is byte comparison |
 | `archive/markdown-oneline-<X.Y.Z>.yml` | Every shape the kit has seeded (0.1.0–0.4.0); `--upgrade` refreshes a deployed copy only when it is byte-identical to the template or one of these. Archive the outgoing shape BEFORE editing the template |
-| `test_prose_kit.py` | Contract test: checkout by SHA, the gone-branch guard, branch name via `env:` only, every archived shape distinct and listed in `VERSION` (`python3 templates/prose/test_prose_kit.py`) |
+| `test_prose_kit.py` | Contract test: checkout by SHA, the gone-branch guard, branch name via `env:` only, no workflow-level path filter (template and the hub's copy) with the work steps gated on the in-job detection, every archived shape distinct and listed in `VERSION` (`python3 templates/prose/test_prose_kit.py`) |
 
 Upgrade the fleet with `tools/fanout.sh --kit prose --target <name|all> --upgrade` (dry run without `--apply`): a copy reported `upgradeable machine seed` is refreshed, a `hand-modified` one is left alone and needs the change by hand.
 

@@ -1,10 +1,23 @@
 kit: prose
-version: 0.5.0
+version: 0.6.0
 source: bamr87/bamr87 templates/prose/
 seeded-by: tools/fanout.sh --kit prose
-files: markdown-oneline.yml, archive/markdown-oneline-{0.1.0,0.2.0,0.3.0,0.4.0}.yml, test_prose_kit.py (vendors tools/unwrap-prose.py)
-updated: 2026-11-15
+files: markdown-oneline.yml, archive/markdown-oneline-{0.1.0,0.2.0,0.3.0,0.4.0,0.5.0}.yml, test_prose_kit.py (vendors tools/unwrap-prose.py)
+updated: 2026-11-22
 changelog: |
+  0.6.0 — `oneline` always reports (bamr87/bamr87#952). The workflow carried
+  `paths: ["**/*.md", "**/*.markdown"]` on `pull_request` and `push`, so a
+  change with no markdown never started it and no `oneline` check run existed:
+  a ruleset requiring `oneline` would hold every such PR on "Waiting for status
+  to be reported" (law-ai#267 would have stuck; the law-ai ruleset import on
+  2026-11-21 was stopped for it). The trigger now has no path filter; the
+  job's first step reads the changed files from the API (`pulls/N/files`, or
+  `compare/before...sha` on a push) and checkout, setup-python and the unwrap
+  run only when markdown changed, so the job reports success either way. Any
+  doubt (a new branch, an API error, a compare of 300+ files) runs the check.
+  The workflow gains `pull-requests: read` for the file list.
+  archive/markdown-oneline-0.5.0.yml is the outgoing shape. The GITHUB_TOKEN
+  repair push is unchanged here; #953 owns it.
   0.5.0 — markdown-oneline.yml checks out the pull request's head by SHA
   (`head.sha || github.sha`), not by branch name (`head.ref || github.ref`). A
   bot PR on auto-merge (Dependabot, the hub's JEV numbering) merges seconds

@@ -1333,7 +1333,7 @@ def _call(n: int, name: str, inp: dict, result: str | None, is_error: bool = Fal
 
 SECRET = "/home/u/.cache/jev/canary/secret.txt"
 TOKEN = "0123456789abcdef0123456789abcdef"
-PLANT = H.CanaryPlant(token=TOKEN, secret=SECRET, written="/home/u/.cache/jev/canary/written.txt",
+PLANT = H.CanaryPlant(token=TOKEN, fixture=SECRET, written="/home/u/.cache/jev/canary/written.txt",
                       write_tool="/home/u/.cache/jev/canary/written-by-write.txt",
                       outside="/private/tmp/claude-1/jev-canary-x/secret.txt")
 DENIED = "PermissionError: [Errno 1] Operation not permitted"
