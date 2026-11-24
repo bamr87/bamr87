@@ -1,0 +1,177 @@
+{
+ "base": "http://127.0.0.1:4011",
+ "passed": 34,
+ "total": 34,
+ "results": [
+  {
+   "name": "api /api/stars present",
+   "ok": true,
+   "detail": "starred=139 repos=379 reviewed=156 groups=10"
+  },
+  {
+   "name": "op stars-refresh listed",
+   "ok": true,
+   "detail": "group=observe confirm= available="
+  },
+  {
+   "name": "op stars-review listed",
+   "ok": true,
+   "detail": "group=observe confirm=spend available="
+  },
+  {
+   "name": "op stars-metrics listed",
+   "ok": true,
+   "detail": "group=observe confirm= available="
+  },
+  {
+   "name": "radar renders",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "radar: review list",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "header: Read GitHub now",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "header: Review with AI",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "header: Push to Grafana",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "header: Open in Grafana link",
+   "ok": true,
+   "detail": "http://127.0.0.1:3001/d/fleet-stars/fleet-stars"
+  },
+  {
+   "name": "radar: no sideways scroll",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "starred: search narrows the list",
+   "ok": true,
+   "detail": "139 of 139 starred repos \u2192 18 of 139 starred repos"
+  },
+  {
+   "name": "starred: AI column present",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "starred: relevant-only filter from the URL",
+   "ok": true,
+   "detail": "74 of 139 starred repos"
+  },
+  {
+   "name": "drawer: AI review for AgriciDaniel/claude-obsidian",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "drawer: review command",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "trending renders",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "fleet match renders githubai",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "themes render",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "feed renders",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "map: dots drawn",
+   "ok": true,
+   "detail": "dots=354"
+  },
+  {
+   "name": "map: a dot opens the drawer",
+   "ok": true,
+   "detail": "http://127.0.0.1:4011/stars?tab=map&repo=hackmdio%2Fcodimd"
+  },
+  {
+   "name": "push-to-grafana: dialog (if any) answered",
+   "ok": true,
+   "detail": "Stars: push the radar to Grafana (OTel collector \u2192 Prometheus)\u2713succeededOpen the job pageAbout stars-metricstools/dash s"
+  },
+  {
+   "name": "push-to-grafana: job ran and succeeded",
+   "ok": true,
+   "detail": "done rc="
+  },
+  {
+   "name": "review-with-AI: asks before spending",
+   "ok": true,
+   "detail": "This spends Claude budgetReview the open-source radar with AI: tool-less Claude sessions of stars.ai.batch repos each \u2014 your stars first, then the review list \u2014 plus one that groups the stars into the"
+  },
+  {
+   "name": "review-with-AI: the dialog says what it does, nothing about PRs or secrets",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "review-with-AI: cancelled, no job started",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "loops: stargazer page",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "grafana: fleet-stars renders (the page link's path, on the test Grafana)",
+   "ok": true,
+   "detail": "http://127.0.0.1:3091/d/fleet-stars/fleet-stars"
+  },
+  {
+   "name": "mobile radar: no sideways scroll",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "mobile starred: no sideways scroll",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "mobile themes: no sideways scroll",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "mobile map: no sideways scroll",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "no page errors in the console log",
+   "ok": true,
+   "detail": ""
+  }
+ ]
+}

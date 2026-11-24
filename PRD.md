@@ -186,6 +186,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-134](features/features.yml) | Structure contract: the hub's own code held to declared layers and limits | shipped | [`tools/architecture.py`](tools/architecture.py) · [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | NFR33 |
 | [HUB-135](features/features.yml) | Focus: the checks a change owes, in one pass | shipped | [`tools/focus.py`](tools/focus.py) · [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | FR146 |
 | [HUB-136](features/features.yml) | The branch model, declared once, and one ruleset per repo that allows only merge commits | shipped | [`tools/branch_policy.py`](tools/branch_policy.py) · [`docs/BRANCHING.md`](docs/BRANCHING.md) | FR147 |
+| [HUB-137](features/features.yml) | Stargazer: the open-source radar (stars, trending, like the fleet) | shipped | [`tools/console/web/src/pages/Stars.tsx`](tools/console/web/src/pages/Stars.tsx) · [`docs/STARGAZER.md`](docs/STARGAZER.md) | FR148, FR149, FR150 |
 
 **Requirement → feature trace**
 
@@ -370,6 +371,9 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | NFR33 | HUB-134 |
 | FR146 | HUB-135 |
 | FR147 | HUB-136 |
+| FR148 | HUB-137 |
+| FR149 | HUB-137 |
+| FR150 | HUB-137 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -511,6 +515,9 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR145: The hub must notice an improvement one fleet repo made that other repos still lack, from the repos' own history and without a model, say exactly which repos lack it and where the change belongs (the kit that seeded the file, or each repo), and hand it to the existing delivery loops as one reviewed hub issue; it must tell a hub rollout that has not finished apart from a repo's own improvement, and show the rollout's progress.
 - FR146: The product must name, and on request run, exactly the gates and tests a given change owes from one registry of checks, so a missing companion entry is found in one local pass.
 - FR147: The hub must declare the fleet's branch model once (the default branch, the merge method, and the work, session and automation branch prefixes with each automation prefix's owner) and project the default branch's protection from it as one named repository ruleset that allows only the merge commit constitution § 12.2 requires, requires no approval unless a repo asks for one, never requires linear history and names only required checks that have reported on the default branch; the tool must plan before it writes, write only on the maintainer's explicit apply, leave every other ruleset and setting unchanged, and audit a repo's live protection from every source read-only.
+- FR148: The hub must keep a public radar of the account's GitHub stars and of the repositories trending in, or most like, the fleet's projects — categorised, measured by star velocity, matched to each fleet project with the reason, with star-farmed repositories flagged and never recommended — and render it on the console and the published site, read-only on GitHub.
+- FR149: The radar must be enriched by a capped, tool-less AI pass that reviews each repository for the fleet (what it is, adopt, borrow, watch or skip, the project it serves and why) and groups the stars into themes; it runs only on a person's yes, records its cost in the AI ledger, holds the model's answer to a schema and treats repository text as data.
+- FR150: Every local Claude Code session must start with the starred repositories relevant to the project it works in, so a starred repository is considered before an equivalent is built; the brief treats third-party text as data and never names a suspect repository.
 
 **Non-functional**
 

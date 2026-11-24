@@ -52,6 +52,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import datetime as dt
+import importlib
 import json
 import os
 import re
@@ -920,12 +921,16 @@ ANALYSIS_VERDICTS = ("yes", "no", "unclear")
 ANALYSIS_MIN_CASES = 10
 
 
-def _analysis_module():
+def _dash_gen_module(name: str):
+    """A dash-gen module under test, imported where it is used (pr_ai_analysis, qa_lead)."""
     path = str(ROOT / ".github" / "scripts" / "dash-gen")
     if path not in sys.path:
         sys.path.insert(0, path)
-    import pr_ai_analysis  # noqa: PLC0415 - the module under test, imported where it is used
-    return pr_ai_analysis
+    return importlib.import_module(name)
+
+
+def _analysis_module():
+    return _dash_gen_module("pr_ai_analysis")
 
 
 def analysis_material(case: dict) -> dict:
@@ -1046,10 +1051,7 @@ QA_STATUSES = ("pass", "gap", "n/a")
 
 
 def run_qa_lead(data: dict, res: RoleResult, **_) -> None:
-    dash_gen = str(ROOT / ".github" / "scripts" / "dash-gen")
-    if dash_gen not in sys.path:
-        sys.path.insert(0, dash_gen)
-    import qa_lead  # noqa: PLC0415
+    qa_lead = _dash_gen_module("qa_lead")
     cfg = qa_lead.config()
     for case in data["cases"]:
         exp = case["expected"]

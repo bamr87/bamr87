@@ -38,6 +38,7 @@ import { AppWorkspace, Apps } from './pages/Apps';
 import { Desktop } from './pages/Desktop';
 import { Inbox } from './pages/Inbox';
 import { PrQueue } from './pages/PrQueue';
+import { Stars } from './pages/Stars';
 import { Containers } from './pages/Containers';
 import { Nodes } from './pages/Nodes';
 import { Inventory } from './pages/Inventory';
@@ -112,6 +113,7 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="apps/:id" element={<AppWorkspace />} />
                   <Route path="inbox" element={<Inbox />} />
                   <Route path="prs" element={<PrQueue />} />
+                  <Route path="stars" element={<Stars />} />
                   <Route path="containers" element={<Containers />} />
                   <Route path="nodes" element={<Nodes />} />
                   <Route path="github" element={<GithubPage />} />

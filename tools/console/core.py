@@ -111,6 +111,7 @@ SOURCES = {
     "actions_usage": "actions_usage.yml",
     "ai_usage": "ai_usage.yml",
     "engagements": "engagements.yml",
+    "stars": "stars.json",
 }
 
 # Secrets the fleet contract names — the console reports PRESENCE of the env
@@ -125,7 +126,7 @@ TOKEN_ENV = ["FLEET_TOKEN", "GH_TOKEN", "GITHUB_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN
 # issue-pipeline, token-rotation, reconcile-registry and update-submodules.
 DISPATCH_WORKFLOWS = ("fanout", "fleet-pulse", "issue-pipeline", "token-rotation", "repo-evolution", "repo-scout",
                       "weekly-closeout", "weekly-gather", "weekly-finalize", "build-dash", "reconcile-registry",
-                      "update-submodules", "backlog-fanout", "jev-conflicts", "fleet-pm")
+                      "update-submodules", "backlog-fanout", "jev-conflicts", "fleet-pm", "stargazer")
 
 
 # --------------------------------------------------------------------------- #
@@ -352,6 +353,9 @@ LOOPS = [
      "schedule_key": "update_submodules", "doc": "docs/SUBMODULES.md", "outputs": [], "local_ops": []},
     {"id": "build_dash", "title": "Build & deploy the dash (Pages)", "workflow": "build-dash",
      "schedule_key": "build_dash", "doc": "docs/DASH.md", "outputs": [], "local_ops": []},
+    {"id": "stargazer", "title": "Stargazer — the open-source radar: stars, trending, like the fleet",
+     "workflow": "stargazer", "schedule_key": "stargazer", "doc": "docs/STARGAZER.md",
+     "outputs": ["stars"], "local_ops": ["stars-refresh", "stars-review", "stars-metrics"]},
     {"id": "backlog_fanout", "title": "Backlog fan-out — pending items → fleet PRs (dry run by default)",
      "workflow": "backlog-fanout", "schedule_key": "backlog_fanout", "doc": "docs/BACKLOG-FANOUT.md",
      "outputs": [], "local_ops": []},
@@ -1660,6 +1664,31 @@ OPS: dict[str, dict] = {
                               desc="Reads every open pull request and gate-labelled issue of the fleet again under "
                                    "decisions.refresh_budget_s and rewrites the index; fails unless the read finished "
                                    "clean, so a scheduled run cannot hide a stale index. Read-only, $0."),
+    # The open-source radar (docs/STARGAZER.md): read-only on GitHub, writes the two committed data files.
+    "stars-refresh": dict(title="Stars: read GitHub now (the open-source radar)", group="observe",
+                          argv=lambda p: [DASH, "stars", "refresh"], needs_token=True,
+                          desc="tools/dash stars refresh — the account's stars and public star lists, every fleet "
+                               "repo's topics, the repos rising this week, this month and in the fleet's topics, and "
+                               "the repos most like each fleet project → _data/stars.json + _data/stars_history.json "
+                               "(docs/STARGAZER.md). About 20 GraphQL calls. Read-only on GitHub, $0."),
+    "stars-review": dict(title="Stars: the AI pass — review the radar's repos and group the stars", group="observe",
+                         argv=lambda p: [DASH, "stars", "review", "--yes", *(["--limit", str(int(p["limit"]))]
+                                                                              if str(p.get("limit") or "").isdigit() else [])],
+                         needs_token=False, needs="claude", exclusive="stars-ai", remote=lambda p: True,
+                         confirm="spend", agent="local:stars-review", params=["limit"],
+                         desc="tools/dash stars review --yes — tool-less, capped Claude sessions (dash-gen ai-run; "
+                              "_data/fleet.yml stars.ai: model, budget_usd a session, batch × max_batches repos): a "
+                              "summary, a verdict (adopt · borrow · watch · skip), the fleet project it serves and "
+                              "ideas for each repo on the review list, the stars and the trending repos like a fleet "
+                              "project, then themes over the stars → _data/stars_ai.json, laid over _data/stars.json. "
+                              "Repo text is data to the model; it reads nothing else and holds no tool. It spends "
+                              "(API-equivalent, an estimate; recorded in the AI ledger), so it asks first."),
+    "stars-metrics": dict(title="Stars: push the radar to Grafana (OTel collector → Prometheus)", group="observe",
+                          argv=lambda p: [DASH, "stars", "metrics", "--push"], needs_token=False,
+                          desc="tools/dash stars metrics --push — the radar as gauges (stars, 7-day gain, stars a day, "
+                               "similarity to the fleet, categories, languages, project matches, AI verdicts) to the "
+                               "local OTel collector, which Prometheus scrapes; the Grafana dashboard fleet-stars draws "
+                               "them. Needs the metrics profile up (tools/dash observe up). $0."),
     # The PR queue (docs/PR-QUEUE.md): every open pull request, who moves it next, and bulk actions. A
     # plan is made from live GitHub by POST /api/prs/plan (or `tools/dash prs plan`) and writes only its
     # plan file; these two apply a plan by its id, after re-planning and refusing one that moved.
@@ -1904,7 +1933,7 @@ from core_adapters import (  # noqa: E402,F401
     editorial_update, content_brief, NODES_TTL, NODES_PROBE_TIMEOUT, _NODES, _NODES_LOCK, _fleet_nodes, nodes_doc,
     _atlas_module, _default_branch_text, dispatch_inputs, dispatchable, workflow_atlas, workflow_health,
     workflow_lint, workflow_scaffold, WORK_MOVES, _WORK_LOCK, _work_module, work_inputs, work_board, work_item,
-    _work_diff, work_apply, _sprint_module, sprints_doc, VOICES_PLAN_RX, _voices, voices_stage_dir, voices_doc,
+    _work_diff, work_apply, _sprint_module, sprints_doc, STARS_FILE, stars_doc, VOICES_PLAN_RX, _voices, voices_stage_dir, voices_doc,
     voices_preview, voices_stage,
 )
 from core_jobs import (  # noqa: E402,F401

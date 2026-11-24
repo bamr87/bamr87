@@ -1,0 +1,90 @@
+name: "⭐ Stargazer"
+
+# The open-source radar's daily refresh (tools/stargazer.py, `tools/dash stars`,
+# docs/STARGAZER.md). READ-ONLY on GitHub: with the job's own token it reads the
+# account's public stars and star lists, every fleet repo's topics, the repos
+# rising this week, this month and in the fleet's topics, and the repos most
+# like each fleet project — about 20 GraphQL calls, public data only — and
+# writes two committed data files:
+#
+#   _data/stars.json          the radar (stars/v1): categories, matches, star
+#                             velocity, suspect flags, what to review, the feed
+#   _data/stars_history.json  the star counts the velocities are measured from
+#
+# They are published through utilities/publish-data (a PR when the push is
+# refused), and build-dash (08:37) republishes the site with them. It files
+# nothing, runs no model and costs $0.
+#
+# Daily 06:53 UTC, declared in _data/fleet.yml `schedule.stargazer`
+# (test_schedule.py, `tools/dash workflows lint`). New loop: the cron runs only
+# while vars.STARGAZER_ENABLED is 'true'; a manual dispatch always runs.
+# Locally: `tools/dash stars refresh` (the same tool, your own token).
+
+on:
+  schedule:
+    - cron: '53 6 * * *'   # _data/fleet.yml schedule.stargazer
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Read and build, upload the result as an artifact, but publish nothing"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stargazer
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Refresh the open-source radar
+    if: ${{ github.event_name != 'schedule' || vars.STARGAZER_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write         # publish the refreshed radar
+      pull-requests: write    # …via a PR when a direct push is refused
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup/dash-gen
+
+      - name: Read GitHub and build the radar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 tools/stargazer.py refresh --budget 600 | tee "$RUNNER_TEMP/stars.txt"
+          {
+            echo '### Open-source radar'
+            echo
+            echo '```text'
+            python3 tools/stargazer.py summary --limit 10
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: stargazer-${{ github.run_id }}
+          path: |
+            _data/stars.json
+            _data/stars_history.json
+            ${{ runner.temp }}/stars.txt
+          retention-days: 14
+
+      - name: Publish the radar
+        if: ${{ github.event_name == 'schedule' || !inputs.dry_run }}
+        uses: ./.github/actions/utilities/publish-data
+        with:
+          paths: "_data/stars.json _data/stars_history.json"
+          message: "chore(data): refresh the open-source radar (stars, trending, like the fleet) [skip ci]"
+          branch: chore/stargazer
+          title: "chore(data): open-source radar refresh"
+          body: |
+            Automated refresh of `_data/stars.json` and `_data/stars_history.json`
+            (docs/STARGAZER.md): the account's public GitHub stars, the repos
+            rising in the fleet's topics and the repos most like each fleet
+            project. Read-only on GitHub; nothing was filed or changed in any repo.
+          token: ${{ github.token }}

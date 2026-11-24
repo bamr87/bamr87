@@ -16,6 +16,7 @@ each degrades to a document that says why rather than a 500:
   WORKFLOWS      the hub's own GitHub Actions as one model
   WORK           the board of every open item, its preview and its apply
   SPRINTS        the live expedite-sprint records (read-only)
+  STARS          the open-source radar: _data/stars.json (read-only; stars-refresh writes it)
   VOICES         the editor for the fleet voice model
 
 The argv builders these sections had (`_content_sync`, `_content_file`,
@@ -745,6 +746,29 @@ def sprints_doc() -> dict:
     (the page's evidence build reads the test fixture through it)."""
     folder = Path(os.environ.get("DASH_SPRINTS_DIR") or (core.DATA / "sprints"))
     return _sprint_module().document(folder, fleet_path=core.DATA / "fleet.yml", queue_path=core.WORK_QUEUE)
+
+
+# --------------------------------------------------------------------------- #
+# STARS — the open-source radar (fleetcore/stars.py, tools/stargazer.py; docs/STARGAZER.md)
+# --------------------------------------------------------------------------- #
+STARS_FILE = core.DATA / "stars.json"
+
+
+def stars_doc() -> dict:
+    """The /api/stars document: `_data/stars.json` as committed (schema stars/v1) — the account's stars, the
+    repos rising in the fleet's topics, each fleet project's closest repos, what to review, the AI reviews and
+    themes, and the feed — with `present` and its age, or `present: false` and how to make one. Public data
+    (GitHub shows stars to anyone), so the published build carries it whole; the `stars-refresh` operation
+    rewrites it."""
+    from fleetcore import stars as fstars  # noqa: PLC0415
+    doc = yamlio.cached(("stars", str(STARS_FILE)), [STARS_FILE], lambda: fstars.load(STARS_FILE))
+    if not doc:
+        return {"schema": fstars.SCHEMA, "present": False, "generated_at": None, "age_days": None,
+                "error": "no radar yet: run `tools/dash stars refresh` (the stars-refresh operation)",
+                "totals": {}, "categories": [], "languages": [], "timeline": [], "health": {}, "starred": [],
+                "lists": [], "trending": [], "gaining": [], "fleet": [], "incorporate": [], "feed": [],
+                "errors": [], "repos": {}}
+    return {**doc, "present": True, "age_days": fstars.age_days(doc)}
 
 
 # --------------------------------------------------------------------------- #

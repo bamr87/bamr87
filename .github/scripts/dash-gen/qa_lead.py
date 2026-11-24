@@ -47,8 +47,6 @@ import sys
 import zipfile
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
 try:
     import yaml
 except ImportError:  # pragma: no cover - the workflow installs PyYAML; the defaults still hold without it

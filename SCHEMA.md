@@ -67,6 +67,7 @@ coverage: listed
 - New gate, generator, or fleet script → `tools/`
 - New agent eval set → `evals/<role>/cases.yml`, with its adapter in `tools/evals.py` (evals/SCHEMA.md)
 - New operator doc → `docs/UPPERCASE-TOPIC.md`
+- New research report → `docs/research/YYYY-MM-DD-slug.md` (docs/research/SCHEMA.md)
 - New dash surface or loop → a fragment in `features/features.d/<slug>.yml` (`id: HUB-NEW`, numbered at merge) + a user scenario in `verify/scenarios/` (docs/VERIFICATION.md)
 - New dash subcommand, loop, gate, scenario, site or submodule → also its F5 entry in `.vscode/launch.json` (+ `tasks.json`, the picker, the `.vscode/README.md` line) in the same change (constitution § 20)
 - New harness/loop diagram → `diagrams/<name>.<type>.json`, then `tools/render-diagrams.sh`

@@ -787,7 +787,7 @@ class TelemetryQueryTools(unittest.TestCase):
 class MergedFleet(unittest.TestCase):
     """tools/fleetcore/mcp_server.py folded in: same names, the legacy writes only on --fleet-compat or writes on."""
     LEGACY_READ = {"fleet_overview", "fleet_apps", "fleet_inbox", "fleet_docker", "fleet_nodes", "fleet_work",
-                   "fleet_workflows", "workflow_lint", "fleet_graph", "fleet_learning",
+                   "fleet_workflows", "workflow_lint", "fleet_graph", "fleet_learning", "fleet_stars",
                    "console_ops", "console_jobs", "console_job_log"}
 
     def test_every_tool_of_the_old_server_is_served_under_its_name(self):
