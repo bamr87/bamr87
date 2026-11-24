@@ -79,6 +79,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/SMOKE.md`](SMOKE.md) | The live smoke test: record every running container's probes, then re-run them and fail on any regression. |
 | [`docs/SPEC-DRIVEN.md`](SPEC-DRIVEN.md) | How a fleet repo turns a backlog item into a merged change with a machine-checked spec record, using machinery the hub owns. |
 | [`docs/STANDARDS.md`](STANDARDS.md) | The tiered standardization baseline — which files each kind of repository must have — and the way to the Universal Project Standard in `specs/`. |
+| [`docs/STARGAZER.md`](STARGAZER.md) | Every repository the account has starred on GitHub, sorted, categorised and measured; the repositories rising this week, this month and in the topics the fleet's projects carry; the repositories most like each fleet project, with a short… |
 | [`docs/SUBMODULES.md`](SUBMODULES.md) | The submodule workflow, documented once: where the project list lives, how a change moves (commit in the submodule first, then record its pointer here), and what the automation does in each direction. |
 | [`docs/TERMINAL-FRAMEWORK.md`](TERMINAL-FRAMEWORK.md) | The plan to consolidate the fleet's CLIs and TUIs onto bashOS: the inventory, `keys v1`, the per-repo plan and the phases. |
 | [`docs/TOKEN-ROTATION.md`](TOKEN-ROTATION.md) | The weekly credential loop: what rotating a browser-minted token can mean, the propagate / audit / re-mint split, and the values-free ledger. |
