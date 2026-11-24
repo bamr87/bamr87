@@ -43,16 +43,6 @@ Constitution § 15 asks for a completeness review on every major (§ 15.1) or fr
 | Percy, Chromatic, Argos | Hosted visual regression | Produce visual evidence; they do not judge completeness. They are paid hosted services that would add a second evidence layout beside `test/evidence/`. A repo may still use one as its evidence producer. |
 | reviewdog | Linter-to-review bridge | Posts findings; has no checklist. `pr-review.yml` already plays this role (§ 19.3). |
 
-## Decision
-
-**Build a thin QA Lead on adopted parts.** The checklist logic is small, fleet-specific and must be deterministic and eval-tested, and no surveyed tool provides that without a parallel commenting path or a vendor model making the verdict. So:
-
-- **Build** only `.github/scripts/dash-gen/qa_lead.py`: the gate, the four lines and the event, as pure functions over a pull request's facts, plus the recorder for eval cases.
-- **Adopt** `pr-review.yml` as the poster (§ 19.1), `claude-run@v2` as the model route, the `pr_ai_analysis` call shape for the advisory read, `test/evidence/` and the verify kit (and the zer0-mistakes kit) as the evidence producers, `skip-evidence` as the only waiver, and `tools/evals.py` for the eval set.
-- **Reject** hosted AI reviewers and Danger for this role. Each would add a second commenting path, a model outside the allowlist or a runtime the hub does not need. Revisit if a tool appears that can read the fleet's own registries and post through `pr-review.yml`.
-
-The decision stays vendor-neutral as 0008 asks: the verdict depends on no model, and the advisory read can move to any allowed model by changing `_data/fleet.yml` `qa_lead.model`.
-
 ## How it runs
 
 `qa-lead.yml` runs on `pull_request` with a read-only token, gates and grades with no model, and on the asks (opened, reopened, ready for review, a label) lets one capped Sonnet call add advisory notes. When it finishes, `pr-review.yml` (from the default branch) recomputes the gate and the four lines from live GitHub, so a pull request that edits QA Lead cannot grade itself. It then posts one review per head commit and result: `REQUEST_CHANGES` on any gap, `COMMENT` otherwise. Once nothing is missing, it dismisses its own earlier request for changes. A pull request from QA Lead's own identity (`github-actions[bot]`) gets one comment saying the maintainer reviews it.
@@ -61,3 +51,13 @@ The decision stays vendor-neutral as 0008 asks: the verdict depends on no model,
 - Code and tests: `.github/scripts/dash-gen/qa_lead.py`, `test_qa_lead.py`. Eval set: `evals/qa-lead/cases.yml`.
 - From a terminal: `python3 .github/scripts/dash-gen/qa_lead.py local --repo OWNER/NAME --pr N` prints the review it would post (read-only).
 - Out of scope here: JEV as the second reviewer, the fan-out to fleet repos (a later `fanout.yml` kit PR, one repo per PR), and flipping § 15.7 from warn to fail.
+
+## Decision
+
+**Build a thin QA Lead on adopted parts.** The checklist logic is small, fleet-specific and must be deterministic and eval-tested, and no surveyed tool provides that without a parallel commenting path or a vendor model making the verdict. So:
+
+- **Build** only `.github/scripts/dash-gen/qa_lead.py`: the gate, the four lines and the event, as pure functions over a pull request's facts, plus the recorder for eval cases.
+- **Adopt** `pr-review.yml` as the poster (§ 19.1), `claude-run@v2` as the model route, the `pr_ai_analysis` call shape for the advisory read, `test/evidence/` and the verify kit (and the zer0-mistakes kit) as the evidence producers, `skip-evidence` as the only waiver, and `tools/evals.py` for the eval set.
+- **Reject** hosted AI reviewers and Danger for this role. Each would add a second commenting path, a model outside the allowlist or a runtime the hub does not need. Revisit if a tool appears that can read the fleet's own registries and post through `pr-review.yml`.
+
+The decision stays vendor-neutral as amendment 0008 (ratified in #480) asks: the verdict depends on no model, and the advisory read can move to any allowed model by changing `_data/fleet.yml` `qa_lead.model`.
