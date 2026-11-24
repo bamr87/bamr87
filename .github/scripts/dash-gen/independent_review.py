@@ -41,9 +41,10 @@ import subprocess
 import sys
 from pathlib import Path, PurePosixPath
 
+# pr_review is imported from this directory, which Python puts on the path
+# when this file runs as a script (the workflow and `local`); tests add it.
 HERE = Path(__file__).resolve().parent
 HUB = HERE.parents[2]
-sys.path.insert(0, str(HERE))
 
 MARK = "independent-review"
 SCOPES = ("non-technical", "content-files")

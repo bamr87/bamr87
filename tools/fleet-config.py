@@ -1573,11 +1573,7 @@ def oauth_refresh(policy: dict, refresh_token: str) -> tuple[dict | None, str]:
     if not endpoints or not client_id:
         return None, "refresh policy is missing endpoints or client_id"
 
-    grant = {
-        "grant_type": "refresh_token",
-        "refresh_token": refresh_token,
-        "client_id": client_id,
-    }
+    grant = {"grant_type": "refresh_token", "refresh_token": refresh_token, "client_id": client_id}
     if policy.get("scope"):
         grant["scope"] = policy["scope"]
     payload = json.dumps(grant).encode()
@@ -1614,62 +1610,17 @@ def oauth_refresh(policy: dict, refresh_token: str) -> tuple[dict | None, str]:
     return None, "; ".join(problems) or "no endpoint responded"
 
 
-# The refresh kinds a contract entry's `rotation.refresh.kind` can name. The
-# default exchanges a separate refresh secret for a new access token (Claude);
-# `codex_auth_json` refreshes a bundle that carries its own refresh token.
-REFRESH_KIND_CODEX = "codex_auth_json"
+REFRESH_KIND_CODEX = "codex_auth_json"  # = codex_oauth.KIND (test_fleet_config holds them equal)
 
 
-def codex_bundle(text: str) -> tuple[dict | None, str]:
-    """Parse a Codex `auth.json` and say whether it can be refreshed.
-
-    A ChatGPT login writes `tokens: {id_token, access_token, refresh_token,
-    account_id}` and `last_refresh`; an API-key login writes OPENAI_API_KEY and
-    no refresh token, and must never reach the fleet (openai_auth: refuses it).
-    """
-    try:
-        bundle = json.loads(text)
-    except (TypeError, ValueError):
-        return None, "the value is not JSON (expected the auth.json `codex login` writes)"
-    if not isinstance(bundle, dict):
-        return None, "the value is not a JSON object"
-    tokens = bundle.get("tokens")
-    if not isinstance(tokens, dict) or not tokens.get("refresh_token"):
-        return None, "no tokens.refresh_token in the bundle (an API-key login, or a truncated paste)"
-    if bundle.get("OPENAI_API_KEY"):
-        return None, "the bundle carries an OPENAI_API_KEY; seed a ChatGPT login, never a key"
-    for key in ("access_token", "refresh_token", "id_token"):
-        if tokens.get(key):
-            mask(str(tokens[key]))
-    return bundle, ""
-
-
-def codex_refresh(policy: dict, text: str) -> tuple[str | None, str]:
-    """Refresh a Codex ChatGPT-login bundle and return the new auth.json.
-
-    UNOFFICIAL, same footing as `oauth_refresh` (it is the grant the Codex CLI
-    refreshes with). OpenAI's refresh tokens rotate, so the old bundle stops
-    working once this succeeds: the caller must write the result hub-first and
-    then to every repo, and treat a failed hub write as `refresh-store-failed`.
-    The result is one compact line, so the log scrubber masks it whole.
-    """
-    bundle, why = codex_bundle(text)
-    if bundle is None:
-        return None, why
-    tokens = dict(bundle["tokens"])
-    result, why = oauth_refresh(policy, tokens["refresh_token"])
-    if result is None:
-        return None, why
-    tokens["access_token"] = result["access_token"]
-    if result.get("refresh_token"):
-        tokens["refresh_token"] = result["refresh_token"]
-    if result.get("id_token"):
-        tokens["id_token"] = result["id_token"]
-    fresh = {**bundle, "tokens": tokens,
-             "last_refresh": utcnow().strftime("%Y-%m-%dT%H:%M:%S.%fZ")}
-    value = json.dumps(fresh, separators=(",", ":"))
-    mask(value)
-    return value, f"refreshed the ChatGPT OAuth bundle via {result['endpoint']}"
+def _codex():
+    """tools/codex_oauth.py (the CODEX_AUTH_JSON bundle), loaded by path: this file is
+    imported from other directories, and the hub's modules never touch sys.path."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("codex_oauth", Path(__file__).with_name("codex_oauth.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def value_looks_right(value: str, prefixes: list[str], pattern: str = "") -> bool:
@@ -2136,9 +2087,7 @@ def cmd_rotate(args: argparse.Namespace) -> int:
         if needs_human_mint(rows, pol, hub_nwo,
                             bool(t.get("required"))) and not minted:
             attention.append("needs-mint")
-        # A self-refreshing bundle that could not be refreshed ages out of its
-        # consumers' window within days (openai_auth.max_seed_age_days), so it
-        # is worth a person's attention at once, not at the end of a lifetime.
+        # A bundle that failed to refresh ages out of its consumers within days.
         if t.get("_refresh_failed"):
             attention.append("needs-reseed")
         # Only a REQUIRED secret missing its value is worth anyone's attention.
@@ -2234,7 +2183,7 @@ def cmd_rotate(args: argparse.Namespace) -> int:
         # The grant returns a NEW refresh token and invalidates the one we sent.
         # Failing to store it would strand the loop: next week's run would
         # present a dead credential and silently fall back to propagate-only.
-        # A self-refreshing bundle IS its own store: the hub's copy of it.
+        # A self-refreshing bundle's store is the hub's copy of it.
         if (minted and (pol.get("refresh") or {}).get("kind") == REFRESH_KIND_CODEX
                 and args.apply and hub_nwo not in written):
             attention.append("refresh-store-failed")
@@ -2301,12 +2250,8 @@ def resolve_value(token: dict, pol: dict, source: str,
     operator exported (a `claude setup-token` mint, or the hub's current copy
     handed in by the workflow). Anything that fails falls THROUGH to the next
     source rather than aborting — propagate-and-alert is a useful run, and it
-    is the only run available when the refresh grant is not provisioned.
-
-    A self-refreshing bundle (`refresh.kind: codex_auth_json`) is refreshed
-    only when the run applies: the grant consumes the refresh token it is
-    given, so a dry run that refreshed and then wrote nothing would leave every
-    stored copy holding a dead token.
+    is the only run available when the refresh grant is not provisioned. A
+    `codex_auth_json` bundle refreshes only when the run applies (codex_oauth.py).
     """
     name = token["name"]
     refresh_pol = pol.get("refresh") or {}
@@ -2314,29 +2259,10 @@ def resolve_value(token: dict, pol: dict, source: str,
     want_refresh = source in ("auto", "refresh") and refresh_secret
 
     if want_refresh and refresh_pol.get("kind") == REFRESH_KIND_CODEX:
-        seeded = os.environ.get(refresh_secret, "").strip()
-        if not seeded:
-            if source == "refresh":
-                return None, "refresh", False, (
-                    f"{refresh_secret} is not in the environment — nothing to refresh")
-        elif not apply:
-            mask(seeded)
-            if source == "refresh":
-                return None, "refresh", False, (
-                    "dry run: the ChatGPT OAuth bundle is refreshed only with --apply "
-                    "(the grant consumes its refresh token)")
-            print("  \033[2mdry run: would refresh the ChatGPT OAuth bundle; "
-                  "planning with the seeded value\033[0m")
-            return seeded, "seed", False, "using the seeded value from the environment"
-        else:
-            value, why = codex_refresh(refresh_pol, seeded)
-            if value:
-                return value, "refresh", True, why
-            token["_refresh_failed"] = why
-            if source == "refresh":
-                return None, "refresh", False, f"refresh grant failed: {why}"
-            print(f"  \033[2mrefresh grant unavailable ({why}) — "
-                  f"falling back to the seeded value\033[0m")
+        decided = _codex().resolve(token, refresh_pol, source, apply,
+                                   grant=oauth_refresh, mask=mask, now=utcnow)
+        if decided:
+            return decided
         want_refresh = False
 
     if want_refresh:
@@ -2408,9 +2334,7 @@ REASON_TEXT = {
                              "The grant consumed the old refresh token, so the loop will "
                              "fall back to propagate-only until it is re-seeded."),
     "needs-reseed": ("The ChatGPT OAuth bundle could not be refreshed",
-                     "Consumers stop using CODEX_AUTH_JSON once it is older than "
-                     "openai_auth.max_seed_age_days, so image generation and the independent "
-                     "review go idle within days. Re-seed it from a dedicated login with "
+                     "Consumers stop using CODEX_AUTH_JSON within days. Re-seed it with "
                      "`tools/openai-auth.sh seed --apply` (docs/OPENAI-AUTH.md)."),
 }
 

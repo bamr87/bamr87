@@ -582,7 +582,7 @@ def test_the_openai_bundle_rides_the_rotation_and_is_shaped_like_a_chatgpt_login
     tok = rotating["CODEX_AUTH_JSON"]
     pol = tok["_rotation"]
     assert tok["scope"] == "fleet" and not tok.get("required")
-    assert pol["refresh"]["kind"] == fc.REFRESH_KIND_CODEX
+    assert pol["refresh"]["kind"] == fc.REFRESH_KIND_CODEX == fc._codex().KIND
     assert pol["refresh"]["secret"] == "CODEX_AUTH_JSON", "the bundle refreshes itself"
     assert live["openai_auth"]["secret"] == "CODEX_AUTH_JSON"
     compact = json.dumps(json.loads(_codex_bundle()), separators=(",", ":"))
@@ -602,14 +602,19 @@ def test_the_openai_bundle_rides_the_rotation_and_is_shaped_like_a_chatgpt_login
 
 
 def test_a_bundle_without_a_refresh_token_is_refused_before_any_grant():
-    bundle, why = fc.codex_bundle(json.dumps({"OPENAI_API_KEY": "sk-x"}))
+    """tools/codex_oauth.py, which fleet-config loads by path (not via sys.path)."""
+    parse = fc._codex().parse
+    masked = []
+    bundle, why = parse(json.dumps({"OPENAI_API_KEY": "sk-x"}), masked.append)
     assert bundle is None and "refresh_token" in why, why
-    bundle, why = fc.codex_bundle("not json")
+    bundle, why = parse("not json", masked.append)
     assert bundle is None and "JSON" in why, why
-    bundle, why = fc.codex_bundle(_codex_bundle(OPENAI_API_KEY="sk-x"))
+    bundle, why = parse(_codex_bundle(OPENAI_API_KEY="sk-x"), masked.append)
     assert bundle is None and "OPENAI_API_KEY" in why, why
-    bundle, why = fc.codex_bundle(_codex_bundle())
+    assert masked == [], "nothing is masked from a bundle that is refused"
+    bundle, why = parse(_codex_bundle(), masked.append)
     assert bundle and not why
+    assert sorted(masked) == ["at-old", "id-old", "rt-old"], "every token is masked, the account id is not"
 
 
 def test_a_dry_run_never_refreshes_the_openai_bundle():
