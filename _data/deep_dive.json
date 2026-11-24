@@ -2,15 +2,15 @@
   "schema": "deep-dive/v1",
   "owner": "bamr87",
   "label": "deep-dive",
-  "refreshed_at": "2026-11-23T12:27:16Z",
+  "refreshed_at": "2026-11-24T12:27:23Z",
   "summary": {
-    "as_of": "2026-11-23",
+    "as_of": "2026-11-24",
     "cycle": 1,
     "cycle_start": "2026-10-30",
     "cycle_end": "2026-12-10",
     "cycle_days": 42,
     "total": 38,
-    "day": 25,
+    "day": 26,
     "processed": 14,
     "counts": {
       "pending": 24,
@@ -20,20 +20,20 @@
     },
     "progress": 0.3684,
     "today": {
-      "date": "2026-11-23",
-      "cycle": 1,
-      "day": 25,
-      "cycle_days": 42,
-      "kind": "scheduled",
-      "repo": "cv-pro"
-    },
-    "next": {
       "date": "2026-11-24",
       "cycle": 1,
       "day": 26,
       "cycle_days": 42,
       "kind": "scheduled",
       "repo": "rsa-challenge"
+    },
+    "next": {
+      "date": "2026-11-25",
+      "cycle": 1,
+      "day": 27,
+      "cycle_days": 42,
+      "kind": "scheduled",
+      "repo": "ragio-ai"
     },
     "last": "cv-pro",
     "last_date": "2026-11-23",
