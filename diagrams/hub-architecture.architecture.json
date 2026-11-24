@@ -1,0 +1,354 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Hub architecture — bamr87 control plane",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1380,
+      620
+    ],
+    "views": [
+      {
+        "id": "data-path",
+        "label": "Data path",
+        "focus": [
+          "registries",
+          "generators",
+          "snapshots",
+          "core",
+          "surfaces"
+        ],
+        "note": "Facts are written once in the registries; everything to the right is a projection that can be regenerated."
+      },
+      {
+        "id": "automation-path",
+        "label": "Automation path",
+        "focus": [
+          "kits",
+          "loops",
+          "generators",
+          "fleet"
+        ],
+        "note": "Loops run the generators on a schedule and reach the fleet only through pull requests and issues."
+      },
+      {
+        "id": "control-path",
+        "label": "Control path",
+        "focus": [
+          "governance",
+          "gates",
+          "registries",
+          "maintainer",
+          "surfaces",
+          "fleet"
+        ],
+        "note": "Rules become gates, gates hold the registries true, and only the maintainer merges."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "gates",
+      "type": "security",
+      "label": "Gates",
+      "sublabel": "check-drift · lints",
+      "pos": [
+        40,
+        100
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "tag": "fail the PR"
+    },
+    {
+      "id": "governance",
+      "type": "frontend",
+      "label": "Governance",
+      "sublabel": "constitution · ADRs",
+      "pos": [
+        270,
+        100
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "tag": "rules"
+    },
+    {
+      "id": "maintainer",
+      "type": "external",
+      "label": "Maintainer",
+      "sublabel": "reviews · confirms",
+      "pos": [
+        1190,
+        100
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "registries",
+      "type": "database",
+      "label": "Registries",
+      "sublabel": "projects · fleet.yml",
+      "pos": [
+        40,
+        290
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "tag": "source of truth"
+    },
+    {
+      "id": "generators",
+      "type": "backend",
+      "label": "Generators",
+      "sublabel": "dash-gen",
+      "pos": [
+        270,
+        290
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "tag": "deterministic"
+    },
+    {
+      "id": "snapshots",
+      "type": "database",
+      "label": "Snapshots",
+      "sublabel": "_data/ · the lake",
+      "pos": [
+        500,
+        290
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "tag": "committed"
+    },
+    {
+      "id": "core",
+      "type": "backend",
+      "label": "Shared core",
+      "sublabel": "fleetcore · console",
+      "pos": [
+        730,
+        290
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "tag": "one model"
+    },
+    {
+      "id": "surfaces",
+      "type": "frontend",
+      "label": "Surfaces",
+      "sublabel": "CLI · web · TUI · MCP",
+      "pos": [
+        960,
+        290
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "tag": "four doors"
+    },
+    {
+      "id": "kits",
+      "type": "messagebus",
+      "label": "Standards + kits",
+      "sublabel": "specs/ · templates/",
+      "pos": [
+        40,
+        480
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "tag": "fanned out"
+    },
+    {
+      "id": "loops",
+      "type": "backend",
+      "label": "Loops",
+      "sublabel": "workflows · JEV · weekly",
+      "pos": [
+        270,
+        480
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "tag": "capped"
+    },
+    {
+      "id": "fleet",
+      "type": "cloud",
+      "label": "Fleet",
+      "sublabel": "~40 submodule repos",
+      "pos": [
+        1190,
+        480
+      ],
+      "size": [
+        150,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Hub: bamr87/bamr87 (the control plane)",
+      "wraps": [
+        "gates",
+        "governance",
+        "registries",
+        "generators",
+        "snapshots",
+        "core",
+        "surfaces",
+        "kits",
+        "loops"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "registries-read",
+      "from": "registries",
+      "to": "generators",
+      "label": "read",
+      "variant": "emphasis"
+    },
+    {
+      "id": "generators-write",
+      "from": "generators",
+      "to": "snapshots",
+      "label": "write",
+      "variant": "emphasis"
+    },
+    {
+      "id": "snapshots-load",
+      "from": "snapshots",
+      "to": "core",
+      "label": "load",
+      "variant": "emphasis"
+    },
+    {
+      "id": "core-serves",
+      "from": "core",
+      "to": "surfaces",
+      "label": "serve",
+      "variant": "emphasis"
+    },
+    {
+      "id": "governance-rules",
+      "from": "governance",
+      "to": "gates",
+      "label": "rules",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "gates-verify",
+      "from": "gates",
+      "to": "registries",
+      "label": "verify parity",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        110,
+        227
+      ]
+    },
+    {
+      "id": "kits-seed",
+      "from": "kits",
+      "to": "loops",
+      "label": "seed"
+    },
+    {
+      "id": "loops-run",
+      "from": "loops",
+      "to": "generators",
+      "label": "run on schedule",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "loops-propose",
+      "from": "loops",
+      "to": "fleet",
+      "label": "draft PRs · issues · kit PRs",
+      "variant": "emphasis"
+    },
+    {
+      "id": "maintainer-operates",
+      "from": "maintainer",
+      "to": "surfaces",
+      "label": "operates",
+      "fromSide": "left",
+      "toSide": "top"
+    },
+    {
+      "id": "maintainer-merges",
+      "from": "maintainer",
+      "to": "fleet",
+      "label": "merges",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        1260,
+        322
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "One direction of data",
+      "items": [
+        "Registries are written by hand; every other file is a projection",
+        "Generators are deterministic and run offline from fixtures",
+        "The drift gate fails a PR when a projection disagrees"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Who may write",
+      "items": [
+        "Tools are read-only by default; writes go plan, confirm, apply",
+        "Every loop has a kill switch, a budget cap and a ledger",
+        "Agents open pull requests; only the maintainer merges"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "What holds the shape",
+      "items": [
+        "A unit imports from its own layer or a lower one, never up",
+        "A source file stays under 1,500 lines; larger ones sit in a ledger that only shrinks",
+        "tools/focus.py names the checks a change owes, in one pass"
+      ]
+    }
+  ]
+}

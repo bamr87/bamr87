@@ -8,7 +8,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "tsc -b --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@mantine/charts": "*",
@@ -36,10 +37,12 @@
     "@types/react": "*",
     "@types/react-dom": "*",
     "@vitejs/plugin-react": "*",
+    "jsdom": "*",
     "postcss": "*",
     "postcss-preset-mantine": "*",
     "postcss-simple-vars": "*",
     "typescript": "*",
-    "vite": "*"
+    "vite": "*",
+    "vitest": "*"
   }
 }

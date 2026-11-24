@@ -757,6 +757,18 @@
       "presentation": { "group": "4-generate", "order": 8 }
     },
     {
+      // The AI review a pull request gets when it is marked ready (constitution § 19.7,
+      // templates/pr-review/README.md "AI review"), run here in a capped local session:
+      // read-only tools, the review printed, nothing posted. The posted review is
+      // pr-ai-review.yml's.
+      "name": "🔎 AI review: one pull request in a local session (posts nothing)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash prs review --pr '${input:pullRequestRef}'",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 8 }
+    },
+    {
       "name": "🗺️ Workflow atlas: list / health (from the lake)",
       "type": "node-terminal",
       "request": "launch",
@@ -960,6 +972,24 @@
       "command": "tools/dash pm releases",
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "4-generate", "order": 23 }
+    },
+    // Fleet uplift (docs/UPLIFT.md): the inbound arc. Reads the local submodule
+    // checkouts only; filing a candidate is `tools/dash uplift file <key> --apply`, typed.
+    {
+      "name": "⬆️ Fleet uplift: what one repo improved that the others still lack",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash uplift scan",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 24 }
+    },
+    {
+      "name": "⬆️ Fleet uplift: the work order for the top candidates",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash uplift brief --top 5",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 25 }
     },
 
     // ----------------------------------------------------------------- LOOPS
@@ -1798,6 +1828,13 @@
       "default": "action:bamr87/bamr87:claude-cost"
     },
     {
+      // One pull request of a registry repo (tools/dash prs queue lists them).
+      "id": "pullRequestRef",
+      "description": "Pull request as owner/repo#number",
+      "type": "promptString",
+      "default": "bamr87/bamr87#1"
+    },
+    {
       // Loops with a local: block (tools/dash loop list).
       "id": "loopId",
       "description": "Loop id (tools/dash loop list)",
@@ -1897,6 +1934,10 @@
         "python3 tools/gen-catalog.py --check",
         "python3 -m tools.jev generated guard --base origin/main",
         "python3 tools/governance_lint.py check .",
+        "python3 tools/architecture.py check",
+        "python3 tools/architecture.py report",
+        "python3 tools/focus.py",
+        "python3 tools/focus.py --run --keep-going",
         "tools/dash agents --check --verbose",
         "tools/dash workflows lint --strict",
         "tools/dash-gen compose --check",

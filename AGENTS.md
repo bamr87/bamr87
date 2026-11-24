@@ -8,11 +8,11 @@
 
 A monorepo of Git submodules under `projects/` that doubles as a self-managing **dash** and a GitHub profile README. Each submodule is a separate repository with its own stack, branch and release cycle; there is no shared build. The root (`tools/`, `.github/`, `_data/`, `specs/`, `templates/`, `docs/`, `pages/`) is the machinery that manages, monitors, documents and standardizes them, and the published site at bamr87.github.io/bamr87 is the Harness Console built static.
 
-A change is done when `tools/check-drift.sh` is green, the focused tests for what you touched pass (table below), the nearest `README.md` and `SCHEMA.md` say what changed, and any generated projection you affected has been regenerated.
+A change is done when `tools/check-drift.sh` is green, the focused tests for what you touched pass (`tools/focus.py`, table below), the nearest `README.md` and `SCHEMA.md` say what changed, and any generated projection you affected has been regenerated.
 
 ## Stack & commands
 
-Python 3.12 (stdlib + PyYAML, PyGithub), Bash, a FastAPI + React console, GitHub Actions. Toolchain versions live in `_data/fleet.yml` `toolchain:`. Prefer the `devenv` container (`/workspace`); copy `.env.example` to `.env` before the first start.
+Python 3.12 (stdlib + PyYAML, PyGithub), Bash, a FastAPI + Django + React console, GitHub Actions. Toolchain versions live in `_data/fleet.yml` `toolchain:`. Prefer the `devenv` container (`/workspace`); copy `.env.example` to `.env` before the first start.
 
 ```bash
 tools/dash up                                                  # shared core: devenv, console, one Postgres, one Redis
@@ -58,7 +58,7 @@ See [`SCHEMA.md`](SCHEMA.md) and the chain of `SCHEMA.md` files down to where yo
 ## Conventions
 
 - **Backlog of record:** GitHub Issues with the fleet labels; cross-repo initiatives in `_data/roadmap.yml`. **Definition of Done:** `.github/pull_request_template.md`. **Decisions:** `docs/adr/`.
-- **Commits:** Conventional Commits (`feat fix docs style refactor test chore perf ci`). **Branches:** `feature/`, `fix/`, `docs/`, `refactor/`, `test/`.
+- **Commits:** Conventional Commits (`feat fix docs style refactor test chore perf ci`). **Branches:** `<type>/…` ([BRANCHING.md](docs/BRANCHING.md)).
 - **README-First, README-Last:** read the nearest `README.md` before changing a directory and update it after.
 - **SCHEMA protocol:** place files per the nearest `SCHEMA.md` `## Placement`; a new directory is created with its `SCHEMA.md` (from `templates/schema/SCHEMA.template.md`) and a row in its parent; any add, remove or rename updates the local `SCHEMA.md` in the same commit. `python3 tools/schema_lint.py check . --fix` fixes mechanical drift. The kit is vendored from bamr87/SCHEMA: improvements go upstream first, then re-vendor ([docs/SCHEMA-FRAMEWORK.md](docs/SCHEMA-FRAMEWORK.md)).
 - **Dependencies are always latest:** no exact pins, no ceilings, no committed lockfiles. Actions ride major tags; pre-commit `rev:` pins and `toolchain:` versions are the exceptions ([docs/DEPENDENCIES.md](docs/DEPENDENCIES.md)).
@@ -107,6 +107,7 @@ Each of these came from an incident; the linked doc tells it.
 | --- | --- | --- |
 | `fleet-pulse.yml` | Daily: gather every fleet signal in one commit, rank failing + expensive workflows, the Opus `doctor` opens fix PRs | [DAILY-ANALYSIS.md](docs/DAILY-ANALYSIS.md) |
 | `issue-pipeline.yml` | Label-driven three-tier loop: intake with an evidence bundle → implement → complete; never merges; `agent:hold` / `human-review` brake it | [ISSUE-PIPELINE.md](docs/ISSUE-PIPELINE.md) |
+| `pr-ai-review.yml`, `tools/dash prs review` | When a pull request is opened ready, marked ready or given the `review` label, never on a push: one capped session with read-only tools and no GitHub credential reviews the diff, and `pr-review.yml` posts its findings inline and one comment-only review per head commit that says who does what next (an agent, the author, the maintainer); the pull request is never checked out; it never approves or merges; a dispatch is a dry run; new loop, so off unless `vars.PR_AI_REVIEW_ENABLED` is `true` | [templates/pr-review/](templates/pr-review/README.md#ai-review) |
 | `token-rotation.yml`, `api-keys.yml` | Weekly credential propagate / audit / re-mint; Anthropic Console key expiry | [TOKEN-ROTATION.md](docs/TOKEN-ROTATION.md) |
 | `repo-evolution.yml` | Weekly draft improvement PRs in each `auto_evolve` submodule's own repo | [EVOLUTION.md](docs/EVOLUTION.md) |
 | `repo-scout.yml` | Daily: a rotating sample of owned repos, a Sonnet agent with no GitHub credential proposes, the `file` job opens labelled issues for the issue pipeline; new loop, so off unless `vars.REPO_SCOUT_ENABLED` is `true` | [SCOUT.md](docs/SCOUT.md) |

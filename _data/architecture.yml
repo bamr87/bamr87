@@ -1,0 +1,140 @@
+# _data/architecture.yml — the hub's structure contract (schema architecture/v1).
+# Read by tools/architecture.py, which fails a change that breaks it
+# (tools/test_architecture.py runs it on every pull request). ADR 0016 is the
+# decision; docs/ARCHITECTURE.md explains each rule and how to work inside it.
+#
+# It lives here and not in fleet.yml on purpose: fleet.yml is the control
+# plane's runtime settings, and this is the shape of the code that reads them.
+schema: architecture/v1
+
+limits:
+  # A source file past this is listed in the ledger below, or the check fails.
+  module_lines: 1500
+  # A committed _data file past this fails. No ledger: nothing is over today.
+  data_file_kb: 512
+  # Room a ledgered file is recorded with: its length plus 50 to 100 lines, so
+  # a small fix fits and the ledger is not edited by every pull request. A file
+  # that has dropped twice this far under its number must be recorded again at
+  # the lower number in the same change.
+  ledger_headroom_lines: 100
+
+# What counts as a source file for module_lines. Tests are never counted, and
+# node_modules, dist and vendor directories are skipped.
+sources:
+  - tools/**/*.py
+  - .github/scripts/**/*.py
+  - tools/**/*.sh
+  - tools/dash
+  - tools/console/web/src/**/*.ts
+  - tools/console/web/src/**/*.tsx
+  - .github/workflows/*.yml
+
+# Code units, lowest first. A unit may import from its own layer or a lower
+# one, never a higher one. The loose scripts directly under tools/ are entry
+# points and are not layered.
+layers:
+  - id: generators
+    paths:
+      - .github/scripts/dash-gen
+  - id: core
+    paths:
+      - tools/fleetcore
+  - id: engines
+    paths:
+      - tools/jev
+      - tools/weekly
+  - id: surfaces
+    paths:
+      - tools/console
+      - tools/tui
+
+# Imports that go up a layer today. Each is a lazy import inside one function.
+# Removing one means moving the shared code down; adding one needs a `why`.
+layer_exceptions:
+  - file: .github/scripts/dash-gen/fleet_lake.py
+    imports: fleetcore
+    why: The lake stores the assistant's audit rows through fleetcore.assistlog, the one reader of that record. The reader belongs below the lake.
+  - file: .github/scripts/dash-gen/pr_readiness.py
+    imports: pr_queue
+    why: Merge readiness reuses the PR queue's live_row for one pull request. The row logic belongs in a unit both can import.
+  - file: .github/scripts/dash-gen/pr_ai_review.py
+    imports: jev
+    why: A local review session reuses the JEV runner's work-root helpers (tools.jev.headless). Those helpers belong in a unit both can import.
+  - file: tools/fleetcore/mcp_server.py
+    imports: mcp_layer
+    why: Compatibility entry point that hands over to the console's MCP layer, which replaced it. Goes when the stdlib fallback is retired.
+  - file: tools/fleetcore/prqueue.py
+    imports: weekly
+    why: The queue asks the review gate that tools/weekly/closeout.py encodes. The gate rules belong in the core.
+  - file: tools/weekly/closeout.py
+    imports: decision_index
+    why: The Friday close reads the decision index, which lives with the console. The index belongs in the core.
+
+# What the tree carries past a limit, and the number each file is held to.
+# Written by `python3 tools/architecture.py ledger --write`; it lowers and
+# drops entries and never raises one. Keep this the last key in the file.
+ledger:
+  sizes:
+    .github/scripts/dash-gen/content_atlas.py: 1700
+    .github/scripts/dash-gen/fleet_context.py: 1850
+    .github/scripts/dash-gen/fleet_lake.py: 2850
+    .github/scripts/dash-gen/harness_registry.py: 2100
+    .github/scripts/dash-gen/issue_pipeline.py: 2400
+    .github/scripts/dash-gen/workflow_atlas.py: 1800
+    tools/conformance.py: 2250
+    tools/console/app.py: 1700
+    tools/console/core.py: 2000
+    tools/console/mcp_layer/server.py: 1900
+    tools/console/web/src/api/types.ts: 1600
+    tools/fanout.sh: 1600
+    tools/fleet-config.py: 2500
+    tools/jev/headless.py: 2050
+    tools/jev/loop.py: 1750
+    tools/weekly/core.py: 1900
+  sys_path:
+    .github/scripts/dash-gen/agent_inventory.py: 1
+    .github/scripts/dash-gen/ai_activity.py: 1
+    .github/scripts/dash-gen/evolution.py: 1
+    .github/scripts/dash-gen/fleet_lake.py: 1
+    .github/scripts/dash-gen/issue_pipeline.py: 1
+    .github/scripts/dash-gen/pr_ai_analysis.py: 1
+    .github/scripts/dash-gen/pr_ai_review.py: 2
+    .github/scripts/dash-gen/pr_readiness.py: 2
+    .github/scripts/dash-gen/pr_review.py: 1
+    .github/scripts/dash-gen/remediation.py: 1
+    .github/scripts/dash-gen/repo_scout.py: 1
+    .github/scripts/dash-gen/work_board.py: 1
+    .github/scripts/dash-gen/workflow_atlas.py: 1
+    .github/scripts/dash-gen/workflow_sync.py: 1
+    tools/backlog_fanout.py: 1
+    tools/conformance.py: 1
+    tools/console/app.py: 1
+    tools/console/assist_eval_console.py: 1
+    tools/console/backend/manage.py: 2
+    tools/console/core.py: 5
+    tools/console/core_adapters.py: 3
+    tools/console/core_jobs.py: 2
+    tools/console/core_refine.py: 1
+    tools/console/decision_index.py: 2
+    tools/console/dispatch.py: 1
+    tools/console/mcp_layer/server.py: 2
+    tools/console/ops_cli.py: 2
+    tools/console/pr_queue.py: 2
+    tools/console/site_docs.py: 1
+    tools/console/smoke_mcp_layer.py: 1
+    tools/console/snapshot.py: 2
+    tools/docker_view.py: 1
+    tools/evals.py: 3
+    tools/fleet-compose.py: 1
+    tools/fleetcore/graph.py: 1
+    tools/fleetcore/mcp_server.py: 4
+    tools/fleetcore/prqueue.py: 1
+    tools/fleetcore/workflows.py: 1
+    tools/frontend_registry.py: 1
+    tools/pm_review.py: 2
+    tools/projects_backfill.py: 1
+    tools/scorecard_snapshot.py: 1
+    tools/tui/app.py: 1
+    tools/voices.py: 2
+    tools/weekly/closeout.py: 1
+    tools/weekly/core.py: 3

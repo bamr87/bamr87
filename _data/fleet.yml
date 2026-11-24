@@ -131,6 +131,65 @@ hub:
   owners: [bamr87, bash-365, year-of-ai, ai-world-view]
 
 # --------------------------------------------------------------------------- #
+# Branches — the fleet's branch model, declared once (docs/BRANCHING.md,
+# ADR 0015, UPS-QA-35/36).
+#
+# One long-lived branch per repo; every other branch is short-lived and lands
+# by pull request with a MERGE COMMIT (constitution § 12.2: never squash or
+# rebase). tools/branch_policy.py reads this block to classify a branch name
+# (`classify`), and to plan, apply or audit the default branch's protection as
+# ONE named ruleset per repo (`dash protect`: a dry run unless --apply;
+# `--check` audits). test_branch_policy.py holds every branch name the hub's
+# own tools create to a prefix declared here, and jev ratify's automation
+# prefixes to the `automation` list.
+#
+# A prefix is matched literally against the start of the name; the most
+# specific (longest) declared prefix wins, so `chore/jev-ratify` is automation
+# although `chore/` is a work prefix. A loop that reuses one stable branch
+# under a work prefix (`chore/standardize-baseline`, `ci/pr-review`, …) names
+# it in its own code; jev ratify reads those from the workflows' `branch:`.
+# --------------------------------------------------------------------------- #
+branches:
+  default: main
+  merge_method: merge               # § 12.2, and the only method the ruleset allows
+  # A change someone asked for: a Conventional Commit type (UPS-QA-30), plus the
+  # long-standing feature/. The hub's own fan-outs already use feat/ ci/ style/.
+  work: [feat/, feature/, fix/, docs/, style/, refactor/, perf/, test/, build/, ci/, chore/]
+  # An agent session a person directs and names the branch of; its pull request
+  # is that person's work, so it is reviewed and ratifies like a work branch.
+  sessions:
+    - prefix: claude/
+      owner: Claude Code on the web (the platform names the session's branch)
+  # A loop owns the namespace: it creates, reuses and deletes these branches,
+  # and a person does not push to them.
+  automation:
+    - prefix: agent/issue-
+      owner: issue-pipeline.yml tier 2 (issue_pipeline.branch_prefix)
+    - prefix: ai-evolution/
+      owner: repo-evolution.yml (evolution.branch_prefix)
+    - prefix: chore/jev-
+      owner: jev-number.yml (ids, generated files and ratification records)
+    - prefix: wip/mac/
+      owner: tools/dash weekly confirm --apply (local-only commits saved off the Mac)
+    - prefix: wtd/
+      owner: the wtd agents (bamr87/gitorio)
+    - prefix: dependabot/
+      owner: Dependabot
+    - prefix: release-please--
+      owner: release-please (the release PR's branch)
+  # The default branch's protection, projected by tools/branch_policy.py as one
+  # ruleset per repo. Only the maintainer applies it (constitution § 4): an
+  # agent may plan it and audit it, never apply it.
+  protection:
+    ruleset: fleet-default-branch   # the one ruleset the tool owns; others are left alone
+    approvals: 0                    # the review gate is the needs-amr label (§ 12.3-12.4); agents open pull requests with the maintainer's token, so a required approval is one nobody can give. --approvals N where a repo's constitution asks for one
+    strict: false                   # a merge-commit flow does not need an up-to-date head; JEV merges the base in on a conflict
+    admin_bypass: true              # parity with the old enforce_admins=false: publish-data's sanctioned push keeps working; --enforce-admins drops it
+    block_force_push: true
+    block_deletion: true
+    linear_history: false           # never true: it forbids the merge commit § 12.2 requires
+
+# --------------------------------------------------------------------------- #
 # Loop cadence (UTC) — the hub's SCHEDULE MAP. Every hub workflow that carries
 # a `schedule:` is declared here with the SAME cron; test_schedule.py fails on
 # any divergence in either direction (update_submodules once said weekly here
@@ -642,6 +701,78 @@ pm:
     max_per_kind: 20
 
 # --------------------------------------------------------------------------- #
+# Uplift — the hub's INBOUND arc (docs/UPLIFT.md, `tools/dash uplift`).
+#
+# The hub pushes out (kits, the backlog fan-out) and works inside one repo (the
+# scout, the evolution loop). Uplift carries an improvement one repo made back
+# up: it reads every fleet repo's default branch from the local submodule
+# checkouts and compares file contents. A repo that changed a file other repos
+# still hold in an earlier version, byte for byte, is a CANDIDATE: they never
+# changed it on their own, so they can take the new content as it is. Content that is the hub's own,
+# that came in on a fan-out branch, that carries a newer kit stamp or that
+# `rollout_min` repos already hold is a ROLLOUT in flight, never one repo's
+# improvement. No GitHub read, no model, no schedule. `uplift file <key>`
+# previews a hub issue for the issue pipeline and `--apply`, typed by a person,
+# files exactly the previewed bytes, inside the caps below. tools/uplift.py
+# carries the same values as its fallback; test_uplift.py holds the two equal.
+# --------------------------------------------------------------------------- #
+uplift:
+  days: 14                  # the window of default-branch history a scan reads
+  rollout_min: 3            # content this many repos hold is a rollout, not one repo's improvement
+  fork_min: 3               # this many different contents made from one earlier version is a seed each repo fills in
+  stale_days: 3             # a checkout last fetched longer ago is reported: newer commits are not seen
+  max_rows: 40              # rows printed per section; the counts and --json are always whole
+  diff_lines: 120           # a longer diff is cut, in a view and in an issue, with a link to the rest
+  hub_sources:              # hub paths the fleet is seeded from: a repo's earlier version found here routes to the kit,
+    - templates/            # and new content found here is the hub's own rollout
+    - .editorconfig
+    - tools/unwrap-prose.py
+    - tools/schema_lint.py
+    - tools/docs_index.py
+  ignore_paths:             # globs (`*` crosses `/`): files that differ by design
+    - CHANGELOG.md
+    - "*/CHANGELOG.md"
+    - .release-please-manifest.json
+    - "*/.release-please-manifest.json"
+    - "*.lock"
+    - "*package-lock.json"
+    - "*pnpm-lock.yaml"
+  ignore_authors:           # commit authors, matched whole: their changes are never an origin
+    - "dependabot[bot]"
+    - "github-actions[bot]"
+    - github-actions
+    - GitHub Action
+    - "renovate[bot]"
+    - "release-please[bot]"
+  ignore_subjects:          # regexes on a commit's subject and its pull request's title
+    - '^chore\(main\): release'
+    - '^chore: release'
+    - 'release-please--branches--'
+    - '^chore\(submodule\)'
+    - '^chore\(jev\)'
+  rollout_branches:         # branch prefixes that carry a hub rollout, beside every kit branch read from tools/fanout.sh
+    - chore/governance-baseline
+    - chore/root-tidy
+    - backlog/
+    - ci/verify-kit-
+    - chore/kit-
+  rollout_subjects:         # regexes (any case) that mark a commit as a kit landing
+    - '\badopt(s|ed)? the .+ kit\b'
+    - '\(kit v\d'
+    - '\bkit v\d+\.\d+'
+    - '\badopt standardization baseline\b'
+    - '\badopt Pyramid Schema\b'
+  features:
+    files: [features/features.yml]   # the feature index read at the window's start and now
+    max_rows: 40
+  file:                     # `uplift file`: one hub issue per candidate, previewed first
+    label: uplift
+    marker: fleet-uplift    # <!-- fleet-uplift key="u-…" --> is the body's first line: a candidate is filed once, ever
+    max_per_run: 3          # keys one run accepts
+    max_open: 10            # backpressure: with this many uplift issues open, nothing more is filed
+    hold: false             # true adds `agent:hold`, so the issue pipeline waits for a person
+
+# --------------------------------------------------------------------------- #
 # Decisions — the decision index (docs/DECISION-INDEX.md, `tools/dash decisions`,
 # /api/decisions, the MCP's decision_queue).
 #
@@ -675,6 +806,43 @@ decisions:
       - '(^|/)docs/adr/(?!0000-)\d{4}-[^/]+\.md$'
     title: '\b(amendment|constitution|ratif\w*)\b'   # stands in while a pull request's files are not read yet
     skip_branches: [chore/jev-ratify]                # the ratification-record branch is automation's (§ 12.3)
+
+# --------------------------------------------------------------------------- #
+# PR AI review — the review a pull request gets when it is marked ready
+# (constitution § 19.7; ADR 0012, stage B; templates/pr-review/README.md "AI review").
+#
+# .github/workflows/pr-ai-review.yml runs once when a pull request is opened
+# ready, marked ready or given the `label` below, never on a push. A capped
+# model reads the diff with read-only tools and no GitHub credential, and leaves
+# its findings and its next actions as artifacts that pr-review.yml posts: the
+# findings inline (§ 19.3) and one review per head commit that comments and
+# never approves (§ 19.5). Its findings are advisory: nothing here fails a build
+# or blocks a merge until the harness has its § 13.1 eval set.
+#
+# Consumed by .github/scripts/dash-gen/pr_ai_review.py. The model, max_turns and
+# usd are ALSO literals in the workflow (a `with:` block cannot read YAML);
+# test_pr_ai_review.py holds the two equal, and test_ai_budget.py holds usd to
+# budget.call_sites `pr-ai-review.yml:review`. Kill switch: switches.loops
+# hub/pr-ai-review (vars.PR_AI_REVIEW_ENABLED, opt-in). Changing the model, the
+# caps or the budget is a gated change (§ 12.3).
+# --------------------------------------------------------------------------- #
+pr_ai_review:
+  model: claude-sonnet-5-5   # an exact id in ai_models.allowed (§ 13.3)
+  max_turns: 25
+  usd: 4                     # per review, API-equivalent (estimate); clears usd_per_turn x max_turns (3.75)
+  timeout_s: 900             # the local session (`tools/dash prs review`); the CI job has its own timeout
+  label: review              # the explicit ask (§ 19.7): reviews a draft, a bot's or a stranger's pull request too
+  max_per_day: 30            # reviews a repo gets in one UTC day; past it a pull request is told so, not reviewed
+  max_files: 80              # changed files read in one review; the rest are named and left out
+  max_file_bytes: 40000      # of one file's diff
+  max_diff_bytes: 240000     # of the whole diff
+  max_findings: 30           # findings one review may report
+  skip_paths:                # extended regexes, beside the lockfile / build-output / binary defaults in the script
+    - '^CATALOG\.md$'                 # generated (tools/gen-catalog.py), main-only
+    - '^_data/(agents|harness_registry|specs)\.yml$'   # generated inventories
+    - '^_data/cv_portfolio\.json$'
+    - '^projects/SCHEMA\.md$'
+    - '^test/evidence/'               # evidence bundles: screenshots and run records
 
 # --------------------------------------------------------------------------- #
 # PR queue — every open pull request of the hub and the registry repos, who
@@ -875,6 +1043,11 @@ budget:
     # has no turn cap to derive from. It gets a generous ceiling anyway: a
     # runaway mention is still unattended spend once the human walks away.
     claude.yml:claude: 20
+    # The AI review of a pull request that is marked ready (constitution § 19.7,
+    # pr_ai_review.py): 25 turns (pr_ai_review.max_turns), sonnet, read-only tools;
+    # floor 0.15 x 25 = 3.75. One review per ready pull request, never per push,
+    # capped per day by pr_ai_review.max_per_day.
+    pr-ai-review.yml:review: 4
     # Reusable-workflow and claude-run call sites (added 2026-10-03).
     fleet-verify.yml:verify: 10           # 40 turns default (inputs.max-turns), sonnet;
                                           # floor 0.15 x 40 = 6. A caller raising max-turns
@@ -1339,6 +1512,10 @@ harness:
   agents:
     ci:bamr87:fleet-pulse:
       reads: [actions-usage, fleet-triage]
+    ci:bamr87:pr-ai-review:
+      reads: [github-live, fleet-config]
+      local_entry: "tools/dash prs review --pr <owner/repo#n>"
+      note: reads a pull request's diff with read-only tools and no GitHub credential; pr-review.yml posts what it leaves
     ci:bamr87:issue-pipeline:
       reads: [issue-pipeline, work-queue, registry]
     ci:bamr87:repo-evolution:
@@ -2763,6 +2940,23 @@ variables:
   PYTHON_VERSION: "3.12"
   RUBY_VERSION: "3.3"
   FLEET_HUB: bamr87/bamr87
+  # The PR review switches, on fleet-wide by the maintainer's ruling of 2026-11-23
+  # (templates/pr-review/, kits 0.4.0 and 0.5.0): merge readiness in the one PR comment, the AI
+  # analysis of every failed run, and the comment-only AI review of a pull request
+  # that is marked ready. Each needs the kit's stubs and a `v2` that carries the
+  # reusable workflows to do anything in a fleet repo; until then the variable is
+  # inert there. Spend: pr_ai_review (usd per review, max_per_day per repo).
+  PR_READINESS_ENABLED: "true"
+  PR_AI_ANALYSIS_ENABLED: "true"
+  PR_AI_REVIEW_ENABLED: "true"
+
+# Per-repo exceptions to `variables:` (tools/fleet-config.py variable_overrides):
+# `<registry name or owner/name>: {VARIABLE: value}`. Only a canonical variable and a
+# fleet repo may be named, so a typo stops the sync instead of passing silently.
+# Both writers honour it (`dash config sync` and token-rotation.yml's weekly pass),
+# so a repo that keeps a fleet switch off is not switched back on. Example:
+#   it-journey: {PR_AI_REVIEW_ENABLED: "false"}
+variable_overrides: {}
 
 # --------------------------------------------------------------------------- #
 # Loop switches — constitution § 17 (amendment 0014, feature HUB-057, FR54).
@@ -3194,7 +3388,7 @@ switches:
       state: unverified
       verified: false
       note: the AI analysis of every failed CI run on a pull request (constitution § 19.11), in the one PR comment; one capped, tool-less Sonnet call per pass, no cron
-      flip: 'gh variable set PR_AI_ANALYSIS_ENABLED -R bamr87/bamr87 --body false  # disable; record the flip here in the same PR'
+      flip: 'tools/dash config sync --apply  # projects variables: PR_AI_ANALYSIS_ENABLED ("true" fleet-wide since 2026-11-23); to keep one repo off, add it to variable_overrides: and record the flip here in the same PR'
     hub/pr-readiness:
       repo: bamr87/bamr87
       workflow: .github/workflows/pr-review.yml
@@ -3209,7 +3403,23 @@ switches:
       state: unverified
       verified: false
       note: merge readiness in the one PR comment (ADR 0012); what is left before a pull request merges, and one review when nothing is; no AI and no cron
-      flip: 'gh variable set PR_READINESS_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
+      flip: 'tools/dash config sync --apply  # projects variables: PR_READINESS_ENABLED ("true" fleet-wide since 2026-11-23); to keep one repo off, add it to variable_overrides: and record the flip here in the same PR'
+    hub/pr-ai-review:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/pr-ai-review.yml
+      group: hub-agents
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: PR_AI_REVIEW_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      dispatch_bypasses: true
+      note: the AI review of a pull request that is marked ready (constitution § 19.7; ADR 0012 stage B); event-driven, no cron; a manual dispatch is a dry run that posts nothing; also needs PR_REVIEW_ENABLED not 'false', because pr-review.yml posts it
+      flip: 'tools/dash config sync --apply  # projects variables: PR_AI_REVIEW_ENABLED ("true" fleet-wide since 2026-11-23); to keep one repo off, add it to variable_overrides: and record the flip here in the same PR'
     hub/reconcile-registry:
       repo: bamr87/bamr87
       workflow: .github/workflows/reconcile-registry.yml

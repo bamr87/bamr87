@@ -20,6 +20,13 @@
 # language statistics. README.md (the GitHub profile), PRD.md and docs/DASH.md
 # are hand-written files with a generated SPAN, so they take the merge driver
 # and nothing else.
+#
+# A root file is written with a leading slash. A pattern with no slash matches
+# at EVERY depth: a bare `README.md` line once marked all 124 README.md files in
+# the hub generated, and the conflict engine's tier 0 (tools/jev/conflicts.py)
+# resolves a generated file by keeping the pull request's copy, so it would have
+# dropped main's side of any conflicted hand-written README. tools/test_jev_conflicts.py
+# holds every `merge=jev-regen` here to the one file it names.
 # =============================================================================
 
 # --- generated end to end ----------------------------------------------------
@@ -30,7 +37,7 @@
 # request that edits it (`python3 -m tools.jev generated guard`, drift-check.yml).
 # The other files here are written by their own loops or the registry flow and
 # are still checked for drift on a pull request (docs/JEV.md).
-CATALOG.md                 linguist-generated=true merge=jev-regen jev-main-only
+/CATALOG.md                linguist-generated=true merge=jev-regen jev-main-only
 projects/SCHEMA.md         linguist-generated=true merge=jev-regen
 _data/specs.yml            linguist-generated=true merge=jev-regen
 _data/cv_portfolio.json    linguist-generated=true merge=jev-regen
@@ -42,15 +49,15 @@ docs/README.md             merge=jev-regen jev-main-only
 # --- hand-written, with a generated span -------------------------------------
 # The span is regenerated on main by the same post-merge job; on a pull request
 # its drift check is advisory (JEV_SPANS_ADVISORY=1 in drift-check.yml).
-README.md                  merge=jev-regen
-PRD.md                     merge=jev-regen
+/README.md                 merge=jev-regen
+/PRD.md                    merge=jev-regen
 docs/DASH.md               merge=jev-regen
 
 # --- compiled from fragments at merge (tools/jev/number.py) ------------------
 # Never edited by a pull request: a PR writes features/features.d/<slug>.yml and
 # changelog.d/<slug>.md, and the compiler on main writes these.
 features/features.yml      merge=jev-regen
-CHANGELOG.md               merge=jev-regen
+/CHANGELOG.md              merge=jev-regen
 
 # --- append-only, order-free: both sides are the answer ----------------------
 # `merge=union` is safe ONLY where a duplicated or reordered line is harmless

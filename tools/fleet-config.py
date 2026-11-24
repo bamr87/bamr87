@@ -317,6 +317,40 @@ def auth_variables(cfg: dict, registry: list) -> dict[str, dict[str, str]]:
     return {nwo: {ac["variable"]: ",".join(r["order"])} for nwo, r in resolved.items()}
 
 
+def variable_overrides(cfg: dict, repos: list[dict]) -> tuple[dict[str, dict[str, str]], list[str]]:
+    """({nwo: {VAR: value}}, errors) from `variable_overrides:` in _data/fleet.yml.
+
+    A per-repo exception to the canonical `variables:` block: the repo that keeps a fleet-wide
+    switch off. Keys are a registry name or owner/name. An override may name only a canonical
+    variable and a fleet repo, so a typo is an error the sync stops on, never a silent no-op, and
+    a sync never writes a variable the contract does not declare. Both writers apply it: `sync`
+    and the weekly rotation, which would otherwise put the canonical value back."""
+    raw = cfg.get("variable_overrides") or {}
+    canonical = cfg.get("variables") or {}
+    if not isinstance(raw, dict):
+        return {}, ["variable_overrides: must be a mapping of repo -> {VARIABLE: value}"]
+    by_key = {}
+    for r in repos:
+        by_key[r["name"]] = r["nwo"]
+        by_key[r["nwo"]] = r["nwo"]
+    out: dict[str, dict[str, str]] = {}
+    errors: list[str] = []
+    for key, values in raw.items():
+        nwo = by_key.get(str(key))
+        if nwo is None:
+            errors.append(f"variable_overrides: {key!r} is not a fleet repo")
+            continue
+        if not isinstance(values, dict) or not values:
+            errors.append(f"variable_overrides.{key}: must map at least one VARIABLE to a value")
+            continue
+        unknown = sorted(str(k) for k in values if k not in canonical)
+        if unknown:
+            errors.append(f"variable_overrides.{key}: {', '.join(unknown)} not declared in variables:")
+            continue
+        out.setdefault(nwo, {}).update({str(k): str(v) for k, v in values.items()})
+    return out, errors
+
+
 def cmd_auth(args: argparse.Namespace) -> int:
     cfg = load(FLEET)
     registry = load(REGISTRY)
@@ -561,6 +595,12 @@ def cmd_sync(args: argparse.Namespace) -> int:
             sys.stderr.write(f"no fleet repo matching {args.repo!r}\n")
             return 1
 
+    overrides, errors = variable_overrides(cfg, fleet_repos(cfg, registry))
+    if errors:
+        for e in errors:
+            sys.stderr.write(f"{e}\n")
+        return 1
+
     mode = "APPLY" if args.apply else "DRY-RUN"
     print(f"\n\033[1mSync canonical variables\033[0m [{mode}] → {len(repos)} repo(s)\n")
     changed = skipped = failed = 0
@@ -572,7 +612,7 @@ def cmd_sync(args: argparse.Namespace) -> int:
             print(f"  {UNKNOWN} {r['nwo']:30} unreachable (needs admin) — skipped")
             skipped += 1
             continue
-        want = {**canonical, **per_repo.get(r["nwo"], {})}
+        want = {**canonical, **overrides.get(r["nwo"], {}), **per_repo.get(r["nwo"], {})}
         diffs = {k: v for k, v in want.items()
                  if str(current.get(k, "\0")) != str(v)}
         if not diffs:
@@ -1920,6 +1960,13 @@ def rotate_variables(cfg: dict, registry: list, rot: dict,
               f"authoritative\033[0m")
 
     repos = fleet_repos(cfg, registry)
+    # A repo's exception to the canonical value (`variable_overrides:`) holds here too, or
+    # the weekly run would put the fleet value back on a repo that keeps a switch off.
+    overrides, errors = variable_overrides(cfg, repos)
+    if errors:
+        for e in errors:
+            print(f"  {MISSING} {e}")
+        return {"error": "; ".join(errors)}, 1
     if args.repo:
         repos = [r for r in repos if args.repo in (r["name"], r["nwo"])]
     # The auth order is per REPO and comes from the contract, not the hub's own
@@ -1935,7 +1982,7 @@ def rotate_variables(cfg: dict, registry: list, rot: dict,
             continue
         # Compare by VALUE. Age is meaningless for something readable: a
         # variable that still matches the hub is correct however old it is.
-        want = {**values, **per_repo.get(r["nwo"], {})}
+        want = {**values, **overrides.get(r["nwo"], {}), **per_repo.get(r["nwo"], {})}
         diffs = {k: v for k, v in want.items() if current.get(k) != v}
         if not diffs:
             rows.append({"nwo": r["nwo"], "state": S_OK,
