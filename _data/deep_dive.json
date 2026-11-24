@@ -11,14 +11,14 @@
     "cycle_days": 42,
     "total": 38,
     "day": 26,
-    "processed": 14,
+    "processed": 15,
     "counts": {
-      "pending": 24,
+      "pending": 23,
       "in_progress": 0,
-      "done": 14,
+      "done": 15,
       "skipped": 0
     },
-    "progress": 0.3684,
+    "progress": 0.3947,
     "today": {
       "date": "2026-11-24",
       "cycle": 1,
@@ -35,9 +35,9 @@
       "kind": "scheduled",
       "repo": "ragio-ai"
     },
-    "last": "cv-pro",
-    "last_date": "2026-11-23",
-    "avg_score": 51.9,
+    "last": "rsa-challenge",
+    "last_date": "2026-11-24",
+    "avg_score": 53.5,
     "open_issues": 32,
     "open_prs": 0
   },
@@ -634,16 +634,30 @@
       "day": 26,
       "repo": "rsa-challenge",
       "scheduled": "2026-11-24",
-      "status": "pending",
-      "last_processed": null,
+      "status": "done",
+      "last_processed": "2026-11-24",
       "cycle": 1,
-      "issues": [],
-      "prs": [],
+      "issues": [
+        "https://github.com/bamr87/rsa-challenge/issues/3",
+        "https://github.com/bamr87/rsa-challenge/issues/4",
+        "https://github.com/bamr87/rsa-challenge/issues/5",
+        "https://github.com/bamr87/rsa-challenge/issues/6",
+        "https://github.com/bamr87/rsa-challenge/issues/7",
+        "https://github.com/bamr87/rsa-challenge/issues/8",
+        "https://github.com/bamr87/rsa-challenge/issues/9",
+        "https://github.com/bamr87/rsa-challenge/issues/10",
+        "https://github.com/bamr87/rsa-challenge/issues/11",
+        "https://github.com/bamr87/rsa-challenge/issues/12"
+      ],
+      "prs": [
+        "https://github.com/bamr87/rsa-challenge/pull/13",
+        "https://github.com/bamr87/rsa-challenge/pull/14"
+      ],
       "open_issues": 0,
       "open_prs": 0,
-      "findings": "",
-      "score": null,
-      "next_focus": ""
+      "findings": "Public repo, main @ e73e8af (v0.2.0). At review: 0 open issues, 0 open PRs (merged #1 release 0.2.0 and #2 missions). 11/11 tests pass in 0.16s; governance_lint ok; Pages live; secret scanning, push protection and Dependabot security updates on. Leak gate skips values shorter than 6 chars (RSA-32b primes are 5 digits) and CI cannot scan values because secrets/ is absent (#3). verify --d echoes the recovered plaintext (#4). Private vulnerability reporting off and main unprotected (#5, needs Amr). CI missing timeout-minutes and PR concurrency; Pages write permissions are workflow-wide (#6). No dependabot.yml (#7). governance_lint is in the DoD but not CI; Python 3.9 is claimed and untested (#8). Amendment 0002 still proposed and RSA-007 planned after #2 (docs PR #13). CHANGELOG leftover heading and compare link to missing rsa-challenge-v0.1.0 (#10). Release PR #1 had an empty statusCheckRollup (token-opened PR; root cause tracked fleet-wide, not refiled). Filed #3-#12; planned RSA-008/009 in #14. Did not merge, change settings, or add scheduled workflows.",
+      "score": 76.0,
+      "next_focus": "Land #13 and #14; fix the leak-gate threshold and stop echoing plaintext from verify --d; add workflow timeouts, PR concurrency and Dependabot; gate governance_lint and decide the Python 3.9 floor; Amr enables private vulnerability reporting and a main ruleset; then implement RSA-008 export and RSA-009 resources."
     },
     {
       "day": 27,
