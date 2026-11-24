@@ -1,0 +1,688 @@
+{
+  "id": "stars",
+  "title": "The Stars page renders the radar, the starred list, trending, fleet matches, AI themes, the map and a repo drawer",
+  "features": [
+    "HUB-NEW:stargazer"
+  ],
+  "path": "verify/scenarios/stars.yml",
+  "started": "2026-11-23T19:21:34.657Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/stars",
+          "ok": true,
+          "ms": 1003
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=What you star"
+          },
+          "ok": true,
+          "ms": 19
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "text=To review for the fleet"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "text=Stars per month"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "stars-radar",
+          "ok": true,
+          "file": "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/desktop-stars-radar.png",
+          "ms": 41
+        },
+        {
+          "step": "goto",
+          "arg": "/stars?tab=starred",
+          "ok": true,
+          "ms": 892
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Only repos like a fleet project"
+          },
+          "ok": true,
+          "ms": 27
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "td button"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "stars-starred",
+          "ok": true,
+          "file": "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/desktop-stars-starred.png",
+          "ms": 42
+        },
+        {
+          "step": "click",
+          "arg": "td button",
+          "ok": true,
+          "ms": 89
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "ms": 600
+          },
+          "ok": true,
+          "ms": 601
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "text=Review it in a local Claude Code session"
+          },
+          "ok": true,
+          "ms": 22
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "text=Closest fleet projects"
+          },
+          "ok": true,
+          "ms": 8
+        },
+        {
+          "step": "screenshot",
+          "arg": "stars-drawer",
+          "ok": true,
+          "file": "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/desktop-stars-drawer.png",
+          "ms": 35
+        },
+        {
+          "step": "goto",
+          "arg": "/stars?tab=trending",
+          "ok": true,
+          "ms": 740
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Trending is GitHub search"
+          },
+          "ok": true,
+          "ms": 25
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "text=New this week"
+          },
+          "ok": true,
+          "ms": 4
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "stars-trending",
+          "ok": true,
+          "file": "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/desktop-stars-trending.png",
+          "ms": 32
+        },
+        {
+          "step": "goto",
+          "arg": "/stars?tab=fleet&project=zer0-mistakes",
+          "ok": true,
+          "ms": 676
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Every fleet project"
+          },
+          "ok": true,
+          "ms": 39
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "text=Discovered"
+          },
+          "ok": true,
+          "ms": 4
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 2
+        },
+        {
+          "step": "screenshot",
+          "arg": "stars-fleet",
+          "ok": true,
+          "file": "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/desktop-stars-fleet.png",
+          "ms": 50
+        },
+        {
+          "step": "goto",
+          "arg": "/stars?tab=themes",
+          "ok": true,
+          "ms": 551
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=What the stars say you are interested in"
+          },
+          "ok": true,
+          "ms": 11
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "stars-themes",
+          "ok": true,
+          "file": "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/desktop-stars-themes.png",
+          "ms": 32
+        },
+        {
+          "step": "goto",
+          "arg": "/stars?tab=map",
+          "ok": true,
+          "ms": 559
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "[aria-label*='similarity to the fleet'] svg"
+          },
+          "ok": true,
+          "ms": 80
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "ms": 800
+          },
+          "ok": true,
+          "ms": 802
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 3
+        },
+        {
+          "step": "screenshot",
+          "arg": "stars-map",
+          "ok": true,
+          "file": "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/desktop-stars-map.png",
+          "ms": 44
+        },
+        {
+          "step": "goto",
+          "arg": "/stars?tab=feed",
+          "ok": true,
+          "ms": 554
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 2
+        },
+        {
+          "step": "screenshot",
+          "arg": "stars-feed",
+          "ok": true,
+          "file": "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/desktop-stars-feed.png",
+          "ms": 33
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/desktop-stars-radar.png",
+        "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/desktop-stars-starred.png",
+        "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/desktop-stars-drawer.png",
+        "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/desktop-stars-trending.png",
+        "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/desktop-stars-fleet.png",
+        "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/desktop-stars-themes.png",
+        "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/desktop-stars-map.png",
+        "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/desktop-stars-feed.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4071/stars/?tab=feed"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/stars",
+          "ok": true,
+          "ms": 819
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=What you star"
+          },
+          "ok": true,
+          "ms": 22
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "text=To review for the fleet"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "text=Stars per month"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "stars-radar",
+          "ok": true,
+          "file": "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/mobile-stars-radar.png",
+          "ms": 21
+        },
+        {
+          "step": "goto",
+          "arg": "/stars?tab=starred",
+          "ok": true,
+          "ms": 784
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Only repos like a fleet project"
+          },
+          "ok": true,
+          "ms": 24
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "td button"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "stars-starred",
+          "ok": true,
+          "file": "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/mobile-stars-starred.png",
+          "ms": 20
+        },
+        {
+          "step": "click",
+          "arg": "td button",
+          "ok": true,
+          "ms": 30
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "ms": 600
+          },
+          "ok": true,
+          "ms": 602
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "text=Review it in a local Claude Code session"
+          },
+          "ok": true,
+          "ms": 19
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "text=Closest fleet projects"
+          },
+          "ok": true,
+          "ms": 7
+        },
+        {
+          "step": "screenshot",
+          "arg": "stars-drawer",
+          "ok": true,
+          "file": "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/mobile-stars-drawer.png",
+          "ms": 27
+        },
+        {
+          "step": "goto",
+          "arg": "/stars?tab=trending",
+          "ok": true,
+          "ms": 618
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Trending is GitHub search"
+          },
+          "ok": true,
+          "ms": 25
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "text=New this week"
+          },
+          "ok": true,
+          "ms": 4
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "stars-trending",
+          "ok": true,
+          "file": "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/mobile-stars-trending.png",
+          "ms": 19
+        },
+        {
+          "step": "goto",
+          "arg": "/stars?tab=fleet&project=zer0-mistakes",
+          "ok": true,
+          "ms": 588
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Every fleet project"
+          },
+          "ok": true,
+          "ms": 12
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "text=Discovered"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "stars-fleet",
+          "ok": true,
+          "file": "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/mobile-stars-fleet.png",
+          "ms": 30
+        },
+        {
+          "step": "goto",
+          "arg": "/stars?tab=themes",
+          "ok": true,
+          "ms": 539
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=What the stars say you are interested in"
+          },
+          "ok": true,
+          "ms": 29
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 2
+        },
+        {
+          "step": "screenshot",
+          "arg": "stars-themes",
+          "ok": true,
+          "file": "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/mobile-stars-themes.png",
+          "ms": 40
+        },
+        {
+          "step": "goto",
+          "arg": "/stars?tab=map",
+          "ok": true,
+          "ms": 617
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "[aria-label*='similarity to the fleet'] svg"
+          },
+          "ok": true,
+          "ms": 816
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "ms": 800
+          },
+          "ok": true,
+          "ms": 802
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 4
+        },
+        {
+          "step": "screenshot",
+          "arg": "stars-map",
+          "ok": true,
+          "file": "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/mobile-stars-map.png",
+          "ms": 19
+        },
+        {
+          "step": "goto",
+          "arg": "/stars?tab=feed",
+          "ok": true,
+          "ms": 554
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 4
+        },
+        {
+          "step": "screenshot",
+          "arg": "stars-feed",
+          "ok": true,
+          "file": "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/mobile-stars-feed.png",
+          "ms": 27
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/mobile-stars-radar.png",
+        "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/mobile-stars-starred.png",
+        "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/mobile-stars-drawer.png",
+        "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/mobile-stars-trending.png",
+        "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/mobile-stars-fleet.png",
+        "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/mobile-stars-themes.png",
+        "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/mobile-stars-map.png",
+        "../../../private/tmp/claude-501/-Users-bamr87-bamr87/d425a329-5d3a-4596-bf67-1ed018a7c84a/scratchpad/evidence/stars/mobile-stars-feed.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4071/stars/?tab=feed"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-11-23T19:21:49.095Z",
+  "base": "http://127.0.0.1:4071"
+}

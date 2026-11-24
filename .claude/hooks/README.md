@@ -7,6 +7,7 @@ Shell/Python commands wired into Claude Code session lifecycle events via [`../s
 | Script | Event | What it does |
 | --- | --- | --- |
 | `future_features_session_start.py` | `SessionStart` | Injects `additionalContext` that makes the Future-Features workflow active: reminds Claude it can capture ideas with `/future-features` and should run the `feature-scout` sub-agent at natural stopping points. |
+| `stars_session_start.py` | `SessionStart` | Injects the **starred-repo radar brief** ([docs/STARGAZER.md](../../docs/STARGAZER.md)): the account's GitHub stars most like the session's project (a submodule by its path, the hub, or a fleet repo by its `origin`), the newest stars and the trending repos like a fleet project, from the committed `_data/stars.json`; standard library only, no network. `STARS_SESSION_BRIEF=0` silences it; `--user` is the form `tools/dash stars hook --install --yes` puts in `~/.claude/settings.json` for sessions outside the hub. |
 | `future_features_scout.py` | `Stop` | Scans the session transcript for feature-signal language in the **user's** messages; at most **once per session**, nudges Claude (`{"decision":"block","reason":…}`) to run the `feature-scout` sub-agent before stopping. |
 
 ## Design notes

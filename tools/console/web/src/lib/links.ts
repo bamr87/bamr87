@@ -115,4 +115,5 @@ export const SOURCE_HOME: Record<string, { page: string; label: string; op?: str
   actions_usage: { page: '/costs', label: 'Costs', op: 'actions' },
   ai_usage: { page: '/costs', label: 'Costs', op: 'ai-usage' },
   engagements: { page: '/projects', label: 'Projects' },
+  stars: { page: '/stars', label: 'Stars', op: 'stars-refresh' },
 };

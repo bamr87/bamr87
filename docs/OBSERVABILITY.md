@@ -232,7 +232,7 @@ Standalone mode (`compose.elk.yml`) is deliberately simpler than the hub's — n
 | --- | --- |
 | Harness Console `:4001` → **Observe** | All three planes, embedded, with the ops as jobs |
 | Kibana `:5601` | `fleet-ci` (failing steps + the agent runs behind them), `fleet-local` (container and app logs), `claude-code` (every API request with cost and tokens; every tool call, decision and failure) |
-| Grafana `:3001` | `fleet-logs` — live Claude Code spend, burn rate, cache share, tokens, spend by source and repo (Prometheus); then volume and error rate by repo, agent spend by model, CI failures by workflow (Elasticsearch) |
+| Grafana `:3001` | `fleet-logs` — live Claude Code spend, burn rate, cache share, tokens, spend by source and repo (Prometheus); then volume and error rate by repo, agent spend by model, CI failures by workflow (Elasticsearch). `fleet-stars` — the open-source radar: the account's GitHub stars by category and language, stars over time, the fastest risers, the repos closest to the fleet and the AI verdicts, pushed to the collector by `tools/dash stars metrics --push` ([STARGAZER.md](STARGAZER.md#grafana-the-radar-over-time)) |
 | Prometheus `:9090` | Claude Code's raw counters, per session |
 | Phoenix `:6006` | The trace tree for any `trace.id` seen in the other two; project `claude-code-otel` holds live Claude Code spans |
 | `tools/dash observe status` | The same numbers without a browser, plus whether Qdrant is up and which submodules are checked out |

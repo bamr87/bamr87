@@ -1473,6 +1473,16 @@ def gh_project_items(project_id: str, limit: int = Query(default=gp.ITEMS_LIMIT,
         raise HTTPException(status_code=400, detail=str(exc))
     except gp.NotReadable as exc:
         raise HTTPException(status_code=404, detail=gp.redact(str(exc)))
+@app.get("/api/stars", dependencies=[Depends(require_token)])
+def stars_view() -> dict:
+    """The open-source radar (fleetcore.stars over tools/stargazer.py; docs/STARGAZER.md): the committed
+    `_data/stars.json` — the account's stars with category, health, star velocity and their closest fleet
+    projects, the trending queries, each fleet project's matches, what to review and the feed. Public data:
+    the published build carries the same document, and the page filters it in the browser. The
+    `stars-refresh` operation rewrites it; the MCP's fleet_stars reads slices of it."""
+    return core.stars_doc()
+
+
 @app.get("/api/prs", dependencies=[Depends(require_token)])
 def prs(repo: str = Query(default="", max_length=140), kind: str = Query(default="", pattern=r"^[a-z_]{0,20}$"),
         who: str = Query(default="", pattern=r"^[a-z]{0,10}$"), gate: str = Query(default="", pattern=r"^(|gated|ungated)$"),
