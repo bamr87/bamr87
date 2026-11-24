@@ -97,6 +97,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/adr/`](adr/README.md) | Decisions for bamr87 that are hard to reverse — the stack, data model, security model, public interfaces, and any relaxation of a gate — one file each. |
 | [`docs/agentic-patterns/`](agentic-patterns/README.md) | How each pattern in Antonio Gulli's *Agentic Design Patterns* shows up in the bamr87 fleet: one page per chapter, each rated proven, partial or gap against pinned, reproducible evidence. |
 | [`docs/amendments/`](amendments/README.md) | The append-only log of numbered changes to the constitution, ratified only when the maintainer merges the PR. |
+| [`docs/research/`](research/README.md) | Dated research filed by Researcher (Amr's research bot): reviews, source packs, briefs and deep dives, kept as filed. |
 
 ### `docs/assets/`
 
