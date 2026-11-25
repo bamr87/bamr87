@@ -1,11 +1,11 @@
 <!-- kit: governance v0.1.0 -->
 # 0037 — lifehacker.dev's drafting lines run again, and a human still merges
 
-- **Status:** proposed
+- **Status:** ratified
 - **Number:** 0037
 - **Date:** 2026-11-24
 - **Proposed by:** agent (Claude Code), at the maintainer's request (2026-11-24: "resolve blockers, turn on lifehackers automation.")
-- **Ratified by:**
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/985 (merged 2026-11-25 by @bamr87)
 - **Affects:** constitution § 23 item 6; `_data/fleet.yml` `switches.loops` (the 18 variable-gated `lifehacker.dev/*` records); bamr87/lifehacker.dev `content-factory.yml`, `weekly-epic.yml`, `wire-scout.yml` and AGENTS.md (companion pull request); requirements: none; features: none
 - **Supersedes:** none (amends § 23 item 6, from amendment 0021 `writing-chronicle`)
 - **Related:** bamr87/lifehacker.dev#800 (the hold, merged 2026-11-06), #801 (hub-originated intake, open), #802 (the 2026-11-05 shutdown); lifehacker.dev constitution § 1 mission 3; constitution § 12, § 17
