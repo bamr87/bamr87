@@ -7,7 +7,7 @@
 // the hub owns, reads it back and records the map in the working tree; committing that
 // change stays with the operator. The rules the page applies live in switchPlan.ts.
 import { useState } from 'react';
-import { Badge, Button, Group, Modal, ScrollArea, Stack, Switch, Table, Text, Textarea, Tooltip } from '@mantine/core';
+import { Badge, Button, Code, Group, Modal, ScrollArea, Stack, Switch, Table, Text, Textarea, Tooltip } from '@mantine/core';
 import { IconRefresh } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { hasConsole } from '../api/backend';
@@ -15,9 +15,9 @@ import { post } from '../api/client';
 import { useSwitches } from '../api/hooks';
 import type { SwitchPlan, SwitchRepo, SwitchRow, SwitchesDoc } from '../api/types';
 import { Banner, Empty, External, Load, LocalOnly, Mono, PageHeader, Section, Status, type Tone } from '../components/ui';
-import { LogView } from '../jobs/JobLog';
 import { useRunner } from '../jobs/JobRunner';
 import { gh } from '../lib/links';
+import u from '../styles/utils.module.css';
 import {
   REASON_MAX, applyBlocked, flipTitle, isOn, itemChange, loopFlip, reasonOk, repoBlocked, repoFlip, rowBlocked, semanticsLabel, shown,
   type FlipRequest,
@@ -44,13 +44,14 @@ function MapState({ row }: { row: SwitchRow }) {
 
 function LoopTable({ doc, repo, onFlip }: { doc: SwitchesDoc; repo: SwitchRepo; onFlip: (r: FlipRequest) => void }) {
   return (
-    <Table.ScrollContainer minWidth={1080}>
+    <Table.ScrollContainer minWidth={1180}>
       <Table verticalSpacing={6} data-switches-repo={repo.repo}>
         <Table.Thead>
+          {/* The switch sits beside its loop, so a phone sees both before it scrolls the table sideways. */}
           <Table.Tr>
-            <Table.Th>Loop</Table.Th><Table.Th>Workflow</Table.Th><Table.Th>Variable</Table.Th><Table.Th>Semantics</Table.Th>
-            <Table.Th>Live value</Table.Th><Table.Th>Effective</Table.Th><Table.Th>Map</Table.Th><Table.Th>Drift</Table.Th>
-            <Table.Th>Hold</Table.Th><Table.Th>Switch</Table.Th>
+            <Table.Th>Loop</Table.Th><Table.Th>Switch</Table.Th><Table.Th miw={84}>Effective</Table.Th><Table.Th>Live value</Table.Th>
+            <Table.Th miw={110}>Map</Table.Th><Table.Th miw={84}>Drift</Table.Th><Table.Th miw={84}>Hold</Table.Th><Table.Th>Variable</Table.Th>
+            <Table.Th>Semantics</Table.Th><Table.Th>Workflow</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -63,23 +64,6 @@ function LoopTable({ doc, repo, onFlip }: { doc: SwitchesDoc; repo: SwitchRepo; 
                   <Mono>{r.key}</Mono>
                   {r.note ? <Text size="xs" c="dimmed" maw={320}>{r.note}</Text> : null}
                 </Table.Td>
-                <Table.Td>{r.workflow ? <External href={gh.workflow(r.repo, r.workflow)} size="xs">{r.workflow.replace(/^\.github\/workflows\//, '')}</External> : null}</Table.Td>
-                <Table.Td>{r.gate === 'repo_variable' ? <Mono>{r.variable}</Mono> : <Text size="xs" c="dimmed">{r.gate}</Text>}</Table.Td>
-                <Table.Td><Text size="xs">{semanticsLabel(r.semantics)}</Text></Table.Td>
-                <Table.Td>
-                  {r.gate === 'repo_variable'
-                    ? <Tooltip label={r.live.updated_at ? `updated ${r.live.updated_at}` : r.live.state}><Text size="sm" c={r.live.value === null ? 'yellow' : undefined}><Mono>{shown(r.live.value)}</Mono></Text></Tooltip>
-                    : <Text size="xs" c="dimmed">n/a</Text>}
-                </Table.Td>
-                <Table.Td><Effective row={r} /></Table.Td>
-                <Table.Td><MapState row={r} /></Table.Td>
-                <Table.Td>
-                  {r.drift ? <Status tone="warn" title={`the map says ${r.map.says} but ${r.variable} reads ${r.live.on ? 'on' : 'off'}: record the flip, or apply the map`}>drift</Status>
-                    : r.drift === false ? <Text size="xs" c="dimmed">none</Text> : <Text size="xs" c="dimmed">—</Text>}
-                </Table.Td>
-                <Table.Td>
-                  {r.hold ? <Status tone="warn" title={`${r.hold.kind ?? 'code'} ${r.hold.name}=${r.hold.value} (${r.hold.source ?? ''}): idles the workflow whatever the variable says. ${r.hold.lift ?? ''}`}>held</Status> : null}
-                </Table.Td>
                 <Table.Td>
                   <Tooltip label={blocked ?? `turn it ${on ? 'off' : 'on'}: preview first, then confirm`} multiline maw={360}>
                     <span>
@@ -88,6 +72,23 @@ function LoopTable({ doc, repo, onFlip }: { doc: SwitchesDoc; repo: SwitchRepo; 
                     </span>
                   </Tooltip>
                 </Table.Td>
+                <Table.Td className={u.nowrap}><Effective row={r} /></Table.Td>
+                <Table.Td className={u.nowrap}>
+                  {r.gate === 'repo_variable'
+                    ? <Tooltip label={r.live.updated_at ? `updated ${r.live.updated_at}` : r.live.state}><Text size="sm" c={r.live.value === null ? 'yellow' : undefined}><Mono>{shown(r.live.value)}</Mono></Text></Tooltip>
+                    : <Text size="xs" c="dimmed">n/a</Text>}
+                </Table.Td>
+                <Table.Td className={u.nowrap}><MapState row={r} /></Table.Td>
+                <Table.Td className={u.nowrap}>
+                  {r.drift ? <Status tone="warn" title={`the map says ${r.map.says} but ${r.variable} reads ${r.live.on ? 'on' : 'off'}: record the flip, or apply the map`}>drift</Status>
+                    : r.drift === false ? <Text size="xs" c="dimmed">none</Text> : <Text size="xs" c="dimmed">—</Text>}
+                </Table.Td>
+                <Table.Td className={u.nowrap}>
+                  {r.hold ? <Status tone="warn" title={`${r.hold.kind ?? 'code'} ${r.hold.name}=${r.hold.value} (${r.hold.source ?? ''}): idles the workflow whatever the variable says. ${r.hold.lift ?? ''}`}>held</Status> : null}
+                </Table.Td>
+                <Table.Td className={u.nowrap}>{r.gate === 'repo_variable' ? <Mono>{r.variable}</Mono> : <Text size="xs" c="dimmed">{r.gate}</Text>}</Table.Td>
+                <Table.Td><Text size="xs">{semanticsLabel(r.semantics)}</Text></Table.Td>
+                <Table.Td>{r.workflow ? <External href={gh.workflow(r.repo, r.workflow)} size="xs">{r.workflow.replace(/^\.github\/workflows\//, '')}</External> : null}</Table.Td>
               </Table.Tr>
             );
           })}
@@ -131,7 +132,7 @@ function FlipModal({ req, onClose }: { req: FlipRequest; onClose: () => void }) 
           {plan ? <Text size="xs" c="dimmed">plan <Mono>{plan.plan_id}</Mono> · {plan.counts.do} to do · {plan.counts.skip} skipped · set_by {plan.set_by ?? 'unknown'} · {plan.set_at}</Text> : null}
         </Group>
         {plan && !plan.writes.enabled ? (
-          <Banner tone="warn" title="GitHub writes are off in this console">{plan.writes.why} A variable cannot be set from here; Apply is refused for any loop that needs one.</Banner>
+          <Banner tone="warn" title="GitHub writes are off in this console">{plan.writes.why}. A variable cannot be set from here; Apply is refused for any loop that needs one.</Banner>
         ) : null}
         {plan?.diff_error ? <Banner tone="crit" title="The fleet.yml change could not be made">{plan.diff_error}</Banner> : null}
         {plan ? (
@@ -141,7 +142,7 @@ function FlipModal({ req, onClose }: { req: FlipRequest; onClose: () => void }) 
               <Table.Tbody>
                 {plan.items.map((i) => (
                   <Table.Tr key={i.key} data-do={i.do || undefined}>
-                    <Table.Td><Mono>{i.key}</Mono></Table.Td>
+                    <Table.Td className={u.nowrap}><Mono>{i.key}</Mono></Table.Td>
                     <Table.Td>
                       <Text size="sm" c={i.do ? undefined : 'dimmed'}>{itemChange(i)}</Text>
                       {i.warnings.map((w) => <Text key={w} size="xs" c="yellow">! {w}</Text>)}
@@ -152,7 +153,11 @@ function FlipModal({ req, onClose }: { req: FlipRequest; onClose: () => void }) 
             </Table>
           </ScrollArea.Autosize>
         ) : null}
-        {plan?.diff ? <LogView raw={plan.diff} height={260} /> : null}
+        {plan?.diff ? (
+          <ScrollArea.Autosize mah="30vh" type="auto" offsetScrollbars data-switch-diff>
+            <Code block>{plan.diff}</Code>
+          </ScrollArea.Autosize>
+        ) : null}
         <Group justify="flex-end" gap="xs">
           {plan ? <Button variant="default" onClick={() => void runOp('switches-apply', { plan_id: plan.plan_id })}>Check it still matches</Button> : null}
           <Tooltip label={blocked ?? 'asks once more, then writes'} disabled={!blocked}>
@@ -182,7 +187,7 @@ function Board({ doc, onReread, rereading }: { doc: SwitchesDoc; onReread: () =>
         actions={<Button size="xs" variant="default" leftSection={<IconRefresh size={14} />} loading={rereading} onClick={onReread}>Read GitHub again</Button>}
       />
       {!doc.writes.enabled ? (
-        <Banner tone="warn" title="GitHub writes are off in this console">{doc.writes.why} The page reads and previews; every Apply that sets a variable is refused.</Banner>
+        <Banner tone="warn" title="GitHub writes are off in this console">{doc.writes.why}. The page reads and previews; every Apply that sets a variable is refused.</Banner>
       ) : null}
       <Group gap={4} wrap="wrap">
         <Text size="xs" c="dimmed">Levels:</Text>
