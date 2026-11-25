@@ -3483,3 +3483,43 @@ features:
     - tools/test_branch_policy.py
     prd:
     - FR147
+  - id: HUB-137
+    title: 'Stargazer: the open-source radar (stars, trending, like the fleet)'
+    description: tools/stargazer.py (tools/dash stars; daily, read-only stargazer.yml) reads the account's
+      public GitHub stars and star lists, every fleet repo's topics, the repos rising this week, this month
+      and in the fleet's strongest topics, and one search per fleet project; tools/fleetcore/stars.py categorises
+      each repo, matches it against every fleet project by tf-idf over topics, stack, language and description
+      with the shared terms as the reason, measures star velocity from a thinned history, flags star-farmed
+      repos and never recommends them, and lists what each project should review. An AI pass (tools/dash
+      stars review --yes, the console's stars-review op; tool-less, capped sessions through dash-gen ai-run,
+      local:stars-review) reviews each repo (summary, verdict adopt/borrow/watch/skip, the fleet project
+      it serves, ideas) and groups the stars into themes, into _data/stars_ai.json. The committed _data/stars.json
+      feeds the console's Stars page (radar, starred, trending, fleet match, themes, a map, feed, a repo
+      drawer), /api/stars and the published site, the MCP's fleet_stars, the Grafana dashboard fleet-stars
+      (gauges pushed to the OTel collector), and a SessionStart hook that starts every local Claude Code
+      session with the starred repos relevant to its project; private repositories and lists never enter
+      it.
+    implemented: true
+    status: shipped
+    surface: ui
+    link: tools/console/web/src/pages/Stars.tsx
+    docs: docs/STARGAZER.md
+    tags:
+    - stars
+    - discovery
+    - console
+    - loop
+    - sessions
+    date: 2026-11-23
+    tests:
+    - tools/test_stargazer.py
+    - tools/console/test_console.py
+    - tools/console/test_mcp_layer.py
+    scenarios:
+    - verify/scenarios/stars.yml
+    evidence:
+    - test/evidence/stargazer
+    prd:
+    - FR148
+    - FR149
+    - FR150

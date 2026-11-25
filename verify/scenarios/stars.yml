@@ -1,0 +1,47 @@
+# The open-source radar on the published site: _data/stars.json is public data, so the public build renders the whole page.
+id: stars
+feature: HUB-137
+title: "The Stars page renders the radar, the starred list, trending, fleet matches, AI themes, the map and a repo drawer"
+description: "/stars reads the committed _data/stars.json (through /api/stars on a console, snapshot/stars.json on the published build) and renders five tabs: Radar (totals, what you star by category and language, stars per month, health, the review list, the latest events), Starred (filters and the sortable table), Trending (each search with stars a day and suspect rows marked), Fleet match (every project's counts, then one project's starred and discovered matches), Themes (the AI groups over the stars, each with the fleet projects it feeds), Map (every repo by similarity to the fleet and stars, coloured by category) and Feed. A repo name opens the drawer with every field, its AI review, its closest fleet projects and a review command to copy. Nothing scrolls sideways at phone width. Assertions name sections, never counts or repos, because the data changes daily."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_"]
+steps:
+  - goto: /stars
+  - expect: { status: 200 }
+  - wait: { selector: "text=What you star" }
+  - expect: { visible: "text=To review for the fleet" }
+  - expect: { visible: "text=Stars per month" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: stars-radar
+  - goto: /stars?tab=starred
+  - wait: { selector: "text=Only repos like a fleet project" }
+  - expect: { visible: "td button" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: stars-starred
+  - click: "td button"
+  - wait: { ms: 600 }
+  - expect: { visible: "text=Review it in a local Claude Code session" }
+  - expect: { visible: "text=Closest fleet projects" }
+  - screenshot: stars-drawer
+  - goto: /stars?tab=trending
+  - wait: { selector: "text=Trending is GitHub search" }
+  - expect: { visible: "text=New this week" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: stars-trending
+  - goto: /stars?tab=fleet&project=zer0-mistakes
+  - wait: { selector: "text=Every fleet project" }
+  - expect: { visible: "text=Discovered" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: stars-fleet
+  - goto: /stars?tab=themes
+  - wait: { selector: "text=What the stars say you are interested in" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: stars-themes
+  - goto: /stars?tab=map
+  - wait: { selector: "[aria-label*='similarity to the fleet'] svg" }
+  - wait: { ms: 800 }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: stars-map
+  - goto: /stars?tab=feed
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: stars-feed

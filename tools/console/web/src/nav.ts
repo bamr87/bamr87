@@ -7,7 +7,7 @@ import {
   IconActivity, IconAppWindow, IconApps, IconBox, IconDeviceDesktop, IconBrandGithub, IconBrandDocker, IconBriefcase, IconCalendarTime, IconChartBar, IconCoin,
   IconFileText, IconGauge, IconGitBranch, IconGitPullRequest, IconHeartbeat, IconHome, IconInbox, IconKey, IconLayoutBoardSplit, IconLayoutGrid, IconLayoutKanban, IconListCheck, IconMicroscope, IconListDetails, IconLogs,
   IconMail, IconMicrophone, IconPencil, IconPlayerPlay, IconPlugConnected, IconReceipt, IconRepeat, IconRoute, IconRoadSign, IconSearch, IconServer2, IconSettings,
-  IconTerminal2, IconTool, IconTools, IconTopologyStar3, IconUser, IconFlask, IconSparkles, IconBolt, type Icon,
+  IconTerminal2, IconTool, IconTools, IconTopologyStar3, IconUser, IconFlask, IconSparkles, IconBolt, IconStar, type Icon,
 } from '@tabler/icons-react';
 
 import { BASENAME } from './api/backend';
@@ -56,6 +56,7 @@ export const NAV: NavSection[] = [
       { label: 'Apps', to: '/apps', icon: IconApps, hint: 'every fleet frontend, opened here: the live site or a local stack' },
       { label: 'Inbox', to: '/inbox', icon: IconInbox, hint: 'flagged issues, PRs and failing workflows' },
       { label: 'PR queue', to: '/prs', icon: IconGitPullRequest, hint: 'every open pull request, who moves it next, and bulk actions an agent carries out once you confirm' },
+      { label: 'Stars', to: '/stars', icon: IconStar, hint: 'the open-source radar: your GitHub stars sorted and categorised, what is trending, what is like each fleet project, what to review' },
       { label: 'Roadmap', to: '/roadmap', icon: IconRoadSign, hint: 'feature specs across the fleet' },
       { label: 'Features', to: '/features', icon: IconListCheck, hint: 'what each repo does and what proves it' },
       { label: 'Engagements', to: '/engagements', icon: IconReceipt, hint: 'projects as clients: estimates and actuals' },

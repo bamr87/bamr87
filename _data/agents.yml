@@ -15,26 +15,26 @@ contract:
     R5: its run records reach the reflector
     R6: a local entry point
 totals:
-  agents: 147
+  agents: 148
   by_category:
     ci-agent-step: 133
     local-loop-step: 5
     jev-tier: 3
-    scheduled-local-job: 6
+    scheduled-local-job: 7
   by_kind:
     ci-scheduled: 51
     ci-event: 40
     ci-mention: 42
     loop-step: 5
     jev-tier: 3
-    local-job: 6
-  with_gaps: 138
+    local-job: 7
+  with_gaps: 139
   gaps_by_rule:
     R1: 60
-    R2: 138
+    R2: 139
     R3: 0
     R4: 0
-    R5: 4
+    R5: 5
     R6: 77
 kpis:
   accepted_per_usd:
@@ -131,6 +131,14 @@ sources:
   fleet-config:
     path: _data/fleet.yml
     writer: maintainer (reviewed PR)
+    slo: on-change
+  stars-radar:
+    path: _data/stars.json
+    writer: stargazer.yml (tools/dash stars refresh)
+    slo: 3d
+  stars-ai:
+    path: _data/stars_ai.json
+    writer: local:stars-review (tools/dash stars review --yes)
     slo: on-change
   registry:
     path: _data/projects.yml
@@ -396,7 +404,7 @@ agents:
   run_record: lake
   feeds_reflector: true
   local_entry: tools/openai-auth.sh review
-  first_seen: '2026-11-24'
+  first_seen: '2026-11-25'
   gaps:
   - R2:missing:cost_source,tool_errors
   note: 'the reusable OpenAI reviewer of non-technical changes (codex-run, ChatGPT OAuth); every repo''s openai-review.yml
@@ -463,7 +471,7 @@ agents:
   run_record: lake
   feeds_reflector: true
   local_entry: tools/openai-auth.sh review
-  first_seen: '2026-11-24'
+  first_seen: '2026-11-25'
   gaps:
   - R2:missing:cost_source,tool_errors
   note: the hub's caller of independent-review.yml (same plan-usage caveat)
@@ -4410,6 +4418,38 @@ agents:
   feeds_reflector: false
   local_entry: tools/dash prs apply --plan-id <id> --apply
   first_seen: '2026-11-15'
+  gaps:
+  - R2:missing:permission_denials,tool_errors
+  - R5:no-reflector
+- id: local:stars-review
+  kind: local-job
+  category: scheduled-local-job
+  repo: bamr87/bamr87
+  where: tools/stargazer.py
+  owner: bamr87
+  trigger: 'on demand: tools/dash stars review --yes, or the console''s stars-review operation behind the spend confirm'
+  runs:
+  - tools/dash-gen ai-run --source 'stars review' (one tool-less session per batch, one for the groups)
+  switch:
+    config: stars.ai.enabled
+  budget:
+    per_run_usd: 1.0
+  model: claude-sonnet-5-5
+  kpis:
+    accepted_per_usd: null
+    accepted_per_actions_min: null
+    time_to_outcome_h: null
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    registry: maintainer (reviewed PR); reconcile-registry.yml proposes the changes
+    stars-ai: local:stars-review (tools/dash stars review --yes)
+    stars-radar: stargazer.yml (tools/dash stars refresh)
+  run_record: ai-ledger
+  feeds_reflector: false
+  local_entry: tools/dash stars review --yes
+  first_seen: '2026-11-23'
   gaps:
   - R2:missing:permission_denials,tool_errors
   - R5:no-reflector

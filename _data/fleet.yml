@@ -230,6 +230,9 @@ schedule:
                                   # the daily chain's lanes; gated by vars.JEV_CONFLICTS_ENABLED.
   scorecard_sweep: "17 6 * * 0"   # weekly read-only OpenSSF Scorecard sweep → conformance.yml security:
                                   # (docs/SECURITY-POSTURE.md); gated by vars.SCORECARD_SWEEP_ENABLED.
+  stargazer: "53 6 * * *"         # daily read-only open-source radar (see stars:, docs/STARGAZER.md): stars,
+                                  # trending and like-the-fleet → _data/stars.json, before build_dash (08:37);
+                                  # gated by vars.STARGAZER_ENABLED.
   link_check: "43 10 * * 3"       # weekly read-only fleet link check (see links:, docs/LINK-CHECK.md): every
                                   # repo's Markdown/HTML + every live site; job summary + artifact, files nothing;
                                   # gated by vars.LINK_CHECK_ENABLED.
@@ -978,6 +981,66 @@ links:
   cache_hours: 24                   # a local run reuses `ok` answers this young (.fleet/links/); --fresh ignores them
   github_batch: 80                  # GraphQL fields per query
 
+# --------------------------------------------------------------------------- #
+# Stars — the open-source radar (tools/stargazer.py, `tools/dash stars`,
+# .github/workflows/stargazer.yml, the model in tools/fleetcore/stars.py;
+# docs/STARGAZER.md).
+#
+# The account's public GitHub stars, the repos rising in the fleet's topics and
+# the repos most like each fleet project, written to _data/stars.json and
+# rendered on the console's /stars page; every local Claude Code session starts
+# with a brief of it (.claude/hooks/stars_session_start.py). Every key is
+# optional: the defaults are tools/fleetcore/stars.py DEFAULTS, and a
+# `categories:` list here REPLACES the built-in taxonomy.
+# --------------------------------------------------------------------------- #
+stars:
+  account: bamr87                   # whose stars; "" = the first of hub.owners
+  max_starred: 2000                 # stars read per refresh (100 a page)
+  trending:
+    per_query: 12                   # repos kept per search
+    fleet_topics: 6                 # the fleet's strongest topics, each its own "Rising in #topic" search
+    topic_window_days: 120          # … for repos created inside this window
+    topic_min_stars: 50
+  discover:
+    enabled: true
+    per_project: 8                  # repos searched per fleet project
+    min_stars: 100
+    pushed_days: 365
+  relevance:
+    min_score: 0.1                  # tf-idf cosine below which a repo is not "like" a project
+    incorporate_min: 0.2            # … and below which it is not worth a review
+    incorporate_max: 30
+    incorporate_per_project: 3
+  suspect:
+    young_days: 45                  # a repo this young with this many stars a day, and no forks or a
+    stars_per_day: 150              # throwaway-looking owner, reads as star-farmed and is never recommended
+  brief:
+    enabled: true                   # the SessionStart brief; STARS_SESSION_BRIEF=0 silences it per session
+    max_repos: 5
+    max_chars: 2200
+  # The AI pass (`tools/dash stars review --yes`, the console's stars-review op behind the spend confirm):
+  # tool-less sessions through dash-gen ai-run, each capped at budget_usd (API-equivalent, an estimate)
+  # and recorded in the AI ledger; harness.agents local:stars-review. A review is redone only when the
+  # repo's inputs change or it is older than max_age_days, so a daily pass reviews only what is new.
+  ai:
+    enabled: true
+    model: claude-sonnet-5-5        # an exact id in ai_models.allowed (§ 13.3)
+    budget_usd: 1.0                 # the cap of ONE session
+    max_turns: 2
+    timeout_s: 420
+    batch: 12                       # repos per review session (a long answer is the one that fails)
+    max_batches: 4                  # review sessions per run (+ one for the groups when the stars changed;
+                                    # a batch that fails is retried once as two halves)
+    max_age_days: 90
+    groups_min: 6
+    groups_max: 12
+  # The radar as gauges to the local OTel collector (observability.claude_code.endpoint) → Prometheus →
+  # the Grafana dashboard `fleet-stars`; pushed after a refresh or a review, best effort.
+  metrics:
+    push: true
+    endpoint: ""                    # "" = observability.claude_code.endpoint
+    timeout_s: 3
+
 # Budget — the dollar ceiling on a single headless agent invocation.
 #
 # `--max-turns` bounds ITERATIONS, not spend, and the two are not the same
@@ -1411,6 +1474,14 @@ harness:
       path: _data/fleet.yml
       writer: maintainer (reviewed PR)
       slo: on-change
+    stars-radar:
+      path: _data/stars.json
+      writer: stargazer.yml (tools/dash stars refresh)
+      slo_days: 3
+    stars-ai:
+      path: _data/stars_ai.json
+      writer: local:stars-review (tools/dash stars review --yes)
+      slo: on-change
     registry:
       path: _data/projects.yml
       writer: maintainer (reviewed PR); reconcile-registry.yml proposes the changes
@@ -1592,6 +1663,21 @@ harness:
       switch: {config: pr_queue.agent.enabled}
       run_record: ai-ledger
       local_entry: tools/dash prs apply --plan-id <id> --apply
+    local:stars-review:
+      # The open-source radar's AI pass (docs/STARGAZER.md): tool-less, capped sessions that review
+      # the radar's repos (summary, verdict, the fleet project served, ideas) and group the stars into
+      # themes; repo text is data to the model. No schedule, no installer: a person runs it.
+      declare:
+        kind: local-job
+        where: tools/stargazer.py
+        trigger: "on demand: tools/dash stars review --yes, or the console's stars-review operation behind the spend confirm"
+        runs: ["tools/dash-gen ai-run --source 'stars review' (one tool-less session per batch, one for the groups)"]
+      reads: [stars-radar, stars-ai, registry]
+      model_from: stars.ai.model
+      budget_from: {per_run_usd: stars.ai.budget_usd}
+      switch: {config: stars.ai.enabled}
+      run_record: ai-ledger
+      local_entry: tools/dash stars review --yes
     local:console-assist:
       # The console's assistant (tools/console/README.md "The assistant", ADR 0013): one capped,
       # read-only session per message a person sends from the dock or the Assist page; no
@@ -3223,6 +3309,22 @@ switches:
       verified: false
       flip: 'gh variable set LINK_CHECK_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
       cron: 43 10 * * 3
+      dispatch_bypasses: true
+    hub/stargazer:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/stargazer.yml
+      group: hub-maintenance
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: STARGAZER_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      flip: 'gh variable set STARGAZER_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
+      cron: 53 6 * * *
       dispatch_bypasses: true
     hub/fleet-snapshots:
       repo: bamr87/bamr87

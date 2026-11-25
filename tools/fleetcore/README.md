@@ -16,6 +16,7 @@ The Harness Console (browser, `tools/console/`) and the terminal dash (TTY, `too
 | `learn.py` | `/api/learn` (each loop's outcomes, estimate, plan and replay, shadow only) and the `learn-status` / `learn-plan` operations; a Learning page is planned | — (planned); today `tools/dash learn` |
 | `workflows.py` | — (planned: the Studio's read views, ADR 0007 S2); today the MCP's `fleet_workflows` with `fleet=true` | — (planned); today `tools/dash workflows --fleet` |
 | `prqueue.py` | `/api/prs` → **PR queue** (`/prs`): every open pull request with its checks collapsed, the gate, the merge method and who moves it next; the plan and apply around it are `tools/console/pr_queue.py`, and the MCP's `pr_queue` | — (planned); today `tools/dash prs` |
+| `stars.py`, `stars_ai.py`, `stars_grafana.py` | `/api/stars` → **Stars** (`/stars`): the open-source radar, the committed `_data/stars.json` the model builds, with the AI pass laid over it (`stars_ai`); the MCP's `fleet_stars` reads `query()` slices; the SessionStart hook reads `brief()`; the `fleet-stars` Grafana dashboard is `stars_grafana`'s render | `tools/dash stars` (the same model, `tools/stargazer.py`) |
 | `assistlog.py` | `/api/assist/activity` → **Assist** (*How it is observed*: the assistant's messages from the AI ledger and its page activity from the page bridge's audit) | — (a terminal reads it with `tools/dash apps assist activity`; MCP `assist_activity`; the lake with `lake assist`) |
 | `mcp_server.py` | — | — (the third surface: AI agents, below) |
 
