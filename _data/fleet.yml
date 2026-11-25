@@ -111,8 +111,9 @@ dependencies:
     - Pipfile.lock
     - uv.lock
     - composer.lock
+  runners: latest-label             # runs-on: <os>-latest; an image-versioned label (ubuntu-24.04) needs `# fleet-pin: <reason>` (tools/runner_pins.py, drift (j)/(k))
   exceptions:
-    github_actions: major-tag       # `uses:` needs a ref; @vN floats minor/patch, hub dependabot bumps majors
+    github_actions: major-tag      # `uses:` needs a ref; @vN floats minor/patch, hub dependabot bumps majors
     pre_commit: pinned-rev          # `rev:` is mandatory in .pre-commit-config.yaml; refresh via `pre-commit autoupdate`
     toolchain: fleet-config         # node/python/ruby versions stay governed by `toolchain:` above, not per-repo pins
 

@@ -23,7 +23,10 @@
 #      `ruby "X.Y.Z"` pins are removed so CI's toolchain version rules.
 #   6. .github/workflows/*.yml: `npm ci` → `npm install`,
 #      --frozen-lockfile/--immutable dropped, lockfile-keyed `cache:` lines
-#      removed, and `uses: owner/action@vX.Y.Z` floated to `@vX`.
+#      removed, `uses: owner/action@vX.Y.Z` floated to `@vX`, and a scalar
+#      `runs-on:` naming an image version (`ubuntu-24.04`, `macos-15`,
+#      `windows-2022`) floated to its `-latest` alias unless a `fleet-pin`
+#      comment marks it deliberate (tools/runner_pins.py).
 #
 # THE ONE EXCEPTION (UPS-QA-40/41, UPS-REPO-07, hub only): when the target is
 #   the hub itself (its origin is bamr87/bamr87), every covered
@@ -37,8 +40,10 @@
 # WHAT IT LEAVES (reported as follow-ups, for a human or the doctor agent):
 #   pyproject.toml/poetry/Pipfile dependency tables (no safe stdlib TOML
 #   writer), hash-pinned requirements files, npm overrides/resolutions,
-#   and toolchain files (.ruby-version/.nvmrc/.python-version — toolchain
-#   versions are governed by _data/fleet.yml, not this script).
+#   runner labels in a matrix, a list or an input default (a matrix that
+#   lists two images on purpose would collapse), and toolchain files
+#   (.ruby-version/.nvmrc/.python-version — toolchain versions are governed
+#   by _data/fleet.yml, not this script).
 #
 # Usage: tools/unpin-deps.sh [repo-dir]
 # ============================================================================
@@ -62,7 +67,7 @@ LOCKS=(package-lock.json npm-shrinkwrap.json pnpm-lock.yaml yarn.lock
 SANCTIONED="$(python3 "$HUB_TOOLS/sanctioned_lockfiles.py" paths .)" \
   || { echo "unpin-deps: cannot read the sanctioned runtimes (see above); nothing changed" >&2; exit 2; }
 sanctioned() { printf '%s\n' "$SANCTIONED" | awk -F'\t' -v k="$1" '$1 == k { print $2 }'; }
-export SANCTIONED
+export SANCTIONED HUB_TOOLS
 
 # --- 1. drop committed lockfiles (any depth) --------------------------------
 spec=()
@@ -193,6 +198,8 @@ for p in [t for t in tracked if t.split("/")[-1] in ("Gemfile", "gems.rb")]:
 CACHE_LINE = re.compile(r"""^\s*cache:\s*["']?(npm|pnpm|yarn)["']?\s*$""")
 CACHE_DEP = re.compile(r"^\s*cache-dependency-path:.*(lock|shrinkwrap)", re.I)
 USES_TAG = re.compile(r"(uses:\s*[^\s@]+@v)(\d+)\.[\d.]+")
+sys.path.insert(0, os.environ["HUB_TOOLS"])
+import runner_pins  # noqa: E402  (the hub's tools/, next to this script)
 for p in [t for t in tracked if t.startswith(".github/workflows/")
           and t.endswith((".yml", ".yaml"))]:
     out, changed = [], False
@@ -205,8 +212,13 @@ for p in [t for t in tracked if t.startswith(".github/workflows/")
         new = USES_TAG.sub(r"\1\2", new)
         changed = changed or new != line
         out.append(new)
+    text, left = runner_pins.float_runs_on("\n".join(out) + "\n")
+    changed = changed or text != "\n".join(out) + "\n"
+    for pin in left:
+        followups.append(f"{p}:{pin.line}: `{pin.label}` is a versioned runner in a matrix, list or default — "
+                         f"float it to {pin.alias} or mark it `# fleet-pin: <reason>`")
     if changed:
-        write(p, "\n".join(out) + "\n")
+        write(p, text)
 
 # ---- follow-ups the script deliberately does not automate -------------------
 for t in tracked:
