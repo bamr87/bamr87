@@ -27,7 +27,7 @@ What reviews a bot's content pull request before auto-merge is its checks: the b
 
 In constitution § 23 item 6, replace the sentence "Rule 4 applies to every line: each draft is a pull request, nothing publishes until reviewed by a human and/or an agent, and a human merges — lifehacker.dev's auto-merge stays held." with:
 
-> Each draft is a pull request, and nothing publishes before it is reviewed: by a human, who merges it, or, while lifehacker.dev's auto-merge switch is on, by its gates. The auto-merge line merges a bot's pull request, with a merge commit, only when every changed file is content or generated data, every check on it is green (the build and content harness, and the AI brand review where it runs), and it carries no `needs-human` label. This is the one place where checks alone stand in for rule 4's review; turning the switch off returns every merge to a human.
+> Each draft is a pull request, and nothing publishes before it is reviewed: by a human, who merges it, or, while lifehacker.dev's auto-merge switch is on, by its gates. The auto-merge line merges a pull request carrying one of its bots' labels (`auto:content`, `source/triage-bot`, `source/ai-usage-bot`), with a merge commit, only when every changed file is content or generated data, every check on it is green (the build and content harness, and the AI brand review where it runs), and it carries no `needs-human` label. This is the one place where checks alone stand in for rule 4's review; turning the switch off returns every merge to a human.
 
 ## Consequences
 
