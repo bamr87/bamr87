@@ -66,6 +66,12 @@
 
 9. **Records follow ADR 0006.** Change sets and their approvals are JSONL under the audit path until phase B4 lands, then Django models. The route family starts in FastAPI and moves with the strangler.
 
+### The cost levers (added 2026-11-25, from ADR 0008)
+
+- **Status**: proposed
+
+10. **The cost levers are atlas rules.** [ADR 0017](0017-withdraw-typed-decision-gates.md) withdrew ADR 0008 and moved its decision 4 here, because it is the mechanism of decision 8. Five more rules join decision 8's list, each landing at `warn` and each naming the incident behind it: `cancel-in-progress`, `path-filter`, `macos-isolated`, `cache-measured` and `job-consolidation`. `cancel-in-progress` is about a pull request's superseded runs and is not the `concurrency` rule, which keeps a loop that writes from overlapping itself and wants `cancel-in-progress: false`. A required check keeps the docs-paths decision `standard-ci.yml` already makes, because `paths-ignore` cannot be used on one. The billing meter stays the only source of minutes. Each rule's exact check is written with its incident in #739 before it lands. #739 also carries the rest of ADR 0008's phase A1: minutes by OS and the cache hit rate in `_data/actions_usage.yml`, and `tools/dash workflows cost` over the fleet model. Its acceptance stands: no false positive on the hub's own workflows. A fleet-wide count waits on the first sync (S1).
+
 ## Delivery
 
 | Phase | Delivers | Acceptance |
