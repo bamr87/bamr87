@@ -1,8 +1,8 @@
 <!-- kit: governance v0.1.0 -->
-# NEW — lifehacker.dev's drafting lines run again, and a human still merges
+# 0037 — lifehacker.dev's drafting lines run again, and a human still merges
 
 - **Status:** proposed
-- **Number:** NEW
+- **Number:** 0037
 - **Date:** 2026-11-24
 - **Proposed by:** agent (Claude Code), at the maintainer's request (2026-11-24: "resolve blockers, turn on lifehackers automation.")
 - **Ratified by:**
