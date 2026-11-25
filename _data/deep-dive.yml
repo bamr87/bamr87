@@ -8,7 +8,7 @@ label: deep-dive
 cycle: 1
 cycle_start: '2026-10-30'
 cycle_days: 42
-refreshed_at: '2026-11-24T12:27:23Z'
+refreshed_at: '2026-11-25T12:27:44Z'
 repos:
 - day: 1
   repo: it-journey
@@ -63,8 +63,9 @@ repos:
   - https://github.com/bamr87/bamr87/pull/509
   - https://github.com/bamr87/bamr87/pull/508
   - https://github.com/bamr87/bamr87/pull/579
+  - https://github.com/bamr87/bamr87/pull/975
   open_issues: 9
-  open_prs: 0
+  open_prs: 1
   findings: 'Cycle 1 day 2, final. Outcomes: Amr merged #508 (docs_index --lint fix) and #509 (governance-records-lint feature); issues #500-#505 filed (dead amendment links + FR45/HUB-049 #500, amendment status/§ 13 ordering #501, NFR11 budget mismatch #502, ungated docs_index lint #503, console a11y #504, governance-records-lint #505). Previously known python-tests and v1/v2 tag items were already fixed. HUB-039 has no PRD requirement (warning).'
   score: 78.0
   next_focus: 'Amr: go-ahead on #500 and #501 status flips; budget decision in #502. Gate docs_index --lint in CI (#503); console a11y pass (#504) with § 15 evidence; land #494/#496 so § 15/§ 16 numbering is final.'
@@ -526,10 +527,22 @@ repos:
   status: pending
   last_processed: null
   cycle: 1
-  issues: []
-  prs: []
-  open_issues: 0
-  open_prs: 0
+  issues:
+  - https://github.com/bamr87/rsa-challenge/issues/12
+  - https://github.com/bamr87/rsa-challenge/issues/11
+  - https://github.com/bamr87/rsa-challenge/issues/10
+  - https://github.com/bamr87/rsa-challenge/issues/9
+  - https://github.com/bamr87/rsa-challenge/issues/8
+  - https://github.com/bamr87/rsa-challenge/issues/7
+  - https://github.com/bamr87/rsa-challenge/issues/6
+  - https://github.com/bamr87/rsa-challenge/issues/5
+  - https://github.com/bamr87/rsa-challenge/issues/4
+  - https://github.com/bamr87/rsa-challenge/issues/3
+  prs:
+  - https://github.com/bamr87/rsa-challenge/pull/14
+  - https://github.com/bamr87/rsa-challenge/pull/13
+  open_issues: 10
+  open_prs: 2
   findings: ''
   score: null
   next_focus: ''
