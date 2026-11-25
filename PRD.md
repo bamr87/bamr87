@@ -107,7 +107,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-054](features/features.yml) | Tag selectors for --target | planned | [`tools/fanout.sh`](tools/fanout.sh) · [`docs/DASH.md`](docs/DASH.md) | FR51 |
 | [HUB-055](features/features.yml) | Copier-style 3-way kit upgrade for hand-edited files | planned | [`tools/fanout.sh`](tools/fanout.sh) · [`docs/STANDARDS.md`](docs/STANDARDS.md) | FR52 |
 | [HUB-056](features/features.yml) | Governance records lint: amendment status, constitution order, doc links | planned | [`tools/governance_lint.py`](tools/governance_lint.py) · [`docs/amendments/README.md`](docs/amendments/README.md) | FR53 |
-| [HUB-057](features/features.yml) | Centrally managed loop kill switches | planned | [`_data/fleet.yml`](_data/fleet.yml) · [`docs/AI-INTEGRATION.md`](docs/AI-INTEGRATION.md) | FR54 |
+| [HUB-057](features/features.yml) | Centrally managed loop kill switches | partial | [`tools/console/switches.py`](tools/console/switches.py) · [`docs/AI-INTEGRATION.md`](docs/AI-INTEGRATION.md) | FR54 |
 | [HUB-058](features/features.yml) | Agentic design patterns map | partial | [`docs/agentic-patterns/patterns.json`](docs/agentic-patterns/patterns.json) · [`docs/agentic-patterns/README.md`](docs/agentic-patterns/README.md) | FR55 |
 | [HUB-059](features/features.yml) | JEV: loop step specs — one spec per agent step, rendered the same in CI and locally | partial | [`tools/jev/steps/README.md`](tools/jev/steps/README.md) · [`docs/JEV.md`](docs/JEV.md) | FR45 |
 | [HUB-060](features/features.yml) | JEV: run a loop's agent step locally (the loop runner) | partial | [`tools/jev/loop.py`](tools/jev/loop.py) · [`docs/JEV.md`](docs/JEV.md) | FR56 |
