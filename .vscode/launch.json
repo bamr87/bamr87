@@ -757,6 +757,16 @@
       "presentation": { "group": "4-generate", "order": 8 }
     },
     {
+      // The loop switches (constitution § 17): read-only. A flip is previewed with
+      // `tools/dash switches plan … --reason …` and applied on the console's /switches page.
+      "name": "🎚️ Loop switches: every kill switch, live vs the map (read-only)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash switches list",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 8 }
+    },
+    {
       // The AI review a pull request gets when it is marked ready (constitution § 19.7,
       // templates/pr-review/README.md "AI review"), run here in a capped local session:
       // read-only tools, the review printed, nothing posted. The posted review is

@@ -860,6 +860,26 @@ def _prs_apply(params: dict, op: str) -> list[str]:
     return [DASH, "prs", "apply", "--plan-id", plan_id, "--expect-op", op] + (["--apply"] if _flag(params, "apply") else [])
 
 
+# The loop switches (constitution § 17; tools/console/switches.py): a flip is previewed by
+# POST /api/switches/preview (or `tools/dash switches plan`), which keeps the plan under
+# .fleet/switches/plans/; `switches-apply` applies it by its id, re-planned from live state.
+def _switches_list(params: dict) -> list[str]:
+    repo = str(params.get("repo") or "").strip()
+    if repo and not NWO_RX.match(repo):
+        raise ValueError("repo must be owner/name")
+    return [DASH, "switches", "list"] + (["--repo", repo] if repo else [])
+
+
+def _switches_apply(params: dict) -> list[str]:
+    """`tools/dash switches apply --plan-id <id> [--apply]`: without apply it only says whether the preview
+    still matches; with apply it sets the variables, reads them back and records the map (§ 17.3, § 17.4)."""
+    plan_id = str(params.get("plan_id") or "").strip()
+    if not PRQ_PLAN_RX.fullmatch(plan_id):
+        raise ValueError("plan_id must be the 16-hex id a preview returned (POST /api/switches/preview, or "
+                         "tools/dash switches plan)")
+    return [DASH, "switches", "apply", "--plan-id", plan_id] + (["--apply"] if _flag(params, "apply") else [])
+
+
 def _pm(params: dict) -> list[str]:
     view = str(params.get("view") or "review").strip()
     if view not in PM_VIEWS:
@@ -1623,6 +1643,24 @@ OPS: dict[str, dict] = {
                         needs_token=True, remote=lambda p: _flag(p, "apply"),
                         desc="fleet.yml `variables:` → every repo's Actions variables — DRY RUN unless apply.",
                         params=["apply"]),
+    "switches": dict(title="Loop switches: every kill switch, live vs the map", group="observe",
+                     argv=_switches_list, needs_token=True,
+                     desc="tools/dash switches — every _data/fleet.yml `switches.loops` record with its live variable "
+                          "(one list call per repository; unreadable is never off), the effective state (the most "
+                          "restrictive level wins, then the gate and any hold), the map's state and drift "
+                          "(constitution § 17). Read-only; reads no secret.",
+                     params=["repo"]),
+    "switches-apply": dict(title="Loop switches: apply a previewed flip", group="deploy",
+                           argv=_switches_apply, needs_token=True, exclusive="switches",
+                           remote=lambda p: _flag(p, "apply"),
+                           desc="tools/dash switches apply --plan-id <id> — the flip previewed on the Switches page "
+                                "(POST /api/switches/preview), planned again from live state and refused when it moved. "
+                                "DRY RUN unless apply. With apply (§ 17.3, the OPS remote-write path § 11.8): only while "
+                                "the console's GitHub writes are on and only on repositories the hub owns, each variable "
+                                "is set and read back, the map records are spliced into _data/fleet.yml (the rest of the "
+                                "file byte-identical), each flip goes to the fleet activity log and the JSONL audit "
+                                "(§ 17.4). Commit the map change yourself; it never commits.",
+                           params=["plan_id", "apply"]),
     "dispatch": dict(title="Dispatch a control-plane workflow in CI", group="deploy",
                      argv=_dispatch, needs_token=True, remote=lambda p: True,
                      desc="`gh workflow run <workflow>.yml -f key=value` for the allowlisted workflows; "
