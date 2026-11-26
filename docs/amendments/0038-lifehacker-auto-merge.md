@@ -1,11 +1,11 @@
 <!-- kit: governance v0.1.0 -->
 # 0038 — lifehacker.dev's auto-merge may publish a bot's content without a human merge
 
-- **Status:** proposed
+- **Status:** ratified
 - **Number:** 0038
 - **Date:** 2026-11-25
 - **Proposed by:** agent (Claude Code), at the maintainer's request (2026-11-25: "switch them all on.")
-- **Ratified by:**
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/989 (merged 2026-11-26 by @bamr87)
 - **Affects:** constitution § 23 item 6; `_data/fleet.yml` `switches.loops` `lifehacker.dev/auto-merge`; bamr87/lifehacker.dev `auto-merge.yml`, its constitution § 1 mission 3 (its own amendment 0005), AGENTS.md and PRD (companion pull request); requirements: none; features: none
 - **Supersedes:** none (amends § 23 item 6 as left by amendment 0037 `lifehacker-drafting-lines`)
 - **Related:** 0037 `lifehacker-drafting-lines`; constitution § 12.2, § 12.3, § 17; bamr87/lifehacker.dev#800 (the hold)
