@@ -2,15 +2,15 @@
   "schema": "deep-dive/v1",
   "owner": "bamr87",
   "label": "deep-dive",
-  "refreshed_at": "2026-11-25T12:27:44Z",
+  "refreshed_at": "2026-11-26T12:26:57Z",
   "summary": {
-    "as_of": "2026-11-25",
+    "as_of": "2026-11-26",
     "cycle": 1,
     "cycle_start": "2026-10-30",
     "cycle_end": "2026-12-10",
     "cycle_days": 42,
     "total": 38,
-    "day": 27,
+    "day": 28,
     "processed": 14,
     "counts": {
       "pending": 24,
@@ -20,14 +20,6 @@
     },
     "progress": 0.3684,
     "today": {
-      "date": "2026-11-25",
-      "cycle": 1,
-      "day": 27,
-      "cycle_days": 42,
-      "kind": "scheduled",
-      "repo": "ragio-ai"
-    },
-    "next": {
       "date": "2026-11-26",
       "cycle": 1,
       "day": 28,
@@ -35,11 +27,19 @@
       "kind": "scheduled",
       "repo": "fleet-infra"
     },
+    "next": {
+      "date": "2026-11-27",
+      "cycle": 1,
+      "day": 29,
+      "cycle_days": 42,
+      "kind": "scheduled",
+      "repo": "kvlite"
+    },
     "last": "cv-pro",
     "last_date": "2026-11-23",
     "avg_score": 51.9,
-    "open_issues": 42,
-    "open_prs": 3
+    "open_issues": 50,
+    "open_prs": 5
   },
   "repos": [
     {
@@ -667,10 +667,22 @@
       "status": "pending",
       "last_processed": null,
       "cycle": 1,
-      "issues": [],
-      "prs": [],
-      "open_issues": 0,
-      "open_prs": 0,
+      "issues": [
+        "https://github.com/bamr87/ragio-ai/issues/27",
+        "https://github.com/bamr87/ragio-ai/issues/26",
+        "https://github.com/bamr87/ragio-ai/issues/25",
+        "https://github.com/bamr87/ragio-ai/issues/24",
+        "https://github.com/bamr87/ragio-ai/issues/23",
+        "https://github.com/bamr87/ragio-ai/issues/22",
+        "https://github.com/bamr87/ragio-ai/issues/21",
+        "https://github.com/bamr87/ragio-ai/issues/20"
+      ],
+      "prs": [
+        "https://github.com/bamr87/ragio-ai/pull/29",
+        "https://github.com/bamr87/ragio-ai/pull/28"
+      ],
+      "open_issues": 8,
+      "open_prs": 2,
       "findings": "",
       "score": null,
       "next_focus": ""
