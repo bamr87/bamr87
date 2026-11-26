@@ -8,7 +8,7 @@ label: deep-dive
 cycle: 1
 cycle_start: '2026-10-30'
 cycle_days: 42
-refreshed_at: '2026-11-24T12:27:23Z'
+refreshed_at: '2026-11-25T12:27:44Z'
 repos:
 - day: 1
   repo: it-journey
@@ -63,8 +63,9 @@ repos:
   - https://github.com/bamr87/bamr87/pull/509
   - https://github.com/bamr87/bamr87/pull/508
   - https://github.com/bamr87/bamr87/pull/579
+  - https://github.com/bamr87/bamr87/pull/975
   open_issues: 9
-  open_prs: 0
+  open_prs: 1
   findings: 'Cycle 1 day 2, final. Outcomes: Amr merged #508 (docs_index --lint fix) and #509 (governance-records-lint feature); issues #500-#505 filed (dead amendment links + FR45/HUB-049 #500, amendment status/§ 13 ordering #501, NFR11 budget mismatch #502, ungated docs_index lint #503, console a11y #504, governance-records-lint #505). Previously known python-tests and v1/v2 tag items were already fixed. HUB-039 has no PRD requirement (warning).'
   score: 78.0
   next_focus: 'Amr: go-ahead on #500 and #501 status flips; budget decision in #502. Gate docs_index --lint in CI (#503); console a11y pass (#504) with § 15 evidence; land #494/#496 so § 15/§ 16 numbering is final.'
@@ -540,8 +541,8 @@ repos:
   prs:
   - https://github.com/bamr87/rsa-challenge/pull/13
   - https://github.com/bamr87/rsa-challenge/pull/14
-  open_issues: 0
-  open_prs: 0
+  open_issues: 10
+  open_prs: 2
   findings: 'Public repo, main @ e73e8af (v0.2.0). At review: 0 open issues, 0 open PRs (merged #1 release 0.2.0 and #2 missions). 11/11 tests pass in 0.16s; governance_lint ok; Pages live; secret scanning, push protection and Dependabot security updates on. Leak gate skips values shorter than 6 chars (RSA-32b primes are 5 digits) and CI cannot scan values because secrets/ is absent (#3). verify --d echoes the recovered plaintext (#4). Private vulnerability reporting off and main unprotected (#5, needs Amr). CI missing timeout-minutes and PR concurrency; Pages write permissions are workflow-wide (#6). No dependabot.yml (#7). governance_lint is in the DoD but not CI; Python 3.9 is claimed and untested (#8). Amendment 0002 still proposed and RSA-007 planned after #2 (docs PR #13). CHANGELOG leftover heading and compare link to missing rsa-challenge-v0.1.0 (#10). Release PR #1 had an empty statusCheckRollup (token-opened PR; root cause tracked fleet-wide, not refiled). Filed #3-#12; planned
     RSA-008/009 in #14. Did not merge, change settings, or add scheduled workflows.'
   score: 76.0
