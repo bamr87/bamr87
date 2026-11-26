@@ -35,6 +35,7 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - The daily `com.bamr87.harness-review` job gained a step, `tools/dash-gen lake assist --days 7`. A LaunchAgent already installed runs the job it was installed with until `tools/install-harness-review.sh` is run again.
 - `docs/EVALS.md`, `evals/README.md`, `evals/SCHEMA.md`, the root `SCHEMA.md` and `tools/README.md` named a workflow, `.github/workflows/evals.yml`, that was never added. They now say what runs: `tools/test_evals.py`, in the `python-tests` workflow.
 - Proposed constitution § 23.6 / amendment `lifehacker-drafting-lines`: lifehacker.dev's three drafting lines (content factory, weekly epic, wire scout) run again from its own backlog, news sources and weekly digest until hub-originated intake lands. Every draft is a pull request a human merges, and its auto-merge stays held. `_data/fleet.yml` records the live state of its 18 variable-gated switches (13 on, 5 off) as of 2026-11-24.
+- Proposed constitution § 23.6 / amendment `lifehacker-auto-merge`: while lifehacker.dev's auto-merge switch is on, its auto-merge line may merge a bot's pull request, with a merge commit, when every changed file is content or generated data, every check is green and it carries no `needs-human` label. Turning the switch off returns every merge to a human. `_data/fleet.yml` records `lifehacker.dev/auto-merge` as on.
 
 ### Deprecated
 

@@ -1,8 +1,8 @@
 <!-- kit: governance v0.1.0 -->
-# NEW — lifehacker.dev's auto-merge may publish a bot's content without a human merge
+# 0038 — lifehacker.dev's auto-merge may publish a bot's content without a human merge
 
 - **Status:** proposed
-- **Number:** NEW
+- **Number:** 0038
 - **Date:** 2026-11-25
 - **Proposed by:** agent (Claude Code), at the maintainer's request (2026-11-25: "switch them all on.")
 - **Ratified by:**
