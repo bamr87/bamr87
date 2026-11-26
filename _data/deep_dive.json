@@ -2,15 +2,15 @@
   "schema": "deep-dive/v1",
   "owner": "bamr87",
   "label": "deep-dive",
-  "refreshed_at": "2026-11-25T12:27:44Z",
+  "refreshed_at": "2026-11-26T12:26:57Z",
   "summary": {
-    "as_of": "2026-11-25",
+    "as_of": "2026-11-26",
     "cycle": 1,
     "cycle_start": "2026-10-30",
     "cycle_end": "2026-12-10",
     "cycle_days": 42,
     "total": 38,
-    "day": 27,
+    "day": 28,
     "processed": 16,
     "counts": {
       "pending": 22,
@@ -20,14 +20,6 @@
     },
     "progress": 0.4211,
     "today": {
-      "date": "2026-11-25",
-      "cycle": 1,
-      "day": 27,
-      "cycle_days": 42,
-      "kind": "scheduled",
-      "repo": "ragio-ai"
-    },
-    "next": {
       "date": "2026-11-26",
       "cycle": 1,
       "day": 28,
@@ -35,11 +27,19 @@
       "kind": "scheduled",
       "repo": "fleet-infra"
     },
+    "next": {
+      "date": "2026-11-27",
+      "cycle": 1,
+      "day": 29,
+      "cycle_days": 42,
+      "kind": "scheduled",
+      "repo": "kvlite"
+    },
     "last": "ragio-ai",
     "last_date": "2026-11-25",
     "avg_score": 54.6,
-    "open_issues": 42,
-    "open_prs": 3
+    "open_issues": 50,
+    "open_prs": 5
   },
   "repos": [
     {
@@ -681,8 +681,8 @@
         "https://github.com/bamr87/ragio-ai/pull/28",
         "https://github.com/bamr87/ragio-ai/pull/29"
       ],
-      "open_issues": 0,
-      "open_prs": 0,
+      "open_issues": 8,
+      "open_prs": 2,
       "findings": "Cycle 1 day 27. Fully local Radiolab RAG (FastAPI, Qdrant, Ollama, Whisper); CI/conformance green, offline pytest suite exists. Bugs: build_prompt evidence-budget break only exits the inner loop, so labels skip and lower-ranked passages slip in (#20); dependency outages give bare 500s / dropped SSE and the UI Ask button stays disabled (#21). UI/UX: unescaped feed fields + javascript: page_url, unlabeled input, no aria-live, empty questions sent (#22, fixed in PR #29); FR12 episode/transcript browser missing though RAGIO-009 says shipped (#23). Security (needs human): main unprotected, private vuln reporting off, no SECURITY.md (#24). Governance: amendment 0002 merged but 'proposed', RAGIO-017 planned, truncated feature titles (fixed in PR #28), constitution \u00a77 test statement stale, needs amendment 0003 (#25). Planned FR20/RAGIO-018 citation export + deep links (#26) and FR21/RAGIO-019 multiple podcast sources (#27), added in PR #28. Draft evolve PR #19 already fixes the AGENTS.md waiver text.",
       "score": 70.0,
       "next_focus": "Verify PRs #28/#29 merged; backend half of #21 (503s, SSE error event); episode browser (#23) with #4 frontend shell; amendment 0003 for constitution \u00a77; settings in #24; offline retrieval tests (#3)."
