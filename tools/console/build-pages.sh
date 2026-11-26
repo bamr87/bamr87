@@ -39,6 +39,8 @@ if [[ -n "$SITE" ]]; then
   eval "$site_env"
   # The origins a framed app is served from: the launcher's, the list the
   # console's own policy names (ADR 0005, decision 4). Never a wildcard.
+  # Passed through as-is: vite.config.ts admits only https or http loopback
+  # (web/src/lib/frameOrigin.ts) and prints each origin it drops.
   FRAME_SRC="$(cd "$HERE/.." && "$PY" -c 'from pathlib import Path; from fleetcore import apps; print(" ".join(apps.target_origins(Path.cwd().parent)))')"
 fi
 
