@@ -3520,18 +3520,12 @@ switches:
         name: AUTO_MERGE_ENABLED
         semantics: opt_in
       default: 'off'
-      state: 'off'
+      state: 'on'
       verified: true
-      flip: 'gh variable set AUTO_MERGE_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
-      reason: 'set true 2026-11-24 16:16 UTC and back to false the same day: held by amendment `lifehacker-drafting-lines` (a human merges; lifehacker.dev constitution § 1 mission 3)'
+      flip: 'gh variable set AUTO_MERGE_ENABLED -R bamr87/lifehacker.dev --body false  # disable: every merge goes back to a human; record the flip here in the same PR'
+      reason: 'maintainer instruction 2026-11-25 ("switch them all on"); set true 20:48 UTC by Claude Code, read back with gh variable list (amendment `lifehacker-auto-merge`)'
       set_by: bamr87
-      set_at: '2026-11-24'
-      hold:
-        kind: env
-        name: HUB_ORIGINATION_HOLD
-        value: 'true'
-        source: bamr87/lifehacker.dev#800 (merged 2026-11-06)
-        lift: 'none — kept by amendment `lifehacker-drafting-lines`; turning auto-merge on needs a new amendment here and in lifehacker.dev'
+      set_at: '2026-11-25'
     lifehacker.dev/auto-update:
       repo: bamr87/lifehacker.dev
       workflow: .github/workflows/auto-update.yml
