@@ -11,8 +11,9 @@ import type {
   ProjectDetail, StateDoc, TuiStatus, Dict, GithubStatus, GhRepo, GhRepoDetail, GhAction, GhIssue,
   SiteIndex, SitePage, SitePost, GithubFleet, PullSpecs, WorkBoard, WorkItemDetail, WorkPlan,
   WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint, RefineDoc, EvidenceDoc, TextFile, AssistDoc, AssistActivity, JobTail, PrQueue, NodesDoc, SprintsDoc, VoicesDoc,
-  GhProjectsDoc, GhProjectItemsDoc, DecisionsDoc, StarsDoc, SwitchesDoc,
+  GhProjectsDoc, GhProjectItemsDoc, DecisionsDoc, StarsDoc,
 } from './types';
+import type { SwitchesDoc } from './switchTypes';
 
 const minute = 60_000;
 

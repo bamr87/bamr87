@@ -2,7 +2,7 @@
 // what a toggle asks for, how a variable's value reads, when a previewed flip may be
 // applied, and why a lever is off. The server holds the same rules (tools/console/
 // switches.py); these only decide what the page offers, never what is written.
-import type { SwitchPlan, SwitchRepo, SwitchRow, SwitchScope, SwitchTarget, SwitchesDoc } from '../api/types';
+import type { SwitchPlan, SwitchRepo, SwitchRow, SwitchScope, SwitchTarget, SwitchesDoc } from '../api/switchTypes';
 
 export const REASON_MIN = 3;
 export const REASON_MAX = 300;

@@ -4,7 +4,7 @@
 // disable the lever with the reason, and Apply is offered only for the exact
 // plan that was previewed with this reason, with something to do and a diff.
 import { describe, expect, it } from 'vitest';
-import type { SwitchPlan, SwitchRow, SwitchesDoc } from '../api/types';
+import type { SwitchPlan, SwitchRow, SwitchesDoc } from '../api/switchTypes';
 import {
   applyBlocked, flipTitle, isOn, itemChange, loopFlip, reasonOk, repoBlocked, repoFlip, rowBlocked, semanticsLabel, shown,
 } from './switchPlan';

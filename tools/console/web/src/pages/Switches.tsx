@@ -13,7 +13,7 @@ import { notifications } from '@mantine/notifications';
 import { hasConsole } from '../api/backend';
 import { post } from '../api/client';
 import { useSwitches } from '../api/hooks';
-import type { SwitchPlan, SwitchRepo, SwitchRow, SwitchesDoc } from '../api/types';
+import type { SwitchPlan, SwitchRepo, SwitchRow, SwitchesDoc } from '../api/switchTypes';
 import { Banner, Empty, External, Load, LocalOnly, Mono, PageHeader, Section, Status, type Tone } from '../components/ui';
 import { useRunner } from '../jobs/JobRunner';
 import { gh } from '../lib/links';
