@@ -11,14 +11,14 @@
     "cycle_days": 42,
     "total": 38,
     "day": 29,
-    "processed": 17,
+    "processed": 18,
     "counts": {
-      "pending": 21,
+      "pending": 20,
       "in_progress": 0,
-      "done": 17,
+      "done": 18,
       "skipped": 0
     },
-    "progress": 0.4474,
+    "progress": 0.4737,
     "today": {
       "date": "2026-11-27",
       "cycle": 1,
@@ -35,9 +35,9 @@
       "kind": "scheduled",
       "repo": "netprobe"
     },
-    "last": "fleet-infra",
-    "last_date": "2026-11-26",
-    "avg_score": 55.6,
+    "last": "kvlite",
+    "last_date": "2026-11-27",
+    "avg_score": 56.6,
     "open_issues": 58,
     "open_prs": 4
   },
@@ -717,16 +717,28 @@
       "day": 29,
       "repo": "kvlite",
       "scheduled": "2026-11-27",
-      "status": "pending",
-      "last_processed": null,
+      "status": "done",
+      "last_processed": "2026-11-27",
       "cycle": 1,
-      "issues": [],
-      "prs": [],
+      "issues": [
+        "https://github.com/bamr87/kvlite/issues/14",
+        "https://github.com/bamr87/kvlite/issues/15",
+        "https://github.com/bamr87/kvlite/issues/16",
+        "https://github.com/bamr87/kvlite/issues/17",
+        "https://github.com/bamr87/kvlite/issues/18",
+        "https://github.com/bamr87/kvlite/issues/19",
+        "https://github.com/bamr87/kvlite/issues/20",
+        "https://github.com/bamr87/kvlite/issues/21",
+        "https://github.com/bamr87/kvlite/issues/22"
+      ],
+      "prs": [
+        "https://github.com/bamr87/kvlite/pull/23"
+      ],
       "open_issues": 0,
       "open_prs": 0,
-      "findings": "",
-      "score": null,
-      "next_focus": ""
+      "findings": "Cycle 1 day 29. Phase-1 MemStore + interactive put/get/del CLI is small and clean: cargo test 11/11 passes locally (fmt/clippy not installed on the box; CI build job green on #13), no unsafe, no non-test unwraps, BrokenPipe and invalid UTF-8 handled. Architecture: MemStore deletes physically and keys on String, so once SSTables land deleted keys resurrect; needs tombstones, byte keys and size accounting before KVL-002/003 (#14). CLI bug: put silently trims leading/trailing value whitespace and cannot store an empty value, contrary to README (#15). Needs Amr: main unprotected, no rulesets, private vulnerability reporting off while SECURITY.md points to it (#16). Governance: amendment 0002 merged in #12 but still proposed, KVL-008 planned (fixed in PR #23), constitution \u00a77 gates omit fmt/clippy (needs amendment 0003), release-please declared but not wired (#17). ADR needed before KVL-002 for WAL record format, checksum, fsync contract and torn-tail recovery (#18). Cargo.toml hygiene: no MSRV, no [lints] unsafe_code=forbid, no metadata, no CI cache (#19). Planned KVL-009/FR7 model-based + WAL fault-injection tests (#20), KVL-010/FR8 range scans (#21), KVL-011/FR9 benchmarks + amplification metrics (#22) in PR #23. Draft evolve #13 already fixes the stale docs/README.md index and @main/@stable pins, so not refiled.",
+      "score": 74.0,
+      "next_focus": "Land #23 and draft #13; Amr decides the WAL durability ADR (#18) and settings (#16); Claude Code takes #14 (tombstones/bytes) then #15 and #19 before KVL-002; amendment 0003 for constitution \u00a77; wire release-please with release-type rust (#17); then KVL-002 WAL with #20 tests."
     },
     {
       "day": 30,
