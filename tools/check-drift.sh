@@ -28,7 +28,8 @@
 #       so it runs in CI too. Mechanical drift: tools/schema_lint.py check . --fix
 #   (j) always-latest dependency policy: no SHA-pinned `uses:`, no seed template
 #       trailing the hub's action majors, no committed lockfiles, no exact or
-#       ceiling pins in hub manifests (docs/DEPENDENCIES.md, `dependencies:` in
+#       ceiling pins in hub manifests, no versioned runner label (`ubuntu-24.04`)
+#       without a `fleet-pin` comment (docs/DEPENDENCIES.md, `dependencies:` in
 #       _data/fleet.yml). Offline and hub-scoped, so it gates on every PR.
 #   (m) fleet dev-stack port allocation: _data/ports.yml has no collisions and
 #       is in band, and compose/overrides/* + compose/fleet.yml are in sync
@@ -59,8 +60,9 @@
 #   (n) the Docker standard: the hub's OWN Dockerfiles/compose files match the
 #       image registry (_data/fleet.yml `images:`) and the transformer's tests
 #       pass. Advisory half: how much drift the checked-out submodules carry.
-#   (k) the fleet half of (j): committed lockfiles and SHA-pinned `uses:` in
-#       every registry repo (warn; --remote / --ci only; needs gh + network).
+#   (k) the fleet half of (j): committed lockfiles, SHA-pinned `uses:` and
+#       versioned runner labels in every registry repo (warn; --remote / --ci
+#       only; needs gh + network).
 #       Advisory for (g)'s reason — a repo-scoped token 404s on a private repo
 #       exactly as on a deleted one — so unreadable repos are reported as
 #       UNREAD rather than counted clean.
@@ -409,7 +411,11 @@ fi
 #      copied verbatim into ~40 repos, so a stale one DOWNGRADES every repo it
 #      reaches. This already happened twice (see the prose kit's 0.2.0 and
 #      agent-context's 0.3.1 changelogs, both written after the fact);
-#   3. a committed lockfile or an exact/ceiling pin in a hub manifest.
+#   3. a committed lockfile or an exact/ceiling pin in a hub manifest;
+#   4. a versioned runner label (`runs-on: ubuntu-24.04`, a matrix `os:` of
+#      `macos-15`) where a `-latest` alias exists — the image never moves again
+#      (tools/runner_pins.py; zer0-CMS#109 pinned one to keep a Python 3.9 leg
+#      alive). A deliberate one carries `# fleet-pin: <reason>`.
 #
 # Offline and hub-scoped, so it gates on every PR. `archive/` templates are
 # EXEMPT: those are deliberately frozen shapes that `fanout.sh --upgrade` uses
@@ -522,6 +528,25 @@ for path in walk(".github", "tools"):
         if re.search(r"(==|~=|<=?)\s*\d", spec):
             problems.append(f"{rel}:{n}: `{spec}` pins or caps a version — floors (>=) only")
 
+# 4. no versioned runner label (`runs-on: ubuntu-24.04`) without a `fleet-pin`
+# comment, in the hub's workflows and the seed templates fan-out copies.
+sys.path.insert(0, os.path.join(root, "tools"))
+try:
+    import runner_pins
+    for path in walk(".github", "templates"):
+        rel = os.path.relpath(path, root)
+        if not path.endswith((".yml", ".yaml")) or "/archive/" in rel:
+            continue
+        try:
+            text = open(path, encoding="utf-8").read()
+        except (OSError, UnicodeDecodeError):
+            continue
+        for pin in runner_pins.scan(text):
+            problems.append(f"{rel}:{pin.line}: `{pin.label}` is a versioned runner that never moves — "
+                            f"use {pin.alias}, or mark a deliberate pin `# fleet-pin: <reason>`")
+except ImportError as exc:
+    problems.append(f"tools/runner_pins.py: cannot load ({exc})")
+
 for x in problems:
     print(x)
 PY
@@ -531,7 +556,7 @@ if [[ $dep_rc -ne 0 ]]; then
   bad "(j) checker exited $dep_rc before finishing (see the Python error above); the dependency policy is unchecked"
 fi
 if [[ -z "$dep_out" && $dep_rc -eq 0 ]]; then
-  ok "no SHA pins, no stale seed templates, no lockfiles or version ceilings"
+  ok "no SHA pins, no stale seed templates, no lockfiles, version ceilings or versioned runners"
 else
   while IFS= read -r line; do bad "$line"; done <<< "$dep_out"
 fi
@@ -723,6 +748,11 @@ LOCKS = {"package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.loc
 SHA_USES = re.compile(r"^\s*-?\s*uses:\s*['\"]?([^'\"\s#]+@[0-9a-f]{40})")
 PIN_USES = re.compile(r"^\s*-?\s*uses:\s*['\"]?([^'\"\s#]+@v\d+\.\d+[^'\"\s#]*)")
 REQ_PIN = re.compile(r"(==|~=|<)")
+sys.path.insert(0, os.path.join(root, "tools"))
+try:
+    import runner_pins
+except ImportError:
+    runner_pins = None
 
 def slug_of(url):
     if not url or "github.com/" not in url:
@@ -775,6 +805,8 @@ for p in reg:
             m = PIN_USES.match(line)
             if m:
                 problems.append(f"{slug}: minor/patch-pinned action {path}:{n} `{m.group(1)}`")
+        for pin in (runner_pins.scan(text) if runner_pins else ()):
+            problems.append(f"{slug}: versioned runner {path}:{pin.line} `{pin.label}` (use {pin.alias} or a `fleet-pin` comment)")
 
     # Manifest pins. Counted per file rather than per dependency: a repo with 71
     # pinned requirements is one conversion job, and 71 warning lines would bury
@@ -852,7 +884,7 @@ PY
         # that read nothing lands here. Never report that as clean.
         warn "skipped (0 fleet repos readable: the API quota is spent, or the token cannot read them)"
       elif [[ -z "$k_probs" ]]; then
-        ok "no lockfiles or SHA pins in ${k_scanned} readable fleet repo(s)"
+        ok "no lockfiles, SHA pins or versioned runners in ${k_scanned} readable fleet repo(s)"
       else
         while IFS= read -r line; do warn "$line"; done <<< "$k_probs"
         warn "  convert a repo with: tools/unpin-deps.sh <checkout>  (fleet-wide: fanout.yml (kit: deps-latest))"
