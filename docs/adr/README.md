@@ -40,4 +40,4 @@ Add an ADR in the same PR as the change it justifies.
 | 0014 | [The fleet assistant baseline: one page bridge, an adapter per platform, and the console as the one broker](0014-fleet-assistant-baseline.md) | accepted |
 | 0015 | [The branch model, declared once: work, session and automation prefixes, and one ruleset per repo that allows only the merge commit § 12.2 requires](0015-branch-model-and-fleet-ruleset.md) | accepted |
 | 0016 | [The hub structure contract: declared layers and limits, a ledger that only shrinks, and one pass over the checks a change owes](0016-hub-structure-contract.md) | accepted |
-| 0017 | [ADR 0008 withdrawn: typed decisions go back to direction, and its cost levers join the Workflow Studio](0017-withdraw-typed-decision-gates.md) | proposed |
+| 0017 | [ADR 0008 withdrawn: typed decisions go back to direction, and its cost levers join the Workflow Studio](0017-withdraw-typed-decision-gates.md) | accepted |
