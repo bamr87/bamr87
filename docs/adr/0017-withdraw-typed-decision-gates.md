@@ -1,6 +1,7 @@
 # ADR 0017 — ADR 0008 withdrawn: typed decisions go back to direction, and its cost levers join the Workflow Studio
 
-- **Status**: proposed
+- **Status**: accepted
+- **Accepted in**: https://github.com/bamr87/bamr87/pull/988 (merged 2026-11-27 by @bamr87)
 - **Date**: 2026-11-25
 - **Deciders**: proposed by an agent at the maintainer's request (2026-11-25: consolidate the ADRs, starting by superseding ADR 0008 and moving its cost levers into ADR 0007); the maintainer accepts or rejects it by merging the PR that adds it
 - **Related**: [ADR 0008](0008-typed-decisions-as-pipeline-gates.md) (superseded here), [ADR 0007](0007-workflow-studio.md) (which gains the cost levers), [ADR 0002](0002-agent-step-specs-and-local-runner.md) (the local loop runner), [ADR 0009](0009-agentic-efficacy-model.md) and [ADR 0010](0010-fleet-graph-and-outcome-learning.md) (the outcome tracking and the advice flow control reads), [docs/prd/AGENTIC-SDLC.md](../prd/AGENTIC-SDLC.md), [the typed-decision research brief of 2026-11-21](../research/2026-11-21-typed-decision-layer-brief.md), PRD FR86–FR88 and NFR17, constitution § 10.9 (local first), § 11 (write-back), § 12.3 (gated changes), § 28.5 (who owns direction), epic bamr87/bamr87#737
