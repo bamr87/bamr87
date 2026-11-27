@@ -111,8 +111,9 @@ dependencies:
     - Pipfile.lock
     - uv.lock
     - composer.lock
+  runners: latest-label             # runs-on: <os>-latest; an image-versioned label (ubuntu-24.04) needs `# fleet-pin: <reason>` (tools/runner_pins.py, drift (j)/(k))
   exceptions:
-    github_actions: major-tag       # `uses:` needs a ref; @vN floats minor/patch, hub dependabot bumps majors
+    github_actions: major-tag      # `uses:` needs a ref; @vN floats minor/patch, hub dependabot bumps majors
     pre_commit: pinned-rev          # `rev:` is mandatory in .pre-commit-config.yaml; refresh via `pre-commit autoupdate`
     toolchain: fleet-config         # node/python/ruby versions stay governed by `toolchain:` above, not per-repo pins
 
@@ -2977,9 +2978,14 @@ variable_overrides: {}
 # Loop switches — constitution § 17 (amendment 0014, feature HUB-057, FR54).
 # THE map of every loop's kill switch: global → groups → loops → repos; the
 # most restrictive level wins. Live `*_ENABLED` repo variables are PROJECTIONS
-# of this map. Projection tooling (dry-run first, § 17.3) and the drift check
-# (§ 17.5) are not built yet, so today a flip is: run the entry's `flip`
-# command, then record state/reason/set_by/set_at here in a PR the same day.
+# of this map. The projection is the console's Switches page and `tools/dash
+# switches` (tools/console/switches.py, dry-run first, § 17.3): preview a flip
+# with a reason, then apply it behind the confirm, which sets each variable,
+# reads it back and records state/reason/set_by/set_at here — commit that edit
+# in a PR the same day. It writes only repos the hub owns; for any other (the
+# bash-365 org) a flip is still the entry's `flip` command, recorded here by
+# hand. The page and `tools/dash switches` show drift live; the drift check in
+# tools/check-drift.sh (§ 17.5) is not built yet.
 #   gate.kind      repo_variable | env (hard-coded job env) | fleet_config | none | planned
 #   gate.semantics opt_in  = runs only when the variable is 'true' (unset = off)
 #                  opt_out = runs unless the variable is 'false' (unset = on)
@@ -3019,6 +3025,14 @@ switches:
       reason: null
       expires: null
     lifehacker-agents:
+      state: 'on'
+      reason: null
+      expires: null
+    bash-365-loops:
+      state: 'on'
+      reason: null
+      expires: null
+    it-journey-loops:
       state: 'on'
       reason: null
       expires: null
@@ -3346,8 +3360,28 @@ switches:
       state: 'on'
       verified: false
       cron: 37 8 * * *
-      note: deterministic site build; also runs on push/PR
+      note: deterministic site build; also runs on push/PR. Its deploy-portal job has a switch of its own (hub/bash-365-portal)
       flip: 'no switch yet (§ 17 gap): `gh workflow disable build-dash.yml -R bamr87/bamr87` is the only lever; record it here'
+    hub/bash-365-portal:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/build-dash.yml
+      group: hub-maintenance
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: PORTAL_DEPLOY_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      cron: 37 8 * * *
+      note: >-
+        build-dash.yml's deploy-portal job: publishes the console's bash-365 site build to Azure
+        Static Web Apps (infra/azure/portal/). Deterministic, no AI. Off until the maintainer has
+        run bootstrap.sh and deploy.sh and set the PORTAL_AZURE_* variables; the build itself runs
+        on every build-dash.yml event either way
+      flip: 'gh variable set PORTAL_DEPLOY_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
     hub/deep-dive:
       repo: bamr87/bamr87
       workflow: .github/workflows/deep-dive.yml
@@ -3533,12 +3567,12 @@ switches:
         name: AGENT_REVIEW_ENABLED
         semantics: opt_in
       default: 'off'
-      state: unverified
-      verified: false
+      state: 'on'
+      verified: true
       flip: 'gh variable set AGENT_REVIEW_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
-      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      reason: 'maintainer instruction 2026-11-24 ("turn on lifehackers automation"); set true 16:16 UTC by Claude Code, read back with gh variable list (amendment `lifehacker-drafting-lines`)'
       set_by: bamr87
-      set_at: '2026-10-31'
+      set_at: '2026-11-24'
     lifehacker.dev/ai-usage:
       repo: bamr87/lifehacker.dev
       workflow: .github/workflows/ai-usage.yml
@@ -3550,10 +3584,10 @@ switches:
         name: AI_USAGE_ENABLED
         semantics: opt_in
       default: 'off'
-      state: unverified
-      verified: false
+      state: 'off'
+      verified: true
       flip: 'gh variable set AI_USAGE_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
-      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); read back false 2026-11-24 with gh variable list'
       set_by: bamr87
       set_at: '2026-10-31'
     lifehacker.dev/auto-fix:
@@ -3567,12 +3601,12 @@ switches:
         name: AUTO_FIX_ENABLED
         semantics: opt_in
       default: 'off'
-      state: unverified
-      verified: false
+      state: 'on'
+      verified: true
       flip: 'gh variable set AUTO_FIX_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
-      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      reason: 'maintainer instruction 2026-11-24 ("turn on lifehackers automation"); set true 16:16 UTC by Claude Code, read back with gh variable list (amendment `lifehacker-drafting-lines`)'
       set_by: bamr87
-      set_at: '2026-10-31'
+      set_at: '2026-11-24'
     lifehacker.dev/auto-merge:
       repo: bamr87/lifehacker.dev
       workflow: .github/workflows/auto-merge.yml
@@ -3584,18 +3618,12 @@ switches:
         name: AUTO_MERGE_ENABLED
         semantics: opt_in
       default: 'off'
-      state: unverified
-      verified: false
-      flip: 'gh variable set AUTO_MERGE_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
-      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set AUTO_MERGE_ENABLED -R bamr87/lifehacker.dev --body false  # disable: every merge goes back to a human; record the flip here in the same PR'
+      reason: 'maintainer instruction 2026-11-25 ("switch them all on"); set true 20:48 UTC by Claude Code, read back with gh variable list (amendment `lifehacker-auto-merge`)'
       set_by: bamr87
-      set_at: '2026-10-31'
-      hold:
-        kind: env
-        name: HUB_ORIGINATION_HOLD
-        value: 'true'
-        source: bamr87/lifehacker.dev#800 (open, not merged)
-        lift: bamr87/lifehacker.dev#801 removes the job env once hub-originated intake lands
+      set_at: '2026-11-25'
     lifehacker.dev/auto-update:
       repo: bamr87/lifehacker.dev
       workflow: .github/workflows/auto-update.yml
@@ -3607,12 +3635,12 @@ switches:
         name: AUTO_UPDATE_ENABLED
         semantics: opt_in
       default: 'off'
-      state: unverified
-      verified: false
+      state: 'on'
+      verified: true
       flip: 'gh variable set AUTO_UPDATE_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
-      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      reason: 'maintainer instruction 2026-11-24 ("turn on lifehackers automation"); set true 16:16 UTC by Claude Code, read back with gh variable list (amendment `lifehacker-drafting-lines`)'
       set_by: bamr87
-      set_at: '2026-10-31'
+      set_at: '2026-11-24'
     lifehacker.dev/brand-sweep:
       repo: bamr87/lifehacker.dev
       workflow: .github/workflows/brand-sweep.yml
@@ -3624,10 +3652,10 @@ switches:
         name: BRAND_SWEEP_ENABLED
         semantics: opt_in
       default: 'off'
-      state: unverified
-      verified: false
+      state: 'off'
+      verified: true
       flip: 'gh variable set BRAND_SWEEP_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
-      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); read back false 2026-11-24 with gh variable list'
       set_by: bamr87
       set_at: '2026-10-31'
     lifehacker.dev/content-factory:
@@ -3641,18 +3669,12 @@ switches:
         name: CONTENT_FACTORY_ENABLED
         semantics: opt_in
       default: 'off'
-      state: unverified
-      verified: false
+      state: 'on'
+      verified: true
       flip: 'gh variable set CONTENT_FACTORY_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
-      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      reason: 'maintainer instruction 2026-11-24 ("turn on lifehackers automation"); set true 16:16 UTC by Claude Code, read back with gh variable list (amendment `lifehacker-drafting-lines`)'
       set_by: bamr87
-      set_at: '2026-10-31'
-      hold:
-        kind: env
-        name: HUB_ORIGINATION_HOLD
-        value: 'true'
-        source: bamr87/lifehacker.dev#800 (open, not merged)
-        lift: bamr87/lifehacker.dev#801 removes the job env once hub-originated intake lands
+      set_at: '2026-11-24'
     lifehacker.dev/content-scout:
       repo: bamr87/lifehacker.dev
       workflow: .github/workflows/content-scout.yml
@@ -3664,12 +3686,12 @@ switches:
         name: CONTENT_SCOUT_ENABLED
         semantics: opt_in
       default: 'off'
-      state: unverified
-      verified: false
+      state: 'on'
+      verified: true
       flip: 'gh variable set CONTENT_SCOUT_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
-      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      reason: 'maintainer instruction 2026-11-24 ("turn on lifehackers automation"); set true 16:16 UTC by Claude Code, read back with gh variable list (amendment `lifehacker-drafting-lines`)'
       set_by: bamr87
-      set_at: '2026-10-31'
+      set_at: '2026-11-24'
     lifehacker.dev/explore:
       repo: bamr87/lifehacker.dev
       workflow: .github/workflows/explore.yml
@@ -3681,10 +3703,10 @@ switches:
         name: EXPLORER_ENABLED
         semantics: opt_in
       default: 'off'
-      state: unverified
-      verified: false
+      state: 'off'
+      verified: true
       flip: 'gh variable set EXPLORER_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
-      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); read back false 2026-11-24 with gh variable list'
       set_by: bamr87
       set_at: '2026-10-31'
     lifehacker.dev/factory--issue-factory-1:
@@ -3698,12 +3720,12 @@ switches:
         name: ISSUE_FACTORY_ENABLED
         semantics: opt_in
       default: 'off'
-      state: unverified
-      verified: false
+      state: 'on'
+      verified: true
       flip: 'gh variable set ISSUE_FACTORY_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
-      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      reason: 'maintainer instruction 2026-11-24 ("turn on lifehackers automation"); set true 16:16 UTC by Claude Code, read back with gh variable list (amendment `lifehacker-drafting-lines`)'
       set_by: bamr87
-      set_at: '2026-10-31'
+      set_at: '2026-11-24'
     lifehacker.dev/factory--issue-factory-2:
       repo: bamr87/lifehacker.dev
       workflow: .github/workflows/factory--issue-factory-2.yml
@@ -3715,12 +3737,12 @@ switches:
         name: ISSUE_FACTORY_ENABLED
         semantics: opt_in
       default: 'off'
-      state: unverified
-      verified: false
+      state: 'on'
+      verified: true
       flip: 'gh variable set ISSUE_FACTORY_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
-      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      reason: 'maintainer instruction 2026-11-24 ("turn on lifehackers automation"); set true 16:16 UTC by Claude Code, read back with gh variable list (amendment `lifehacker-drafting-lines`)'
       set_by: bamr87
-      set_at: '2026-10-31'
+      set_at: '2026-11-24'
     lifehacker.dev/fleet-dispatch:
       repo: bamr87/lifehacker.dev
       workflow: .github/workflows/fleet-dispatch.yml
@@ -3732,10 +3754,10 @@ switches:
         name: FLEET_ENABLED
         semantics: opt_in
       default: 'off'
-      state: unverified
-      verified: false
+      state: 'off'
+      verified: true
       flip: 'gh variable set FLEET_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
-      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); read back false 2026-11-24 with gh variable list'
       set_by: bamr87
       set_at: '2026-10-31'
     lifehacker.dev/loop-tuner:
@@ -3749,12 +3771,12 @@ switches:
         name: LOOP_TUNER_ENABLED
         semantics: opt_in
       default: 'off'
-      state: unverified
-      verified: false
+      state: 'on'
+      verified: true
       flip: 'gh variable set LOOP_TUNER_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
-      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      reason: 'maintainer instruction 2026-11-24 ("turn on lifehackers automation"); set true 16:16 UTC by Claude Code, read back with gh variable list (amendment `lifehacker-drafting-lines`)'
       set_by: bamr87
-      set_at: '2026-10-31'
+      set_at: '2026-11-24'
     lifehacker.dev/quest-forge:
       repo: bamr87/lifehacker.dev
       workflow: .github/workflows/quest-forge.yml
@@ -3766,12 +3788,12 @@ switches:
         name: QUEST_FORGE_ENABLED
         semantics: opt_in
       default: 'off'
-      state: unverified
-      verified: false
+      state: 'on'
+      verified: true
       flip: 'gh variable set QUEST_FORGE_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
-      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      reason: 'maintainer instruction 2026-11-24 ("turn on lifehackers automation"); set true 16:16 UTC by Claude Code, read back with gh variable list (amendment `lifehacker-drafting-lines`)'
       set_by: bamr87
-      set_at: '2026-10-31'
+      set_at: '2026-11-24'
     lifehacker.dev/theme-scout:
       repo: bamr87/lifehacker.dev
       workflow: .github/workflows/theme-scout.yml
@@ -3783,12 +3805,12 @@ switches:
         name: THEME_SCOUT_ENABLED
         semantics: opt_in
       default: 'off'
-      state: unverified
-      verified: false
+      state: 'on'
+      verified: true
       flip: 'gh variable set THEME_SCOUT_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
-      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      reason: 'maintainer instruction 2026-11-24 ("turn on lifehackers automation"); set true 16:16 UTC by Claude Code, read back with gh variable list (amendment `lifehacker-drafting-lines`)'
       set_by: bamr87
-      set_at: '2026-10-31'
+      set_at: '2026-11-24'
     lifehacker.dev/triage:
       repo: bamr87/lifehacker.dev
       workflow: .github/workflows/triage.yml
@@ -3800,12 +3822,12 @@ switches:
         name: TRIAGE_ENABLED
         semantics: opt_in
       default: 'off'
-      state: unverified
-      verified: false
+      state: 'on'
+      verified: true
       flip: 'gh variable set TRIAGE_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
-      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      reason: 'maintainer instruction 2026-11-24 ("turn on lifehackers automation"); set true 16:16 UTC by Claude Code, read back with gh variable list (amendment `lifehacker-drafting-lines`)'
       set_by: bamr87
-      set_at: '2026-10-31'
+      set_at: '2026-11-24'
     lifehacker.dev/weekly-epic:
       repo: bamr87/lifehacker.dev
       workflow: .github/workflows/weekly-epic.yml
@@ -3817,18 +3839,12 @@ switches:
         name: WEEKLY_EPIC_ENABLED
         semantics: opt_in
       default: 'off'
-      state: unverified
-      verified: false
+      state: 'on'
+      verified: true
       flip: 'gh variable set WEEKLY_EPIC_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
-      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      reason: 'maintainer instruction 2026-11-24 ("turn on lifehackers automation"); set true 16:16 UTC by Claude Code, read back with gh variable list (amendment `lifehacker-drafting-lines`)'
       set_by: bamr87
-      set_at: '2026-10-31'
-      hold:
-        kind: env
-        name: HUB_ORIGINATION_HOLD
-        value: 'true'
-        source: bamr87/lifehacker.dev#800 (open, not merged)
-        lift: bamr87/lifehacker.dev#801 removes the job env once hub-originated intake lands
+      set_at: '2026-11-24'
       note: images additionally need OPENAI_IMAGES_ENABLED=true (opt_in) plus the OPENAI_API_KEY secret
     lifehacker.dev/wire-scout:
       repo: bamr87/lifehacker.dev
@@ -3841,18 +3857,12 @@ switches:
         name: WIRE_SCOUT_ENABLED
         semantics: opt_in
       default: 'off'
-      state: unverified
-      verified: false
+      state: 'on'
+      verified: true
       flip: 'gh variable set WIRE_SCOUT_ENABLED -R bamr87/lifehacker.dev --body true  # enable; record the flip here in the same PR'
-      reason: 'paused by hand 2026-10-31 (amendment 0014 context: 17 *_ENABLED set to false); live value unverified'
+      reason: 'maintainer instruction 2026-11-24 ("turn on lifehackers automation"); set true 16:16 UTC by Claude Code, read back with gh variable list (amendment `lifehacker-drafting-lines`)'
       set_by: bamr87
-      set_at: '2026-10-31'
-      hold:
-        kind: env
-        name: HUB_ORIGINATION_HOLD
-        value: 'true'
-        source: bamr87/lifehacker.dev#800 (open, not merged)
-        lift: bamr87/lifehacker.dev#801 removes the job env once hub-originated intake lands
+      set_at: '2026-11-24'
     lifehacker.dev/nightly:
       repo: bamr87/lifehacker.dev
       workflow: .github/workflows/nightly.yml
@@ -3892,6 +3902,480 @@ switches:
       verified: false
       note: '@claude mention handler, disabled by hand 2026-10-31 (amendment 0014); no switch yet'
       flip: '`gh workflow enable|disable claude.yml -R bamr87/lifehacker.dev`; record it here'
+    bash-365.com/content-loop:
+      repo: bash-365/bash-365.com
+      workflow: .github/workflows/content-loop.yml
+      group: bash-365-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: CONTENT_LOOP_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set CONTENT_LOOP_ENABLED -R bash-365/bash-365.com --body false  # pause; record the flip here in the same PR'
+      reason: 'maintainer instruction 2026-11-23 ("turn everything on"); read back true 2026-11-25 with gh variable list (updated 2026-11-23T21:38Z)'
+      set_by: bamr87
+      set_at: '2026-11-23'
+    bash-365.com/content-gardener:
+      repo: bash-365/bash-365.com
+      workflow: .github/workflows/content-gardener.yml
+      group: bash-365-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: CONTENT_GARDENER_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set CONTENT_GARDENER_ENABLED -R bash-365/bash-365.com --body false  # pause; record the flip here in the same PR'
+      reason: 'maintainer instruction 2026-11-23 ("turn everything on"); read back true 2026-11-25 with gh variable list (updated 2026-11-23T21:38Z)'
+      set_by: bamr87
+      set_at: '2026-11-23'
+      note: 'a scheduled run also idles while CONTENT_LOOP_ENABLED is true: the content loop covers its schedule'
+    bash-365.com/content-review:
+      repo: bash-365/bash-365.com
+      workflow: .github/workflows/content-review.yml
+      group: bash-365-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: CONTENT_REVIEW_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set CONTENT_REVIEW_ENABLED -R bash-365/bash-365.com --body false  # pause; record the flip here in the same PR'
+      reason: 'maintainer instruction 2026-11-23 ("turn everything on"); read back true 2026-11-25 with gh variable list (updated 2026-11-23T21:38Z)'
+      set_by: bamr87
+      set_at: '2026-11-23'
+      note: 'a scheduled run also idles while CONTENT_LOOP_ENABLED is true: the content loop covers its schedule'
+    bash-365.com/linkedin-weekly:
+      repo: bash-365/bash-365.com
+      workflow: .github/workflows/linkedin-weekly.yml
+      group: bash-365-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: LINKEDIN_WEEKLY_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set LINKEDIN_WEEKLY_ENABLED -R bash-365/bash-365.com --body false  # pause; record the flip here in the same PR'
+      reason: 'on since 2026-11-05 (gh variable list updatedAt 2026-11-05T15:52Z); read back true 2026-11-25'
+      set_by: bamr87
+      set_at: '2026-11-05'
+    bash-365.com/linkedin-revisit:
+      repo: bash-365/bash-365.com
+      workflow: .github/workflows/linkedin-revisit.yml
+      group: bash-365-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: LINKEDIN_REVISIT_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set LINKEDIN_REVISIT_ENABLED -R bash-365/bash-365.com --body false  # pause; record the flip here in the same PR'
+      reason: 'on since 2026-11-05 (gh variable list updatedAt 2026-11-05T15:52Z); read back true 2026-11-25'
+      set_by: bamr87
+      set_at: '2026-11-05'
+    bash-365.com/preacher:
+      repo: bash-365/bash-365.com
+      workflow: .github/workflows/preacher.yml
+      group: bash-365-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: PREACHER_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set PREACHER_ENABLED -R bash-365/bash-365.com --body false  # pause; record the flip here in the same PR'
+      reason: 'maintainer instruction 2026-11-23 ("turn everything on"); read back true 2026-11-25 with gh variable list (updated 2026-11-23T21:38Z)'
+      set_by: bamr87
+      set_at: '2026-11-23'
+    it-journey/agent-audit:
+      repo: bamr87/it-journey
+      workflow: .github/workflows/agent-audit.yml
+      group: it-journey-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: AGENT_AUDIT_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set AGENT_AUDIT_ENABLED -R bamr87/it-journey --body false  # pause; record the flip here in the same PR'
+      reason: 'maintainer instruction 2026-11-23 ("turn everything on"); read back true 2026-11-25 with gh variable list (updated 2026-11-23T21:38Z)'
+      set_by: bamr87
+      set_at: '2026-11-23'
+    it-journey/agent-plan-then-act:
+      repo: bamr87/it-journey
+      workflow: .github/workflows/agent-plan-then-act.yml
+      group: it-journey-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: AGENT_DEMO_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set AGENT_DEMO_ENABLED -R bamr87/it-journey --body false  # pause; record the flip here in the same PR'
+      reason: 'on since 2026-07-02 (gh variable list updatedAt 2026-07-02T02:05Z); read back true 2026-11-25'
+      set_by: bamr87
+      set_at: '2026-07-02'
+      note: 'manual dispatch only (no schedule); an AI call, so it keeps its switch'
+    it-journey/cms-daily-loop:
+      repo: bamr87/it-journey
+      workflow: .github/workflows/cms-daily-loop.yml
+      group: it-journey-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: CMS_DAILY_LOOP_ENABLED
+        semantics: opt_out
+      default: 'on'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set CMS_DAILY_LOOP_ENABLED -R bamr87/it-journey --body false  # pause; record the flip here in the same PR'
+      reason: 'variable unset: opt-out, so unset reads on (read 2026-11-25 with gh variable list, which has no updatedAt for an unset variable)'
+      set_by: bamr87
+      set_at: '2026-11-25'
+      note: 'the substantive lane also needs CMS_LOOP_SUBSTANTIVE=true (not an *_ENABLED name), set 2026-11-23 at the maintainer instruction "turn everything on"'
+    it-journey/content-auto-merge:
+      repo: bamr87/it-journey
+      workflow: .github/workflows/content-auto-merge.yml
+      group: it-journey-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: CONTENT_AUTOMERGE_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set CONTENT_AUTOMERGE_ENABLED -R bamr87/it-journey --body false  # pause; record the flip here in the same PR'
+      reason: 'on since 2026-06-29 (gh variable list updatedAt 2026-06-29T21:38Z); read back true 2026-11-25'
+      set_by: bamr87
+      set_at: '2026-06-29'
+      note: 'auto:content pull requests that classify_changes.py finds content-only; one of the workflow''s three gates'
+    it-journey/content-auto-merge--issue:
+      repo: bamr87/it-journey
+      workflow: .github/workflows/content-auto-merge.yml
+      group: it-journey-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: ISSUE_AUTOMERGE_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set ISSUE_AUTOMERGE_ENABLED -R bamr87/it-journey --body false  # pause; record the flip here in the same PR'
+      reason: 'on since 2026-06-30 (gh variable list updatedAt 2026-06-30T03:00Z); read back true 2026-11-25'
+      set_by: bamr87
+      set_at: '2026-06-30'
+      note: 'same-repo auto:issue pull requests; one of the workflow''s three gates'
+    it-journey/content-auto-merge--quest-report:
+      repo: bamr87/it-journey
+      workflow: .github/workflows/content-auto-merge.yml
+      group: it-journey-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: QUEST_REPORT_AUTOMERGE_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set QUEST_REPORT_AUTOMERGE_ENABLED -R bamr87/it-journey --body false  # pause; record the flip here in the same PR'
+      reason: 'on since 2026-07-13 (gh variable list updatedAt 2026-07-13T02:57Z); read back true 2026-11-25'
+      set_by: bamr87
+      set_at: '2026-07-13'
+      note: 'automated quest-walkthrough report pull requests; one of the workflow''s three gates'
+    it-journey/content-factory:
+      repo: bamr87/it-journey
+      workflow: .github/workflows/content-factory.yml
+      group: it-journey-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: CONTENT_FACTORY_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set CONTENT_FACTORY_ENABLED -R bamr87/it-journey --body false  # pause; record the flip here in the same PR'
+      reason: 'maintainer instruction 2026-11-23 ("turn everything on"); read back true 2026-11-25 with gh variable list (updated 2026-11-23T21:38Z)'
+      set_by: bamr87
+      set_at: '2026-11-23'
+    it-journey/content-review:
+      repo: bamr87/it-journey
+      workflow: .github/workflows/content-review.yml
+      group: it-journey-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: CONTENT_REVIEW_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set CONTENT_REVIEW_ENABLED -R bamr87/it-journey --body false  # pause; record the flip here in the same PR'
+      reason: 'maintainer instruction 2026-11-23 ("turn everything on"); read back true 2026-11-25 with gh variable list (updated 2026-11-23T21:38Z)'
+      set_by: bamr87
+      set_at: '2026-11-23'
+      note: 'runs on pull requests, not a schedule; an AI call, so it keeps its switch'
+    it-journey/issue-autopilot:
+      repo: bamr87/it-journey
+      workflow: .github/workflows/issue-autopilot.yml
+      group: it-journey-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: ISSUE_AUTOPILOT_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set ISSUE_AUTOPILOT_ENABLED -R bamr87/it-journey --body false  # pause; record the flip here in the same PR'
+      reason: 'on since 2026-06-29 (gh variable list updatedAt 2026-06-29T03:17Z); read back true 2026-11-25'
+      set_by: bamr87
+      set_at: '2026-06-29'
+    it-journey/issue-autopilot--resolve:
+      repo: bamr87/it-journey
+      workflow: .github/workflows/issue-autopilot.yml
+      group: it-journey-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: ISSUE_RESOLVE_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set ISSUE_RESOLVE_ENABLED -R bamr87/it-journey --body false  # pause; record the flip here in the same PR'
+      reason: 'on since 2026-10-21 (gh variable list updatedAt 2026-10-21T03:11Z); read back true 2026-11-25'
+      set_by: bamr87
+      set_at: '2026-10-21'
+      note: 'the resolve lane, on top of ISSUE_AUTOPILOT_ENABLED; an autopilot:go label resolves one issue on demand'
+    it-journey/issue-autopilot--autoclose:
+      repo: bamr87/it-journey
+      workflow: .github/workflows/issue-autopilot.yml
+      group: it-journey-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: ISSUE_AUTOCLOSE_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set ISSUE_AUTOCLOSE_ENABLED -R bamr87/it-journey --body false  # pause; record the flip here in the same PR'
+      reason: 'on since 2026-06-29 (gh variable list updatedAt 2026-06-29T03:18Z); read back true 2026-11-25'
+      set_by: bamr87
+      set_at: '2026-06-29'
+      note: 'closing stale bot-noise issues, on top of ISSUE_AUTOPILOT_ENABLED'
+    it-journey/link-checker:
+      repo: bamr87/it-journey
+      workflow: .github/workflows/link-checker.yml
+      group: it-journey-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: LINK_CHECKER_ENABLED
+        semantics: opt_out
+      default: 'on'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set LINK_CHECKER_ENABLED -R bamr87/it-journey --body false  # pause; record the flip here in the same PR'
+      reason: 'variable unset: opt-out, so unset reads on (read 2026-11-25 with gh variable list, which has no updatedAt for an unset variable)'
+      set_by: bamr87
+      set_at: '2026-11-25'
+      note: 'gates the scheduled run only; pull requests are always checked'
+    it-journey/pr-freshness:
+      repo: bamr87/it-journey
+      workflow: .github/workflows/pr-freshness.yml
+      group: it-journey-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: PR_FRESHNESS_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set PR_FRESHNESS_ENABLED -R bamr87/it-journey --body false  # pause; record the flip here in the same PR'
+      reason: 'maintainer instruction 2026-11-23 ("turn everything on"); read back true 2026-11-25 with gh variable list (updated 2026-11-23T21:38Z)'
+      set_by: bamr87
+      set_at: '2026-11-23'
+      note: 'its schedule is commented out in the workflow (paused 2026-10-14); push and dispatch still run it'
+    it-journey/quest-fix:
+      repo: bamr87/it-journey
+      workflow: .github/workflows/quest-fix.yml
+      group: it-journey-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: QUEST_FIX_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set QUEST_FIX_ENABLED -R bamr87/it-journey --body false  # pause; record the flip here in the same PR'
+      reason: 'on since 2026-10-21 (gh variable list updatedAt 2026-10-21T03:11Z); read back true 2026-11-25'
+      set_by: bamr87
+      set_at: '2026-10-21'
+      note: 'called by quest-fix-loop.yml and dispatched by hand'
+    it-journey/quest-fix-loop:
+      repo: bamr87/it-journey
+      workflow: .github/workflows/quest-fix-loop.yml
+      group: it-journey-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: QUEST_PERFECTION_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set QUEST_PERFECTION_ENABLED -R bamr87/it-journey --body false  # pause; record the flip here in the same PR'
+      reason: 'on since 2026-10-21 (gh variable list updatedAt 2026-10-21T03:11Z); read back true 2026-11-25'
+      set_by: bamr87
+      set_at: '2026-10-21'
+      note: 'shares QUEST_PERFECTION_ENABLED with quest-perfection.yml'
+    it-journey/quest-forge:
+      repo: bamr87/it-journey
+      workflow: .github/workflows/quest-forge.yml
+      group: it-journey-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: QUEST_FORGE_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set QUEST_FORGE_ENABLED -R bamr87/it-journey --body false  # pause; record the flip here in the same PR'
+      reason: 'on since 2026-10-21 (gh variable list updatedAt 2026-10-21T03:11Z); read back true 2026-11-25'
+      set_by: bamr87
+      set_at: '2026-10-21'
+    it-journey/quest-idea-intake:
+      repo: bamr87/it-journey
+      workflow: .github/workflows/quest-idea-intake.yml
+      group: it-journey-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: QUEST_IDEA_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set QUEST_IDEA_ENABLED -R bamr87/it-journey --body false  # pause; record the flip here in the same PR'
+      reason: 'maintainer instruction 2026-11-23 ("turn everything on"); read back true 2026-11-25 with gh variable list (updated 2026-11-23T21:38Z)'
+      set_by: bamr87
+      set_at: '2026-11-23'
+    it-journey/quest-perfection:
+      repo: bamr87/it-journey
+      workflow: .github/workflows/quest-perfection.yml
+      group: it-journey-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: QUEST_PERFECTION_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set QUEST_PERFECTION_ENABLED -R bamr87/it-journey --body false  # pause; record the flip here in the same PR'
+      reason: 'on since 2026-10-21 (gh variable list updatedAt 2026-10-21T03:11Z); read back true 2026-11-25'
+      set_by: bamr87
+      set_at: '2026-10-21'
+      note: 'the workflows it calls keep their own switches (QUEST_WALKTHROUGH_ENABLED, QUEST_FIX_ENABLED, CONTENT_AUTOMERGE_ENABLED)'
+    it-journey/quest-video:
+      repo: bamr87/it-journey
+      workflow: .github/workflows/quest-video.yml
+      group: it-journey-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: QUEST_VIDEO_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set QUEST_VIDEO_ENABLED -R bamr87/it-journey --body false  # pause; record the flip here in the same PR'
+      reason: 'maintainer instruction 2026-11-23 ("turn everything on"); read back true 2026-11-25 with gh variable list (updated 2026-11-23T21:38Z)'
+      set_by: bamr87
+      set_at: '2026-11-23'
+    it-journey/quest-walkthrough:
+      repo: bamr87/it-journey
+      workflow: .github/workflows/quest-walkthrough.yml
+      group: it-journey-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: QUEST_WALKTHROUGH_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set QUEST_WALKTHROUGH_ENABLED -R bamr87/it-journey --body false  # pause; record the flip here in the same PR'
+      reason: 'on since 2026-10-21 (gh variable list updatedAt 2026-10-21T03:11Z); read back true 2026-11-25'
+      set_by: bamr87
+      set_at: '2026-10-21'
+    it-journey/theme-scout:
+      repo: bamr87/it-journey
+      workflow: .github/workflows/theme-scout.yml
+      group: it-journey-loops
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: THEME_SCOUT_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: 'on'
+      verified: true
+      flip: 'gh variable set THEME_SCOUT_ENABLED -R bamr87/it-journey --body false  # pause; record the flip here in the same PR'
+      reason: 'maintainer instruction 2026-11-23 ("turn everything on"); read back true 2026-11-25 with gh variable list (updated 2026-11-23T21:38Z)'
+      set_by: bamr87
+      set_at: '2026-11-23'
   repos: {}
 
 

@@ -62,6 +62,7 @@ export const to = {
   health: () => '/harnesses/health',
   schedules: (repo?: string) => `/schedules${repo ? `?q=${enc(repo)}` : ''}`,
   loops: () => '/loops',
+  switches: () => '/switches',
   workflows: (tab?: string, q?: string) => {
     const qs = new URLSearchParams();
     if (tab) qs.set('tab', tab);

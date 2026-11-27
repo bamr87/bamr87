@@ -1,6 +1,6 @@
 # 0026 — Expedite sprints run by agentic loops
 
-- **Status:** ratified (ratification pending — Amr ratifies by merging this PR)
+- **Status:** superseded by 0025
 - **Number:** 0026
 - **Date:** 2026-11-05
 - **Proposed by:** Grok Bot (agent), on Amr's instruction as owner

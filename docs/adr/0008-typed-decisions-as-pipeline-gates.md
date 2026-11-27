@@ -1,6 +1,6 @@
 # ADR 0008 — GitHub Actions as the agentic SDLC substrate: typed decisions gate risk, telemetry scores efficiency, tests gate correctness
 
-- **Status**: accepted
+- **Status**: superseded by [ADR 0017](0017-withdraw-typed-decision-gates.md) (2026-11-25); its cost levers moved to [ADR 0007](0007-workflow-studio.md) decision 10
 - **Accepted in**: https://github.com/bamr87/bamr87/pull/745 (merged 2026-11-06 by @bamr87)
 - **Date**: 2026-11-06
 - **Deciders**: proposed by an agent at the maintainer's request (2026-11-06: "build a plan, roadmap, and epic to implement this", with the design note *GitHub Actions as an Agentic SDLC Platform — Design with Jev*); the maintainer accepts or rejects it by merging the PR that adds it
@@ -96,4 +96,4 @@ The phases are the epic's sub-issues, in [docs/prd/AGENTIC-SDLC.md § 6](../prd/
 ## Supersedes / Superseded by
 
 - Supersedes: none
-- Superseded by: none
+- Superseded by: [ADR 0017](0017-withdraw-typed-decision-gates.md)

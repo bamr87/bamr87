@@ -109,6 +109,7 @@ STATIC_ROUTES: dict[str, tuple[str, str]] = {
     "harnesses/health": ("Harness health", "Trip wires and the six-layer harness scorecard."),
     "schedules": ("Schedules", "Crons, caps and collisions across the fleet."),
     "loops": ("Loops", "The control-plane loops and their outputs."),
+    "switches": ("Switches", "Every loop's kill switch against _data/fleet.yml switches: — read live and flipped on a console, never published."),
     "workflows": ("Workflows", "Every hub workflow and composite action, the standards they are held to, and why runs fail."),
     "costs": ("Costs", "Claude spend and Actions minutes against budget."),
     "activity": ("Agent activity", "Local sessions and CI agent runs."),

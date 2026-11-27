@@ -1,6 +1,6 @@
 # 0021 — The writing section keeps a daily chronicle of fleet operations, AI prompting and agent activity
 
-- **Status:** ratified (ratification pending — Amr ratifies by merging this PR)
+- **Status:** ratified
 - **Number:** 0021
 - **Date:** 2026-11-04
 - **Proposed by:** Grok Bot (agent), on Amr's instruction as owner
