@@ -280,6 +280,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_pin_policy.py`](tools/test_pin_policy.py) | Fixture tests for the UPS-QA-40 pin policy in tools/conformance.py. |
 | [`test_pipeline_map.py`](tools/test_pipeline_map.py) | Offline tests for tools/pipeline_map.py (HUB-025, HUB-026): pipeline definition integrity, status derivation over the EXAMPLE fixture, drill-down, unavailable log, workf… |
 | [`test_pm_review.py`](tools/test_pm_review.py) | Offline tests for `pm_review.py`: the scope, the gather against a recording fake `gh` that would see a write, each lane's rules, the preview the § 11 service accepts, th… |
+| [`test_portal_azure.py`](tools/test_portal_azure.py) | The bash-365 portal's Azure deployment (infra/azure/portal/) |
 | [`test_projects_backfill.py`](tools/test_projects_backfill.py) | Offline tests for `projects_backfill.py` — decisions validation and compilation, the 50-op batching, the REST state reader and executor against a recording fake `gh`, th… |
 | [`test_projects_lint.py`](tools/test_projects_lint.py) | — |
 | [`test_python_tests_paths.py`](tools/test_python_tests_paths.py) | python-tests.yml skips docs-only changes in two places that must agree: the `changes` job's case statement (pull requests) and the push trigger's `paths:` filter (pushes… |
