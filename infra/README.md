@@ -4,6 +4,8 @@
 
 Each kind of resource has one owner. **Ansible** bootstraps a node's operating system and runs every ordered deploy step on it, and **Salt** then keeps that configuration steady (ADR 0003 § 5); **bashOS** owns forge's interactive layer (the console mirror, never-sleep, the harness unit). **OpenTofu**, here, owns the infrastructure a node's services stand on: the `fleet` Docker network and the named volumes that hold their data. **Compose** owns the containers, which are disposable; the overlay `tools/dash node gen` writes takes this directory's network and volumes as `external`, so `docker compose down -v` can never delete them.
 
+**Azure** is the exception: [`azure/`](azure/README.md) holds Bicep deployments, as the fleet's other Azure deployments do (bash-365.com, bashcrawl). The first is the bash-365 portal on Azure Static Web Apps.
+
 [OpenTofu](https://opentofu.org) is the MPL-2.0 fork of Terraform under the Linux Foundation. Terraform itself has been under the Business Source License since 1.6 (August 2023), which is not open source. The HCL is Terraform-compatible, and nothing here depends on an OpenTofu-only feature yet.
 
 ## Operate

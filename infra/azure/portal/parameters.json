@@ -1,0 +1,11 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": { "value": "westus2" },
+    "resourceGroupName": { "value": "rg-bash365-portal-prod" },
+    "staticWebAppName": { "value": "swa-bash365-portal-prod" },
+    "sku": { "value": "Free" },
+    "customDomain": { "value": "" }
+  }
+}

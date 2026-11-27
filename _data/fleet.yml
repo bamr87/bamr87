@@ -3298,8 +3298,28 @@ switches:
       state: 'on'
       verified: false
       cron: 37 8 * * *
-      note: deterministic site build; also runs on push/PR
+      note: deterministic site build; also runs on push/PR. Its deploy-portal job has a switch of its own (hub/bash-365-portal)
       flip: 'no switch yet (§ 17 gap): `gh workflow disable build-dash.yml -R bamr87/bamr87` is the only lever; record it here'
+    hub/bash-365-portal:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/build-dash.yml
+      group: hub-maintenance
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: PORTAL_DEPLOY_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      cron: 37 8 * * *
+      note: >-
+        build-dash.yml's deploy-portal job: publishes the console's bash-365 site build to Azure
+        Static Web Apps (infra/azure/portal/). Deterministic, no AI. Off until the maintainer has
+        run bootstrap.sh and deploy.sh and set the PORTAL_AZURE_* variables; the build itself runs
+        on every build-dash.yml event either way
+      flip: 'gh variable set PORTAL_DEPLOY_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
     hub/deep-dive:
       repo: bamr87/bamr87
       workflow: .github/workflows/deep-dive.yml

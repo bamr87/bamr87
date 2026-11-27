@@ -3,6 +3,10 @@
 # and validates it: nothing is read from a node and no state exists here.
 # CI never holds an SSH key to a fleet node, so `plan` and `apply` stay local
 # (`tools/dash infra`); this job only proves the HCL is well-formed.
+#
+# The Azure deployments under infra/azure/ are Bicep, as the fleet's other Azure
+# deployments are (bash-365.com, bashcrawl). The bicep job compiles and lints
+# each one; it holds no Azure credential, so nothing is planned or deployed here.
 name: infra
 
 on:
@@ -34,8 +38,36 @@ jobs:
         run: |
           set -euo pipefail
           for dir in infra/*/; do
+            # A root module is a directory with .tf files (infra/azure/ is Bicep).
+            compgen -G "${dir}*.tf" >/dev/null || continue
             echo "::group::${dir}"
             tofu -chdir="$dir" init -backend=false -input=false
             tofu -chdir="$dir" validate
             echo "::endgroup::"
+          done
+
+  bicep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      # The runner's az CLI fetches the newest Bicep CLI on first use.
+      - name: Build and lint each Bicep deployment
+        run: |
+          set -euo pipefail
+          for file in infra/azure/*/main.bicep; do
+            echo "::group::${file}"
+            az bicep build --file "$file" --stdout >/dev/null
+            az bicep lint --file "$file" --diagnostics-format sarif >/dev/null
+            echo "::endgroup::"
+          done
+      - name: Parameter files name only parameters the template declares
+        run: |
+          set -euo pipefail
+          for file in infra/azure/*/main.bicep; do
+            dir="$(dirname "$file")"
+            az bicep build --file "$file" --stdout | jq -r '.parameters | keys[]' | sort > /tmp/declared
+            jq -r '.parameters | keys[]' "$dir/parameters.json" | sort > /tmp/given
+            extra="$(comm -13 /tmp/declared /tmp/given)"
+            [ -z "$extra" ] || { echo "::error file=$dir/parameters.json::not declared by main.bicep: $extra"; exit 1; }
           done
