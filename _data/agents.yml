@@ -1269,6 +1269,7 @@ agents:
   trigger: schedule Mon 14:23 UTC weekly; workflow_dispatch
   switch:
     variable: CONTENT_GARDENER_ENABLED
+    loop: bash-365.com/content-gardener
   budget:
     per_run_usd: 10.0
   model: claude-sonnet-5-5
@@ -1297,6 +1298,7 @@ agents:
   trigger: schedule daily 14:11 UTC; workflow_dispatch
   switch:
     variable: CONTENT_LOOP_ENABLED
+    loop: bash-365.com/content-loop
   budget:
     per_run_usd: 10.0
   model: null
@@ -1326,6 +1328,7 @@ agents:
   trigger: schedule Thu 14:37 UTC weekly; workflow_dispatch
   switch:
     variable: CONTENT_REVIEW_ENABLED
+    loop: bash-365.com/content-review
   budget:
     per_run_usd: 10.0
   model: claude-sonnet-5-5
@@ -1354,6 +1357,7 @@ agents:
   trigger: schedule Wed 15:41 UTC weekly; workflow_dispatch
   switch:
     variable: LINKEDIN_REVISIT_ENABLED
+    loop: bash-365.com/linkedin-revisit
   budget:
     per_run_usd: 10.0
   model: claude-sonnet-5-5
@@ -1382,6 +1386,7 @@ agents:
   trigger: schedule Fri 15:23 UTC weekly; workflow_dispatch
   switch:
     variable: LINKEDIN_WEEKLY_ENABLED
+    loop: bash-365.com/linkedin-weekly
   budget:
     per_run_usd: 10.0
   model: claude-sonnet-5-5
@@ -1410,6 +1415,7 @@ agents:
   trigger: schedule Sat 14:42 UTC weekly; workflow_dispatch
   switch:
     variable: PREACHER_ENABLED
+    loop: bash-365.com/preacher
   budget:
     per_run_usd: 10.0
   model: claude-sonnet-5-5
@@ -2248,6 +2254,7 @@ agents:
   trigger: schedule Mon 15:10 UTC weekly; workflow_dispatch
   switch:
     variable: AGENT_AUDIT_ENABLED
+    loop: it-journey/agent-audit
   budget:
     per_run_usd: 10.0
   model: null
@@ -2304,6 +2311,7 @@ agents:
   trigger: schedule daily 22:10 UTC; workflow_dispatch
   switch:
     variable: CMS_DAILY_LOOP_ENABLED
+    loop: it-journey/cms-daily-loop
   budget:
     per_run_usd: 10.0
   model: claude-opus-5-5
@@ -2332,6 +2340,7 @@ agents:
   trigger: schedule daily 20:10 UTC; workflow_dispatch
   switch:
     variable: CONTENT_FACTORY_ENABLED
+    loop: it-journey/content-factory
   budget:
     per_run_usd: 10.0
   model: null
@@ -2361,6 +2370,7 @@ agents:
   trigger: pull_request
   switch:
     variable: CONTENT_REVIEW_ENABLED
+    loop: it-journey/content-review
   budget:
     per_run_usd: 10.0
   model: null
@@ -2390,6 +2400,7 @@ agents:
   trigger: schedule daily 18:10 UTC; issues; workflow_dispatch
   switch:
     variable: ISSUE_AUTOPILOT_ENABLED
+    loop: it-journey/issue-autopilot--autoclose
   budget:
     per_run_usd: 10.0
   model: null
@@ -2419,6 +2430,7 @@ agents:
   trigger: schedule Mon 06:23 UTC weekly; pull_request; workflow_dispatch
   switch:
     variable: LINK_CHECKER_ENABLED
+    loop: it-journey/link-checker
   budget: null
   model: null
   kpis:
@@ -2448,6 +2460,7 @@ agents:
   trigger: workflow_call; workflow_dispatch
   switch:
     variable: QUEST_FIX_ENABLED
+    loop: it-journey/quest-fix
   budget:
     per_run_usd: 10.0
   model: null
@@ -2477,6 +2490,7 @@ agents:
   trigger: issue_comment; issues; workflow_dispatch
   switch:
     variable: QUEST_FORGE_ENABLED
+    loop: it-journey/quest-forge
   budget:
     per_run_usd: 10.0
   model: null
@@ -2506,6 +2520,7 @@ agents:
   trigger: issue_comment; issues; workflow_dispatch
   switch:
     variable: QUEST_IDEA_ENABLED
+    loop: it-journey/quest-idea-intake
   budget:
     per_run_usd: 10.0
   model: null
@@ -2535,6 +2550,7 @@ agents:
   trigger: schedule daily 23:10 UTC; workflow_dispatch
   switch:
     variable: QUEST_PERFECTION_ENABLED
+    loop: it-journey/quest-perfection
   budget:
     per_run_usd: 10.0
   model: null
@@ -2564,6 +2580,7 @@ agents:
   trigger: workflow_dispatch
   switch:
     variable: QUEST_WALKTHROUGH_ENABLED
+    loop: it-journey/quest-walkthrough
   budget:
     per_run_usd: 10.0
   model: null
@@ -2593,6 +2610,7 @@ agents:
   trigger: schedule Tue 15:40 UTC weekly; workflow_dispatch
   switch:
     variable: THEME_SCOUT_ENABLED
+    loop: it-journey/theme-scout
   budget:
     per_run_usd: 10.0
   model: null

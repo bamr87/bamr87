@@ -70,6 +70,9 @@ def test_the_snapshot_publishes_nothing_local():
     # So are GitHub Projects (gh_projects.py): the page has a route, the snapshot no document.
     assert not [k for k in docs() if k.startswith("gh-projects")], "GitHub Projects must not be published"
     assert "gh-projects" in snapshot.STATIC_ROUTES and "localOnly('GitHub Projects')" in (WEB / "api" / "static.ts").read_text()
+    # And the loop switches (switches.py): live variables read with the operator's token, flipped only on a console.
+    assert not [k for k in docs() if k.startswith("switches")], "the loop switches must not be published"
+    assert "switches" in snapshot.STATIC_ROUTES and "localOnly('Loop switches')" in (WEB / "api" / "static.ts").read_text()
     assert docs()["capabilities"]["env_tokens"] == {} and docs()["capabilities"]["mode"] == "snapshot"
 
 

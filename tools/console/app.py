@@ -60,6 +60,7 @@ import github_link as ghl
 import page_bridge
 import pr_queue
 import site_docs
+import switches
 import tui_bridge
 import live
 import claude_telemetry
@@ -1533,6 +1534,37 @@ def prs_plan_get(plan_id: str) -> dict:
     if doc is None:
         raise HTTPException(status_code=404, detail="no such plan")
     return doc
+
+
+class SwitchPreview(BaseModel):
+    scope: str = Field(pattern=r"^(loop|repo|group|all)$")
+    key: str = Field("", max_length=120)
+    target: str = Field(pattern=r"^(on|off)$")
+    reason: str = Field(..., max_length=300)
+
+
+@app.get("/api/switches", dependencies=[Depends(require_token)])
+def switches_doc(refresh: bool = Query(default=False)) -> dict:
+    """The loop switches (constitution § 17, switches.py): every `_data/fleet.yml` `switches.loops` record,
+    grouped by repository, with its live variable (one list call per repository through the console's
+    token source, cached 30 s; `refresh` reads again), the effective state, the map's state, drift, any
+    hold, and whether this console could flip it. Reads no secret; never part of the public snapshot."""
+    try:
+        return switches.document(core.REPO_ROOT, refresh=refresh)
+    except ValueError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/switches/preview", dependencies=[Depends(require_token)])
+def switches_preview(req: SwitchPreview) -> dict:
+    """Preview a flip of one loop, every loop of a repository, a group or every loop, with a required
+    reason: per loop the variable's current → new value and the exact _data/fleet.yml diff the apply
+    would write. Writes nothing but the plan file (.fleet/switches/plans/); the `switches-apply`
+    operation applies it by its plan_id behind the confirm."""
+    try:
+        return switches.plan(req.scope, req.key, req.target, req.reason, root=core.REPO_ROOT)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.get("/api/prs/result/{plan_id}", dependencies=[Depends(require_token)])

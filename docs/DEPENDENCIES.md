@@ -26,6 +26,7 @@ Accepted tradeoffs, on the record rather than hidden: builds are **not reproduci
 | GitHub Actions | **exception** — `uses: owner/action@vN` major tags: a ref is mandatory, minors/patches float within the major, and the hub's `dependabot.yml` bumps majors weekly |
 | pre-commit | **exception** — `rev:` pins are mandated by the tool; refresh with `pre-commit autoupdate` |
 | Toolchains (node/python/ruby) | **exception** — runtime versions are fleet configuration (`toolchain:` in `_data/fleet.yml` → repo `vars.*` → reusable CI), not per-repo pins |
+| GitHub-hosted runners | `runs-on: ubuntu-latest` / `macos-latest` / `windows-latest` (and `macos-latest-large`/`-xlarge`) — a label naming an image version (`ubuntu-24.04`, `macos-15`, `windows-2022`) is a pin, in `runs-on:`, a matrix value or an input default alike. When a newer image drops something a job needs, move the job (raise the floor it tests), not the runner. A deliberate pin carries `# fleet-pin: <reason>` on its line or the line above. Labels with no floating alias (`ubuntu-24.04-arm`, `macos-15-intel`) are exempt |
 
 ## Enforcement
 
@@ -38,10 +39,11 @@ Until 2026-08 the policy was declared in three places and checked in none — wh
 | a **seed template** whose action major trails the hub's own workflows | `templates/` is copied verbatim into ~40 repos, so a stale one *downgrades* every repo the fan-out reaches |
 | a committed lockfile | reproducibility the fleet deliberately traded away |
 | `==` / `~=` / `<` in a hub `requirements*.txt` | floors (`>=`) never block currency; pins and ceilings do |
+| a versioned runner label without a `fleet-pin` comment, in a hub workflow or a seed template ([`tools/runner_pins.py`](../tools/runner_pins.py)) | the image never moves again: zer0-CMS#109 pinned `ubuntu-24.04` to keep a Python 3.9 leg alive after `ubuntu-latest` became 26.04, and nothing caught it; the owner raised the floor instead (zer0-CMS#110) |
 
 The check is offline and hub-scoped, so it cannot know whether the hub's own majors are current *upstream* — that is Dependabot's job (the single `github-actions` entry in `.github/dependabot.yml`, bumping majors weekly). The two are complementary: **Dependabot pushes the fleet forward, check (j) stops anything from being frozen or left behind.** Neither one alone is sufficient.
 
-**Check (k)** is the fleet half, reading one git tree per registry repo and then the files that tree says are worth reading: committed lockfiles, SHA-pinned and minor/patch-pinned `uses:`, and pinned `requirements*.txt` / `package.json` / `Gemfile` entries. Manifest hits are reported **per file, not per dependency** — a repo with 71 pinned requirements is one conversion job, and 71 lines of it would bury every other repo in the report.
+**Check (k)** is the fleet half, reading one git tree per registry repo and then the files that tree says are worth reading: committed lockfiles, SHA-pinned and minor/patch-pinned `uses:`, versioned runner labels, and pinned `requirements*.txt` / `package.json` / `Gemfile` entries. Manifest hits are reported **per file, not per dependency** — a repo with 71 pinned requirements is one conversion job, and 71 lines of it would bury every other repo in the report.
 
 It is advisory and `--remote`/`--ci` only, for the same reason as check (g): a repo-scoped token 404s on a private repo exactly as it does on a deleted one. Repos it cannot read are reported as **UNREAD, explicitly not verified clean** — a "0 violations" line over 40 unread repos would otherwise read as a fleet-wide all-clear, which is precisely the false comfort that let three stale seed templates ship. Remediate what it finds with `tools/unpin-deps.sh <checkout>` per repo, or `fanout.yml` (kit `deps-latest`) fleet-wide.
 
@@ -61,9 +63,9 @@ Of 24 readable fleet repos (`microsoft/skills` excluded as an external upstream 
 
 ## Converting a repo
 
-- **One repo, locally**: `tools/unpin-deps.sh <checkout>` — idempotent; strips pins from `package.json`/`requirements*.txt`/`Gemfile`, deletes + gitignores lockfiles, rewrites `npm ci` → `npm install`, drops lockfile-keyed `cache:` lines, floats `@vX.Y.Z` action tags to `@vX`, and prints what it changed. Review with `git diff`, commit in the repo itself (submodule workflow).
+- **One repo, locally**: `tools/unpin-deps.sh <checkout>` — idempotent; strips pins from `package.json`/`requirements*.txt`/`Gemfile`, deletes + gitignores lockfiles, rewrites `npm ci` → `npm install`, drops lockfile-keyed `cache:` lines, floats `@vX.Y.Z` action tags to `@vX` and a scalar `runs-on: ubuntu-24.04` to `ubuntu-latest` (unless marked `fleet-pin`), and prints what it changed. Review with `git diff`, commit in the repo itself (submodule workflow).
 - **Fleet-wide**: dispatch **`fanout.yml` (kit `deps-latest`)** (dry-run by default — flip `dry_run` off to push `chore/deps-latest` branches and open PRs). Engine: `tools/fanout.sh --kit deps-latest`; external upstreams (e.g. `microsoft/skills`) are skipped automatically.
-- **What the transformer deliberately leaves**, reported as `follow-up:` lines in its output: `pyproject.toml`/Poetry/`Pipfile` dependency tables (no safe stdlib TOML writer), hash-pinned requirements files (hashes require exact pins — converting one is a decision, not a transform), npm `overrides`/`resolutions` (transitive forcings that may be load-bearing), and toolchain files (`.ruby-version`/`.nvmrc`/`.python-version` — see exceptions). Finish those by hand or let the doctor/@claude do it on the PR branch.
+- **What the transformer deliberately leaves**, reported as `follow-up:` lines in its output: `pyproject.toml`/Poetry/`Pipfile` dependency tables (no safe stdlib TOML writer), hash-pinned requirements files (hashes require exact pins — converting one is a decision, not a transform), npm `overrides`/`resolutions` (transitive forcings that may be load-bearing), runner labels in a matrix, a list or an input default (a matrix listing two images on purpose would collapse), and toolchain files (`.ruby-version`/`.nvmrc`/`.python-version` — see exceptions). Finish those by hand or let the doctor/@claude do it on the PR branch.
 
 ## Hub state
 

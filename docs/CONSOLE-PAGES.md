@@ -123,7 +123,9 @@ node verify/runner.mjs --scenarios verify/sites --base http://127.0.0.1:4000   #
 
 The live site can be framed. Measured 2026-11-20: `https://www.bash-365.com/` (Azure Static Web Apps) answers 200 with neither `X-Frame-Options` nor a `frame-ancestors` policy, and `staticwebapp.config.json` in bash-365/bash-365.com sets no `globalHeaders`, so nothing in that repo blocks a frame (ADR 0005, level L1). What does block it on the default public build is this page's own `frame-src 'self'`, which a site build widens as described above. Evidence: `test/evidence/site-front-door/`.
 
-Not decided here, and the maintainer's to decide: where this build is served. `sites.bash-365.url` is provisional, and nothing deploys it. Two things follow from the choice of address:
+It is served from Azure Static Web Apps, at its own subdomain (`sites.bash-365.url`, `https://os.bash-365.com`). `build-dash.yml` builds it on every run, beside the default build, and its `deploy-portal` job publishes it from `main` while `vars.PORTAL_DEPLOY_ENABLED` is `true`. The job signs in with OIDC and holds a role on that one app, so no secret is stored. The resources are Bicep in [`infra/azure/portal/`](../infra/azure/portal/README.md); the maintainer creates them, adds the DNS record and switches the deploy on, as its runbook says. Response headers come from `infra/azure/portal/staticwebapp.config.json`: the portal is `noindex` while the Jekyll site at www.bash-365.com stays the one search engines read.
+
+A subdomain rather than a path of the main domain, because:
 
 - **A subdomain** (an origin of its own) keeps every fleet app, the BASH site included, cross-origin to the shell. Each is framed with its own storage and cannot read the shell's.
 - **A path of the main domain** makes the BASH site same-origin with the shell. The shell then frames it isolated (no `allow-same-origin`), where the zer0 theme's scripts throw on `localStorage` (ADR 0005, "Measured in this change"), and the shell's own stored settings share an origin with every script the Jekyll site loads.

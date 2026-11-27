@@ -1,6 +1,6 @@
 # 0031 — Grok ↔ Claude Code holistic governance (handoff, audit trail, roles, escalation)
 
-- **Status:** ratified (ratification pending — Amr ratifies by merging this PR)
+- **Status:** ratified
 - **Number:** 0031
 - **Date:** 2026-11-05
 - **Proposed by:** Grok Bot (agent), on Amr's instruction as owner

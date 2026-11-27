@@ -676,6 +676,49 @@ class PrQueueTools(unittest.TestCase):
         self.assertIn("pr_queue", srv.INSTRUCTIONS)
 
 
+class SwitchTools(unittest.TestCase):
+    """switches_list is ONE GET of /api/switches, filtered here; switch_preview is ONE POST of
+    /api/switches/preview. Neither applies anything: switch_apply exists only with write tools, needs
+    confirm=true, and is the console's switches-apply job behind its own confirm (constitution § 17.3)."""
+
+    DOC = {"schema": "switches-console/v1", "writes": {"enabled": True, "why": None}, "repos": [
+        {"repo": "bamr87/a", "loops": [{"key": "a/x", "drift": True}, {"key": "a/y", "drift": False}]},
+        {"repo": "bamr87/b", "loops": [{"key": "b/z", "drift": None}]}]}
+
+    def test_list_is_one_get_filtered_here(self):
+        fc = FakeConsole({"/api/switches": self.DOC})
+        res, text = call(srv.build_server(fc), "switches_list", {"repo": "BAMR87/A", "drift_only": True, "refresh": True})
+        self.assertFalse(res.is_error if hasattr(res, "is_error") else res.isError, text)
+        doc = payload(res, text)
+        self.assertEqual([r["repo"] for r in doc["repos"]], ["bamr87/a"])
+        self.assertEqual([x["key"] for x in doc["repos"][0]["loops"]], ["a/x"])
+        self.assertEqual(fc.calls, [("GET", "/api/switches", {"refresh": "true"}, None)])
+
+    def test_preview_is_one_post_and_never_an_apply(self):
+        fc = FakeConsole({("POST", "/api/switches/preview"): lambda body: {"plan_id": "0" * 16, "echo": body}})
+        res, text = call(srv.build_server(fc), "switch_preview", {"scope": "repo", "key": "bamr87/a", "target": "off",
+                                                                 "reason": "pause it"})
+        self.assertFalse(res.is_error if hasattr(res, "is_error") else res.isError, text)
+        self.assertEqual(fc.calls, [("POST", "/api/switches/preview", {},
+                                     {"scope": "repo", "key": "bamr87/a", "target": "off", "reason": "pause it"})])
+
+    def test_read_only_and_named_and_apply_only_with_writes(self):
+        tools = {t.name: t for t in anyio.run(srv.build_server(FakeConsole(), allow_writes=False, scopes="").list_tools)}
+        for name in ("switches_list", "switch_preview"):
+            self.assertTrue(tools[name].annotations.read_only_hint)
+        self.assertNotIn("switch_apply", tools)
+        self.assertIn("switches_list", srv.INSTRUCTIONS)
+        fc = FakeConsole({("POST", "/api/jobs"): {"id": "j1"}})
+        s = srv.build_server(fc, allow_writes=True)
+        res, text = call(s, "switch_apply", {"plan_id": "0123456789abcdef"})
+        self.assertTrue(res.is_error if hasattr(res, "is_error") else res.isError)
+        self.assertIn("confirm=true", text)
+        self.assertEqual(fc.calls, [])
+        call(s, "switch_apply", {"plan_id": "0123456789abcdef", "confirm": True})
+        self.assertEqual(fc.calls[-1], ("POST", "/api/jobs", {}, {"op": "switches-apply", "confirm": True,
+                                                                   "params": {"plan_id": "0123456789abcdef", "apply": True}}))
+
+
 class WriteTools(unittest.TestCase):
     def setUp(self):
         self.fc = FakeConsole({("POST", "/api/jobs"): {"id": "j9"}, ("POST", "/api/jobs/j9/cancel"): {"ok": True},
