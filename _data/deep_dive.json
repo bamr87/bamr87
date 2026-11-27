@@ -11,14 +11,14 @@
     "cycle_days": 42,
     "total": 38,
     "day": 28,
-    "processed": 14,
+    "processed": 17,
     "counts": {
-      "pending": 24,
+      "pending": 21,
       "in_progress": 0,
-      "done": 14,
+      "done": 17,
       "skipped": 0
     },
-    "progress": 0.3684,
+    "progress": 0.4474,
     "today": {
       "date": "2026-11-26",
       "cycle": 1,
@@ -35,9 +35,9 @@
       "kind": "scheduled",
       "repo": "kvlite"
     },
-    "last": "cv-pro",
-    "last_date": "2026-11-23",
-    "avg_score": 51.9,
+    "last": "fleet-infra",
+    "last_date": "2026-11-26",
+    "avg_score": 55.6,
     "open_issues": 50,
     "open_prs": 5
   },
@@ -635,72 +635,83 @@
       "day": 26,
       "repo": "rsa-challenge",
       "scheduled": "2026-11-24",
-      "status": "pending",
-      "last_processed": null,
+      "status": "done",
+      "last_processed": "2026-11-24",
       "cycle": 1,
       "issues": [
-        "https://github.com/bamr87/rsa-challenge/issues/12",
-        "https://github.com/bamr87/rsa-challenge/issues/11",
-        "https://github.com/bamr87/rsa-challenge/issues/10",
-        "https://github.com/bamr87/rsa-challenge/issues/9",
-        "https://github.com/bamr87/rsa-challenge/issues/8",
-        "https://github.com/bamr87/rsa-challenge/issues/7",
-        "https://github.com/bamr87/rsa-challenge/issues/6",
-        "https://github.com/bamr87/rsa-challenge/issues/5",
+        "https://github.com/bamr87/rsa-challenge/issues/3",
         "https://github.com/bamr87/rsa-challenge/issues/4",
-        "https://github.com/bamr87/rsa-challenge/issues/3"
+        "https://github.com/bamr87/rsa-challenge/issues/5",
+        "https://github.com/bamr87/rsa-challenge/issues/6",
+        "https://github.com/bamr87/rsa-challenge/issues/7",
+        "https://github.com/bamr87/rsa-challenge/issues/8",
+        "https://github.com/bamr87/rsa-challenge/issues/9",
+        "https://github.com/bamr87/rsa-challenge/issues/10",
+        "https://github.com/bamr87/rsa-challenge/issues/11",
+        "https://github.com/bamr87/rsa-challenge/issues/12"
       ],
       "prs": [
-        "https://github.com/bamr87/rsa-challenge/pull/14",
-        "https://github.com/bamr87/rsa-challenge/pull/13"
+        "https://github.com/bamr87/rsa-challenge/pull/13",
+        "https://github.com/bamr87/rsa-challenge/pull/14"
       ],
       "open_issues": 10,
       "open_prs": 2,
-      "findings": "",
-      "score": null,
-      "next_focus": ""
+      "findings": "Public repo, main @ e73e8af (v0.2.0). At review: 0 open issues, 0 open PRs (merged #1 release 0.2.0 and #2 missions). 11/11 tests pass in 0.16s; governance_lint ok; Pages live; secret scanning, push protection and Dependabot security updates on. Leak gate skips values shorter than 6 chars (RSA-32b primes are 5 digits) and CI cannot scan values because secrets/ is absent (#3). verify --d echoes the recovered plaintext (#4). Private vulnerability reporting off and main unprotected (#5, needs Amr). CI missing timeout-minutes and PR concurrency; Pages write permissions are workflow-wide (#6). No dependabot.yml (#7). governance_lint is in the DoD but not CI; Python 3.9 is claimed and untested (#8). Amendment 0002 still proposed and RSA-007 planned after #2 (docs PR #13). CHANGELOG leftover heading and compare link to missing rsa-challenge-v0.1.0 (#10). Release PR #1 had an empty statusCheckRollup (token-opened PR; root cause tracked fleet-wide, not refiled). Filed #3-#12; planned RSA-008/009 in #14. Did not merge, change settings, or add scheduled workflows.",
+      "score": 76.0,
+      "next_focus": "Land #13 and #14; fix the leak-gate threshold and stop echoing plaintext from verify --d; add workflow timeouts, PR concurrency and Dependabot; gate governance_lint and decide the Python 3.9 floor; Amr enables private vulnerability reporting and a main ruleset; then implement RSA-008 export and RSA-009 resources."
     },
     {
       "day": 27,
       "repo": "ragio-ai",
       "scheduled": "2026-11-25",
-      "status": "pending",
-      "last_processed": null,
+      "status": "done",
+      "last_processed": "2026-11-25",
       "cycle": 1,
       "issues": [
-        "https://github.com/bamr87/ragio-ai/issues/27",
-        "https://github.com/bamr87/ragio-ai/issues/26",
-        "https://github.com/bamr87/ragio-ai/issues/25",
-        "https://github.com/bamr87/ragio-ai/issues/24",
-        "https://github.com/bamr87/ragio-ai/issues/23",
-        "https://github.com/bamr87/ragio-ai/issues/22",
+        "https://github.com/bamr87/ragio-ai/issues/20",
         "https://github.com/bamr87/ragio-ai/issues/21",
-        "https://github.com/bamr87/ragio-ai/issues/20"
+        "https://github.com/bamr87/ragio-ai/issues/22",
+        "https://github.com/bamr87/ragio-ai/issues/23",
+        "https://github.com/bamr87/ragio-ai/issues/24",
+        "https://github.com/bamr87/ragio-ai/issues/25",
+        "https://github.com/bamr87/ragio-ai/issues/26",
+        "https://github.com/bamr87/ragio-ai/issues/27"
       ],
       "prs": [
-        "https://github.com/bamr87/ragio-ai/pull/29",
-        "https://github.com/bamr87/ragio-ai/pull/28"
+        "https://github.com/bamr87/ragio-ai/pull/28",
+        "https://github.com/bamr87/ragio-ai/pull/29"
       ],
       "open_issues": 8,
       "open_prs": 2,
-      "findings": "",
-      "score": null,
-      "next_focus": ""
+      "findings": "Cycle 1 day 27. Fully local Radiolab RAG (FastAPI, Qdrant, Ollama, Whisper); CI/conformance green, offline pytest suite exists. Bugs: build_prompt evidence-budget break only exits the inner loop, so labels skip and lower-ranked passages slip in (#20); dependency outages give bare 500s / dropped SSE and the UI Ask button stays disabled (#21). UI/UX: unescaped feed fields + javascript: page_url, unlabeled input, no aria-live, empty questions sent (#22, fixed in PR #29); FR12 episode/transcript browser missing though RAGIO-009 says shipped (#23). Security (needs human): main unprotected, private vuln reporting off, no SECURITY.md (#24). Governance: amendment 0002 merged but 'proposed', RAGIO-017 planned, truncated feature titles (fixed in PR #28), constitution \u00a77 test statement stale, needs amendment 0003 (#25). Planned FR20/RAGIO-018 citation export + deep links (#26) and FR21/RAGIO-019 multiple podcast sources (#27), added in PR #28. Draft evolve PR #19 already fixes the AGENTS.md waiver text.",
+      "score": 70.0,
+      "next_focus": "Verify PRs #28/#29 merged; backend half of #21 (503s, SSE error event); episode browser (#23) with #4 frontend shell; amendment 0003 for constitution \u00a77; settings in #24; offline retrieval tests (#3)."
     },
     {
       "day": 28,
       "repo": "fleet-infra",
       "scheduled": "2026-11-26",
-      "status": "pending",
-      "last_processed": null,
+      "status": "done",
+      "last_processed": "2026-11-26",
       "cycle": 1,
-      "issues": [],
-      "prs": [],
+      "issues": [
+        "https://github.com/bamr87/fleet-infra/issues/14",
+        "https://github.com/bamr87/fleet-infra/issues/15",
+        "https://github.com/bamr87/fleet-infra/issues/16",
+        "https://github.com/bamr87/fleet-infra/issues/17",
+        "https://github.com/bamr87/fleet-infra/issues/18",
+        "https://github.com/bamr87/fleet-infra/issues/19",
+        "https://github.com/bamr87/fleet-infra/issues/20",
+        "https://github.com/bamr87/fleet-infra/issues/21"
+      ],
+      "prs": [
+        "https://github.com/bamr87/fleet-infra/pull/22"
+      ],
       "open_issues": 0,
       "open_prs": 0,
-      "findings": "",
-      "score": null,
-      "next_focus": ""
+      "findings": "Cycle 1 day 28. Phase-1 foundation is solid and verified locally: terraform fmt/validate/test (6/6 plan-only runs) and helm lint/template pass; kube-linter default checks clean; workflows least-privilege with timeouts; secret scanning + push protection on. Chart fleet-base ignores the release (hard-coded .Values.namespace so -n is ignored, objects named by Chart.Name so two releases collide, no app.kubernetes.io labels, no values.schema.json) (#14). Placeholder image nginx-unprivileged:1.27-alpine is EOL, last rebuilt 2025-06-23, and the pod mounts the default SA token (#15). Needs Amr: main unprotected, no rulesets, private vulnerability reporting off while SECURITY.md points to it (#16). Governance: amendment 0002 merged in #12 but still proposed, FINFRA-008 planned (fixed in PR #22), constitution \u00a77 gate list stale (needs amendment 0003), release-please declared but no release.yml/config (#17). No ADRs for GitOps controller, clusters/infrastructure/apps layout, or Terraform state/lockfile policy before FINFRA-003/004 (#18). Planned FINFRA-009/FR7 policy gate (#19), FINFRA-010/FR8 k3d smoke install (#20), FINFRA-011/FR9 PSA restricted + default-deny NetworkPolicy (#21) in PR #22. Draft evolve #13 already pins ai-lane@v2 and fixes the README workflow table, so not refiled. Created missing labels incl. agent:queued, which Dependabot #4 reported missing.",
+      "score": 72.0,
+      "next_focus": "Land #22 and draft #13; Claude Code takes #15 (image + SA token) then #14 (release-aware chart) before #19/#20; Amr enables private vuln reporting and a main ruleset (#16) and decides the ADRs in #18 (Flux vs Argo CD, state/lockfile); amendment 0003 for constitution \u00a77; wire release-please (#17); then FINFRA-003 k3s module."
     },
     {
       "day": 29,
