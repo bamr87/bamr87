@@ -123,6 +123,7 @@ ledger:
     tools/console/site_docs.py: 1
     tools/console/smoke_mcp_layer.py: 1
     tools/console/snapshot.py: 2
+    tools/console/switches.py: 1
     tools/docker_view.py: 1
     tools/evals.py: 3
     tools/fleet-compose.py: 1

@@ -982,11 +982,18 @@ features:
       op projects it to one repo''s or loop''s *_ENABLED variables, a console Loops page and MCP pause/resume
       tools act on it, a workflow-atlas rule fails any scheduled or AI workflow without a switch, every
       flip is audited, and a drift check compares fleet.yml to live variables. Extends #511, reuses #512
-      (bamr87/bamr87#526).'
-    implemented: false
-    status: planned
+      (bamr87/bamr87#526). Shipped so far: the map, with records for the hub, lifehacker.dev, bash-365.com
+      and it-journey; the console''s Switches page (/switches), GET /api/switches and POST /api/switches/preview,
+      the switches-apply operation, tools/dash switches and the MCP tools switches_list, switch_preview
+      and switch_apply (tools/console/switches.py): every record read against its live variable with its
+      effective state, drift and any hold; a flip of a loop, a repo, a group or everything previewed with
+      a reason (each variable''s current and new value and the exact fleet.yml diff) and applied only behind the confirm,
+      on repos the hub owns, read back, recorded in the map, the fleet activity log and the audit. Still
+      to come: the workflow-atlas conformance rule and the drift check in tools/check-drift.sh.'
+    implemented: true
+    status: partial
     surface: infra
-    link: _data/fleet.yml
+    link: tools/console/switches.py
     docs: docs/AI-INTEGRATION.md
     tags:
     - loops
@@ -996,6 +1003,12 @@ features:
     date: 2026-10-31
     tests:
     - tools/test_loop_switches.py
+    - tools/console/test_switches.py
+    - tools/console/web/src/pages/switchPlan.test.ts
+    scenarios:
+    - verify/scenarios/console-switches.yml
+    evidence:
+    - test/evidence/console-switches
     prd:
     - FR54
   - id: HUB-058
