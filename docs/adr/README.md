@@ -31,7 +31,7 @@ Add an ADR in the same PR as the change it justifies.
 | 0005 | [The Harness Console is the fleet's portal: one launcher from the registry, frontends mounted by frame and bridge, one shell per surface](0005-console-as-fleet-portal.md) | accepted |
 | 0006 | [Django is the hub's management backend and what a frontend's private mode signs in to: accounts, admin and operational records in a database, the registries still in git, the FastAPI console ported route family by route family](0006-django-management-backend.md) | accepted |
 | 0007 | [The Workflow Studio: the atlas grown to the fleet, one read model on every surface, every change planned and reviewed](0007-workflow-studio.md) | accepted |
-| 0008 | [GitHub Actions as the agentic SDLC substrate: typed decisions gate risk, telemetry scores efficiency, tests gate correctness](0008-typed-decisions-as-pipeline-gates.md) | accepted |
+| 0008 | [GitHub Actions as the agentic SDLC substrate: typed decisions gate risk, telemetry scores efficiency, tests gate correctness](0008-typed-decisions-as-pipeline-gates.md) | superseded by 0017 |
 | 0009 | [The agentic efficacy model: one agent inventory, five KPIs per kind of agent, and checks that run in shadow before they gate](0009-agentic-efficacy-model.md) | accepted |
 | 0010 | [The fleet graph and outcome learning: one model of what the control plane manages, and a shadow estimate of where each loop's work lands](0010-fleet-graph-and-outcome-learning.md) | accepted |
 | 0011 | [One framework, many instances: the stack installs for any owner](0011-one-framework-many-instances.md) | accepted |
@@ -40,3 +40,4 @@ Add an ADR in the same PR as the change it justifies.
 | 0014 | [The fleet assistant baseline: one page bridge, an adapter per platform, and the console as the one broker](0014-fleet-assistant-baseline.md) | accepted |
 | 0015 | [The branch model, declared once: work, session and automation prefixes, and one ruleset per repo that allows only the merge commit § 12.2 requires](0015-branch-model-and-fleet-ruleset.md) | accepted |
 | 0016 | [The hub structure contract: declared layers and limits, a ledger that only shrinks, and one pass over the checks a change owes](0016-hub-structure-contract.md) | accepted |
+| 0017 | [ADR 0008 withdrawn: typed decisions go back to direction, and its cost levers join the Workflow Studio](0017-withdraw-typed-decision-gates.md) | proposed |
