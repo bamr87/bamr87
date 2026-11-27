@@ -155,6 +155,16 @@ checks:
     paths:
       - tools/jev/loop*.py
       - tools/jev/steps/**
+  - id: assist-browser
+    title: The assistant kit's DOM rules in a real browser (own console, never :4001)
+    run: tools/test-assist-browser.sh
+    needs: verify/node_modules/.bin/playwright
+    paths:
+      - templates/assistant/**
+      - tools/console/page_bridge.py
+      - tools/console/app.py
+      - tools/console/mcp_layer/**
+      - tools/test-assist-browser.sh
   - id: pages
     title: The public site's routes and snapshot agree
     run: python3 tools/console/test_pages.py

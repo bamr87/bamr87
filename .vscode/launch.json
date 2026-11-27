@@ -1222,6 +1222,14 @@
       "preLaunchTask": "Fleet: up core",
       "presentation": { "group": "6-verify", "order": 9 }
     },
+    {
+      "name": "🧪 Assist kit: DOM rules in a real browser ($0, own console on a free port, never :4001)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/test-assist-browser.sh",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "6-verify", "order": 10 }
+    },
 
     // -------------------------------------------------------------- PROJECTS
     // Compose-hosted submodules: `tools/dash dev up <p>` starts the project's

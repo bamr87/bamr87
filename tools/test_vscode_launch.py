@@ -41,7 +41,7 @@ ENV_PREFIX = re.compile(r"^(?:[A-Z_][A-Z0-9_]*=\S*\s+)+")
 # entry point, or compose against the hub's own services. A picker of gates
 # is allowed as a whole because each of its options is checked on its own.
 LAUNCH_FRONT_DOORS = (
-    "tools/dash", "tools/dash-gen", "tools/check-drift.sh", "tools/console/build-pages.sh",
+    "tools/dash", "tools/dash-gen", "tools/check-drift.sh", "tools/console/build-pages.sh", "tools/test-assist-browser.sh",
     "docker compose", ".venv-console/bin/python", "python3 ", "for ", "${input:gateCommand}",
 )
 TASK_FRONT_DOORS = (

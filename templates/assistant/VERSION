@@ -4,7 +4,8 @@ source: bamr87/bamr87 templates/assistant/
 seeded-by: tools/fanout.sh --kit assist --target <name> [--apply]
 files: fleet-assist.js, adapters/jekyll.html, adapters/mkdocs.html, adapters/static.html,
   adapters/django.html, adapters/AssistBridge.tsx, adapters/nextjs.tsx,
-  tests/contract.test.mjs, tests/fixture.html, tests/fixture-2.html, test_assistant_kit.py
+  tests/contract.test.mjs, tests/browser.test.mjs, tests/fixture.html, tests/fixture-2.html,
+  test_assistant_kit.py
 spec: specs/ASSIST.md (UPS-AST)
 updated: 2026-11-20
 changelog: |

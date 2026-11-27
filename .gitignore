@@ -15,6 +15,7 @@ venv/
 .venv-mcp/
 .venv-tui/
 .venv-docs/
+.venv-assist/
 *.tsbuildinfo
 
 # ---- lockfiles — never committed: fleet ALWAYS-LATEST dependency policy -----
