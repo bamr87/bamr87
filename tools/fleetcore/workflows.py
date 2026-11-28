@@ -49,6 +49,8 @@ from pathlib import Path
 
 import yaml
 
+from . import identity
+
 SCHEMA = "fleet-workflows/v1"
 ROOT_DEFAULT = Path(__file__).resolve().parents[2]
 STATES = {
@@ -271,7 +273,7 @@ def build(root: Path | str = ROOT_DEFAULT, lake_dir: Path | str | None = None) -
     atlas, sync = _gen()
     fleet = _yaml(root / "_data" / "fleet.yml") or {}
     registry = _yaml(root / "_data" / "projects.yml") or []
-    hub = str((fleet.get("hub") or {}).get("repo") or atlas.HUB_DEFAULT)
+    hub = identity.from_settings(fleet).repo or atlas.HUB_DEFAULT
     db = lake_db(root, lake_dir)
     plan = sync.targets(registry, fleet)
     reads: dict[str, dict] = {}

@@ -907,6 +907,22 @@
       "presentation": { "group": "4-generate", "order": 18 }
     },
     {
+      "name": "🪪 Identity: who this instance is (hub, owners, bot — _data/fleet.yml hub:, read once)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash identity",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 18 }
+    },
+    {
+      "name": "🪪 Identity: literal owners the framework still writes out (report only)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash identity literals --files",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 18 }
+    },
+    {
       "name": "🔐 Secrets: rotation plan + API keys status (read-only)",
       "type": "node-terminal",
       "request": "launch",
