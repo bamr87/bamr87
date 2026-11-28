@@ -77,7 +77,7 @@
   const SKIP = 'script,style,noscript,template,svg,canvas,video,audio,fleet-assist,fleet-feedback,[data-assist-dock],[' + OVERLAY + '],.visually-hidden,.sr-only,[class*="VisuallyHidden"]';
   const INTERACTIVE = 'a[href],button,input,select,textarea,summary,[role="button"],[role="link"],[role="tab"],[role="menuitem"],[role="option"],[role="switch"],[role="checkbox"],[role="radio"],[role="combobox"],[contenteditable="true"]';
   // A modal dialog, in the forms the fleet's stacks draw one: the native element, ARIA, Bootstrap, Mantine.
-  const MODAL = '[aria-modal="true"],[role="alertdialog"],.modal.show,.mantine-Modal-root,.mantine-Spotlight-root';
+  const MODAL = 'dialog[open],[aria-modal="true"],[role="alertdialog"],.modal.show,.mantine-Modal-root,.mantine-Spotlight-root';
   const TEXT_LINE = 400;
   const NAME_MAX = 100;
   const VALUE_MAX = 200;
