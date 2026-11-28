@@ -312,10 +312,12 @@ def _run_text(item: dict, scale: float) -> str:
         tail = d.get("log_tail") or d.get("excerpt") or []
         log = "\n".join(tail[-MAX_LOG_LINES:])
         if len(log) > log_chars:
-            log = "[…earlier lines left out…]\n" + log[-log_chars:]
+            # keep both ends: the failure excerpts come before the runner's summary
+            head = log_chars // 2
+            log = log[:head] + "\n[…middle of the log left out…]\n" + log[-(log_chars - head):]
         lines += [f"### Job: {d['job']}", f"Failed step: {d['step'] or '(unknown)'}",
                   f"The fleet's reading: {d['reason']}", f"Failure class: {d['class']} ({d.get('cause') or ''})",
-                  "Log of the failed step (its last lines):", log or "(empty)", ""]
+                  "Log of the failed step (error excerpts from the whole step, then its last lines):", log or "(empty)", ""]
     if report.get("skipped_jobs"):
         lines += [f"{report['skipped_jobs']} more failed job(s) in this run are not shown."]
     wf, wf_chars = item["workflow"], int(MAX_WORKFLOW_CHARS * scale)

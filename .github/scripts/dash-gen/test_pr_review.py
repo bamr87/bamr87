@@ -150,6 +150,17 @@ def test_lines_outside_the_failed_step_are_left_out():
     assert "earlier" not in " ".join(P.explain(text, STEP, [])[1])
 
 
+def test_the_ai_sees_the_assertions_not_just_the_tail():
+    lines = ["AssertionError: expected 3 got 4"] + [f"filler {i}" for i in range(300)] + ["FAILED: tools/test_x.py"]
+    out = P.log_for_ai(lines)
+    assert "AssertionError: expected 3 got 4" in out and out[-1] == "FAILED: tools/test_x.py"
+    assert len(out) <= P.LOG_TAIL_LINES, len(out)
+
+
+def test_a_short_log_goes_to_the_ai_unchanged():
+    assert P.log_for_ai(["a", "b"]) == ["a", "b"]
+
+
 # ------------------------------------------------------------------- untrusted text
 def test_log_text_cannot_escape_its_code_span_or_fence():
     assert P.code_span("a` <img src=x> @bamr87 `b").count("`") == 2
