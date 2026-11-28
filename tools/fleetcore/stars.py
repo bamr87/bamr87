@@ -183,14 +183,22 @@ def _merged(base: Any, over: Any) -> Any:
     return json.loads(json.dumps(base)) if over is None else over
 
 
+def _identity(fleet: dict | None):
+    """The instance's identity as its settings declare it (identity.py). Imported when asked: the
+    SessionStart hook loads this module at the start of every session and never needs it."""
+    from . import identity  # noqa: PLC0415
+
+    return identity.from_settings(fleet)
+
+
 def config(fleet: dict | None) -> dict:
     """`_data/fleet.yml` `stars:` over DEFAULTS. The account falls back to the first of `hub.owners`."""
     fleet = fleet if isinstance(fleet, dict) else {}
     cfg = _merged(DEFAULTS, fleet.get("stars") if isinstance(fleet.get("stars"), dict) else {})
+    declared = _identity(fleet).declared_owners
     if not cfg.get("account"):
-        owners = (fleet.get("hub") or {}).get("owners") or []
-        cfg["account"] = str(owners[0]) if owners else "bamr87"
-    cfg["owners"] = [str(o).lower() for o in ((fleet.get("hub") or {}).get("owners") or [cfg["account"]])]
+        cfg["account"] = declared[0] if declared else "bamr87"
+    cfg["owners"] = [str(o).lower() for o in (declared or [cfg["account"]])]
     cats = cfg.get("categories") if isinstance(cfg.get("categories"), list) and cfg.get("categories") else CATEGORIES
     aliases = {norm(k): norm(v) for k, v in (cfg.get("aliases") or {}).items()} if isinstance(cfg.get("aliases"), dict) else {}
     cfg["aliases"] = aliases
@@ -622,7 +630,7 @@ def build(raw: dict, *, registry: list[dict], fleet: dict | None, history: dict 
     now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     cfg = config(fleet)
     aliases = cfg.get("aliases") or {}
-    hub_repo = str(((fleet or {}).get("hub") or {}).get("repo") or "bamr87/bamr87")
+    hub_repo = _identity(fleet).repo or "bamr87/bamr87"
     projects = fleet_projects(registry, hub_repo, cfg)
     gh_side = {k: v for k, v in (raw.get("projects") or {}).items() if isinstance(v, dict)}
     errors = [clean(e, 300) for e in raw.get("errors") or []]

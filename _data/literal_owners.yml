@@ -1,0 +1,323 @@
+# _data/literal_owners.yml — the literal owners the framework's code still carries (schema literal-owners/v1).
+# Read by tools/literal_owners.py (`tools/dash identity literals`). ADR 0011
+# decision 2: an instance's identity is read once, from its settings
+# (tools/fleetcore/identity.py), and a NEW literal owner in the framework's code
+# is refused. This file is the record that makes "new" mean something.
+#
+# It sits beside _data/architecture.yml and not in fleet.yml for the same
+# reason: fleet.yml is an instance's settings, and this is the shape of the
+# framework's code. It names no owner itself: the tool reads the owners from
+# the identity of the checkout it measures.
+schema: literal-owners/v1
+
+# REPORT ONLY. While this is false the tool prints what a gate would refuse and
+# exits 0, so nothing fails on a literal owner. Turning it on is a change the
+# maintainer reviews, made once the open pull requests that add literals have
+# landed or been rebased; tools/test_literal_owners.py holds it false until then.
+enforce: false
+
+# Where a literal owner is held to the baseline (ADR 0011 decision 2).
+roots:
+  - templates
+  - tools
+  - .github/workflows
+  - .github/actions
+  - specs
+
+# Counted in the report, never held. ADR 0011 measured the generator (69 on
+# 2026-11-16) and decision 2 does not list it; whether it is held is undecided.
+measured:
+  - .github/scripts
+
+# The framework's own address, which stays fixed (ADR 0011 decision 4). An
+# occurrence one of these matches is counted and never held. `{framework}` is
+# `_data/fleet.yml` `framework.repo` once that key exists (ADR 0011 P3); until
+# then it is the hub's own slug. Each pattern starts with it: nothing but the
+# framework's address can be allowed.
+allow:
+  - id: uses-ref
+    pattern: '{framework}/[A-Za-z0-9_./-]+@[A-Za-z0-9_./-]+'
+    why: A reusable workflow or a composite action called at a ref is how a repo consumes the framework. It is the framework's address, not an instance's identity.
+  - id: tracker-ref
+    pattern: '{framework}(?:#[0-9]+|/(?:issues|pull|discussions)/[0-9]+)'
+    why: A link to an issue or pull request in the framework's own tracker says where a rule or an incident is recorded. It stays true for every instance.
+
+# What the tree carries today, per file: the occurrences that no allow rule
+# covers, in non-test files under `roots:`. Written by
+# `python3 tools/literal_owners.py baseline --write`; it lowers and drops
+# entries, adds one only with --accept-new, and never raises a number. Keep
+# this the last key in the file.
+baseline:
+  files:
+    .github/actions/README.md: 2
+    .github/actions/claude-auth/action.yml: 1
+    .github/actions/claude-run/README.md: 2
+    .github/actions/claude-run/action.yml: 1
+    .github/actions/claude-run/run.sh: 3
+    .github/actions/resolve-fleet-token/README.md: 1
+    .github/actions/utilities/publish-data/action.yml: 1
+    .github/workflows/README.md: 4
+    .github/workflows/build-dash.yml: 2
+    .github/workflows/claude.yml: 6
+    .github/workflows/console-web.yml: 1
+    .github/workflows/fanout.yml: 3
+    .github/workflows/fleet-conformance.yml: 5
+    .github/workflows/fleet-pulse.yml: 4
+    .github/workflows/fleet-verify.yml: 4
+    .github/workflows/issue-pipeline.yml: 6
+    .github/workflows/pr-ai-review.yml: 4
+    .github/workflows/pr-review.yml: 4
+    .github/workflows/publish-kits.yml: 1
+    .github/workflows/release-please.yml: 3
+    .github/workflows/repo-evolution.yml: 11
+    .github/workflows/repo-scout.yml: 2
+    .github/workflows/schema-vendor.yml: 5
+    .github/workflows/site-quality.yml: 7
+    .github/workflows/spec-gate.yml: 5
+    .github/workflows/standard-ci.yml: 2
+    .github/workflows/token-rotation.yml: 1
+    specs/DOCS.md: 2
+    specs/FEEDBACK.md: 1
+    specs/FRONTEND.md: 2
+    specs/OPERATIONS.md: 1
+    specs/QUALITY.contract.yml: 4
+    specs/QUALITY.md: 4
+    specs/README.md: 1
+    specs/REPOSITORY.md: 2
+    specs/STACKS.md: 1
+    specs/WORK.contract.yml: 11
+    specs/WORK.md: 9
+    templates/README.md: 12
+    templates/SCHEMA.md: 3
+    templates/agent-context/CLAUDE.template.md: 2
+    templates/agent-context/VERSION: 4
+    templates/agent-context/archive/claude-0.1.0-checkout-v7.yml: 2
+    templates/agent-context/archive/claude-0.1.0.yml: 2
+    templates/agent-context/archive/claude-0.3.1.yml: 2
+    templates/agent-context/archive/claude-0.4.0.yml: 2
+    templates/agent-context/archive/claude-0.5.0.yml: 4
+    templates/agent-context/archive/claude-0.6.0.yml: 6
+    templates/agent-context/claude.yml: 6
+    templates/ai-ready/VERSION: 1
+    templates/ai-runner/VERSION: 1
+    templates/ai-runner/ai-lane.template.yml: 4
+    templates/ai-runner/archive/ai-lane-0.1.0.yml: 1
+    templates/ai-runner/archive/ai-lane-0.2.1.yml: 1
+    templates/ai-runner/archive/ai-lane-0.3.0.yml: 4
+    templates/assistant/README.md: 1
+    templates/assistant/VERSION: 1
+    templates/assistant/adapters/AssistBridge.tsx: 2
+    templates/assistant/adapters/django.html: 1
+    templates/assistant/adapters/jekyll.html: 1
+    templates/assistant/adapters/mkdocs.html: 1
+    templates/assistant/adapters/nextjs.tsx: 2
+    templates/assistant/adapters/static.html: 1
+    templates/assistant/fleet-assist.js: 1
+    templates/assistant/package.json: 4
+    templates/community/.github/ISSUE_TEMPLATE/config.yml: 1
+    templates/community/.github/ISSUE_TEMPLATE/feature_request.yml: 1
+    templates/community/CONTRIBUTING.md: 4
+    templates/community/README.md: 3
+    templates/community/VERSION: 6
+    templates/community/labels.yml: 1
+    templates/conformance/VERSION: 1
+    templates/conformance/archive/conformance-0.1.0.yml: 2
+    templates/conformance/conformance.yml: 2
+    templates/elk/VERSION: 1
+    templates/elk/compose.elk.yml: 1
+    templates/elk/compose.labels.yml: 1
+    templates/feedback/VERSION: 1
+    templates/feedback/adapters/FeedbackButton.tsx: 2
+    templates/feedback/adapters/django.html: 1
+    templates/feedback/adapters/jekyll.html: 1
+    templates/feedback/adapters/nextjs.tsx: 1
+    templates/feedback/archive/fleet-feedback-0.1.0.js: 1
+    templates/feedback/capture.js: 1
+    templates/feedback/fleet-feedback.js: 1
+    templates/feedback/package.json: 4
+    templates/fleet-engines/README.md: 4
+    templates/fleet-engines/VERSION: 4
+    templates/fleet-engines/package.json: 3
+    templates/fleet-engines/src/fleet/metrics.ts: 1
+    templates/fleet-engines/src/fleet/types.ts: 1
+    templates/fleet-engines/src/harness/health.ts: 1
+    templates/fleet-engines/src/harness/hub-paths.ts: 1
+    templates/fleet-engines/src/harness/lanes.ts: 1
+    templates/fleet-engines/src/index.ts: 1
+    templates/governance/README.md: 1
+    templates/governance/VERSION: 2
+    templates/governance/constitution.template.md: 1
+    templates/governance/docs/amendments/0001-ratify-constitution.template.md: 1
+    templates/governance/docs/amendments/README.template.md: 1
+    templates/issue-autopilot/README.md: 2
+    templates/issue-autopilot/SKILL.template.md: 1
+    templates/issue-autopilot/VERSION: 3
+    templates/issue-autopilot/dispatch.py: 1
+    templates/issue-autopilot/triage.py: 1
+    templates/issue-autopilot/verify_close.py: 1
+    templates/pr-review/README.md: 6
+    templates/pr-review/VERSION: 1
+    templates/pr-review/archive/pr-review-0.1.0.yml: 1
+    templates/pr-review/archive/pr-review-0.2.0.yml: 1
+    templates/pr-review/archive/pr-review-0.3.0.yml: 1
+    templates/pr-review/pr-review.yml: 1
+    templates/projects/auto-add.yml: 3
+    templates/projects/framework.yml: 2
+    templates/prose/VERSION: 1
+    templates/release-pipeline/RELEASING.md: 3
+    templates/release-pipeline/VERSION: 4
+    templates/release-pipeline/archive/release-0.1.0.yml: 3
+    templates/release-pipeline/ci.yml: 3
+    templates/release-pipeline/release.yml: 4
+    templates/schema/VERSION: 1
+    templates/sdlc/AGENTS.template.md: 1
+    templates/sdlc/VERSION: 1
+    templates/sdlc/content-queue/backlog.yml: 1
+    templates/sdlc/docs/adr/0001-record-architecture-decisions.md: 1
+    templates/sdlc/release/release.yml: 1
+    templates/sdlc/sdlc.schema.json: 1
+    templates/sdlc/sdlc.yml: 1
+    templates/site-quality/README.md: 2
+    templates/site-quality/VERSION: 3
+    templates/site-quality/site-quality.schema.json: 1
+    templates/site-quality/site-quality.template.yml: 2
+    templates/site-quality/site-quality.yml: 2
+    templates/spec-driven/.claude-plugin/plugin.json: 3
+    templates/spec-driven/BACKLOG.template.md: 2
+    templates/spec-driven/README.md: 4
+    templates/spec-driven/VERSION: 2
+    templates/spec-driven/constitution.template.md: 1
+    templates/spec-driven/fleet-kit.sh: 3
+    templates/spec-driven/hooks/gate-check.sh: 1
+    templates/spec-driven/tools/backlog_lint.py: 1
+    templates/spec-driven/tools/evolve_audit.py: 1
+    templates/spec-driven/tools/next_backlog_id.py: 1
+    templates/spec-driven/tools/pick_backlog_item.py: 1
+    templates/spec-driven/tools/spec_validator.py: 1
+    templates/spec-driven/workflows/spec-gate.yml: 2
+    templates/standard-ci/VERSION: 2
+    templates/standard-ci/ci.yml: 2
+    templates/ux-audit/README.md: 2
+    templates/ux-audit/VERSION: 2
+    templates/ux-audit/scripts/ux_audit.py: 1
+    templates/verify/SKILL.template.md: 2
+    templates/verify/VERSION: 1
+    templates/verify/archive/runner-0.1.0.mjs: 1
+    templates/verify/archive/verify-0.1.0-oauth-short.yml: 2
+    templates/verify/archive/verify-0.1.0-oauth.yml: 2
+    templates/verify/archive/verify-0.1.0.yml: 2
+    templates/verify/archive/verify-0.2.0-oauth-short.yml: 2
+    templates/verify/archive/verify-0.2.0-oauth.yml: 2
+    templates/verify/archive/verify-0.2.0.yml: 2
+    templates/verify/archive/verify.template-0.1.0.yml: 1
+    templates/verify/features.template.yml: 3
+    templates/verify/runner.mjs: 1
+    templates/verify/scenario.template.yml: 1
+    templates/verify/verifier.template.md: 1
+    templates/verify/verify.template.yml: 1
+    templates/verify/verify.yml: 2
+    tools/README.md: 9
+    tools/adopt-release.sh: 8
+    tools/backlog_fanout.py: 4
+    tools/branch_policy.py: 1
+    tools/check-drift.sh: 4
+    tools/conformance.py: 15
+    tools/console/README.md: 3
+    tools/console/SCHEMA.md: 2
+    tools/console/assist.prompt.txt: 1
+    tools/console/build-pages.sh: 3
+    tools/console/core.py: 1
+    tools/console/core_config.py: 2
+    tools/console/core_refine.py: 1
+    tools/console/design-system/.design-sync/config.json: 1
+    tools/console/design-system/.design-sync/previews/AppHeader.tsx: 1
+    tools/console/design-system/.design-sync/previews/Banner.tsx: 1
+    tools/console/design-system/.design-sync/previews/BarList.tsx: 1
+    tools/console/design-system/.design-sync/previews/Button.tsx: 1
+    tools/console/design-system/.design-sync/previews/Card.tsx: 1
+    tools/console/design-system/.design-sync/previews/CardGrid.tsx: 1
+    tools/console/design-system/.design-sync/previews/Chip.tsx: 1
+    tools/console/design-system/.design-sync/previews/ColumnChart.tsx: 1
+    tools/console/design-system/.design-sync/previews/ConsoleRoot.tsx: 1
+    tools/console/design-system/.design-sync/previews/CredentialRow.tsx: 1
+    tools/console/design-system/.design-sync/previews/Hero.tsx: 1
+    tools/console/design-system/.design-sync/previews/InlineLabel.tsx: 1
+    tools/console/design-system/.design-sync/previews/LogView.tsx: 1
+    tools/console/design-system/.design-sync/previews/Meter.tsx: 1
+    tools/console/design-system/.design-sync/previews/PillarMeter.tsx: 1
+    tools/console/design-system/.design-sync/previews/Section.tsx: 1
+    tools/console/design-system/.design-sync/previews/Select.tsx: 1
+    tools/console/design-system/.design-sync/previews/StatTile.tsx: 1
+    tools/console/design-system/.design-sync/previews/Status.tsx: 1
+    tools/console/design-system/.design-sync/previews/Table.tsx: 5
+    tools/console/design-system/.design-sync/previews/Tabs.tsx: 1
+    tools/console/design-system/.design-sync/previews/TextArea.tsx: 1
+    tools/console/design-system/.design-sync/previews/TextInput.tsx: 2
+    tools/console/design-system/.design-sync/previews/Toast.tsx: 1
+    tools/console/design-system/.design-sync/previews/Toolbar.tsx: 1
+    tools/console/design-system/README.md: 1
+    tools/console/design-system/SCHEMA.md: 1
+    tools/console/design-system/package.json: 1
+    tools/console/docs/mcp-layer.md: 5
+    tools/console/github_link.py: 1
+    tools/console/server.json: 2
+    tools/console/snapshot.py: 5
+    tools/console/web/README.md: 3
+    tools/console/web/SCHEMA.md: 1
+    tools/console/web/package.json: 1
+    tools/console/web/src/api/backend.ts: 1
+    tools/console/web/src/api/ghdirect.ts: 2
+    tools/console/web/src/lib/legacy.ts: 1
+    tools/console/web/src/lib/links.ts: 1
+    tools/console/web/src/pages/Assist.tsx: 1
+    tools/console/web/src/pages/Containers.tsx: 1
+    tools/console/web/src/pages/Nodes.tsx: 1
+    tools/console/web/src/pages/Refine.tsx: 2
+    tools/console/web/vite.config.ts: 1
+    tools/dash: 5
+    tools/devtools-env.sh: 1
+    tools/devtools.conf: 2
+    tools/docker_harmonize.py: 1
+    tools/docs_index.py: 1
+    tools/fanout.sh: 26
+    tools/features_index.py: 1
+    tools/fleet-config.py: 11
+    tools/fleet_activity.py: 1
+    tools/fleetcore/graph.py: 1
+    tools/fleetcore/learn.py: 1
+    tools/fleetcore/loopjob.py: 1
+    tools/fleetcore/mcp_server.py: 1
+    tools/fleetcore/stars.py: 2
+    tools/frontend_registry.py: 1
+    tools/gen-catalog.py: 1
+    tools/governance_lint.py: 1
+    tools/governance_trace_lint.py: 1
+    tools/install-prose-hook.sh: 1
+    tools/jev/README.md: 7
+    tools/jev/adapters/repo_evolution_evolve.py: 2
+    tools/jev/common.py: 1
+    tools/jev/headless.py: 1
+    tools/jev/refine.py: 1
+    tools/jev/spec.py: 1
+    tools/jev/sprints.py: 1
+    tools/jev/steps/fleet-pulse/doctor.prompt.txt: 3
+    tools/jev/steps/repo-evolution/evolve.prompt.txt: 2
+    tools/jev/steps/repo-scout/scout.prompt.txt: 1
+    tools/link_check.py: 1
+    tools/pipeline_map.py: 1
+    tools/pm_review.py: 2
+    tools/projects_backfill.py: 1
+    tools/sanctioned_lockfiles.py: 3
+    tools/seed-schema.sh: 2
+    tools/setup-terminal.sh: 4
+    tools/sprint_record.py: 1
+    tools/stargazer.py: 2
+    tools/unpin-deps.sh: 3
+    tools/uplift.py: 1
+    tools/voices.py: 1
+    tools/weekly/briefs/grok-close.md: 1
+    tools/weekly/briefs/grok-plan.md: 1
+    tools/weekly/briefs/grok-prepare.md: 2
+    tools/weekly/cli.py: 1
+    tools/weekly/harness.py: 1
+    tools/weekly/prepare.py: 1

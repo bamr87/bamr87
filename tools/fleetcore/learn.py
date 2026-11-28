@@ -49,7 +49,7 @@ from pathlib import Path
 
 import yaml
 
-from . import yamlio
+from . import identity, yamlio
 
 SCHEMA = "learning/v1"
 ROOT_DEFAULT = Path(__file__).resolve().parents[2]
@@ -476,7 +476,8 @@ def registry_arms(root: Path, fleet: dict) -> list[str]:
         rows = yamlio.load(root / "_data" / "projects.yml") or []
     except (OSError, yaml.YAMLError):
         return []
-    owners = {str(o).lower() for o in ((fleet.get("hub") or {}).get("owners") or [])}
+    # Only the owners the settings declare: with none declared, every registry repo is an arm.
+    owners = {o.lower() for o in identity.from_settings(fleet).declared_owners}
     out = []
     for row in rows if isinstance(rows, list) else []:
         url = str((row or {}).get("repo_url") or "")
@@ -500,7 +501,7 @@ def build(root: Path | str = ROOT_DEFAULT, *, items: list[dict] | None = None, l
     if loop and loop not in cfg["loops"]:
         raise ConfigError(f"no loop called {loop!r} in learning.loops (known: {', '.join(cfg['loops'])})")
     since = now - dt.timedelta(days=cfg["window_days"])
-    hub = str((fleet.get("hub") or {}).get("repo") or "bamr87/bamr87")
+    hub = identity.from_settings(fleet).repo or "bamr87/bamr87"
     source: dict = {"kind": "items", "rows": len(items or [])}
     costs: dict = {}
     if items is None:

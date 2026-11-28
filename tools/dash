@@ -59,6 +59,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash keys [status|verify|rotate]${c_off} Anthropic Console API keys per workspace (api_keys:) — \`status\` = each workspace's key, expiry and repos; \`verify\` = one cheap call per key; \`rotate --apply\` = new keys pasted into .env → hub-first to their repos, old key disabled (the Admin API cannot create keys; the Console does)
   ${c_bold}dash secrets [sync|push|rotate|plan]${c_off} per-repo matrix of declared secrets/variables vs GitHub; \`sync --apply\` provisions the token contract (values from env); \`push --apply\` reads the contract's names from .env and writes them hub-first, then fans the fleet-scoped ones out; \`rotate --apply\` runs the weekly credential loop (audit ages, mint where possible, propagate hub-first); \`plan\` shows the ages read-only
   ${c_bold}dash config [show|audit|sync|auth]${c_off} read _data/fleet.yml (\`show [dotted.key]\`); \`audit\` = \`dash secrets\`; \`sync --apply\` projects canonical variables onto the fleet; \`auth [sync --apply]\` resolves the per-repo AI auth order (ai_auth:) and projects CLAUDE_AUTH_ORDER
+  ${c_bold}dash identity [show|get <key>|owned <repo>|json|literals]${c_off} WHO this instance is, read once from _data/fleet.yml \`hub:\` (tools/fleetcore/identity.py; ADR 0011) — the hub's repository, the owners whose repos ARE the fleet, the shared repo, the default branch, the bot and the site: \`show\` every key as key=value, \`get <key>\` one value for a script (exit 1 when it has none), \`owned <repo-or-url>\` exits 0 when a repo slug or a GitHub address is the fleet's, \`json\` the document (fleet-identity/v1), \`--instance DIR\` another control plane (default: FLEET_HOME, else this checkout); when the settings name no repository it falls back to GITHUB_REPOSITORY and says so, and never invents an owner; \`literals [report|check|baseline]\` counts the owners the framework's code still writes out, against _data/literal_owners.yml (tools/literal_owners.py; report only, nothing fails); read-only, no network
   ${c_bold}dash estimate${c_off}          draft client-engagement estimates from open issues → _data/engagements.yml
   ${c_bold}dash projects [inventory|plan|apply]${c_off} the issue-triage + Fleet-board backfill pass (constitution § 10/§ 11): \`inventory\` counts open work per repo; \`plan [--board]\` compiles _data/projects_backfill.yml into § 11 ops and previews before → after with plan ids (GraphQL for the board, skipped where unreachable; \`--repos registry\` targets every registry repo, \`--closed-since\`/\`--closed-before\` add closed items as Done); \`apply FILE --confirm\` writes through the service, only with HARNESS_PROJECTS_WRITES=1 (docs/PROJECTS-FRAMEWORK.md § 3b)
   ${c_bold}dash pm [review|plan|roadmap|releases|status]${c_off} the routine PM review (docs/PM.md), read-only: \`review\` reads every open issue and PR of the registry repos, their pull-request state, recent comments, releases and the Fleet project, and reports what is out of line with the project, the roadmap and each release train; \`plan\` prints the Fleet project ops as before → after (applied by \`dash projects apply\`, § 11); \`roadmap [--write]\` the status edits for _data/roadmap.yml (working tree only); \`releases\` the release train; \`status\` the committed snapshot's headline
@@ -729,6 +730,23 @@ cmd_config() {
     *) "$PY" "${TOOLS}/fleet-config.py" show "$@" ;;
   esac
 }
+# Who this instance is (ADR 0011 decision 2): the hub's repository, the owners
+# whose repos are the fleet, the shared repo, the default branch, the bot and
+# the site, read once from _data/fleet.yml `hub:` by tools/fleetcore/identity.py.
+# This is that resolver's shell twin, not a second implementation: a script
+# asks `dash identity get <key>` and never parses the settings itself. The
+# module is put on the path, not changed into, so `--instance` takes a path
+# relative to where the caller stands. `literals` is the report-only count of
+# the owners the framework's code still writes out (tools/literal_owners.py).
+cmd_identity() {
+  if [[ "${1:-}" == literals ]]; then
+    shift
+    case "${1:-}" in ""|-*) set -- report "$@" ;; esac
+    "$PY" "${TOOLS}/literal_owners.py" "$@"
+    return
+  fi
+  PYTHONPATH="${TOOLS}${PYTHONPATH:+:${PYTHONPATH}}" "$PY" -m fleetcore.identity "$@"
+}
 cmd_estimate() { "${TOOLS}/dash-gen" estimate "$@"; }
 cmd_projects() { "$PY" "${TOOLS}/projects_backfill.py" "$@"; }
 # The routine PM review (docs/PM.md): read-only; bare `dash pm` runs the review.
@@ -1074,6 +1092,7 @@ main() {
     secrets) cmd_secrets "$@" ;;
     keys)    cmd_keys "$@" ;;
     config)  cmd_config "$@" ;;
+    identity) cmd_identity "$@" ;;
     estimate) cmd_estimate "$@" ;;
     projects) cmd_projects "$@" ;;
     pm)      cmd_pm "$@" ;;

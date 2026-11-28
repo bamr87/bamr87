@@ -51,7 +51,7 @@ from urllib.parse import urlsplit
 
 import yaml
 
-from . import yamlio
+from . import identity, yamlio
 
 HUB = Path(__file__).resolve().parents[2]
 SCHEMA = "fleet-clouds/v1"
@@ -443,10 +443,9 @@ def _slug(repo_url) -> str:
 
 def targets(instance: Path) -> tuple[list[dict], list[dict], int, str]:
     """(repos to read, repos that cannot be read, repos under another owner, the hub's slug)."""
-    fleet = _load(instance / "_data" / "fleet.yml") or {}
-    hub = fleet.get("hub") if isinstance(fleet.get("hub"), dict) else {}
-    slug = str(hub.get("repo") or "")
-    owners = {str(o).lower() for o in (hub.get("owners") or ([slug.split("/")[0]] if slug else []))}
+    # The settings alone, never the environment: the map is the same on every host.
+    who = identity.from_settings(_load(instance / "_data" / "fleet.yml"))
+    slug, owners = who.repo, set(who.owners)
     registry = _load(instance / "_data" / "projects.yml") or []
     read, unread, external = [], [], 0
     if slug:

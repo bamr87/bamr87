@@ -41,7 +41,7 @@ from pathlib import Path
 
 import yaml
 
-from . import yamlio
+from . import identity, yamlio
 
 SCHEMA = "fleet-graph/v1"  # bump on a breaking (non-additive) change
 ROOT_DEFAULT = Path(__file__).resolve().parents[2]
@@ -335,7 +335,7 @@ def build_registry(g: Graph, root: Path, fleet: dict) -> None:
     rows = _yaml(g, root, "_data/projects.yml")
     if not isinstance(rows, list):
         return
-    owners = {str(o).lower() for o in ((fleet.get("hub") or {}).get("owners") or [g.hub.split("/")[0]])}
+    owners = {o.lower() for o in identity.from_settings(fleet).declared_owners} or {g.hub.split("/")[0].lower()}
     n = 0
     for row in rows:
         if not isinstance(row, dict):
@@ -775,7 +775,7 @@ def load_fleet(root: Path) -> dict:
 def build(root: Path | str = ROOT_DEFAULT, parts: tuple[str, ...] = PARTS) -> Graph:
     root = Path(root)
     fleet = load_fleet(root)
-    g = Graph(str(((fleet.get("hub") or {}).get("repo")) or HUB_DEFAULT))
+    g = Graph(identity.from_settings(fleet).repo or HUB_DEFAULT)
     for part in parts:
         if part not in BUILDERS:
             raise KeyError(f"unknown part {part!r} (known: {', '.join(PARTS)})")
