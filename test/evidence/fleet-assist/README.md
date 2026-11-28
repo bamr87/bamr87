@@ -12,6 +12,22 @@ Nothing here spent Claude budget: the "session" is the console's real MCP layer 
 - The console: this branch, credential-free, on `127.0.0.1:4011`, with the fixture's origin admitted (`DASH_CONSOLE_ASSIST_ORIGINS=http://127.0.0.1:4777`). The live console on `:4001` was not touched.
 - The browser: Chromium through the Playwright MCP server, 1280×800 and 390×844.
 
+## Now held by an automated run
+
+Since bamr87/bamr87#938 the rules this hand run proved are also held by a script, on every pull request that touches the kit, the page bridge, the console's fleet routes or the MCP layer: `templates/assistant/tests/browser.test.mjs`, run by `tools/test-assist-browser.sh` locally ($0, no model, its own console on a free loopback port) and by `.github/workflows/assist-browser.yml` in CI. It drives this same fixture in headless Chromium through the console's real MCP layer, the way the run below did, and a self-test step proves it goes red when `dialog[open]` is dropped from `MODAL`.
+
+| Rule | Automated run | Still by hand |
+| --- | --- | --- |
+| Look refuses every act (click, fill, Enter, navigate) | ✅ | |
+| Ask first: Deny comes back declined, page unchanged; Allow runs | ✅ | the ringed control while the prompt waits (`ask-approval-desktop.png`) |
+| Nothing inside or behind the native `<dialog>` or the Bootstrap-style `.modal.show` (click, fill, Enter, navigate); Escape closes it unanswered | ✅ | the screenshot (`dialog-refused-desktop.png`) |
+| The secret field is neither read, filled nor shown in a snapshot | ✅ | |
+| The link that leaves the site is refused | ✅ | |
+| No `configure({ modal })` value (none, non-matching, broken) unprotects a dialog | ✅ | naming more dialogs as modal (`#form`) |
+| After a navigation, by the session or by the person while a long poll waits, the same session carries on and the next command reaches the new page | ✅ | |
+| The disabled control, `page_highlight`, `page_data`, a `//host` path, the commands-a-minute cap | | ✅ (`paired-session-transcript.txt`) |
+| How the panel looks, desktop and 390×844 | | ✅ (`shared-desktop.png`, `panel-mobile.png`) |
+
 ## What to look at
 
 | File | What it shows |

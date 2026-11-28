@@ -1,0 +1,82 @@
+# The fleet assistant kit's DOM rules, in a real browser, on every PR that can
+# break them (bamr87/bamr87#938, UPS-AST-42).
+#
+# The pure-function contract tests (templates/assistant/tests/contract.test.mjs)
+# and the broker's unit tests (tools/console/test_page_bridge.py) run in
+# python-tests.yml without a browser. The rules that need a DOM — nothing
+# inside or behind a modal dialog, no secret field, no link off the site, the
+# Ask-first Allow and Deny, Look refusing every act, a session that survives a
+# navigation — were held only by the 2026-11-19 hand run
+# (test/evidence/fleet-assist/). This job runs that hand run as a script:
+# tools/test-assist-browser.sh starts a credential-free console on a loopback
+# port, opens the kit's fixture in headless Chromium and plays the session's
+# side through the console's real MCP layer. No model, no secret, $0.
+#
+# Its own job, not a step in python-tests (no time headroom there). The
+# Playwright install is fleet-verify.yml's (verify/node_modules), not a second
+# browser toolchain. FastAPI, the mcp package and Chromium are installed here,
+# and a missing one FAILS the test — it never skips.
+#
+# The self-test step serves the payload with `dialog[open]` dropped from MODAL
+# and passes only when the native-dialog checks go red, so a green run means
+# the test can see the rule it claims to hold.
+#
+# Advisory until the maintainer makes it a required check (branch protection
+# is theirs, not this file's).
+name: Assist browser
+
+on:
+  pull_request:
+    paths:
+      - 'templates/assistant/**'
+      - 'tools/console/page_bridge.py'
+      - 'tools/console/app.py'
+      - 'tools/console/mcp_layer/**'
+      - 'tools/console/requirements.txt'
+      - 'tools/console/requirements-mcp.txt'
+      - 'tools/test-assist-browser.sh'
+      - '.github/workflows/assist-browser.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: assist-browser-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          # A number, never `lts/*` (atlas rule node-alias).
+          node-version: '26'
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install the console, the MCP layer, Playwright and Chromium
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet --upgrade -r tools/console/requirements.txt -r tools/console/requirements-mcp.txt
+          npm install --prefix verify --no-save --no-audit --no-fund --no-package-lock @playwright/test yaml
+          verify/node_modules/.bin/playwright install --with-deps chromium
+
+      - name: The kit's rules in a real browser
+        env:
+          FLEET_ASSIST_PYTHON: python
+          FLEET_ASSIST_SKIP_INSTALL: '1'
+        run: tools/test-assist-browser.sh
+
+      - name: Self-test — the same run with the dialog rule broken must fail
+        env:
+          FLEET_ASSIST_PYTHON: python
+          FLEET_ASSIST_SKIP_INSTALL: '1'
+        run: tools/test-assist-browser.sh --self-test

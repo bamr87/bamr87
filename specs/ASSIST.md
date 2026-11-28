@@ -48,7 +48,7 @@ A repo that draws pages in a framework with no adapter is reported as a `gap`. A
 | --- | --- | --- | --- | --- | --- |
 | UPS-AST-40 | MUST | site, app | The kit is fanned out, not hand-installed: `tools/fanout.sh --kit assist --target <name>` vendors the payload into the stack's static assets and seeds the adapter for its framework. Dry-run by default; an adapter is seeded only where absent, and the app shell is never edited: the PR says where to mount it. | `tools/fanout.sh` | hub |
 | UPS-AST-41 | MUST | site, app | A vendored payload that drifts from the hub's is reported by drift check (i), and `--upgrade` refreshes only copies byte-identical to an archived kit shape. A hand-modified payload is never machine-reverted. | `tools/check-drift.sh` | hub |
-| UPS-AST-42 | SHOULD | site, app | The contract is enforced by tests, not by review: the allowlist and its argument checks, the loopback rule and adapter gates (`templates/assistant/tests/contract.test.mjs`), and that the payload, the console's own page and the broker hold the same lists (`tools/console/test_page_bridge.py`). | tests | hub |
+| UPS-AST-42 | SHOULD | site, app | The contract is enforced by tests, not by review: the allowlist and its argument checks, the loopback rule and adapter gates (`templates/assistant/tests/contract.test.mjs`), that the payload, the console's own page and the broker hold the same lists (`tools/console/test_page_bridge.py`), and the rules that need a DOM, in a real browser against the kit's fixture through the console's real MCP layer (`templates/assistant/tests/browser.test.mjs`, run by `tools/test-assist-browser.sh` and the `assist-browser.yml` PR check). | tests | hub |
 
 ## What this is not
 

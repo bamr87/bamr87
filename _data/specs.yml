@@ -1668,7 +1668,7 @@ requirements:
     section: "Delivery"
     level: SHOULD
     applies: [site, app]
-    requirement: "The contract is enforced by tests, not by review: the allowlist and its argument checks, the loopback rule and adapter gates (`templates/assistant/tests/contract.test.mjs`), and that the payload, the console's own page and the broker hold the same lists (`tools/console/test_page_bridge.py`)."
+    requirement: "The contract is enforced by tests, not by review: the allowlist and its argument checks, the loopback rule and adapter gates (`templates/assistant/tests/contract.test.mjs`), that the payload, the console's own page and the broker hold the same lists (`tools/console/test_page_bridge.py`), and the rules that need a DOM, in a real browser against the kit's fixture through the console's real MCP layer (`templates/assistant/tests/browser.test.mjs`, run by `tools/test-assist-browser.sh` and the `assist-browser.yml` PR check)."
     satisfied_by: "tests"
     seed: "hub"
     gap: false
