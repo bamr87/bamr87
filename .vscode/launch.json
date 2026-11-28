@@ -163,6 +163,22 @@
       "presentation": { "group": "0-fleet", "order": 8 }
     },
     {
+      "name": "🧠 Fleet: AI models (each class, its model, every place that also names it)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash ai models",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "0-fleet", "order": 8 }
+    },
+    {
+      "name": "🧠 Fleet: AI switch plan (type a class and the model to switch to)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash ai switch ${input:aiClass} --to ${input:aiTargetModel}",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "0-fleet", "order": 8 }
+    },
+    {
       "name": "📜 Fleet: dev logs (pick a project)",
       "type": "node-terminal",
       "request": "launch",
@@ -1910,6 +1926,17 @@
       "description": "Words to find in past local sessions (every word must match)",
       "type": "promptString",
       "default": "drift check"
+    },
+    {
+      "id": "aiClass",
+      "description": "The class of AI work to switch: a name from _data/fleet.yml ai_models.classes (tools/dash ai models lists them)",
+      "type": "promptString",
+      "default": "standard"
+    },
+    {
+      "id": "aiTargetModel",
+      "description": "The model to switch to: an exact id, normally one from _data/fleet.yml ai_models.allowed",
+      "type": "promptString"
     },
     {
       "id": "workflowKind",

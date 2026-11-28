@@ -1,0 +1,8 @@
+# _data/eval_runs.yml — recorded eval runs (schema eval-runs/v1; ADR 0019, docs/AI-MODELS.md).
+# WRITTEN ONLY by `python3 tools/evals.py run <role> --model <id> --record`. Never edit a row by
+# hand: a row is the evidence that a role's eval set passed on a model, and `tools/dash ai switch`
+# reads a switch as safe only from it. One row per model run, oldest first; the latest row for a
+# role and a model decides. A row is proof only when `scope` is `all` (the whole set ran),
+# `failed` is 0 and `set` still matches the set in the tree. Cost is API-equivalent (estimate).
+schema: eval-runs/v1
+runs: []

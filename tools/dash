@@ -104,6 +104,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash ai${c_off}                shadow-priced Claude Code usage per repo (local)
   ${c_bold}dash ai check${c_off}          reconcile that ledger against ccusage (pricing/alias/dedupe audit)
   ${c_bold}dash ai run -- <args>${c_off}  run \`claude -p\` under the fleet.yml dollar cap, recording what it cost
+  ${c_bold}dash ai models|bindings|switch${c_off}  which model each kind of AI work runs on and what a switch would take (_data/fleet.yml \`ai_models.classes\`; docs/AI-MODELS.md): \`models\` the classes with every place that also names their model (a switch should be ONE line), \`bindings [--model M] [--class C]\` those places with file and line, \`switch <class> --to <model>\` the plan: the edits it still owes and whether each agent it moves is proven on the target by a recorded eval run (\`tools/evals.py run <role> --model M --record\`); read-only, no model call
   ${c_bold}dash observe [up|down|ship|status|verify|open|reset|claude]${c_off} the local LOG plane — \`up\` starts the elk + metrics profiles (Elasticsearch/Logstash/Kibana/Filebeat + Grafana + Qdrant + the OTel collector and Prometheus) and installs ILM + dashboards; \`claude enable --apply\` points this machine's Claude Code native OpenTelemetry at the collector; \`ship\` replays the lake's Actions logs in as ECS documents; \`status\` reports the three planes and the Kilo code index; \`verify\` re-renders ILM/templates from _data/fleet.yml; \`open\` is the Console's Observe tab (docs/OBSERVABILITY.md)
   ${c_bold}dash index [status|coverage|search|harmonize]${c_off} analyse the code index — \`coverage\` is chunks per submodule; \`search\` is semantic search above the contract floor; \`harmonize\` lists which projects share a pattern and which do not (docs/OBSERVABILITY.md)
   ${c_bold}dash up [names…|--group G|--all]${c_off} start the shared container plane (workspace, console, one Postgres, one Redis on the \`fleet\` network), then each named submodule as its OWN compose project with a generated port/network override — the fleet runs as many projects, not one (docs/CONTAINERS.md)
@@ -542,6 +543,9 @@ cmd_ai() {
   case "${1:-}" in
     check) shift; "${TOOLS}/dash-gen" ai-check "$@" ;;
     run) shift; "${TOOLS}/dash-gen" ai-run "$@" ;;
+    # Which model each kind of work runs on, every place that is written, and
+    # what a switch would take (ADR 0019, tools/fleetcore/aimodels.py). Reads only.
+    models|bindings|switch) (cd "$TOOLS" && "$PY" -m fleetcore.aimodels "$@") ;;
     *) "${TOOLS}/dash-gen" ai "$@" ;;
   esac
 }

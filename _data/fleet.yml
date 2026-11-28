@@ -4527,3 +4527,40 @@ ai_models:
       - claude-opus-5-5
       - claude-sonnet-5-5
       - claude-haiku-5-5
+
+  # Classes — the ONE place a kind of work is bound to a model (ADR 0019,
+  # docs/AI-MODELS.md). AI-agnostic means a provider can be switched easily and
+  # nothing gets worse when it is, so a switch should be one line here. Every
+  # other place that names a model (a setting above, a literal in a workflow,
+  # an action, a tool, a kit or a fleet repo's workflow) is counted by
+  # `tools/dash ai models`, and `tools/dash ai switch <class> --to <model>`
+  # lists each as an edit the switch still owes. That count only goes down.
+  #
+  # A class is not an alias: it resolves to an exact id from `allowed:` and
+  # changing its line is the same gated change (§ 12.3, § 13.3). The names say
+  # what the work needs, never which vendor serves it.
+  classes:
+    deep: claude-opus-5-5 # planning, diagnosis and changes across many files
+    standard: claude-sonnet-5-5 # the default: review, triage, content, the assistant
+    fast: claude-haiku-5-5 # mechanical edits and classification
+
+  # Which agents each eval set covers (ids from _data/agents.yml). A switch is
+  # safe for an agent only when every set that covers it has a recorded run on
+  # the target model: the whole set, nothing failed, the set unchanged since
+  # (`tools/evals.py run <role> --model M --record` writes _data/eval_runs.yml).
+  # `covers` says when a set tests only part of the agent, so that part is
+  # never read as the whole.
+  evals:
+    console-assist:
+      agents: [local:console-assist]
+    pr-ai-analysis:
+      agents: [ci:bamr87:pr-review]
+    t1-intake:
+      agents: [ci:bamr87:issue-pipeline]
+      covers: tier 1 (intake) of its three model steps
+
+  # Files that hold a row per model (a price, an alias) and not a choice of
+  # model. A switch adds a row there; it does not edit one.
+  scan:
+    tables:
+      - .github/scripts/dash-gen/ai_activity.py

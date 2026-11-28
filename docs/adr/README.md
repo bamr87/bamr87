@@ -42,3 +42,4 @@ Add an ADR in the same PR as the change it justifies.
 | 0016 | [The hub structure contract: declared layers and limits, a ledger that only shrinks, and one pass over the checks a change owes](0016-hub-structure-contract.md) | accepted |
 | 0017 | [ADR 0008 withdrawn: typed decisions go back to direction, and its cost levers join the Workflow Studio](0017-withdraw-typed-decision-gates.md) | accepted |
 | 0018 | [Clouds are fleet targets: providers declared once, deployments read from the repos, and one neutral contract each for identity, infrastructure, workload, telemetry and cost](0018-clouds-as-fleet-targets.md) | accepted |
+| 0019 | [AI providers are switchable without regression: a class binds a kind of work to a model in one place, every other place that names a model is counted down to zero, and a switch needs its evals recorded on the target](0019-ai-providers-switchable-without-regression.md) | proposed |
