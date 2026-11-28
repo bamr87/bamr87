@@ -1,6 +1,7 @@
 # ADR 0018 — Clouds are fleet targets: providers declared once, deployments read from the repos, and one neutral contract each for identity, infrastructure, workload, telemetry and cost
 
-- **Status**: proposed
+- **Status**: accepted
+- **Accepted in**: https://github.com/bamr87/bamr87/pull/1000 (merged 2026-11-28 by @bamr87)
 - **Date**: 2026-11-27
 - **Deciders**: proposed by an agent at the maintainer's request (2026-11-27: as the bash-365 organization grows, the framework must manage and monitor any repo on AWS, Google Cloud and Azure without being tied to one cloud or one AI, with the site, the OS and the localhost platform aligned; build the foundations and the toolsets first)
 - **Related**: [ADR 0003](0003-fleet-platform-nodes-iac-and-scale-out.md) (nodes, OpenTofu, "a path to any cluster"), [ADR 0005](0005-console-as-fleet-portal.md) (the console is the portal on every surface), [ADR 0011](0011-one-framework-many-instances.md) (the stack installs for any owner), [ADR 0016](0016-hub-structure-contract.md) (the structure contract); constitution § 10.5, § 10.6, § 10.8 and § 13.6; [docs/CLOUDS.md](../CLOUDS.md), [docs/PLATFORM.md](../PLATFORM.md), [infra/azure/README.md](../../infra/azure/README.md); roadmap `FF-0044` (the Azure cost dashboard); pull request #993 (the bash-365 portal on Azure); `HUB-NEW:fleet-clouds`
