@@ -2,15 +2,15 @@
   "schema": "deep-dive/v1",
   "owner": "bamr87",
   "label": "deep-dive",
-  "refreshed_at": "2026-11-27T12:26:50Z",
+  "refreshed_at": "2026-11-28T12:24:15Z",
   "summary": {
-    "as_of": "2026-11-27",
+    "as_of": "2026-11-28",
     "cycle": 1,
     "cycle_start": "2026-10-30",
     "cycle_end": "2026-12-10",
     "cycle_days": 42,
     "total": 38,
-    "day": 29,
+    "day": 30,
     "processed": 17,
     "counts": {
       "pending": 21,
@@ -20,14 +20,6 @@
     },
     "progress": 0.4474,
     "today": {
-      "date": "2026-11-27",
-      "cycle": 1,
-      "day": 29,
-      "cycle_days": 42,
-      "kind": "scheduled",
-      "repo": "kvlite"
-    },
-    "next": {
       "date": "2026-11-28",
       "cycle": 1,
       "day": 30,
@@ -35,11 +27,19 @@
       "kind": "scheduled",
       "repo": "netprobe"
     },
+    "next": {
+      "date": "2026-11-29",
+      "cycle": 1,
+      "day": 31,
+      "cycle_days": 42,
+      "kind": "scheduled",
+      "repo": "fleet-observe"
+    },
     "last": "fleet-infra",
     "last_date": "2026-11-26",
     "avg_score": 55.6,
-    "open_issues": 58,
-    "open_prs": 4
+    "open_issues": 67,
+    "open_prs": 6
   },
   "repos": [
     {
@@ -101,10 +101,11 @@
         "https://github.com/bamr87/bamr87/pull/509",
         "https://github.com/bamr87/bamr87/pull/508",
         "https://github.com/bamr87/bamr87/pull/579",
-        "https://github.com/bamr87/bamr87/pull/975"
+        "https://github.com/bamr87/bamr87/pull/975",
+        "https://github.com/bamr87/bamr87/pull/995"
       ],
       "open_issues": 9,
-      "open_prs": 0,
+      "open_prs": 1,
       "findings": "Cycle 1 day 2, final. Outcomes: Amr merged #508 (docs_index --lint fix) and #509 (governance-records-lint feature); issues #500-#505 filed (dead amendment links + FR45/HUB-049 #500, amendment status/\u00a7 13 ordering #501, NFR11 budget mismatch #502, ungated docs_index lint #503, console a11y #504, governance-records-lint #505). Previously known python-tests and v1/v2 tag items were already fixed. HUB-039 has no PRD requirement (warning).",
       "score": 78.0,
       "next_focus": "Amr: go-ahead on #500 and #501 status flips; budget decision in #502. Gate docs_index --lint in CI (#503); console a11y pass (#504) with \u00a7 15 evidence; land #494/#496 so \u00a7 15/\u00a7 16 numbering is final."
@@ -720,10 +721,22 @@
       "status": "pending",
       "last_processed": null,
       "cycle": 1,
-      "issues": [],
-      "prs": [],
-      "open_issues": 0,
-      "open_prs": 0,
+      "issues": [
+        "https://github.com/bamr87/kvlite/issues/22",
+        "https://github.com/bamr87/kvlite/issues/21",
+        "https://github.com/bamr87/kvlite/issues/20",
+        "https://github.com/bamr87/kvlite/issues/19",
+        "https://github.com/bamr87/kvlite/issues/18",
+        "https://github.com/bamr87/kvlite/issues/17",
+        "https://github.com/bamr87/kvlite/issues/16",
+        "https://github.com/bamr87/kvlite/issues/15",
+        "https://github.com/bamr87/kvlite/issues/14"
+      ],
+      "prs": [
+        "https://github.com/bamr87/kvlite/pull/23"
+      ],
+      "open_issues": 9,
+      "open_prs": 1,
       "findings": "",
       "score": null,
       "next_focus": ""
