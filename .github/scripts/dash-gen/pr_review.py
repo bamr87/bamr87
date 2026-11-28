@@ -217,6 +217,43 @@ def step_lines(log: str, step: dict | None) -> list[str]:
     return out
 
 
+AI_TAIL_LINES = 40      # the end of the step: the runner's summary and exit
+AI_CONTEXT = 4          # lines kept around each failure signal in the middle
+AI_SIGNAL_RX = re.compile(
+    r"Traceback \(most recent call last\)|\b(AssertionError|Error|Exception|FAIL(ED)?|ERROR|panic|fatal)\b"
+    r"|##\[error\]|^\s*(not ok|✗|E\s{2,})",
+)
+
+
+def log_for_ai(lines: list[str], limit: int = LOG_TAIL_LINES) -> list[str]:
+    """At most `limit` lines of a failed step for the AI analysis. A test runner
+    prints each failure's assertion early and only a summary at the end, so the
+    last lines alone miss it: keep the end, plus windows around the failure
+    signals before it (latest first), with the gaps marked."""
+    if len(lines) <= limit:
+        return lines
+    tail_n = min(AI_TAIL_LINES, limit)
+    body, tail = lines[:-tail_n], lines[-tail_n:]
+    keep: set[int] = set()
+    budget = limit - tail_n - 1
+    for i in range(len(body) - 1, -1, -1):
+        if not AI_SIGNAL_RX.search(body[i]):
+            continue
+        window = [j for j in range(max(0, i - AI_CONTEXT), min(len(body), i + AI_CONTEXT + 1)) if j not in keep]
+        if len(keep) + len(window) > budget:
+            break
+        keep.update(window)
+    out: list[str] = []
+    prev = -1
+    for j in sorted(keep):
+        if j != prev + 1:
+            out.append(f"[… {j - prev - 1} lines left out …]")
+        out.append(body[j])
+        prev = j
+    out.append(f"[… {len(body) - prev - 1} lines left out …]")
+    return out + tail
+
+
 def _is_group_edge(line: str) -> bool:
     return line.startswith(("##[group]", "##[endgroup]"))
 
@@ -366,7 +403,7 @@ def describe_run(gh: Gh, run: dict, default_branch: str) -> dict:
         # `log_tail` is never rendered: pr_ai_analysis.py hands it to the model, so a log is downloaded once.
         details.append({"job": job.get("name") or "job", "url": job.get("html_url") or "", "step": (step or {}).get("name") or "",
                         "class": found["class"], "cause": found["cause"], "reason": reason, "excerpt": excerpt,
-                        "log_tail": step_lines(log, step)[-LOG_TAIL_LINES:]})
+                        "log_tail": log_for_ai(step_lines(log, step))})
     # A job that only reports its siblings failed says nothing the sibling doesn't.
     real = [d for d in details if not ROLLUP_RX.search(d["reason"])]
     out["jobs"] = real or details
