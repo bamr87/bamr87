@@ -1,0 +1,19 @@
+# features/features.d/vscode-and-claude-commands.yml — compiled into features/features.yml at merge (HUB-NEW)
+id: HUB-NEW
+slug: vscode-and-claude-commands
+title: "Every fleet repo ships VS Code tooling and aligned Claude Code slash commands that cross-reference"
+description: "Every non-exempt fleet repo must ship VS Code workspace tooling (launch.json run/debug configurations, tasks.json, extensions.json, and settings.json where the stack needs it) and a shared core of Claude Code slash commands under .claude/commands/ (/dev, /test, /lint, /debug, /review, /implement, plus repo-specific commands), with bidirectional cross-references among the editor entries, the commands and AGENTS.md (constitution § 20 items 5, 7 and 8). The hub writes the standard in this pull request; the seed kit, the conformance check and spoke fan-out are follow-up work executed by Claude Code after ratification."
+implemented: false
+status: partial
+surface: infra
+link: docs/constitution.md
+docs: docs/amendments/proposed/vscode-and-claude-commands.md
+tags: [governance, vscode, editor, claude, slash-commands, developer-experience, standards]
+date: 2026-11-27
+tests:
+  - {na: "standard and docs in this PR; the seed kit, conformance check and spoke fan-out are follow-up work (constitution § 20.5, § 20.7, § 20.8)"}
+prd: ["FR-NEW:vscode-and-claude-commands"]
+prd_new:
+  - key: vscode-and-claude-commands
+    kind: FR
+    text: "Every non-exempt fleet repo must ship VS Code workspace tooling for its stack — .vscode/launch.json with run and debug configurations that call the repo's own one-command entry points, .vscode/tasks.json, .vscode/extensions.json recommending the fleet extension set, and .vscode/settings.json where the stack needs workspace settings — and Claude Code slash commands under .claude/commands/ that include a shared core set with consistent names (/dev, /test, /lint, /debug, /review, /implement) plus repo-specific commands; VS Code tasks and launch configurations, the slash commands and AGENTS.md must point at each other both ways (constitution § 20 items 5, 7 and 8; docs/amendments/proposed/vscode-and-claude-commands.md)."
