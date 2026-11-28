@@ -1,0 +1,3688 @@
+# evals/qa-lead/cases.yml — the eval set for QA Lead, the § 15 completeness reviewer
+# (.github/scripts/dash-gen/qa_lead.py `decide()`: the gate, the four lines, the event),
+# constitution § 13.1. Runner: python3 tools/evals.py run qa-lead (offline, no model); the
+# regression check is tools/test_evals.py in the python-tests workflow.
+#
+# Each real case is a merged fleet pull request recorded with
+#   python3 .github/scripts/dash-gen/qa_lead.py facts --repo OWNER/NAME --pr N
+# on 2026-11-23: its files, labels, size, author, body (cut at 6,000 characters where
+# that changes no line) and the CI runs its body links, resolved against its head commit.
+# The expectations were checked line by line against § 15 by the PR that added the set;
+# the maintainer ratifies them by merging it. None of these pull requests linked a green
+# run of its own head commit — § 15.2 is newer than all of them — so every real reviewed
+# case is known-gap, and the two known-good cases (ids `rule-*`) are written for a stated
+# rule under evals/SCHEMA.md's convention; the first real complete pull request replaces
+# them. The advisory AI read is not in this set: it never changes the verdict.
+#
+# input:     author, labels, additions, deletions, files[], ci_runs[{id, head_match,
+#            conclusion}], body, optional frontend_paths[] (the repo's verify/verify.yml).
+# expected:  review, major, frontend; when review is true, event and lines{tests, ci,
+#            visual, template} as pass | gap | n/a.
+# pass:      the human-readable criterion the runner enforces.
+schema: evals/v1
+role: qa-lead
+mode: deterministic
+target: .github/scripts/dash-gen/qa_lead.py
+min_cases: 20
+cases:
+- id: bamr87-846
+  source: 'https://github.com/bamr87/bamr87/pull/846 — a one-file CI fix: neither major nor frontend'
+  input:
+    author: bamr87
+    labels:
+    - automation
+    - fleet-doctor
+    additions: 13
+    deletions: 3
+    files:
+    - .github/workflows/markdown-oneline.yml
+    ci_runs:
+    - id: 42896189299
+      head_match: false
+      conclusion: failure
+    body: '<!-- fleet-doctor key="bamr87/bamr87:.github/workflows/markdown-oneline.yml" -->
+
+
+      ## Problem
+
+
+      `bamr87/bamr87` · `.github/workflows/markdown-oneline.yml` · queued as a priority cost candidate (401 runs
+      / 14d, 285.4 job-min, 15.2 job-min wasted, 96.9% success). The run history has **12 `pull_request` failures**.
+      7 of them are on `chore/jev-numbering`, and the others are on short-lived agent/amend branches.
+
+
+      ## Root cause
+
+
+      The job checks out `github.event.pull_request.head.ref`, which is the branch **name**. The JEV numbering PR
+      is merged right after its last push, and auto-delete removes the head branch before this job starts. On run
+      42896189299, PR #817 merged at 20:31:52 and the job started at 20:31:55. `actions/checkout` then retried the
+      fetch of a ref that no longer existed and failed after ~35 s:
+
+
+      ```
+
+      git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +refs/heads/chore/jev-numbering*:refs/remotes/origin/chore/jev-numbering*
+      ...
+
+      ##[error]The process ''/usr/bin/git'' failed with exit code 1
+
+      ```
+
+
+      So these failures were not prose violations. The job was trying to check out a branch that had already been
+      deleted.
+
+
+      ## Fix
+
+
+      - `ref:` is now `github.event.pull_request.head.sha || github.sha`. GitHub still serves the head commit through
+      `refs/pull/N/head` after the branch is deleted, so checkout succeeds and the prose check runs. The repair
+      commit still lands on the same base, and `git push origin HEAD:refs/heads/$HEAD_REF` works the same from a
+      detached HEAD. If someone pushes to the branch in the meantime, the push is now rejected as non-fast-forward
+      instead of committing on top of a branch tip this run never checked.
+
+      - Before pushing, the repair step runs `git ls-remote --exit-code --heads`. If the branch is gone (the PR
+      already merged or closed), it writes a notice and exits 0 instead of recreating the deleted branch. Any wrapped
+      prose that reached `main` is still reported by the `push` run, which fails as before.
+
+
+      This touches the hub''s own copy only. It is already a hand-diverged variant of `templates/prose/markdown-oneline.yml`
+      (it has extra path filters and job-level permissions). The kit template has the same `head.ref` checkout,
+      so fleet repos with fast-merging bot PRs can fail the same way. That fix needs a kit bump to 0.5.0 with an
+      `archive/` shape and is left for a follow-up.
+
+
+      Checks run: `tools/check-drift.sh` reports no drift, `tools/dash workflows lint` reports 0 errors, and `python3
+      tools/test_unwrap_prose.py` passes. `actionlint` was not available in this runner.
+
+
+      ## Expected impact
+
+
+      About 7 of every 12 red runs go away: the false reds on JEV numbering merges. That saves ~35 s of retry backoff
+      each (~0.6 job-min) and removes a false failure from `pr-review`''s sticky comment and from triage. That is
+      a small number of minutes, but it takes out most of the failure noise behind this candidate.
+
+
+      ## Links
+
+
+      - Failing run: https://github.com/bamr87/bamr87/actions/runs/42896189299 (others: 42747239633, 42178245696,
+      41780272418, 41569439008, 41372165919, 41360388240, 41352111293)
+
+      - Dash Actions page: https://bamr87.github.io/bamr87/actions/
+
+
+      🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+      '
+  expected:
+    review: false
+    major: false
+    frontend: false
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: bamr87-872
+  source: 'https://github.com/bamr87/bamr87/pull/872 — a two-file workflow tweak that links runs: still not reviewed'
+  input:
+    author: bamr87
+    labels:
+    - skip-evidence
+    additions: 10
+    deletions: 6
+    files:
+    - .github/workflows/python-tests.yml
+    - docs/WORKFLOW-OPTIMIZATION.md
+    ci_runs:
+    - id: 42772953444
+      head_match: false
+      conclusion: cancelled
+    - id: 42842311739
+      head_match: false
+      conclusion: cancelled
+    - id: 42896583035
+      head_match: false
+      conclusion: cancelled
+    - id: 43128132160
+      head_match: false
+      conclusion: cancelled
+    - id: 43553985722
+      head_match: false
+      conclusion: cancelled
+    body: '## Description
+
+
+      A `python-tests` push run on `main` waits in the cheap `changes` job so that the next push of a merge burst
+      cancels it before the four shards boot (#805). Merge bursts on 2026-11-10 still outlasted the 90-second wait.
+      This PR raises the wait to 110 seconds. The fleet-doctor proposed this change in #821 but could not push it,
+      because its token has no `workflows` permission.
+
+
+      - `.github/workflows/python-tests.yml`: `sleep 90` becomes `sleep 110`. The PUSH DEBOUNCE header now says
+      why, and that the wait must stay under about 115 s.
+
+      - `docs/WORKFLOW-OPTIMIZATION.md`: two sentences in the 2026-11-09 section record the change and the numbers
+      behind it.
+
+
+      ### Measured
+
+
+      These counts cover every `python-tests` push run on `main` from the debounce''s first run (2026-11-10 07:03
+      UTC) to 2026-11-15 18:35 UTC: 33 runs. Job timings were read for 19 of them: every run that survived, and
+      every run that was cancelled after the 90-second wait had ended.
+
+
+      | Outcome | Runs |
+
+      | --- | --- |
+
+      | survived and passed | 12 |
+
+      | cancelled before any shard started (only `changes` billed) | 15 |
+
+      | cancelled after the shards had booted | 6 |
+
+
+      Around the 90 s wait, `changes` took 92–96 s, after a queue delay of 3–20 s. With 110 s it takes 112–116 s.
+      That stays under 120 s, so it still bills 2 minutes. A wait above about 115 s can bill 3.
+
+
+      The six runs cancelled after their shards booted, and what a 110 s wait would have done. A run is caught if
+      the next push arrives before `changes` ends.
+
+
+      | Cancelled run (created, UTC) | Next push after | `changes` would end at (110 s wait) | Caught? |
+
+      | --- | --- | --- | --- |
+
+      | [11-10 07:06:15](https://github.com/bamr87/bamr87/actions/runs/42772953444) | 119 s | 133 s | yes |
+
+      | [11-10 15:14:38](https://github.com/bamr87/bamr87/actions/runs/42842311739) | 148 s | 117 s | no |
+
+      | [11-10 20:34:12](https://github.com/bamr87/bamr87/actions/runs/42896583035) | 133 s | 131 s | borderline:
+      the shards would be queued 2 s before the cancel |
+
+      | [11-12 00:33:22](https://github.com/bamr87/bamr87/actions/runs/43128132160) | 477 s | 130 s | no |
+
+      | [11-14 03:54:29](https://github.com/bamr87/bamr87/actions/runs/43553985722) | 146 s | 117 s | no |
+
+      | [11-14 07:02:00](https://github.com/bamr87/bamr87/actions/runs/43569152164) | 329 s | 120 s | no |
+
+
+      **Expected impact: small.** Over those 5.5 days the longer wait would have caught one or two of the six escaped
+      runs. Each costs about 4 billed shard-minutes, so the total is 4–8 billed minutes. That is a few minutes on
+      a day with a long merge burst, and nothing on a quiet day. The issue estimated 12–20 job-min/day from 11-10''s
+      traffic, which is too high for two reasons. First, one of its four escapes, [11-10 20:29:44](https://github.com/bamr87/bamr87/actions/runs/42895823522),
+      was already caught by the 90 s wait: `changes` was cancelled at 94 s and no shard ever started. Second, the
+      133 s and 148 s gaps are beyond 110 s.
+
+
+      **Cost:** no extra billed minutes, because a surviving run''s `changes` still bills 2. The `python-tests`
+      verdict on `main` arrives 20 s later on each push run that survives. Pull requests, the nightly run and manual
+      dispatch do not wait and are unchanged.
+
+
+      ## Governance Trace
+
+
+      Governed by: NFR3 (HUB-012, fleet pulse and the remediation doctor; the doctor''s finding). Handoff: #821.
+
+
+      ## Related Issues
+
+
+      - Closes #821
+
+
+      ## Type Of Change
+
+
+      - [ ] Bug fix
+
+      - [ ] New feature
+
+      - [ ] Breaking change
+
+      - [ ] Documentation update
+
+      - [x] Maintenance or refactor
+
+      - [ ] Test improvement
+
+
+      ## Verification
+
+
+      I ran these locally on this branch:
+
+
+      ```
+
+      grep -n ''sleep 110'' .github/workflows/python-tests.yml           → 134: run: sleep 110   (no `sleep 90`
+      left)
+
+      actionlint .github/workflows/python-tests.yml                    → clean (every workflow: clean)
+
+      tools/dash workflows lint                                        → 0 error(s), 3 warning(s): concurrency on
+      weekly-closeout/finalize/gather.yml, which this PR does not touch
+
+      python3 .github/scripts/dash-gen/test_workflow_atlas.py          → OK
+
+      python3 .github/scripts/dash-gen/test_schedule.py                → OK
+
+      python3 tools/unwrap-prose.py --check docs/WORKFLOW-OPTIMIZATION.md → already unwrapped
+
+      python3 tools/schema_lint.py check .                             → PASS: 0 error(s), 0 warning(s)
+
+      python3 tools/docs_index.py --check                              → exit 0
+
+      python3 -m tools.jev generated guard --base origin/main          → ok: no main-only generated file
+
+      /opt/homebrew/bin/bash tools/check-drift.sh                      → No drift (submodule checks skipped: none
+      checked out)
+
+      ```
+
+
+      - [x] Tests pass
+
+      - [x] Lint/type checks pass
+
+      - [x] Documentation updated
+
+      - [ ] Manual verification completed, if needed: possible only after merge (below)
+
+
+      **Not verified here: the wait itself.** It runs only on a push to `main`, so the first push run after this
+      merges is the evidence. Its `changes` job should take under 120 s (`gh run view <run> -R bamr87/bamr87 --json
+      jobs`). In the next merge burst, a push superseded within about two minutes should show `changes` cancelled
+      and no `tests (…)` job started. On this PR, CI should run `python-tests` with all four shards and no wait,
+      because the PR touches `.github/` and so is not docs-only.
+
+
+      `skip-evidence`: this is a CI timing change, and nothing a user sees changes.
+
+
+      ## Notes For Reviewers
+
+
+      - **Gate:** not gated under § 12.3. `python-tests.yml` reaches no model, and no permission, secret, budget
+      or setting changes.
+
+      - **Why not higher:** across these 19 runs, `changes` spent 2–6 s around the sleep. A wait of about 115 s
+      or more would put some surviving runs at 3 billed minutes, which is roughly +1 minute on each of about two
+      surviving runs a day. That costs more than the escapes it would add: the 146–148 s gaps would need a wait
+      of about 140 s, and 3 billed minutes on every surviving run.
+
+      - **Not in this PR, as the issue says:** caching pip (11–26 s per shard), and speeding up `tools/test_jev_loop.py`,
+      the one-file critical path.
+
+
+      🤖 Generated with [Claude Code](https://clau'
+  expected:
+    review: false
+    major: false
+    frontend: false
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: bamr87-943
+  source: https://github.com/bamr87/bamr87/pull/943 — a one-line launch.json picker fix
+  input:
+    author: bamr87
+    labels: []
+    additions: 1
+    deletions: 1
+    files:
+    - .vscode/launch.json
+    ci_runs: []
+    body: '## Summary
+
+
+      #937 is red on `tests (rest)` / `python-tests` because of one test: `tools/test_vscode_launch.py` `Pickers.test_verify_scenario_picker_equals_scenarios_dir`.
+      It requires the `verifyScenario` picker in `.vscode/launch.json` to list every file in `verify/scenarios/`,
+      and #937 added `verify/scenarios/overview-story.yml` without adding it to the picker (constitution § 20; `.vscode/README.md`
+      says a new scenario goes into the picker in the same change).
+
+
+      This PR targets `feature/overview-story`, so merging it puts the fix on #937.
+
+
+      ## Change
+
+
+      - `.vscode/launch.json`: add `"overview-story"` to the `verifyScenario` options.
+
+
+      ## Verification
+
+
+      - `python3 tools/test_vscode_launch.py`: 35 tests, OK (it failed before this change).
+
+
+      Governed by: constitution § 20 (the editor is a front door)
+
+
+      skip-evidence: config-only picker entry, no visual change.
+
+
+      ---
+
+      _Generated by [Claude Code](https://claude.ai/code)_'
+  expected:
+    review: false
+    major: false
+    frontend: false
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: bamr87-946
+  source: https://github.com/bamr87/bamr87/pull/946 — a small python-tests trigger change
+  input:
+    author: bamr87
+    labels: []
+    additions: 129
+    deletions: 3
+    files:
+    - .github/workflows/python-tests.yml
+    - .github/workflows/update-submodules.yml
+    - docs/WORKFLOW-OPTIMIZATION.md
+    - tools/SCHEMA.md
+    - tools/test_python_tests_paths.py
+    ci_runs: []
+    body: '## Description
+
+
+      Why did Python Tests run 977 run in full after the ratify merge? On 2026-11-20 four code merges (#937, #943,
+      #936, #933) landed between 20:30:57 and 20:33:35 UTC. The jev-number ratify job then merged its record PR
+      #945 (two lines in `docs/adr/`) at 20:36:22, **167 s** after #933. That gap is longer than the 110 s push
+      debounce, so the following happened:
+
+
+      1. #933''s push run had already started its three shards.
+
+      2. #945''s push joined the `python-tests-refs/heads/main` concurrency group and cancelled #933''s run about
+      50 s in.
+
+      3. #945''s run (number 977) then ran every shard on a tree that differed from #933''s only by those two docs
+      lines. The `changes` job''s docs-only skip applies only to PRs. On a push it always answers "run".
+
+
+      The ratify merge always follows a code merge by a few minutes, because it waits for its own PR''s checks.
+      The debounce cannot absorb that gap without going over its 115 s billing ceiling.
+
+
+      **Fix:** add a `paths:` filter to the push trigger that skips the same directories as the PR-side case statement
+      (`docs/`, `changelog.d/`, `features/features.d/`, with `docs/JEV.md`, `docs/FRONTEND-PLATFORM.md` and `docs/SCHEMA-FRAMEWORK.md`
+      re-included). A docs-only push now starts no run, so it never enters the concurrency group and never cancels
+      its predecessor. In the Nov 20 burst, #933''s run would have finished and tested the whole burst. A step inside
+      `changes` could not do this, because a run cancels the one before it as soon as it enters the group.
+
+
+      Pull requests and the nightly run stay unfiltered, so the floating-dependency sensor is unchanged. The ratify
+      guard reads checks on the record PR''s head, not on main, so it is unaffected.
+
+
+      ## Governance Trace
+
+
+      Governed by: constitution § 10 (DevOps methodology); docs/WORKFLOW-OPTIMIZATION.md (Actions waste passes,
+      continuing bamr87/bamr87#799 and bamr87/bamr87#821). No FR covers Actions cost directly. Handoff: none (operator
+      question in a local session).
+
+
+      ## Related Issues
+
+
+      - Follows bamr87/bamr87#799, bamr87/bamr87#821
+
+
+      ## Type Of Change
+
+
+      - [ ] Bug fix
+
+      - [ ] New feature
+
+      - [ ] Breaking change
+
+      - [x] Documentation update
+
+      - [x] Maintenance or refactor
+
+      - [x] Test improvement
+
+
+      ## Verification
+
+
+      - [x] Tests pass: `python3 tools/test_python_tests_paths.py` (new: keeps the case statement and the filter
+      equal and checks sample paths in GitHub''s last-match-wins order), `tools/test_fleetcore_workflows.py`, `test_schedule.py`
+
+      - [x] Lint/type checks pass: `actionlint` on both workflows, `tools/dash workflows lint` (0 errors; its 5
+      warnings were already there), `tools/check-drift.sh` green, `schema_lint` clean, `unwrap-prose --check`
+
+      - [x] Documentation updated: the workflow header (new DOCS-ONLY PUSHES section), a `docs/WORKFLOW-OPTIMIZATION.md`
+      entry, a `tools/SCHEMA.md` row, and the now-stale comment in `update-submodules.yml`
+
+      - [ ] Manual verification completed, if needed: `skip-evidence` (CI-only, nothing to see)
+
+
+      ## Notes For Reviewers
+
+
+      - **Risk:** a docs-only push leaves main''s tip without a push run. Tests do not read those paths (2026-11-05
+      read trace), and the nightly run still runs everything.
+
+      - **Not changed (follow-ups):** CodeQL default setup runs on every push, bot commits included (254 runs /
+      1,512 job-min in 14 days). PR-side cancellations of Python Tests (about 1,100 cancel-minutes in 14 days) have
+      no debounce. `PR review`''s `workflow_run: ["**"]` fires about 1,100 runs a week, most of them skipped.
+
+
+      ---
+
+      _Generated by [Claude Code](https://claude.ai/code)_'
+  expected:
+    review: false
+    major: false
+    frontend: false
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: bamr87-959
+  source: https://github.com/bamr87/bamr87/pull/959 — a one-file test fix
+  input:
+    author: bamr87
+    labels:
+    - skip-evidence
+    additions: 20
+    deletions: 5
+    files:
+    - .github/scripts/dash-gen/test_remediation.py
+    ci_runs: []
+    body: '## Description
+
+
+      `python-tests` (shard `rest`) has been red on `main` since `a6b0dab` (2026-11-22 09:19 UTC), and therefore
+      on every hub PR. The cause is one check in `.github/scripts/dash-gen/test_remediation.py`: `the committed
+      snapshot no longer queues nightly-extended.yml`.
+
+
+      That check reads the live, daily-refreshed `_data/actions_usage.yml` and asserts two workflows by name. On
+      2026-11-21 zer0-mistakes `nightly-extended.yml` started failing: 3 of 14 runs failed, with 42 waste-minutes.
+      It therefore stopped being a productive schedule, which requires 100% green and zero waste, and the detector
+      rightly queues it as `flaky` and `cron-heavy`. The remediation code is behaving as designed; the test confused
+      a change in real data with the regression it guards against (#258/#259).
+
+
+      The live check now asserts the guard''s promise for every row that qualifies: no productive schedule in the
+      committed snapshot is queued as slow, costly or cron-heavy (79 rows today). The two named workflows are still
+      checked whenever the snapshot shows them productive (`quest-fix-loop.yml` is, today). Test-only change; no
+      code or data touched.
+
+
+      ## Governance Trace
+
+
+      Governed by: NFR3 (HUB-012 fleet pulse + remediation doctor) Handoff: none (found while fixing CI on bamr87/bamr87#958)
+
+
+      ## Related Issues
+
+
+      - Unblocks every open hub PR whose `python-tests` failed on this check, including bamr87/bamr87#958.
+
+
+      ## Type Of Change
+
+
+      - [x] Bug fix
+
+      - [ ] New feature
+
+      - [ ] Breaking change
+
+      - [ ] Documentation update
+
+      - [ ] Maintenance or refactor
+
+      - [x] Test improvement
+
+
+      ## Verification
+
+
+      - [x] Tests pass: `python3 .github/scripts/dash-gen/test_remediation.py` → `OK (149 checks)` on this branch;
+      the same file on `main` → `FAILED (1/149)`.
+
+      - [x] The new check is not vacuous. With the guard''s suppression removed from `remediation.py` (a local mutation,
+      reverted), it fails together with the fixture checks for the guard.
+
+      - [ ] Lint/type checks pass (no lint surface changed)
+
+      - [ ] Documentation updated (none needed)
+
+      - [ ] Manual verification completed, if needed
+
+
+      ## Notes For Reviewers
+
+
+      - Non-visual: evidence skipped for that reason.
+
+      - The data itself is a real signal worth a look on its own. zer0-mistakes `nightly-extended.yml` failed 3
+      of 14 runs in the window and was last red on 2026-11-21; the remediation doctor will now pick it up, as it
+      should.
+
+
+      🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+      '
+  expected:
+    review: false
+    major: false
+    frontend: false
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: bamr87-912
+  source: https://github.com/bamr87/bamr87/pull/912 — a release cut of CHANGELOG.md alone
+  input:
+    author: bamr87
+    labels:
+    - needs-amr
+    additions: 4
+    deletions: 0
+    files:
+    - CHANGELOG.md
+    ci_runs: []
+    body: '## Description
+
+
+      Cuts v2.2.0 of the hub''s reusable workflow interface: the `## [Unreleased]` entries move under `## [2.2.0]
+      - 2026-11-16`, with the release''s summary paragraph. `CHANGELOG.md` only, the same shape as #851.
+
+
+      ## Why now
+
+
+      The floating `v2` tag is behind `main` on a decision that is already in force.
+
+
+      | Ref | `claude-auth`, `claude-run`, `ai-lane.yml`, `fleet-verify.yml` |
+
+      | --- | --- |
+
+      | `v2` (= `v2.1.0`, `1c2da537`) | read `ANTHROPIC_API_KEY`, follow the caller''s `CLAUDE_AUTH_ORDER` (default
+      `oauth,api_key`) |
+
+      | `main` | OAuth only since #859 (2026-11-15): `CLAUDE_CODE_OAUTH_TOKEN` alone, `api_key` ignored with a notice,
+      the key inputs kept declared and unread |
+
+
+      `v2.1.0` was tagged the same day, before #859 merged. Three commits on `main` since the tag touch the interface:
+      #859''s merge and its commit, and `d58f335c` (ai-runner kit 0.4.0 pins).
+
+
+      The fleet has not felt this only because it is not pinned yet. Across the 39 submodules today: 34 callers
+      of `claude-auth@main`, 27 of `claude-run@main`, 24 of `fleet-verify.yml@main`, 23 of `fleet-conformance.yml@main`,
+      12 of `ai-lane.yml@main`. That is UPS-WORK-10 and UPS-QA-40 failing in 38 of 38 graded repos, the most-failed
+      requirement in the fleet (`tools/dash spec fleet`, 2026-11-16), and it is what #458 is queued to fix. Every
+      kit already seeds `@v2`, so each kit upgrade that lands moves a caller from the OAuth-only `main` back to
+      the key-reading `v2`. Moving `v2` first removes that step backwards.
+
+
+      A caller with no OAuth token skips its agent step, as before; nothing turns a green caller red, so this is
+      a minor release.
+
+
+      ## After this merges (Amr, from `docs/WORKFLOW-VERSIONING.md` "Cutting a release")
+
+
+      ```bash
+
+      git fetch origin && git checkout <merge-sha>
+
+      git tag -a v2.2.0 -m "v2.2.0 — reusable workflow interface"
+
+      git push origin v2.2.0
+
+      gh release create v2.2.0 --verify-tag --title "v2.2.0" --notes "See CHANGELOG.md"
+
+      git tag -fa v2 -m "v2 → v2.2.0" v2.2.0^{}
+
+      git push --force origin refs/tags/v2
+
+      ```
+
+
+      Rollback: point `v2` back at `v2.1.0` (`1c2da537`).
+
+
+      ## Open pull requests this touches
+
+
+      Checked by trial merge against the 38 other open hub pull requests (2026-11-16): none of them edits `CHANGELOG.md`,
+      so **this branch conflicts with none**, and it merges cleanly with #911 and #913.
+
+
+      - **Order with any pull request that carries a `changelog.d` fragment** (#913, #875 and others): when one
+      of those merges, the numbering job folds its fragment into `## [Unreleased]`, the lines this branch moves.
+      If that happens first, this branch needs its move redone on the new `main`. Merging this one first avoids
+      it.
+
+      - **In the fleet, once the tag moves**: the callers already at `@v2` for the four changed files start running
+      the OAuth-only versions. Among the 39 submodules'' default branches no workflow calls those four files at
+      `@v2` yet; the hub''s own `claude.yml` (`claude-auth@v2`) and `ai-lane.yml` on `main` (`claude-run@v2`) do,
+      and both already restrict themselves to OAuth at the call site. The next callers will be the 36 open `chore/agent-context-kit`
+      pull requests (`claude-auth@v2`) and the 5 open `test/agent-verification` drafts (`fleet-verify.yml@v2`) as
+      they merge, which is the intended behaviour: the kit''s `claude.yml` 0.7.0 already passes no API key.
+
+      - Callers of `standard-ci.yml@v2` (32), `release-please.yml@v2` (21) and `site-quality.yml@v2` (3) are unaffected:
+      those files are identical at `v2` and on `main`.
+
+      - #868 and #889 (detect a caller pinned at a ref that lacks the file) are independent of this and stay valid.
+
+
+      ## Governance Trace
+
+
+      Governed by: [docs/WORKFLOW-VERSIONING.md](https://github.com/bamr87/bamr87/blob/main/docs/WORKFLOW-VERSIONING.md)
+      "Cutting a release"; UPS-WORK-10 and UPS-QA-40 (fleet workflows pinned to a tag); the OAuth-only decision
+      of 2026-11-15 (#859). Handoff: #458.
+
+
+      ## Related Issues
+
+
+      - Unblocks #458
+
+
+      ## Type Of Change
+
+
+      - Maintenance or refactor
+
+
+      ## Verification
+
+
+      - `git cat-file -e v2:<path>` for every hub file the fleet calls by reference (`claude-auth`, `claude-run`,
+      `claude-cost`, `ai-lane.yml`, `fleet-verify.yml`, `fleet-conformance.yml`, `pr-review.yml`, `standard-ci.yml`,
+      `release-please.yml`): all exist at `v2`, so no caller pinned there breaks today
+
+      - `git diff v2..origin/main` on those files: the only differences are the OAuth-only change and the ai-runner
+      pins
+
+      - `python3 tools/test_jev_number.py`, `tools/test_conformance_work.py`, `tools/test_docs_index.py`; `python3
+      tools/unwrap-prose.py --check CHANGELOG.md`
+
+      - Not verified: a live run of a caller at the moved tag. That can only happen after the tag moves.
+
+
+      Label: `skip-evidence` (no user-visible surface).
+
+
+      ## Notes For Reviewers
+
+
+      The tags are created only after the merge, never from this branch. No tag was created or moved by this pull
+      request.
+
+
+      🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+
+
+      '
+  expected:
+    review: false
+    major: false
+    frontend: false
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: scripts-63
+  source: 'https://github.com/bamr87/scripts/pull/63 — a fleet repo''s script fix with tests: not major, no frontend'
+  input:
+    author: bamr87
+    labels:
+    - automation
+    additions: 82
+    deletions: 3
+    files:
+    - FORKME/forkme.sh
+    - STASHME/stashme.sh
+    - tests/smoke.sh
+    ci_runs: []
+    body: '<!-- issue-pipeline tier="2" key="bamr87/scripts#62" -->
+
+
+      Closes #62
+
+
+      ## What changed and why
+
+
+      `trap cleanup EXIT INT TERM` ran `cleanup()` on a signal and then *returned*, and neither `cleanup()` calls
+      `exit`, so both tools carried on after Ctrl-C / SIGTERM. Both scripts now use `trap cleanup EXIT` plus `trap
+      ''exit 130'' INT` and `trap ''exit 143'' TERM`. `exit` inside a signal trap fires the EXIT trap, so cleanup
+      runs exactly once (before, it ran twice).
+
+
+      | # | Acceptance criterion | How it is met |
+
+      | --- | --- | --- |
+
+      | 1 | SIGINT/SIGTERM to `stashme.sh` (slow stub push, two dirty repos) → 130/143, only the first push started
+      | smoke cases `stashme.sh stops on SIG{INT,TERM} with exit {130,143} after the first push` |
+
+      | 2 | SIGINT/SIGTERM to `forkme.sh --no-fork --strategy bundle owner/repo` (slow stub clone) → 130/143, no
+      `*_temp` left | smoke cases `forkme.sh stops on SIG{INT,TERM} … and removes its _temp clone` |
+
+      | 3 | `grep -n "trap cleanup EXIT INT TERM"` returns nothing; each file has `trap cleanup EXIT` plus two signal
+      traps | `FORKME/forkme.sh:43-45`, `STASHME/stashme.sh:34-36` |
+
+      | 4 | new interrupt cases in `tests/smoke.sh` (offline, stubbed git/gh, sandboxed HOME) fail on `f7cdd0b`,
+      pass after | section 10 of `tests/smoke.sh`; before/after output below |
+
+      | 5 | `shellcheck --severity=warning …` and `tests/smoke.sh` pass | both exit 0 (below) |
+
+      | 6 | no README change; exit codes documented only where exit codes already are | no doc in `FORKME/` or `STASHME/`
+      documents exit codes, so no doc change; `CHANGELOG.md` is release-please''s |
+
+
+      The test uses a separate slow `git` stub in `$WORK/slowbin` (prepended ahead of the recording stub) that logs
+      each push/clone as it starts — a clone also creates its target — then sleeps 2 s; the test signals the tool
+      as soon as the log is non-empty. The background job is started under `set -m`, because a non-interactive shell''s
+      `&` job inherits an ignored SIGINT, which a script can then not trap.
+
+
+      ## Verification
+
+
+      ```text
+
+      $ git stash -- FORKME/forkme.sh STASHME/stashme.sh && bash tests/smoke.sh   # on f7cdd0b scripts, new tests
+
+      FAIL stashme.sh after SIGINT exited 0, not 130:   ... Failed: 0
+
+      FAIL forkme.sh after SIGINT exited 1, not 130: ... forkme.sh: line 715: cd: .../forkme-workspace/repo_temp:
+      No such file or directory
+
+      FAIL stashme.sh after SIGTERM exited 0, not 143: ...
+
+      FAIL forkme.sh after SIGTERM exited 1, not 143: ... line 715: cd: .../repo_temp: No such file or directory
+
+      rc=1
+
+
+      $ bash tests/smoke.sh        # with the fix
+
+      ok   stashme.sh stops on SIGINT with exit 130 after the first push
+
+      ok   forkme.sh stops on SIGINT with exit 130 and removes its _temp clone
+
+      ok   stashme.sh stops on SIGTERM with exit 143 after the first push
+
+      ok   forkme.sh stops on SIGTERM with exit 143 and removes its _temp clone
+
+      rc=0   (59 ok, 0 FAIL; run 3 times, stable)
+
+
+      $ shellcheck --severity=warning *.sh FORKME/forkme.sh STASHME/stashme.sh tests/*.sh completions/*.bash
+
+      rc=0
+
+      $ grep -n "trap cleanup EXIT INT TERM" FORKME/forkme.sh STASHME/stashme.sh
+
+      rc=1 (no match)
+
+      ```
+
+
+      The "before" run also shows the forkme bug tier 1 predicted: the INT/TERM trap deleted `repo_temp` and the
+      script then tried to `cd` into it.
+
+
+      ## Risk / blast radius
+
+
+      Two one-line trap changes. Normal (non-signal) runs are unchanged: `cleanup` still runs on EXIT. A caller
+      that relied on a signalled run exiting 0 now sees 130/143, which is the point. The smoke test adds ~8 s (four
+      2 s stub sleeps). Out of scope, noted by tier 1 for its own issue: stashme''s `Repositories found: 0` summary
+      bug (assignment inside a process substitution).
+
+
+      🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+      '
+  expected:
+    review: false
+    major: false
+    frontend: false
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: SCHEMA-22
+  source: https://github.com/bamr87/SCHEMA/pull/22 — a fleet repo's dist fix
+  input:
+    author: bamr87
+    labels:
+    - automation
+    additions: 95
+    deletions: 8
+    files:
+    - CHANGELOG.md
+    - README.md
+    - tests/test_schema_dist.py
+    - tools/schema_dist.py
+    ci_runs: []
+    body: '<!-- issue-pipeline tier="2" key="bamr87/SCHEMA#15" -->
+
+
+      Closes #15
+
+
+      ## What changed and why
+
+
+      `cmd_verify` printed `absent` rows but its verdict depended only on drift, so a consumer holding no copy at
+      all reported `PASS`. The `.git/` filter was also a substring test on the absolute path.
+
+
+      | # | Acceptance criterion | How it is met |
+
+      | --- | --- | --- |
+
+      | 1 | `verify <empty dir>` exits 0, last line contains `3 absent` | `absent` is counted and always printed:
+      `PASS: 0 drifted copy/copies, 3 absent` |
+
+      | 2 | `verify <empty dir> --require-all` exits 1, last line starts with `FAIL` | new `--require-all` flag:
+      `FAIL: 0 drifted copy/copies, 3 absent (--require-all)` |
+
+      | 3 | identical copies of all three payload files pass with `--require-all` | `test_require_all_passes_with_full_identical_payload`
+      |
+
+      | 4 | copies under `node_modules/` or `.git/` are ignored | skip by path *part* relative to the consumer (`SKIP_DIRS`);
+      `test_copies_under_vendor_dirs_are_ignored`, plus `test_consumer_path_containing_dot_git_is_still_scanned`
+      for the old substring bug |
+
+      | 5 | new cases in `tests/test_schema_dist.py`, fail before / pass after | 6 new cases (below) |
+
+      | 6 | `README.md` documents `--require-all` | Quick start line + a sentence in "Vendoring: the distribution
+      contract" |
+
+      | 7 | `schema_lint.py check . --werror` and `schema_dist.py check .` stay green | both PASS (below) |
+
+
+      Default exit behaviour is unchanged (absent still passes without the flag), so no existing caller breaks.
+      `DISTRIBUTION.yml` is unaffected: `schema_dist.py` is not in `PAYLOAD`. `CHANGELOG.md` has Added/Fixed lines
+      under Unreleased.
+
+
+      ## Verification
+
+
+      ```text
+
+      $ python3 tests/test_schema_dist.py            # with the fix
+
+      Ran 42 tests ... OK
+
+
+      $ git stash -- tools/schema_dist.py && python3 tests/test_schema_dist.py   # without the fix
+
+      ERROR: test_copies_under_vendor_dirs_are_ignored
+
+      ERROR: test_require_all_fails_on_absent_payload
+
+      ERROR: test_require_all_fails_on_one_missing_file
+
+      ERROR: test_require_all_passes_with_full_identical_payload
+
+      FAIL:  test_absent_payload_is_counted_by_default
+
+      FAIL:  test_consumer_path_containing_dot_git_is_still_scanned
+
+      FAILED (failures=2, errors=4)
+
+
+      $ E=$(mktemp -d); python3 tools/schema_dist.py verify $E | tail -1; echo rc=$?
+
+      PASS: 0 drifted copy/copies, 3 absent          rc=0
+
+      $ python3 tools/schema_dist.py verify $E --require-all | tail -1
+
+      FAIL: 0 drifted copy/copies, 3 absent (--require-all)   rc=1
+
+
+      $ python3 tools/schema_lint.py check . --werror   -> PASS: 0 error(s), 0 warning(s)
+
+      $ python3 tools/schema_dist.py check .            -> PASS: 0 error(s), 0 warning(s)
+
+      $ python3 tests/test_schema_lint.py               -> OK
+
+      ```
+
+
+      ## Risk / blast radius
+
+
+      Small: one function, one CLI flag. The verdict line text gains `, N absent`; nothing in CI parses it (tier
+      1 confirmed the hub''s `schema-vendor.yml` uses its own `schema_vendor.py`). A consumer that intentionally
+      kept a copy under `node_modules/` would now see it as absent rather than audited, which is the intended behaviour.
+
+
+      🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+      '
+  expected:
+    review: false
+    major: false
+    frontend: false
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: bamr87-825
+  source: https://github.com/bamr87/bamr87/pull/825 — an xl feature touching the console web app, with an evidence
+    bundle
+  input:
+    author: bamr87
+    labels:
+    - feature
+    - size:xl
+    - governance
+    - needs-amr
+    additions: 10422
+    deletions: 2022
+    files:
+    - .github/scripts/dash-gen/agent_inventory.py
+    - .github/scripts/dash-gen/harness_registry.py
+    - .github/scripts/dash-gen/test_harness_registry.py
+    - .github/scripts/dash-gen/workflow_atlas.py
+    - .github/workflows/claude.yml
+    - .github/workflows/fleet-verify.yml
+    - .github/workflows/issue-pipeline.yml
+    - AGENTS.md
+    - _data/SCHEMA.md
+    - _data/agents.yml
+    - _data/fleet.yml
+    - _data/harness_registry.yml
+    - docs/AGENT-EFFICACY.md
+    - docs/HARNESS-OPS.md
+    - docs/HARNESS.md
+    - features/features.d/harness-standard.yml
+    - templates/agent-context/VERSION
+    - templates/agent-context/archive/claude-0.5.0.yml
+    - templates/agent-context/claude.yml
+    - test/evidence/harnesses/README.md
+    - test/evidence/harnesses/desktop-harness-health.png
+    - test/evidence/harnesses/desktop-harnesses-full.png
+    - test/evidence/harnesses/desktop-harnesses-lever.png
+    - test/evidence/harnesses/desktop-harnesses-repos.png
+    - test/evidence/harnesses/desktop-harnesses.png
+    - test/evidence/harnesses/mobile-harness-health.png
+    - test/evidence/harnesses/mobile-harnesses-full.png
+    - test/evidence/harnesses/mobile-harnesses-lever.png
+    - test/evidence/harnesses/mobile-harnesses-repos.png
+    - test/evidence/harnesses/mobile-harnesses.png
+    - test/evidence/harnesses/report.json
+    - tools/console/README.md
+    - tools/console/snapshot.py
+    - tools/console/web/src/api/types.ts
+    - tools/console/web/src/nav.ts
+    - tools/console/web/src/pages/Inventory.tsx
+    - tools/console/web/src/pages/Overview.tsx
+    - tools/console/web/src/pages/ProjectPage.tsx
+    - verify/scenarios/harnesses.yml
+    ci_runs: []
+    body: '## Description
+
+
+      The harness inventory is rebuilt from the scan up. It now finds every workflow that reaches a model, grades
+      each one against a standard declared in `_data/fleet.yml`, and names the action that rebuilds each one that
+      falls short. The mention-handler kit is rebuilt to that standard (0.6.0), and the hub''s own harnesses are
+      brought onto it.
+
+
+      **What the review found**
+
+
+      | Finding | Before | After |
+
+      | --- | --- | --- |
+
+      | The scan recognised one route to a model, the `claude-code-action` step. Callers of the hub''s own `ai-lane.yml`
+      and `claude-run`, bare `claude -p`, and other providers were invisible | 61 AI workflows in 38 repos | 118
+      in 43 repos |
+
+      | The same blind spot in `_data/agents.yml`, which § 29.1 says registers every agent | 73 agents | 136 |
+
+      | Twelve `evolve.yml` lanes kept the template''s example cron, so 13 AI crons share 06:00 UTC on one OAuth
+      account. bash-365.com adds two more collisions | 0 collisions reported | 3 |
+
+      | Estimated scheduled AI runs per day | 6.0 | 18.6 (cap 30) |
+
+      | `external` meant "not under `bamr87/`", so the fleet''s own organizations were never scanned, though `tools/fanout.sh`
+      already writes to them (`hub.owners`) | 7 repos unscanned | 2 (real upstreams) |
+
+      | The kit''s `claude.yml` (0.5.0) had no author gate, no model and no dollar cap. The hub''s copy carried
+      the kit''s stamp plus hand edits that added two of them, so the hub''s guardrails never reached the fleet
+      | 36 untouched copies, 3 controls short | kit 0.6.0 passes all 7 |
+
+      | `kit_status: upgradeable` came from the stamp. bashcrawl''s copy is stamped and hand-edited, so its `kit-drift`
+      finding named a lever that could never close it | a dead-end finding | byte comparison at scan time |
+
+      | ai-seed is archived on GitHub; its five crons were counted as scheduled agents and as throughput | counted
+      | listed, counted for nothing |
+
+      | csv-vscoode is `status: archived` in the registry and live on GitHub, with a handler that can still run
+      | not noticed | `archive-mismatch` finding |
+
+      | `--model sonnet` / `--model opus` in `fleet-verify.yml`, `issue-pipeline.yml` and the workflow atlas scaffold
+      (§ 13.3 asks for exact ids) | aliases | exact ids |
+
+      | A comment naming the action counted as a harness and recorded `v1);` as its ref | false positive | routes
+      matched on code only |
+
+
+      **What changed**
+
+
+      - **The standard** (`_data/fleet.yml` `harnesses.standard`): six routes, three of them on the standard, and
+      ten controls read from the workflow file, each with the rule it comes from and the kinds it binds. A control
+      is counted only where it can bind.
+
+      - **The generator** (`harness_registry.py`): route detection, the facts the controls read, a verdict and a
+      lever per harness (`kit-upgrade`, `kit-adopt`, `lane-adopt`, `fix-controls`, `factory-recompile`, `hub-fix`,
+      `retire`), a `catalog` index, and one `standard-gap` finding per lever. The verdicts are computed from stored
+      facts, so editing the standard regrades the fleet offline.
+
+      - **One classifier for both inventories**: `agent_inventory.py` drops its own `claude-run` detection.
+
+      - **Kit 0.6.0** (`templates/agent-context/claude.yml`): trusted-author gate, `--model claude-sonnet-5-5`,
+      `--max-budget-usd 20`, `claude-auth@v2`. The 0.5.0 shape is archived first, and the hub''s `claude.yml` is
+      now the rendered kit. Tests hold the template conformant and the hub copy byte-identical.
+
+      - **The page** (`/harnesses`): one row per harness with route, caps, verdict and lever; the rebuild plan grouped
+      by lever; the controls with their miss counts. The per-repo baseline and the kit deploy are on its Repos view.
+
+      - **Docs**: `docs/HARNESS-OPS.md` gains "The harness standard"; `AGENTS.md` gains the standing rule.
+
+
+      `harness-registry/v1` holds. Every change is additive except four values whose meaning changed to stop a wrong
+      number (`external`, `max_budget_usd`, the live totals, `deployable`); HARNESS-OPS.md lists them for GitFactory
+      and zer0-CMS.
+
+
+      **Where the fleet stands** (the committed snapshot; the hub''s rows describe `main` before this merges)
+
+
+      | Lever | Harnesses | What it takes |
+
+      | --- | --- | --- |
+
+      | On the standard | 6 | nothing |
+
+      | `kit-upgrade` | 36 | one fan-out, after this merges |
+
+      | `fix-controls` | 33 | 31 miss a turn cap, 18 of them nothing else: see decision 2 |
+
+      | `lane-adopt` | 30 | a PR per repo: githubai (6), bash-365.com (6), the two org sites (10), zer0-mistakes
+      (3), godotgo (2), it-journey (2), README (1) |
+
+      | `factory-recompile` | 6 | blueprint changes in GitFactory (gitorio 4, lifehacker.dev 2) |
+
+      | `hub-fix` | 3 | done in this PR: all eight hub harnesses grade as on the standard on this branch |
+
+      | `kit-adopt` | 3 | bashcrawl, githubai, godotgo: a hand PR each |
+
+      | `retire` | 8 | ai-seed (7, dormant) and csv-vscoode (1, still live) |
+
+
+      ## Governance Trace
+
+
+      Governed by: FR5, FR-NEW:harness-standard; docs/amendments/0030-agentic-efficacy-contract.md (§ 29.1), docs/amendments/0011-eval-baseline-risk-tiers.md
+      (§ 13.3), docs/amendments/0014-central-loop-switches.md (§ 17.1). Handoff: the maintainer''s request of 2026-11-11
+      in a local Claude Code session ("review, revamp, consolidate, and organize the harness inventory … rebuild
+      the harnesses using the updated standards"). No Fleet issue was filed for it; see Notes.
+
+
+      ## Related Issues
+
+
+      - Covers #514 for the mention handler (the author gate, a cap, top-level permissions are now graded fleet-wide)
+
+      - Advances #586 (the inventory half of the registry) and #629 (each harness''s conformance, as a warning first)
+
+      - Does not close any of them
+
+
+      ## Type Of Change
+
+
+      - [x] Bug fix
+
+      - [x] New feature
+
+      - [ ] Breaking change
+
+      - [x] Documentation update
+
+      - [ ] Maintenance or refactor
+
+      - [x] Test improvement
+
+
+      ## Verification
+
+
+      - [x] Tests pass: `test_harness_registry.py` (53, 25 of them new), `test_agent_inventory.py`, `test_ai_budget.py`
+      (199 checks), `test_schedule.py`, `test_workflow_atlas.py`, every other `dash-gen/test_*.py`, `tools/console/test_pages.py`,
+      `test_console.py`, `test_fleetcore_graph.py`, `test_jev_spec.py`, `test_jev_loop.py`, the s'
+  expected:
+    review: true
+    major: true
+    frontend: true
+    event: REQUEST_CHANGES
+    lines:
+      tests: pass
+      ci: gap
+      visual: pass
+      template: pass
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: bamr87-841
+  source: 'https://github.com/bamr87/bamr87/pull/841 — a console loop feature: major by spread, size and gated areas'
+  input:
+    author: bamr87
+    labels: []
+    additions: 652
+    deletions: 12
+    files:
+    - .claude/README.md
+    - .claude/commands/loops/weekly.md
+    - .github/weekly/closeout.md
+    - .github/weekly/finalize.md
+    - .github/weekly/gather.md
+    - .github/workflows/README.md
+    - .github/workflows/weekly-closeout.yml
+    - .github/workflows/weekly-finalize.yml
+    - .github/workflows/weekly-gather.yml
+    - _data/agents.yml
+    - _data/fleet.yml
+    - docs/WEEKLY-CLOSEOUT.md
+    - features/features.d/weekly-closeout.yml
+    - tools/console/core.py
+    - tools/test_loop_switches.py
+    - tools/test_weekly_closeout.py
+    ci_runs: []
+    body: 'Adds the Friday close-out and Saturday/Sunday weekend-prep jobs as three Harness Console loops, so the
+      console schedules, dispatches and maintains them.
+
+
+      **The scheduled lanes stay off until Amr sets the kill-switch variables** (`WEEKLY_CLOSEOUT_ENABLED`, `WEEKLY_GATHER_ENABLED`,
+      `WEEKLY_FINALIZE_ENABLED`). This PR sets none of them. `workflow_dispatch` always runs, so each lane can be
+      exercised from the console first.
+
+
+      | Loop | When (Denver, MST) | Cron (UTC) | Agent |
+
+      | --- | --- | --- | --- |
+
+      | `weekly_closeout` | Fri 13:17 | `17 20 * * 5` | Opus, 120 turns, $20 |
+
+      | `weekly_gather` | Sat 10:17 | `17 17 * * 6` | Sonnet, 60 turns, $10 |
+
+      | `weekly_finalize` | Sun 16:17 | `17 23 * * 0` | Sonnet, 60 turns, $10 |
+
+
+      UTC hours 17, 20 and 23 carry no other AI cron, so the 3-per-hour cap is untouched.
+
+
+      ## What changed
+
+      - `LOOPS` and `DISPATCH_WORKFLOWS` in `tools/console/core.py`; crons and three `hub/weekly-*` switches (default
+      off, opt-in) in `_data/fleet.yml`.
+
+      - Three `ai-lane.yml@main` caller workflows, filled from the ai-runner template. Each has its own switch,
+      an exact model, `max-turns` and `max-budget-usd` sized together, least-privilege permissions and a result
+      file, so a crashed agent shows red. Friday is the only lane with `contents: write` and `pull-requests: write`.
+
+      - Agent briefs in `.github/weekly/`. They forbid merge, close, approve, release, force-push, settings or secret
+      changes, touching `~/bamr87`, and merging or rebasing the #840 rollout PRs.
+
+      - `docs/WEEKLY-CLOSEOUT.md`: user stories, a DFF table, and the console-vs-Grok split with what is needed
+      to move Grok triggering into the console.
+
+      - `features/features.d/weekly-closeout.yml` (`HUB-NEW`, `prd: [FR-NEW:weekly-closeout]`, requirement in `prd_new:`).
+
+      - `tools/test_weekly_closeout.py`: 10 contract tests covering cron parity, switch default, caps, model, permissions,
+      secrets, never-merge and no-force-push.
+
+      - `_data/agents.yml` regenerated by `tools/dash agents` (drift check (p)).
+
+
+      ## Deviations to review
+
+      - **No JEV step specs and no local `loop-run` yet.** A spec must be held equal to a `claude-code-action` step
+      in its workflow (`tools.jev.spec.parity_errors`), which an `ai-lane` caller does not contain. Building a local
+      adapter, planner and filer is a follow-up. `tools/dash agents` records the honest gap `R6:no-local-entry`,
+      and the console runs these loops through `dispatch`. The brief reads the `triage` and `decisions-refresh`
+      ops as its local inputs.
+
+      - **No changelog fragment.** `changelog.d/README.md` says the changelog tracks the hub''s versioned public
+      interface only.
+
+      - **No amendment.** No ratified principle changes.
+
+      - The #840 rule that a turn or dollar-cap stop fails the step rather than falling to the API fallback lives
+      in `claude-run` on #840''s branch. These callers get it when #840 merges. Nothing was committed onto #840''s
+      branch.
+
+      - `CATALOG.md` and `docs/README.md` are main-only and were not touched; `docs_index.py --check` reports stale
+      until `jev-number.yml` regenerates it.
+
+
+      ## Tests run
+
+      `tools/check-drift.sh` is green. Also passing: `test_weekly_closeout.py`, `schema_lint`, `unwrap-prose`, `tools.jev
+      steps check`, `test_jev_spec`, `test_ai_budget`, `test_harness_registry`, `test_vscode_launch`, `test_fleet_config`,
+      `test_fleetcore`, `test_jev_number`, `actionlint` on the new workflows, and `tools/console/test_console.py`.
+      The FastAPI-dependent console tests and the MCP layer tests were skipped because `fastapi` and `anyio` are
+      not installed here.
+
+
+      Governed by: FR-NEW:weekly-closeout (console MCP / dispatch surface: FR26)
+
+
+      🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+      '
+  expected:
+    review: true
+    major: true
+    frontend: false
+    event: REQUEST_CHANGES
+    lines:
+      tests: pass
+      ci: gap
+      visual: n/a
+      template: pass
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: bamr87-854
+  source: 'https://github.com/bamr87/bamr87/pull/854 — a dependency override in package.json: major, no tests, no
+    docs'
+  input:
+    author: bamr87
+    labels: []
+    additions: 6
+    deletions: 4
+    files:
+    - .github/site-quality/package-lock.json
+    - .github/site-quality/package.json
+    - changelog.d/site-quality-basic-ftp.md
+    ci_runs:
+    - id: 43554234924
+      head_match: false
+      conclusion: failure
+    body: '## Description
+
+
+      The hub''s Dependabot `npm_and_yarn` update for `basic-ftp` in `/.github/site-quality` failed ([run 43554234924](https://github.com/bamr87/bamr87/actions/runs/43554234924)).
+      Dependabot reported "a patched version exists for basic-ftp, but the available update path still resolves
+      it to 6.2.3". The cause was our own `overrides` entry, which pinned `basic-ftp` to exactly 6.2.3. That pin
+      held the transitive copy under `@lhci/cli` and `pa11y` (both through `get-uri`) on the unpatched release.
+
+
+      This PR moves the override to 6.2.6 and regenerates `package-lock.json`. That lockfile is covered by the sanctioned
+      lockfile exception. It also adds a `changelog.d/` Security fragment, because the runner belongs to the reusable
+      `site-quality.yml` interface.
+
+
+      ## Governance Trace
+
+
+      Governed by: AGENTS.md "Dependencies are always latest" / docs/DEPENDENCIES.md (site-quality''s sanctioned
+      exact pins). Handoff: scheduled fleet review routine, from the fleet triage inbox item for the hub''s failed
+      Dependabot run.
+
+
+      ## Related Issues
+
+
+      - No issue. The failure came from the `_data/fleet_triage.yml` inbox (priority 90).
+
+
+      ## Type Of Change
+
+
+      - [x] Bug fix
+
+      - [x] Maintenance or refactor
+
+
+      ## Verification
+
+
+      - [x] Tests pass: `npm ci && npm test` in `.github/site-quality` (0 failures)
+
+      - [x] `tools/check-drift.sh`: no drift
+
+      - [x] `python3 tools/unwrap-prose.py --check` on the new fragment
+
+      - [x] Lockfile resolves `node_modules/basic-ftp` to 6.2.6
+
+
+      ## Notes For Reviewers
+
+
+      skip-evidence: dependency-only change with no visible effect.
+
+
+      ---
+
+      _Generated by [Claude Code](https://claude.ai/code/session_01DrYErr3ztCkXwWijzYUFLw)_'
+  expected:
+    review: true
+    major: true
+    frontend: false
+    event: REQUEST_CHANGES
+    lines:
+      tests: gap
+      ci: gap
+      visual: n/a
+      template: pass
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: bamr87-864
+  source: 'https://github.com/bamr87/bamr87/pull/864 — the PR queue: a frontend feature with evidence'
+  input:
+    author: bamr87
+    labels:
+    - feature
+    - needs-amr
+    additions: 3867
+    deletions: 17
+    files:
+    - .gitignore
+    - .vscode/README.md
+    - .vscode/launch.json
+    - _data/agents.yml
+    - _data/fleet.yml
+    - _data/roadmap.d/pr-queue-maintainer-merge.yml
+    - docs/DECISION-INDEX.md
+    - docs/PR-QUEUE.md
+    - features/features.d/pr-queue.yml
+    - test/evidence/pr-queue/README.md
+    - test/evidence/pr-queue/desktop-pr-queue-plan.png
+    - test/evidence/pr-queue/desktop-pr-queue.png
+    - test/evidence/pr-queue/dry-runs.json
+    - test/evidence/pr-queue/mobile-pr-queue-plan.png
+    - test/evidence/pr-queue/mobile-pr-queue.png
+    - test/evidence/pr-queue/report.json
+    - tools/console/README.md
+    - tools/console/SCHEMA.md
+    - tools/console/app.py
+    - tools/console/core.py
+    - tools/console/mcp_layer/server.py
+    - tools/console/pr_queue.py
+    - tools/console/snapshot.py
+    - tools/console/test_console.py
+    - tools/console/test_mcp_layer.py
+    - tools/console/test_pr_queue.py
+    - tools/console/web/src/api/hooks.ts
+    - tools/console/web/src/api/types.ts
+    - tools/console/web/src/jobs/JobRunner.tsx
+    - tools/console/web/src/main.tsx
+    - tools/console/web/src/nav.ts
+    - tools/console/web/src/pages/PrQueue.module.css
+    - tools/console/web/src/pages/PrQueue.tsx
+    - tools/dash
+    - tools/fleetcore/README.md
+    - tools/fleetcore/SCHEMA.md
+    - tools/fleetcore/prqueue.py
+    - tools/test_fleetcore_prqueue.py
+    - verify/scenarios/pr-queue.yml
+    ci_runs: []
+    body: "## Description\n\nAmr asked for \"a queue or dashboard/list of all the PR's that need my action/review\
+      \ within the console, and then have an ability to select all for merging, processing, updates, etc. for the\
+      \ AI agents to perform\". This PR adds the **PR queue**, a new Harness Console page at **Fleet → PR queue**\
+      \ (`/prs`). It lists every open pull request in the hub and the registry repos: 218 on 2026-11-15. Amr can\
+      \ filter and select pull requests, review a plan made from live GitHub, and an agent applies exactly that\
+      \ plan once he confirms.\n\n**What each row shows** (`tools/fleetcore/prqueue.py`, a pure model):\n\n- **Checks:**\
+      \ superseded runs on the head commit set aside per check, so a cancelled run followed by a success counts\
+      \ as green, while an earlier failure still counts (the rule `tools/check_rollup.py` applies in #862). Verify\
+      \ kit 0.1.0's label-burst race makes 9 green pull requests show red on GitHub; the page marks them *false\
+      \ red*.\n- **Gate:** the § 12.3 verdict and its reason. It is `closeout.gate_verdict`, unchanged, asked of\
+      \ the pull request as if it were green, so it reports the gate alone. Today 181 of 218 are gated.\n- **Merge:**\
+      \ the method the repo allows (zer0-mistakes is squash only), and whether an agent may merge it under § 12.2.\n\
+      - **Who moves next:** Amr, an agent, a loop or the author, with the action, the reason and the bulk action\
+      \ that does it.\n- **Kinds:** security, Dependabot, release, fan-out batch, AI harness, ratification and draft.\
+      \ Fan-out batches are grouped by head branch; `ci/claude-oauth-only` has 42 pull requests.\n- **Triage note:**\
+      \ the `<!-- fleet:pr-triage -->` comment's next action, shown as a hint. It is never run and never changes\
+      \ the row's verdict.\n\n**Data** (`tools/console/pr_queue.py`): the decision index's pull requests plus one\
+      \ batched GraphQL detail read each. The detail is cached in `.fleet/prqueue/`, which is gitignored and owner-only,\
+      \ under a TTL and a time budget. A cold read takes about 24 s and a cached one under a second.\n\n**Bulk actions,\
+      \ plan then confirm:**\n\n1. `POST /api/prs/plan` reads each selected pull request live and gives it its exact\
+      \ op or a skip reason, under a deterministic `plan_id`. It writes only a local plan file.\n2. **Apply** runs\
+      \ the console job `prs-act` (or `prs-agent` for the agent) behind the existing confirm and remote lock.\n\
+      3. The job plans again and refuses a plan whose pull requests moved since the preview (§ 11.4), then records\
+      \ each result.\n\nThe actions:\n\n| Action | State |\n| --- | --- |\n| Mark ready | on |\n| Update branch\
+      \ | on: a base merge with `expected_head_sha`, never a force-push |\n| Re-run cancelled or failed checks |\
+      \ on: one at a time per pull request, each waited for |\n| Post or update the next-action comment | on: edited\
+      \ in place by its marker |\n| Add `needs-amr` | on |\n| Agent: fix CI or address review | on: a capped local\
+      \ Claude Code session per pull request (below) |\n| Close as superseded | **off** behind `pr_queue.close.enabled`\
+      \ |\n| Merge | **off** behind `pr_queue.merge.enabled` |\n\nWhen merge is on, it uses `--match-head-commit`\
+      \ and the repo's own method, never `--admin` or `--auto`. lifehacker.dev is never merged, and gitorio's Dependabot\
+      \ pull requests get `dep:merge-approved` instead (ADR-039). Plans accept only fleet repos the hub owns, and\
+      \ `DASH_CONSOLE_GITHUB_WRITES=off` refuses every apply.\n\n**The agent** is `local:pr-queue-agent`, registered\
+      \ in `_data/agents.yml` (§ 29). For each pull request it:\n\n1. Clones the head branch outside the hub.\n\
+      2. Runs one session through `tools/dash-gen ai-run --isolate`: no GitHub credential, a closed tool list, and\
+      \ `pr_queue.agent`'s model, turn and dollar caps. Each session costs at most $2, API-equivalent (estimate),\
+      \ and the cost goes on the AI ledger.\n3. Refuses edits to paths a repo keeps agents out of (it-journey's\
+      \ workflows).\n4. Pushes one commit without force and adds `needs-amr`.\n\nIt skips private repos and fork\
+      \ branches.\n\n**Other surfaces:**\n\n- `tools/dash prs [queue|refresh|plan|apply|actions]`\n- `GET /api/prs`,\
+      \ `POST /api/prs/plan`, `GET /api/prs/plan/{id}`, `GET /api/prs/result/{id}`\n- the operations `prs`, `prs-refresh`,\
+      \ `prs-act` and `prs-agent`\n- the MCP tools `pr_queue` (read) and `pr_queue_plan` (plan only; applying stays\
+      \ on the console)\n- a `.vscode/launch.json` entry and the `verifyScenario` picker (§ 20)\n\nDesign record,\
+      \ prior-art survey and build-vs-adopt decision (§ 10.8): [docs/PR-QUEUE.md](docs/PR-QUEUE.md).\n\n## Governance\
+      \ Trace\n\nGoverned by: FR-NEW:pr-queue, FR-NEW:pr-queue-bulk-actions (new in `features/features.d/pr-queue.yml`);\
+      \ constitution § 11.8 (amendment `ops-remote-write-path`) for the console's GitHub writes; § 12.7 (amendment\
+      \ `local-first-ai`) for the base merge; § 10.9 and § 29 for the agent. Handoff: bamr87/bamr87#863\n\n**The\
+      \ open governance question: merge and close.** § 11.2 says the console never merges, § 11.1 lists no pull-request\
+      \ close, and § 12.2 lets an agent merge only an ungated pull request with a merge commit. A merge Amr selects\
+      \ and confirms in the console is arguably his own, but the constitution does not say so. So both actions ship\
+      \ disabled behind `pr_queue.merge.enabled` and `pr_queue.close.enabled` (both `false`). Their plans still\
+      \ preview what they would do.\n\n**I filed a Fleet issue instead of drafting an amendment.** § 26.2 and §\
+      \ 28.5 make amendments direction work for a Grok bot or Amr, and \"add this as a feature\" is not Amr's explicit\
+      \ OK for Claude Code to cross that line. The issue is bamr87/bamr87#863, with roadmap `FF-NEW:pr-queue-maintainer-merge`.\
+      \ It also asks whether a console comment Amr confirms is \"automation\" under § 19.5: today it posts under\
+      \ the console's identity, which is Amr's login. Turning the switches on later is a gated change.\n\n## Related\
+      \ Issues\n\n- Refs #863 (the amendment's direction half)\n\n## Type Of Change\n\n- [ ] Bug fix\n- [x] New\
+      \ feature\n- [ ] Breaking change\n- [x] Documentation update\n- [ ] Maintenance or refactor\n- [x] Test improvement\n\
+      \n## Verification\n\n- [x] Tests pass:\n  - `python3 tools/test_fleetcore_prqueue.py` (21)\n  - `python3 tools/console/test_pr_queue.py`\
+      \ (24, against an in-memory `gh`): a moved plan is refused, merge and close are refused while off, writes-off\
+      \ refuses every apply, applies run exactly the planned argv, re-runs go one at a time, non-fleet repos and\
+      \ forks are refused\n  - `tools/console/test_console.py` (with FastAPI: the new ops, the routes, apply without\
+      \ confirm refused)\n  - `tools/console/test_mcp_layer.py` (78, with the MCP venv)\n  - `tools/console/test_pages.py`,\
+      \ `tools/test_vscode_launch.py`, `tools/console/test_ops_cli.py`, `tools/console/test_decision_index.py`,\
+      \ `tools/test_fleetcore.py`, `tools/test_fleetcore_graph.py`\n- [x] Lint and type checks pass:\n  - `tsc -b\
+      \ && vite build`\n  - `python3 tools/schema_lint.py check .` (0 errors, 0 warnings)\n  - `tools/unwrap-prose.py\
+      \ --check`\n  - `python3 -m tools.jev number lint` and `generated guard`\n  - `tools/governance_lint.py check\
+      \ .`\n  - `tools/dash agents --check`\n- [x] Documentation updated: `docs/PR-QUEUE.md` (new), the console\
+      \ README, `docs/DECISION-INDEX.md`, the fleetcore README and SCHEMA, the console SCHEMA and `.vscode/README.md`.\n\
+      - [x] Manual verification:\n  - [`verify/scenarios/pr-queue.yml`](verify/scenarios/pr-queue.yml) passes at\
+      \ desktop and mobile against this branch's console on `:4013`, which ran with `DASH_CONSOLE_GITHUB_WRITES=off`\
+      \ and read live GitHub. The run selects a tab's rows and plans *Mark ready*.\n  - Every action was dry-run\
+      \ through that console on 2–3 real pull requests: a plan, the job without `apply` (\"still matches GitHub\
+      \ … nothing written\"), and an apply without the confirm, which the job API refused (409). The record is [`test/evidence/pr-queue/dry-runs.json`](test/evidence/pr-queue/dry-runs.json)\
+      \ and the bundle is [`test/evidence/pr-queue/`](test/evidence/pr-queue/).\n  - Nothing was written to GitHub.\n\
+      - `tools/check-drift.sh --report` reports one item: the dash CLI reference span in `docs/DASH.md`. It is a\
+      \ generated span in a hand-written file, so it is advisory on a PR and regenerated on `main` (§ 2).\n\n##\
+      \ Notes For Reviewers\n\n- **`checks_green` in `tools/weekly/closeout.py` is unchanged.** The close-out fix\
+      \ for superseded cancelled checks (bamr87/bamr87#862, `fix/superseded-cancelled-checks`) is still open. The\
+      \ queue sets superseded runs aside itself by the same rule (a superseded cancel drops out, an earlier failure\
+      \ stays) and passes the result to `closeout.gate_verdict`. Its 9 false-red pull requests are exactly the 9\
+      \ #862 found. Once #862 merges, the queue's collapse can defer to `tools/check_rollup.py`.\n- **No `changelog.d/`\
+      \ fragment.** `changelog.d/README.md` and its SCHEMA restrict that directory to the hub's versioned public\
+      \ interface: \"a change to the dash, the site or generated data needs no fragment\".\n- **Not exercised live:**\
+      \ no apply, and no agent session, which would spend and push. The agent runs only through an injected runner\
+      \ in the tests. Its § 13.8 Seatbelt sandbox, `--settings` posture, is the loop runner's, and porting the action\
+      \ onto a JEV step spec is the follow-up that brings it.\n- **Fleet project placement is not done.** Adding\
+      \ this PR and #863 to the Fleet project (Status *Needs Amr*, Priority P1) was refused to this session, as\
+      \ § 11's write-back rule expects. They need adding by hand or through `dash projects apply`.\n- **This PR\
+      \ is gated** (§ 12.3): it touches `tools/console/*.py`, `tools/fleetcore/`, `_data/fleet.yml`, `.vscode/`\
+      \ and `tools/dash`. An agent never merges it.\n\n\U0001F916 Generated with [Claude Code](https://claude.com/claude-code)\n"
+  expected:
+    review: true
+    major: true
+    frontend: true
+    event: REQUEST_CHANGES
+    lines:
+      tests: pass
+      ci: gap
+      visual: pass
+      template: pass
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: bamr87-894
+  source: 'https://github.com/bamr87/bamr87/pull/894 — local app addresses: frontend with an evidence bundle, no
+    feature index'
+  input:
+    author: bamr87
+    labels: []
+    additions: 519
+    deletions: 112
+    files:
+    - .github/scripts/dash-gen/test_fleet_compose.py
+    - _data/SCHEMA.md
+    - _data/ports.yml
+    - compose/fleet.env
+    - compose/overrides/hub.yml
+    - docs/FLEET-COMPOSE.md
+    - docs/FRONTEND-PLATFORM.md
+    - test/evidence/apps/README.md
+    - test/evidence/apps/desktop-app-devenv-local-asks-first.png
+    - test/evidence/apps/desktop-app-local-asks-first.png
+    - test/evidence/apps/desktop-app-without-an-address.png
+    - test/evidence/apps/desktop-apps-list.png
+    - test/evidence/apps/mobile-app-devenv-local-asks-first.png
+    - test/evidence/apps/mobile-app-local-asks-first.png
+    - test/evidence/apps/mobile-app-without-an-address.png
+    - test/evidence/apps/mobile-apps-list.png
+    - test/evidence/apps/report.json
+    - test/evidence/local-stacks/README.md
+    - test/evidence/local-stacks/console-devenv-local-only-desktop.png
+    - test/evidence/local-stacks/console-devenv-stopped-desktop.png
+    - test/evidence/local-stacks/console-devenv-stopped-mobile.png
+    - tools/SCHEMA.md
+    - tools/console/README.md
+    - tools/console/test_console.py
+    - tools/console/test_pages.py
+    - tools/console/web/src/api/types.ts
+    - tools/console/web/src/pages/Apps.tsx
+    - tools/docker_view.py
+    - tools/fleet-compose.py
+    - tools/fleetcore/SCHEMA.md
+    - tools/fleetcore/apps.py
+    - tools/test_docker_view.py
+    - tools/test_fleetcore_apps.py
+    - tools/test_vscode_launch.py
+    - verify/scenarios/apps.yml
+    ci_runs: []
+    body: "## Description\n\nGives the four devenv-hosted sites (bamr87.github.io, lifehacker.dev, cv-pro, rewind-arcade)\
+      \ a local address in the app portal, on the ports the hub's devenv container actually publishes. This is the\
+      \ hub half of P1 (#702, epic #698). The `dev-up` / `dev-down` / `dev-logs` operations already shipped in #758.\n\
+      \n**Why.** `tools/fleetcore/apps.py` `local_targets()` returned nothing for `host: devenv`, and `_data/ports.yml`\
+      \ allocated those projects 4012, 4013 and 5175. devenv publishes none of those ports. It publishes 4040-4049,\
+      \ 35760-35769 and 5000-5001, which is also where their `.vscode/launch.json` entries serve.\n\n**What changed**\n\
+      \n- **`_data/ports.yml`**\n  - Adds the workspace bands (`workspace` 4040-4069, `workspace_livereload` 35760-35789,\
+      \ `workspace_node` 5000-5019), matching `_data/fleet.yml` `containers.ports.workspace*`.\n  - Narrows `frontend`\
+      \ to 5020-5199 so no two bands overlap. Only cv-pro's grandfathered 5000 sat below 5020.\n  - Moves the four\
+      \ projects to the ports their launch entries use: bamr87.github.io 4040 (livereload 35760), lifehacker.dev\
+      \ 4041 (livereload 35761), cv-pro 5000, rewind-arcade 5001.\n  - Gives each of the four a `start:` field holding\
+      \ exactly its launch entry's command.\n  - The header now explains devenv local targets.\n  - `compose/fleet.env`\
+      \ and `compose/overrides/hub.yml` were regenerated with `tools/fleet-compose.py sync`. A second `sync` leaves\
+      \ no diff.\n- **`tools/fleet-compose.py`** (drift check (m)):\n  - A Jekyll allocation's livereload falls\
+      \ in `<band>_livereload` when that band exists.\n  - A `host: devenv` allocation must be on a workspace band,\
+      \ and no other host may use one.\n  - Bands may not overlap.\n- **`tools/fleetcore/apps.py`**:\n  - A devenv\
+      \ allocation becomes a local target only when it lies inside a declared workspace band.\n  - Its `start` comes\
+      \ from the registry's `start:`, because `tools/dash dev up` does not apply to these projects.\n  - Every local\
+      \ target now carries `host` (`compose` or `devenv`). The field is additive, so the `fleet-launcher/v1` schema\
+      \ marker is unchanged.\n- **Console (`Apps.tsx`, `types.ts`)**: a devenv Local target gets no Start, Logs\
+      \ or Stop. Instead the page explains that the site is served inside devenv and shows the command with a copy\
+      \ button. The server already refuses `dev-up` for these projects (`core.stack_projects()`).\n- **`tools/docker_view.py`**:\
+      \ workspace-band services are web pages, and their livereload counts in its own band.\n- **Tests**\n  - `tools/test_fleetcore_apps.py`:\
+      \ the old line-64 case, which pinned \"devenv has no local address\", is replaced by `test_a_devenv_hosted_project_offers_its_workspace_port`\
+      \ and `test_every_hub_devenv_site_opens_on_the_port_devenv_publishes`. Both fail on `main`. A new case, `test_a_devenv_port_devenv_does_not_publish_is_not_offered`,\
+      \ covers 4012 on `jekyll`, a port outside every range, a compose band and an undeclared band.\n  - `tools/test_vscode_launch.py`:\
+      \ every devenv allocation (port and livereload) must be a port `docker-compose.yml`'s devenv service publishes,\
+      \ and its `start:` must be the command of a launch entry whose name carries the port. Both new tests fail\
+      \ on `main`.\n  - `.github/scripts/dash-gen/test_fleet_compose.py`: the ports.yml workspace bands must equal\
+      \ the contract's, and the new gate rules have fixtures. Both new tests fail on `main`.\n  - `test_docker_view.py`,\
+      \ `test_console.py` and `test_pages.py` follow the new `host` field.\n- **Docs**: `docs/FRONTEND-PLATFORM.md`\
+      \ (targets, a row for starting a devenv site, the regenerated plan table where cv-pro is now \"in the shell,\
+      \ local only\"), `docs/FLEET-COMPOSE.md`, `tools/console/README.md`, and the SCHEMA rows in `tools/`, `tools/fleetcore/`\
+      \ and `_data/`.\n\n**Left out on purpose.**\n- The Django `X-Frame-Options` fixes for djangoerp, fredgar-ai\
+      \ and zer0-CMS. The issue scopes them as one PR per repo, and they belong to ADR 0006's django kit (#716).\n\
+      - No real stack was started (§ 10.5).\n- `features/features.yml` HUB-078 still says the launcher joins only\
+      \ \"compose-hosted\" ports. That text is direction (§ 26, § 28), so I left it for a Grok bot or Amr to update.\n\
+      \n## Governance Trace\n\nGoverned by: FR76, https://github.com/bamr87/bamr87/pull/667 (ADR 0005 P1) Handoff:\
+      \ #702\n\n## Related Issues\n\n- Closes #702\n\n## Type Of Change\n\n- [ ] Bug fix\n- [x] New feature\n- [\
+      \ ] Breaking change\n- [x] Documentation update\n- [ ] Maintenance or refactor\n- [x] Test improvement\n\n\
+      ## Verification\n\nRun locally on macOS, with python3 3.14 and node 26:\n\n- [x] `python3 tools/test_fleetcore_apps.py`:\
+      \ OK (22 tests). Against `main` the new cases fail (3 failures, 1 error).\n- [x] `python3 tools/test_vscode_launch.py`:\
+      \ OK (31). Against `main` the two new cases fail: 4012 is not published, and there is no `start:`.\n- [x]\
+      \ `python3 .github/scripts/dash-gen/test_fleet_compose.py`: OK. Against `main` the two new cases fail.\n-\
+      \ [x] `python3 tools/test_docker_view.py` and `python3 tools/test_frontend_registry.py`: OK.\n- [x] `<venv>/bin/python\
+      \ tools/console/test_console.py`: OK, run in a venv with `tools/console/requirements.txt`, so the route tests\
+      \ ran rather than skipped. `<venv>/bin/python tools/console/test_pages.py`: OK.\n- [x] `python3 tools/fleet-compose.py\
+      \ check`: \"26 allocations across 12 projects — no collisions, all in band\". A second `sync` left no diff.\n\
+      - [x] `/opt/homebrew/bin/bash tools/check-drift.sh`: \"No drift\", including (m). `python3 tools/schema_lint.py\
+      \ check .`: 0 errors, 0 warnings. `python3 tools/unwrap-prose.py --check` on every changed `.md`: clean. `python3\
+      \ tools/features_index.py check .`: the same 5 dangling links as `main`.\n- [x] `tools/console/web`: `npm\
+      \ run typecheck` and `npm run build` both pass.\n- [x] `tools/dash apps` lists `http://127.0.0.1:4040/` (bamr87.github.io),\
+      \ `:4041/` (lifehacker.dev), `:5000/` (cv-pro) and `:5001/` (rewind-arcade): \"23 frontends · 17 open in the\
+      \ console · 14 live · 10 with a local stack\".\n- [x] `tools/dash apps check --target local` prints the `frame`\
+      \ column for all 16 local tar"
+  expected:
+    review: true
+    major: true
+    frontend: true
+    event: REQUEST_CHANGES
+    lines:
+      tests: pass
+      ci: gap
+      visual: pass
+      template: pass
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: bamr87-899
+  source: 'https://github.com/bamr87/bamr87/pull/899 — post addresses: frontend by pages/, waived with skip-evidence
+    and a reason'
+  input:
+    author: bamr87
+    labels:
+    - skip-evidence
+    additions: 156
+    deletions: 20
+    files:
+    - docs/CONSOLE-PAGES.md
+    - docs/WEEKLY.md
+    - pages/SCHEMA.md
+    - tools/console/site_docs.py
+    - tools/console/snapshot.py
+    - tools/console/test_pages.py
+    ci_runs: []
+    body: "## Description\n\nThe writing section (`pages/posts/`) served every post at its bare slug. The weekly\
+      \ routine drafts a `YYYY-MM-DD-chronicle.md` for every active day (constitution § 23.2) and a `YYYY-MM-DD-weekly-retro.md`\
+      \ every week, so every chronicle was `/blog/chronicle` and every retro `/blog/weekly-retro`:\n\n- on the console,\
+      \ `/api/site/post/chronicle` returned only the newest entry, and the others had no address;\n- on Pages, the\
+      \ snapshot wrote one `site/post/chronicle.json` (the newest), one `blog/chronicle/index.html` whose title\
+      \ and description came from the oldest, and a `feed.xml` with one `<id>` repeated per entry.\n\nReproduced\
+      \ on `origin/main` with two un-drafted fixture chronicles: `blog/` held only `chronicle/`, titled \"Fleet\
+      \ chronicle: 2026-11-05\" while its document was 2026-11-06's, and the feed ids were `['chronicle', 'chronicle']`.\n\
+      \nWhat changed:\n\n- `tools/console/site_docs.py`: a post in a series (`SERIES`: `chronicle`, `weekly-retro`)\
+      \ is served at its dated stem, `/blog/YYYY-MM-DD-chronicle`, from the first entry on, so no entry's address\
+      \ moves when the next lands. Every file of a bare slug that two files share is served at its dated stem too.\
+      \ A one-off post keeps its bare slug, so the three existing posts keep their addresses (`welcome`, `observability-for-ai-agents`,\
+      \ `triaging-a-fleet-backlog-through-a-governed-write-path`). Drafts count when slugs are assigned, so a post\
+      \ has the same address on a console and on Pages. `post()` accepts the longer dated slug (`POST_SLUG_RX`).\n\
+      - `site_docs.py`: when `excerpt:` is missing, `description:` is the excerpt. The weekly routine writes `description:`,\
+      \ which used to be ignored in favour of the first paragraph.\n- `tools/console/snapshot.py`: the site's documents\
+      \ (index, pages, published posts) are built by a new `site_documents()`, which `documents()` calls, so a test\
+      \ can build them from a fixture. The output is unchanged.\n- `tools/console/test_pages.py`: three new tests\
+      \ and a fixture holding two published chronicles, a draft chronicle, a retro, a one-off post and a slug shared\
+      \ by two posts. They check that:\n  - every post gets a distinct address that `post()` resolves;\n  - the\
+      \ bare series slugs no longer resolve;\n  - `description` is used as the excerpt, and `excerpt` wins when\
+      \ both are set;\n  - each published entry appears exactly once in the snapshot documents, the `blog/<slug>`\
+      \ routes and `feed.xml`, and the draft appears in none of them;\n  - the hub's real posts each have a unique\
+      \ address.\n\n  The console test now also checks that `/api/site` lists a series draft at its dated address\
+      \ and serves it there, and that `/api/site/post/chronicle` returns 404.\n- Layout documented in `pages/SCHEMA.md`\
+      \ Placement: file naming, front matter keys (`title`, `date`, `excerpt` or `description`, `categories`, `tags`,\
+      \ `draft`), the series addresses and where a new series is declared, and the draft-until-reviewed rule (§\
+      \ 23.4). The Posts row of `docs/CONSOLE-PAGES.md` and the Writing section of `docs/WEEKLY.md` link to it.\n\
+      \nNothing is published by this PR: the three existing posts stay drafts. Publishing them is still the author's\
+      \ call.\n\n## Governance Trace\n\nGoverned by: amendment 0021 `writing-chronicle` (docs/amendments/0021-writing-chronicle.md,\
+      \ constitution § 23) Handoff: #662\n\n## Related Issues\n\nCloses #662\n\n## Type Of Change\n\n- [x] Bug fix\n\
+      - [ ] New feature\n- [ ] Breaking change\n- [x] Documentation update\n- [ ] Maintenance or refactor\n- [x]\
+      \ Test improvement\n\n## Verification\n\nRun locally in this branch's worktree:\n\n- [x] `python3 tools/console/test_pages.py`:\
+      \ the new address test fails before the fix (`two posts share an address: ['weekly-retro', 'chronicle', 'chronicle',\
+      \ 'chronicle', 'welcome', 'notes', 'notes']`). After it, all 16 tests pass, both with plain `python3` and\
+      \ in a venv with `tools/console/requirements.txt`, where the FastAPI checks run instead of skipping.\n- [x]\
+      \ `tools/console/test_console.py` in the same venv: 60 checks pass, exit 0 (`OK — console fixture tests`).\n\
+      - [x] `python3 tools/test_weekly.py`: 174 tests OK.\n- [x] Static build: `snapshot.py --out <scratch> --base\
+      \ / --site-url http://127.0.0.1:4000`, with two un-drafted chronicles and a retro added to `pages/posts/`\
+      \ for the run only and removed afterwards. It wrote `blog/2026-11-05-chronicle/`, `blog/2026-11-06-chronicle/`\
+      \ and `blog/2026-11-08-weekly-retro/`, one snapshot document each, one feed entry each, and the matching sitemap\
+      \ rows. The 2026-11-06 page carries its own title and its description as the excerpt. The same run on `origin/main`\
+      \ produced the collision described above. The Vite half of `build-pages.sh` (npm install, tsc, vite build)\
+      \ was not run, because no web code changed.\n- [x] `/opt/homebrew/bin/bash tools/check-drift.sh`: No drift.\n\
+      - [x] `python3 tools/schema_lint.py check .`: 0 errors, 0 warnings.\n- [x] `python3 tools/unwrap-prose.py\
+      \ --check pages/SCHEMA.md docs/CONSOLE-PAGES.md docs/WEEKLY.md`: already unwrapped.\n- [x] `python3 tools/governance_lint.py\
+      \ check .`: ok (2 warnings on HUB-039 and HUB-094, which are already on main).\n- [x] `flake8 --select=F`\
+      \ on the three Python files: clean.\n\nCI should show drift-check and python-tests green.\n\nEvidence: skipped\
+      \ (`skip-evidence`). No page code changed, and the three existing posts render and resolve exactly as before.\
+      \ The new addresses exist only once the weekly routine's first chronicles land. The fixture tests above check\
+      \ them through the FastAPI app and the snapshot build.\n\n## Notes For Reviewers\n\n- Rule chosen for a slug\
+      \ two files share: both files get their dated stem, rather than the newest keeping the bare slug. A bare address\
+      \ that silently switched to a different post would be worse than one that stops resolving. Today no two posts\
+      \ share a slug, so no address changes.\n- The open PR #844 touches only the imports, `_load` and `_split`\
+      \ in `site_docs.py`, so it should not conflict with these hunks.\n\n\U0001F916 Generated with [Claude Code](https://claude.com/claude-code)\n"
+  expected:
+    review: true
+    major: false
+    frontend: true
+    event: REQUEST_CHANGES
+    lines:
+      tests: pass
+      ci: gap
+      visual: pass
+      template: pass
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: bamr87-903
+  source: 'https://github.com/bamr87/bamr87/pull/903 — a desktop link fix: frontend with a desktop+laptop evidence
+    bundle'
+  input:
+    author: bamr87
+    labels: []
+    additions: 840
+    deletions: 54
+    files:
+    - docs/FRONTEND-PLATFORM.md
+    - features/features.yml
+    - test/evidence/desktop-context-menu/README.md
+    - test/evidence/desktop-context-menu/desktop-crafted-link-falls-back.png
+    - test/evidence/desktop-context-menu/desktop-live-beside-local-menu.png
+    - test/evidence/desktop-context-menu/desktop-reopened-from-link.png
+    - test/evidence/desktop-context-menu/laptop-crafted-link-falls-back.png
+    - test/evidence/desktop-context-menu/laptop-live-beside-local-menu.png
+    - test/evidence/desktop-context-menu/laptop-reopened-from-link.png
+    - test/evidence/desktop-context-menu/report.json
+    - tools/console/README.md
+    - tools/console/web/src/pages/Desktop.tsx
+    - verify/scenarios/desktop-context-menu.yml
+    ci_runs: []
+    body: "## Description\n\nA shared or restored Desktop layout lost each app window's target. Live beside Local\
+      \ reopened as two windows on the app's default target. #747 called this the part of #701 it left open. This\
+      \ PR adds it.\n\n- **Desktop layout (`tools/console/web/src/pages/Desktop.tsx`).** The layout now carries\
+      \ each app window's view beside the reducer's own layout. The new field `a` holds one entry per window: the\
+      \ target id, the device and the path inside the app, or `null`. This applies to both the `?windows=` link\
+      \ and the tab's sessionStorage layout. On boot an entry is kept only if:\n  - the app declares the target\
+      \ (`targets[].id`),\n  - the device is in the verify kit's device matrix (`doc.viewports`), and\n  - the path\
+      \ stays inside the app's address (AppPane's own `inside()`).\n\n  Anything else falls back to the app's default\
+      \ target, Fit and no path. A layout still carries ids, never an address.\n- **Restoring views.** Each restored\
+      \ window is paired with its own entry by walking the layout's windows in order. `decodeLayout` drops entries\
+      \ but never reorders them, so the pairing holds.\n- **Vendored reducer.** `vendor/bashos/shell.js` is unchanged,\
+      \ so the bashOS GUI still reads these links: it ignores `a`.\n- **Link encoding.** The link is now base64url\
+      \ of the layout's UTF-8. A path typed with a non-Latin character used to make `btoa` throw and broke the link\
+      \ button. An ASCII layout encodes byte-for-byte as before, so old links still open.\n- **Scenario (`verify/scenarios/desktop-context-menu.yml`).**\
+      \ After Live beside Local, the scenario:\n  - copies the taskbar's layout link,\n  - reloads `/desktop` and\
+      \ asserts left = Live, right = Local,\n  - opens the copied link with the tab's layout cleared and asserts\
+      \ the same,\n  - opens a crafted link. Its left window asks for `local`, `mobile` and `/docs/` and gets all\
+      \ three. Its right window asks for target `https://example.com`, device `watch` and a path on another site,\
+      \ and falls back to Live, Fit and no path.\n\n  It now runs at two desktop widths, 1280×800 and 1024×768.\
+      \ The title-bar menu screenshot now waits for the menu's fade-in. Before, the image showed no menu.\n- **Docs.**\
+      \ `tools/console/README.md` and `docs/FRONTEND-PLATFORM.md` say what a layout link keeps. The Desktop.tsx\
+      \ header comment explains `a`.\n- **HUB-079 stamped `verified: {date: 2026-11-16, by: agent}`.** All three\
+      \ of its scenarios pass on the static build. See the reviewer notes for how the stamp was written.\n\n## Governance\
+      \ Trace\n\nGoverned by: FR77, https://github.com/bamr87/bamr87/pull/667 (ADR 0005, phase D1 of epic #698)\
+      \ Handoff: #701\n\n## Related Issues\n\n- Closes #701\n\n#701's four acceptance boxes:\n- Page windows: #697.\n\
+      - `frame-ancestors 'self'`: #697, pinned by `test_console.py`.\n- Live beside Local: #747.\n- Context menus\
+      \ by keyboard: #747.\n\nThis PR adds what #747 left open: a restored or shared layout reopens each window\
+      \ on its own target.\n\n## Type Of Change\n\n- [ ] Bug fix\n- [x] New feature\n- [ ] Breaking change\n- [x]\
+      \ Documentation update\n- [ ] Maintenance or refactor\n- [x] Test improvement\n\n## Verification\n\n- [x]\
+      \ Tests pass:\n  - `python3 tools/console/test_bashos_shell.py`: OK. `shell.js` is identical to `origin/main`.\
+      \ The submodule-parity case is skipped because `projects/bashos` is not checked out.\n  - `python3 tools/console/test_pages.py`:\
+      \ OK.\n  - `test_console.py` in a venv with `tools/console/requirements.txt`: 60 passed, including the frame-policy\
+      \ tests.\n  - `python3 tools/test_features_index.py`: 4/4.\n  - `python3 tools/test_vscode_launch.py`: OK.\n\
+      - [x] Lint/type checks pass:\n  - `npm run typecheck` and `npm run build` in `tools/console/web`.\n  - `python3\
+      \ tools/schema_lint.py check .`: 0 errors, 0 warnings.\n  - `python3 tools/governance_lint.py check .`: ok,\
+      \ with two existing warnings on HUB-039 and HUB-094.\n  - `python3 tools/unwrap-prose.py --check` on the three\
+      \ changed Markdown files.\n  - `/opt/homebrew/bin/bash tools/check-drift.sh`: \"No drift\".\n- [x] Documentation\
+      \ updated: `tools/console/README.md`, `docs/FRONTEND-PLATFORM.md`, the evidence README.\n- [x] Manual verification\
+      \ completed. I built the static site with `CONSOLE_BASE=/ OUT=_site tools/console/build-pages.sh`, served\
+      \ it on 127.0.0.1:4071 and ran `node verify/runner.mjs`:\n  - `desktop-context-menu`: PASS at both viewports.\
+      \ Evidence is in `test/evidence/desktop-context-menu/`, three images per viewport, each described in its README.\n\
+      \  - `desktop` (desktop + mobile), `desktop-pages`, `apps`, `repo-app`, `console-shell`, `console-nav`: all\
+      \ PASS.\n  - I also ran a one-off Playwright probe. A window with device tablet and path `/café/ünïcode?q=1`\
+      \ survives the copied link exactly. No page errors.\n\n**What CI should show:** console-web, build-dash, verify\
+      \ (`desktop-context-menu` at two viewports), python-tests and drift-check green.\n\n## Notes For Reviewers\n\
+      \n- **Existing flake, not caused by this PR.** The scenario's `focus_returned` step fails now and then with\
+      \ \"Execution context was destroyed\". Pressing Escape on the context menu sometimes sends headless Chromium\
+      \ to `about:blank`. It happened 1 in 6 runs of the unchanged scenario on a `main` build, and 2 in 12 in a\
+      \ probe on this branch. The second viewport doubles the chance of hitting it. A separate issue should look\
+      \ at it.\n- **The stamp was not written by `runner.mjs --stamp`.** In a scratch copy, `--stamp` rewrote about\
+      \ 3,000 lines of `features/features.yml`. The yaml library re-serializes the whole file, for example `[FR2,\
+      \ FR5]` becomes `[ FR2, FR5 ]`. So I added only the three `verified:` lines it wrote for HUB-079. That full-file\
+      \ rewrite is worth its own fix in `verify/runner.mjs`.\n- **Unchanged.** When the tab already holds a layout,\
+      \ a `?windows=` link still wins over it, as before. A reload of a tab opened from a link therefore restores\
+      \ the link's layout.\n\n\U0001F916 Generated with [Claude Code](https://claude.com/claude-code)\n"
+  expected:
+    review: true
+    major: true
+    frontend: true
+    event: REQUEST_CHANGES
+    lines:
+      tests: gap
+      ci: gap
+      visual: pass
+      template: pass
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: bamr87-907
+  source: 'https://github.com/bamr87/bamr87/pull/907 — an amendment proposal: major by the constitution, no tests'
+  input:
+    author: bamr87
+    labels:
+    - docs
+    - governance
+    - needs-amr
+    additions: 518
+    deletions: 18
+    files:
+    - AGENTS.md
+    - PRD.md
+    - README.md
+    - _data/roadmap.d/about-section-sitemap.yml
+    - _data/roadmap.d/fleet-mission-statements.yml
+    - _data/specs.yml
+    - changelog.d/mission-and-about-section.md
+    - docs/ABOUT-SECTION.md
+    - docs/FLEET.md
+    - docs/PORTFOLIO.md
+    - docs/STANDARDS.md
+    - docs/amendments/proposed/mission-and-about-section.md
+    - docs/constitution.md
+    - features/features.d/about-section-sitemap.yml
+    - features/features.d/mission-statements.yml
+    - specs/DOCS.md
+    - templates/governance/constitution.template.md
+    ci_runs: []
+    body: '## Description
+
+
+      This pull request writes two related fleet standards into the hub so Amr can ratify them by merging.
+
+
+      1. **Mission statements.** Every governed fleet repo states its purpose in constitution § 1 as one direction
+      statement plus exactly three numbered missions, adopted only through a numbered amendment. The first mission
+      provides data, tools, resources and transparency for all stakeholders in that repo''s domain, including professionals
+      in the field and the general public. Ambition is written as direction, not as a claim of current capability.
+      README and AGENTS.md one-liners match the direction and link to § 1. Reference implementations already open:
+      [fredgar-ai#153](https://github.com/bamr87/fredgar-ai/pull/153) and [law-ai#262](https://github.com/bamr87/law-ai/pull/262).
+
+      2. **About section as a site map.** Every non-fork, non-archived fleet repo carries a public-facing about
+      section (primarily in `README.md`) that maps identity, mission, docs, getting started, contributing, governance,
+      roadmap, changelog, security/support, license and live site, with required vs optional rules in [docs/ABOUT-SECTION.md](docs/ABOUT-SECTION.md).
+      This extends, and does not replace, the portfolio README skeleton.
+
+
+      The pull request also adds [docs/FLEET.md](docs/FLEET.md): general fleet information, organization structure
+      (bamr87, year-of-ai, ai-world-view, bash-365, EissaLab; submodule layout; ownership; the hub-first then fan-out
+      governance flow), and a per-repo context table with about-section coverage as of 2026-11-16. Descriptions
+      are taken from the registry, GitHub, or a README that was opened; unknown ones are marked unknown.
+
+
+      The hub''s own constitution § 1, PRD § 1, AGENTS.md one-liner and the control-plane half of the profile README
+      are updated to match in this same PR. Spoke fan-out and the conformance check are follow-up work (roadmap
+      fragments below). Nothing is merged by this PR.
+
+
+      ## Governance Trace
+
+
+      Governed by: docs/amendments/proposed/mission-and-about-section.md (`AMEND-NEW:mission-and-about-section`);
+      `FR-NEW:mission-statements`; `FR-NEW:about-section-sitemap` (constitution § 28). Handoff: Amr''s voice request
+      on 2026-11-16.
+
+
+      ## Type Of Change
+
+
+      - [ ] Bug fix
+
+      - [ ] New feature
+
+      - [ ] Breaking change
+
+      - [x] Documentation update
+
+      - [ ] Maintenance or refactor
+
+      - [ ] Test improvement
+
+
+      ## What lands, and what is numbered at merge
+
+
+      Per amendment 0002 this PR does not hand-pick sequential ids. `python3 -m tools.jev number plan` against current
+      `main` would assign:
+
+
+      | Kind | Slug | Next on main today |
+
+      | --- | --- | --- |
+
+      | Amendment | `mission-and-about-section` | 0033 |
+
+      | Features | `about-section-sitemap`, `mission-statements` | HUB-116, HUB-117 |
+
+      | Requirements | same slugs | FR132, FR133 |
+
+      | Roadmap | `about-section-sitemap`, `fleet-mission-statements` | FF-0055, FF-0056 |
+
+
+      Those numbers move if another pending fragment (for example #858 `onprem-compute`, which also uses `NEW` and
+      proposes constitution § 30) merges first. This section is therefore numbered **§ 31** in `docs/constitution.md`
+      to avoid colliding with #858''s proposed § 30.
+
+
+      #858 and #905 already have `needs-amr`; this one should too, because merging ratifies a constitution change.
+
+
+      ## Verification
+
+
+      - [x] `python3 tools/governance_lint.py check .`
+
+      - [x] `python3 -m tools.jev number lint --base origin/main` and `number plan`
+
+      - [x] `python3 tools/schema_lint.py check .`
+
+      - [x] `python3 tools/unwrap-prose.py --check` on the changed Markdown
+
+      - [x] `python3 tools/gen-specs-data.py` (UPS-DOC-11 added; `_data/specs.yml` regenerated)
+
+      - [ ] CI on this PR (will report once it finishes)
+
+      - Docs index is `jev-main-only`: `docs/README.md` is left stale on purpose and will be regenerated on `main`
+      after merge.
+
+
+      ## Notes For Reviewers
+
+
+      - Fan-out to other repos is **not** in this PR. Roadmap entries `FF-NEW:fleet-mission-statements` and `FF-NEW:about-section-sitemap`
+      track it.
+
+      - The hub profile README keeps the personal intro; the mission one-liner and site map sit in the control-plane
+      half ("This repository" / Documentation / License).
+
+      - Coverage in docs/FLEET.md § 4 is file presence plus the 2026-11-16 mission scan, not a heading-by-heading
+      README audit. Getting started was not scored from files alone.'
+  expected:
+    review: true
+    major: true
+    frontend: false
+    event: REQUEST_CHANGES
+    lines:
+      tests: gap
+      ci: gap
+      visual: n/a
+      template: pass
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: bamr87-917
+  source: 'https://github.com/bamr87/bamr87/pull/917 — merge readiness: an ADR and fleet.yml make it major'
+  input:
+    author: bamr87
+    labels:
+    - needs-amr
+    additions: 1018
+    deletions: 18
+    files:
+    - .github/scripts/dash-gen/README.md
+    - .github/scripts/dash-gen/pr_readiness.py
+    - .github/scripts/dash-gen/test_pr_readiness.py
+    - .github/workflows/pr-review.yml
+    - _data/fleet.yml
+    - changelog.d/merge-readiness.md
+    - docs/DASH.md
+    - docs/PR-QUEUE.md
+    - docs/adr/0012-merge-readiness.md
+    - docs/adr/README.md
+    - features/features.d/merge-readiness.yml
+    - templates/pr-review/README.md
+    - tools/console/app.py
+    - tools/console/mcp_layer/server.py
+    - tools/console/pr_queue.py
+    - tools/console/test_pr_queue.py
+    - tools/dash
+    - tools/fleetcore/prqueue.py
+    - tools/test_fleetcore_prqueue.py
+    ci_runs: []
+    body: '## Description
+
+
+      Redesigns what happens to a pull request between "ready" and "merged", and builds the first of four stages.
+      Proposes [ADR 0012](https://github.com/bamr87/bamr87/blob/feature/pr-readiness/docs/adr/0012-merge-readiness.md).
+
+
+      Amr asked on 2026-11-17 for the commenting, analysis and review of each pull request to be redesigned so that
+      every check, review and adjustment is done before a merge, after he found #873 green, gated and labelled with
+      no comment, review or review request.
+
+
+      **Merging this changes nothing until `PR_READINESS_ENABLED` is set to `true`.**
+
+
+      ## Why #873 was an empty page
+
+
+      - § 19 is ratified and one item of it is built: `pr-review.yml` explains a failed CI run (§ 19.10). § 19.7''s
+      review on open and on ready has no implementation.
+
+      - No hub workflow runs when a pull request is marked ready, so nothing could react to it.
+
+      - § 19.2 deletes the summary when every check is clean, so a finished pull request and an unexamined one look
+      the same.
+
+      - The code owner is the author''s own login, because agents open pull requests with the maintainer''s token,
+      so GitHub requests no review and sends no notification.
+
+
+      ## The design: four stages on the one workflow
+
+
+      | Stage | Runs when | Does |
+
+      | --- | --- | --- |
+
+      | A. Readiness (this pull request) | every finished workflow, and every pull-request event that starts none
+      | computes what is left from facts and writes it on the pull request; no model, $0 |
+
+      | B. Review | opened as ready, marked ready, or the `review` label, once CI is green; once per head commit
+      | a capped AI code review in a job with no GitHub credential; a second job posts findings inline (#880) |
+
+      | C. Adjust | a `todo` a machine can move | a script first, then the queue''s capped agent, at most two attempts,
+      then `needs-amr` |
+
+      | D. Merge | the verdict is `ready` | a `Merge readiness` status the maintainer may require; ungated pull
+      requests are an agent''s to merge, gated ones the maintainer''s |
+
+
+      ## What stage A does
+
+
+      Every pull request gets one verdict, `ready`, `waiting` or `not-ready`, and an ordered list of what is left,
+      each item with who moves it: the checks, the base branch, the draft state, the review gate and its label,
+      hold labels, the governance trace, the description''s task list, review threads and the review decision. The
+      review gate is `held`, never work: a gated pull request with nothing else left is ready, for the maintainer.
+
+
+      | The pull request | What appears on it |
+
+      | --- | --- |
+
+      | has work left, or is waiting on a running check | the one sticky comment: the failed runs first, then a
+      table of what is left and who moves each item |
+
+      | has nothing left | the comment is deleted (§ 19.2), and one review per head commit says "Ready to merge"
+      and who merges it |
+
+
+      The review is a comment. It never approves (§ 19.5), and its first line says no code was reviewed.
+
+
+      This is what #873 would get today (a dry run from this branch):
+
+
+      > **Ready to merge at `f923cbe`.** Everything the fleet checks before a merge is done. This is an automated
+      readiness check: no code was reviewed.
+
+      >
+
+      > Done: 13 checks pass · merges into its base · marked ready · labelled needs-amr · names what governs it
+      · every task ticked. Held: for the maintainer. Note: no review is recorded on it.
+
+      >
+
+      > **Merge:** The maintainer merges it.
+
+
+      ## Across the fleet today (408 open pull requests, read from this branch)
+
+
+      | | Count |
+
+      | --- | --- |
+
+      | Ready | 21 (20 for the maintainer, 1 for an agent) |
+
+      | Not ready | 387 |
+
+      | Exactly one thing left | 195: the `needs-amr` label on 102, still a draft on 64, unticked tasks on 21, a
+      conflict on 5, a failing check on 3 |
+
+
+      Left, by item: the gate label 231, draft 217, unticked tasks 151, checks 36, conflicts 8, review threads 4.
+
+
+      ## What changed
+
+
+      - `tools/fleetcore/prqueue.py`: `readiness_of`; `readiness` on every row; `counts.readiness`; the report''s
+      own status is never counted as a check.
+
+      - `tools/console/pr_queue.py`: `live_row` reads one pull request with a single query; `tools/dash prs ready
+      --pr owner/repo#n`; a `--verdict` filter; the governance trace as a fact; cache schema v3 (every pull request
+      is read once more).
+
+      - `.github/scripts/dash-gen/pr_readiness.py`, new: `pr_review.py`''s comment with the readiness section under
+      it, and the ready review. It calls `pr_review.py` for everything about a failed run and does not change it.
+
+      - `.github/workflows/pr-review.yml`: a `pull_request_target` trigger for the events that start no workflow,
+      a `readiness` job, and the `ci-failure` job runs the new script when the switch is on.
+
+      - `tools/console/app.py`, `tools/console/mcp_layer/server.py`: the `verdict` filter and the `readiness` field.
+
+      - `_data/fleet.yml`: the `hub/pr-readiness` switch. Docs: ADR 0012, `docs/PR-QUEUE.md`, `templates/pr-review/README.md`.
+
+
+      ## Things to know before merging
+
+
+      - **`pull_request_target` holds a write token on pull requests from forks.** The job checks out the hub''s
+      tooling only, never the pull request, reads it through the API, and escapes every string that comes from it.
+      The harness standard''s check for a `pull_request_target` checkout of a head passes.
+
+      - **Stub callers are unaffected.** The reusable workflow''s inputs and job permissions are the same, and with
+      the variable unset it runs `pr_review.py` exactly as before. Its sparse checkout of the hub grows to include
+      `tools/` and `_data/`.
+
+      - **A missing `Governed by:` line is a note, not a blocker.** § 28.4 is warn-only until adoption, and 239
+      open pull requests lack one.
+
+      - **"Ready" means the mechanical checks are done.** Nothing here reviews code; that is stage B.
+
+      - **No status check yet.** A called workflow cannot ask for `statuses: write` beyond what its stub grants,
+      so the `Merge readiness` status comes with pr-review kit 0.3.0 (P1).
+
+
+      ## Open pull requests this touches
+
+
+      Trial-merged against the 32 other open hub pull requests: **it adds no conflict to any of them.** Sixteen
+      share a file with it.
+
+
+      - **#880** (inline findings, draft) rewrites `render` and `report` in `pr_review.py`. The first version of
+      this branch edited the same functions and conflicted, so the readiness code moved to its own module. When
+      #880 lands, `pr_readiness.sync` should take its findings section; that is one small follow-up, named in the
+      ADR as P2.
+
+      - The row added to `.github/scripts/dash-gen/README.md` sits two lines from `pr_review.py`''s, because #880
+      and #900 both insert next to it.
+
+
+      ## Governance Trace
+
+
+      Governed by: constitution § 19 (one workflow, one sticky summary, an automated review never approves, AI review
+      triggers) and § 12.4 (a gated pull request carries `needs-amr`); the ADR this pull request proposes, which
+      is accepted by the maintainer''s merge (§ 12.3). Requirement: FR-NEW:merge-readiness. Handoff: Amr''s request
+      in a local Claude Code session, 2026-11-17.
+
+
+      ## Type Of Change
+
+
+      New feature, off by default, with a design record.
+
+
+      ## Verification
+
+
+      - `python3 .github/scripts/dash-gen/test_pr_readiness.py`: 14 tests. Work left keeps one comment; the same
+      readiness writes nothing twice; ready deletes the comment and reviews the head commit once; the review''s
+      event is `COMMENT`; failures and what is left share one comment whose failure part is `pr_review.py`''s own;
+      a readiness read that fails behaves exactly as `pr_review.py` does; text from the pull request does not render;
+      a dry run writes nothing.
+
+      - `python3 .github/scripts/dash-gen/test_pr_review.py`: 29 tests, unchanged.
+
+      - `python3 tools/test_fleetcore_prqueue.py`: 35 tests, 8 new. `python3 tools/console/test_pr_queue.py`: 36
+      tests, 5 new, including that both GraphQL queries are well formed.
+
+      - `test_harness_registry.py`, `test_workflow_atlas.py`, `tools/test_loop_switches.py`, `tools/console/test_mcp_layer.py`
+      on `.venv-mcp`, `tools/console/test_console.py` on `.venv-console`: pass. `actionlint` on the workflow: clean.
+      `tools/dash workflows lint`: 0 errors.
+
+      - `tools/check-drift.sh`: no drift. `tools/schema_lint.py check .`, `tools/unwrap-prose.py --check` on the
+      changed Markdown, `tools.jev generated guard`: clean.
+
+      - Live, from this branch: `tools/dash prs ready --pr` on four pull requests and the full queue (the table
+      above); `pr_readiness.py ready --dry-run` on bamr87/bamr87#873 and bamr87/zer0-mistakes#644.
+
+      - Not verified: the workflow itself. `pull_request_target` and `workflow_run` run from the default branch
+      only, so the first run is after the merge with the variable set. One thing could differ there: `gh api graphql`
+      with the run''s token reading `repository.label`; if that read is refused the job warns and falls back to
+      the failure summary alone.
+
+      - Not run: `tools/run-all-tests.sh`. CI runs it.
+
+
+      Label: `skip-evidence` (no page changes).
+
+
+      ## After merging, to turn it on in the hub
+
+
+      `gh variable set PR_READINESS_ENABLED -R bamr87/bamr87 --body true`, then mark any pull request ready or push
+      to one.
+
+
+      🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+      '
+  expected:
+    review: true
+    major: true
+    frontend: false
+    event: REQUEST_CHANGES
+    lines:
+      tests: pass
+      ci: gap
+      visual: n/a
+      template: pass
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: bamr87-923
+  source: 'https://github.com/bamr87/bamr87/pull/923 — claude-run logging: major by .github/actions'
+  input:
+    author: bamr87
+    labels:
+    - automation
+    additions: 98
+    deletions: 1
+    files:
+    - .github/actions/claude-run/README.md
+    - .github/actions/claude-run/action.yml
+    - changelog.d/claude-run-version-line.md
+    - tools/README.md
+    - tools/SCHEMA.md
+    - tools/test_claude_run.py
+    ci_runs: []
+    body: '<!-- issue-pipeline tier="2" key="bamr87/bamr87#499" -->
+
+      Closes #499
+
+
+      Governed by: constitution § 29 (agents measured, no silent failures); handoff `issue-pipeline-handoff/v1`
+      on #499.
+
+
+      ## What changed and why
+
+
+      1. **Version line**: `.github/actions/claude-run/action.yml` now always prints `claude-run: Claude Code $(claude
+      --version 2>/dev/null || echo ''not installed'') on Node $(node --version …)` after the install step and before
+      `run.sh`.
+
+      2. **Missing CLI after a successful install**: a new `elif ! command -v claude` branch emits `::warning::npm
+      install exited 0 but no \`claude\` is on PATH — see $RUNNER_TEMP/npm-install.log.` instead of carrying on
+      silently. The existing failure branch is unchanged.
+
+      3. **Test**: new `tools/test_claude_run.py` (unittest, picked up by `run-all-tests.sh`''s `tools/test_*.py`
+      loop). It checks that the version line exists between the install and `run.sh`, and that the warning names
+      the log. It also runs the install-to-version span under bash with stubbed `npm` (exit 0) and `node`, with
+      no `claude` reachable, and asserts the warning and `Claude Code not installed on Node v20.0.0`.
+
+      4. **Gates**: `actionlint` and `tools/check-drift.sh` are green. The action''s `description:` is unchanged
+      and has no expression (drift check (l) ✓).
+
+      5. **Docs**: `.github/actions/claude-run/README.md` describes the version line and the warning. `tools/README.md`
+      and `tools/SCHEMA.md` have a row for the new test. `changelog.d/claude-run-version-line.md` (`### Fixed`)
+      is there because `claude-run` is part of the versioned public interface.
+
+
+      ## Verification
+
+
+      ```
+
+      $ python3 tools/test_claude_run.py            # with the change
+
+      Ran 3 tests in 0.021s
+
+      OK
+
+
+      $ git stash push .github/actions/claude-run/action.yml && python3 tools/test_claude_run.py   # today''s action.yml
+
+      ERROR: test_install_block_runs
+
+      FAIL: test_missing_cli_after_successful_install_warns
+
+      FAIL: test_version_line_after_install
+
+      FAILED (failures=2, errors=1)
+
+
+      $ actionlint .github/workflows/*.yml          # rc=0
+
+      $ shellcheck <the step''s run: body>           # rc=0
+
+      $ tools/check-drift.sh                        # ✅ No drift. (l) ✓ no action manifest evaluates expressions
+      in its descriptions
+
+      $ bash templates/ai-runner/tests/contract.sh  # ai runner contract: 33 passed, 0 failed
+
+      $ python3 .github/scripts/dash-gen/test_ai_budget.py   # OK (199 checks)
+
+      $ python3 tools/schema_lint.py check .        # PASS: 0 error(s), 0 warning(s)
+
+      $ python3 tools/unwrap-prose.py --check <changed .md>  # already unwrapped
+
+      $ python3 -m tools.jev generated guard --base origin/main  # ok: edits no main-only generated file
+
+      ```
+
+
+      ## Risk / blast radius
+
+
+      - Only logging is added: one `echo` and one `elif` branch that only warns. Neither can change the exit status:
+      the version line falls back to `not installed` on both sides, and the `elif` runs only after a successful
+      install. `run.sh` and the auth, model and budget paths are untouched.
+
+      - Consumers pin `claude-run@v2`, so lanes pick up the version line when the next hub release moves `v2`, not
+      on merge (docs/WORKFLOW-VERSIONING.md). The hub''s own `./` call sites get it at once.
+
+
+      🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+      '
+  expected:
+    review: true
+    major: true
+    frontend: false
+    event: REQUEST_CHANGES
+    lines:
+      tests: pass
+      ci: gap
+      visual: n/a
+      template: pass
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: bamr87-925
+  source: 'https://github.com/bamr87/bamr87/pull/925 — a JEV ratification record: ADR status lines make it major'
+  input:
+    author: bamr87
+    labels:
+    - governance
+    - jev-ratify
+    additions: 3
+    deletions: 2
+    files:
+    - docs/adr/0012-merge-readiness.md
+    - docs/adr/README.md
+    ci_runs: []
+    body: '## Ratification and acceptance records
+
+
+      The maintainer''s merge of each trigger pull request below **is** the ratification (an amendment, constitution
+      § 8.3) or the acceptance (an ADR, [docs/adr/README.md](docs/adr/README.md)); this pull request only records
+      it (amendment `ratification-records`). It changes Status, Ratified by, Accepted in and Completed lines and
+      index status cells, and nothing else.
+
+
+      ### ADRs accepted
+
+
+      | Record | Status line | Change | Trigger PR | Merged | Merged by | Merge commit |
+
+      | --- | --- | --- | --- | --- | --- | --- |
+
+      | [ADR 0012](docs/adr/0012-merge-readiness.md) Merge readiness: every pull request is checked, reviewed and
+      adjusted before it merges, and says so in one place | L3 | proposed → accepted | [#917](https://github.com/bamr87/bamr87/pull/917)
+      feat(pr-review): merge readiness on every pull request, in the one comment and the queue (ADR 0012, stage
+      A) | 2026-11-18 | @bamr87 | `a0c4257` |
+
+
+      ### Linked issues and follow-ups
+
+
+      - docs/adr/0002-agent-step-specs-and-local-runner.md: completes when the maintainer finishes [issue 484](https://github.com/bamr87/bamr87/issues/484)
+      as completed with every sub-issue done — now: tracking issue #484 is open (open sub-issues: #488, #489, #490)
+
+      - docs/adr/0003-fleet-platform-nodes-iac-and-scale-out.md: completes when the maintainer finishes [issue 594](https://github.com/bamr87/bamr87/issues/594)
+      as completed with every sub-issue done — now: tracking issue #594 is open (open sub-issues: #595, #596, #597,
+      #598, #599, #600, #601, #602, #603, #604)
+
+      - docs/adr/0007-workflow-studio.md: completes when the maintainer finishes [issue 719](https://github.com/bamr87/bamr87/issues/719)
+      as completed with every sub-issue done — now: tracking issue #719 is open (open sub-issues: #720, #722, #723,
+      #724, #725)
+
+      - docs/adr/0008-typed-decisions-as-pipeline-gates.md: completes when the maintainer finishes [issue 737](https://github.com/bamr87/bamr87/issues/737)
+      as completed with every sub-issue done — now: tracking issue #737 is open (open sub-issues: #738, #739, #740,
+      #741, #742, #743, #744, #748)
+
+      - docs/adr/0009-agentic-efficacy-model.md: completes when the maintainer finishes [issue 773](https://github.com/bamr87/bamr87/issues/773)
+      as completed with every sub-issue done — now: tracking issue #773 is open (open sub-issues: #776, #777, #778,
+      #779)
+
+
+      ### The guard that merges this pull request
+
+
+      The `ratify` job in `.github/workflows/jev-number.yml` merges this pull request itself, and only when `python3
+      -m tools.jev ratify guard --pr <n> --sha <head sha>` says go: the PR is the job''s own (this repository''s
+      `chore/jev-ratify`, opened by the maintainer''s token) and open; its head is unchanged and is ONE commit whose
+      only parent is the current tip of `main`; it carries none of `needs-amr`, `agent:hold`, `blocked`; every check
+      run and status on that SHA completed as success, skipped or neutral (at least one); GitHub reports it mergeable;
+      and the diff is exactly the plan below, each of whose triggers still holds. Then: `gh pr merge <n> --merge
+      --match-head-commit <head sha> --delete-branch` — a merge commit, never squash, `--admin` or `--auto`. A refused
+      guard labels it `needs-amr`, says why, and leaves it to the maintainer; a check still running or a GitHub
+      read that failed only waits.
+
+
+      <!-- jev-ratify plan: {"repo": "bamr87/bamr87", "ref": "93483869321baba4be6185e2877073e2f09861b5", "digest":
+      "e13fff4dbb485d8a4b01b182941c62c86d3915e98554a460799c6aa3d91b8fc4", "keys": ["accept:docs/adr/0012-merge-readiness.md:3"]}
+      -->
+
+      '
+  expected:
+    review: true
+    major: true
+    frontend: false
+    event: REQUEST_CHANGES
+    lines:
+      tests: gap
+      ci: gap
+      visual: n/a
+      template: gap
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: bamr87-926
+  source: https://github.com/bamr87/bamr87/pull/926 — a remediation fix touching fleet.yml
+  input:
+    author: bamr87
+    labels: []
+    additions: 80
+    deletions: 0
+    files:
+    - .github/scripts/dash-gen/remediation.py
+    - .github/scripts/dash-gen/test_remediation.py
+    - _data/fleet.yml
+    - changelog.d/doctor-fallback-floor.md
+    - docs/DAILY-ANALYSIS.md
+    ci_runs: []
+    body: '## Description
+
+
+      The fleet-doctor''s priority fallback queued unflagged workflows on volume alone, so healthy gates took doctor
+      slots (~46 Opus turns each). An unflagged workflow now has to clear the waste floor too: its wasted job-minutes,
+      less the minutes its own `cancel-in-progress` superseded, must reach `remediation.min_cost_waste_min` (15)
+      and the new `remediation.fallback_max_waste_pct` share (5 %) of its job-minutes. Real waste that is a real
+      share of the minutes still queues.
+
+
+      ## Governance Trace
+
+
+      Governed by: constitution § 29 (agentic efficacy: an agent''s slots go to real work), the fleet-doctor''s
+      own triage proposals in #920, #831 and #886.
+
+
+      ## Related Issues
+
+
+      Closes #920, closes #831, closes #886. Once it lands, the "no defect" doctor reports #847, #848, #849 and
+      #921 can close without the doctor re-filing them.
+
+
+      ## Type Of Change
+
+
+      - [x] Bug fix
+
+
+      ## Verification
+
+
+      - [x] Tests pass — `test_remediation.py` (149 checks, 7 new: markdown-oneline, drift-check with and without
+      the share, a wasteful unflagged workflow still queued, the floor off, the default), `test_fleet_pulse_doctor.py`,
+      `test_actions_analytics.py`, `tools/test_fleet_config.py`
+
+      - [x] Lint/type checks pass — `schema_lint`, `unwrap-prose --check`
+
+      - [x] Documentation updated — guard table in `docs/DAILY-ANALYSIS.md`, `_data/fleet.yml` comment, `changelog.d/doctor-fallback-floor.md`
+
+
+      ## Notes For Reviewers
+
+
+      Non-visual change (triage policy): skip-evidence.
+
+
+      🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+      '
+  expected:
+    review: true
+    major: true
+    frontend: false
+    event: REQUEST_CHANGES
+    lines:
+      tests: pass
+      ci: gap
+      visual: n/a
+      template: pass
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: bamr87-937
+  source: 'https://github.com/bamr87/bamr87/pull/937 — the Overview story: a frontend feature'
+  input:
+    author: bamr87
+    labels: []
+    additions: 1683
+    deletions: 87
+    files:
+    - .vscode/launch.json
+    - features/features.d/overview-story.yml
+    - test/evidence/overview-story/README.md
+    - test/evidence/overview-story/console-lever-job-pill.png
+    - test/evidence/overview-story/console-overview-top.png
+    - test/evidence/overview-story/desktop-overview-full.png
+    - test/evidence/overview-story/desktop-overview-top.png
+    - test/evidence/overview-story/mobile-overview-full.png
+    - test/evidence/overview-story/mobile-overview-top.png
+    - test/evidence/overview-story/report.json
+    - tools/console/README.md
+    - tools/console/core.py
+    - tools/console/snapshot.py
+    - tools/console/test_console.py
+    - tools/console/web/README.md
+    - tools/console/web/src/api/hooks.ts
+    - tools/console/web/src/api/types.ts
+    - tools/console/web/src/components/Viz.module.css
+    - tools/console/web/src/components/Viz.tsx
+    - tools/console/web/src/lib/format.ts
+    - tools/console/web/src/lib/links.ts
+    - tools/console/web/src/pages/Overview.tsx
+    - verify/scenarios/overview-story.yml
+    ci_runs: []
+    body: '## Description
+
+
+      The console''s Overview told the fleet''s state as a list of counts: a hero number that is in fact the generator''s
+      cap (`attention_max`, flat at 20 since 2026-11-11), a green "40 / 40 at baseline" tile beside five rows saying
+      109 of 122 harnesses miss the standard, an Actions-minutes breach at the top of the queue with no tile, and
+      nothing that says what waits on the maintainer. This rebuilds the page as a story, from data the page already
+      loads plus one new source that commits nothing.
+
+
+      - **Status strip above the fold**: repos by health as one segmented bar; findings by severity band, how many
+      levers clear them and, when the list stands at the generator''s cap, that it does and for how long; both budgets''
+      projected month against their ceilings with the week-over-week turn marked *better* or *worse*; what waits
+      on the maintainer from the decision index (read on a console, never on the published page); the oldest input.
+
+      - **Budget direction**: each budget with its meter, delta and a fifteen-day sparkline from `usage.*.by_day`,
+      plus the measured/estimated split (Claude) and the billing meter''s month-to-date (Actions).
+
+      - **Harnesses**: conformant / off the standard / not graded as one bar with a sparkline of the conformant
+      count by day, the most-missed controls as ranked bars, and scheduled against observed AI runs on the fleet
+      cap.
+
+      - **Flow**: the issue-pipeline funnel, pull requests ready against draft, issues.
+
+      - **Health**: each scorecard metric as a bullet against its threshold with the better-is arrow, beside the
+      trip wires.
+
+      - **When the AI crons fire**: a weekday × UTC-hour heat strip of every scheduled AI workflow with the crowded
+      cells ringed (`cronDays()` joins `cronHours()`).
+
+      - **Attention queue by lever** (or flat): the findings one run or one page works sit in one group, severity
+      is a band with the number in a tooltip, the accessible row label no longer reads `budget-breach:undefined:0`,
+      and a lever''s job shows its outcome in the row.
+
+      - **Signal freshness** as one log-scale timeline with the refresh per source, instead of eight cards.
+
+      - **Trends with no new ledger**: `core.registry_history()` reads `_data/harness_registry.yml`''s own git history
+      (one point per committed day, totals/trends sliced by text before YAML, cached per HEAD) into `state.history`;
+      a shallow clone yields one point and the footnote says so. The decision counts come through `useDecisionCounts`
+      (`/api/decisions?limit=0&refresh=never`: the front door never spends a GitHub read).
+
+
+      New: `components/Viz.tsx` (+ `Viz.module.css`): SegmentBar, Bullet, inline-SVG Sparkline sized by `useElementSize`,
+      Delta, HeatStrip, FreshnessTimeline, all in the console''s roles, identity never colour alone, a tooltip on
+      every mark (the dataviz method). `to.prs()`, `triage.repos_scanned` and the Trend fields the registry already
+      carried are exposed on the way.
+
+
+      ## Governance Trace
+
+
+      Governed by: FR-NEW:overview-story (`features/features.d/overview-story.yml`, HUB-NEW); constitution § 20
+      (the console as a front door) and § 29 (every agent measured: the strip shows the levers, the cap and the
+      direction, not a bare count). Handoff: none (operator-requested in a local session).
+
+
+      ## Related Issues
+
+
+      - None filed; the review of the Overview in the paired console session on 2026-11-19 is the origin.
+
+
+      ## Type Of Change
+
+
+      - [x] New feature
+
+      - [x] Documentation update
+
+      - [x] Test improvement
+
+
+      ## Verification
+
+
+      - [x] Tests pass — `tools/console/test_console.py` on plain python and on a FastAPI interpreter (new: `test_registry_history_is_the_file_s_own_git_log`;
+      the state document now carries `history`), `tools/console/test_pages.py`, `tools/test_features_index.py`.
+
+      - [x] Lint/type checks pass — `npm run typecheck`, `npm run build`, `tools/schema_lint.py check .`, `tools/unwrap-prose.py
+      --check`, `tools/check-drift.sh --report` (no drift), `python3 -m tools.jev number plan` (HUB-NEW:overview-story
+      → the next id).
+
+      - [x] Documentation updated — `tools/console/README.md` (the Overview row), `tools/console/web/README.md`
+      (components), the feature fragment, the scenario.
+
+      - [x] Manual verification completed — `verify/scenarios/overview-story.yml` PASS at desktop and mobile on
+      the public build; a credential-free console started from the branch for the decision tile and the job pill.
+      Evidence: `test/evidence/overview-story/` (README, report.json, six images).
+
+
+      ## Notes For Reviewers
+
+
+      - The hero reads **20+** because `_data/harness_registry.yml` keeps the strongest `attention_max` findings;
+      the strip says how long the list has stood at the cap (8 days at the time of the evidence). If the real count
+      matters, the generator would have to emit it beside the capped list.
+
+      - `registry_history` runs `git show` on up to 45 commits of one file, once per HEAD (about a quarter of a
+      second here), and `git log -1` on every `/api/state`; the published build runs it once at snapshot time, on
+      a shallow clone, and gets one point.
+
+      - Not verified: a lever that needs a GitHub token (the kit-upgrade dry run), and the page from a shallow clone.
+
+      - A running console serves the new page only after a restart (the bundle is built at process start).
+
+
+      🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+
+      https://claude.ai/code/session_01DrYErtsArmSv1xqxCHwjHH
+
+      '
+  expected:
+    review: true
+    major: true
+    frontend: true
+    event: REQUEST_CHANGES
+    lines:
+      tests: pass
+      ci: gap
+      visual: pass
+      template: pass
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: bamr87-942
+  source: 'https://github.com/bamr87/bamr87/pull/942 — release through a GitHub App: major (security, fleet.yml,
+    size)'
+  input:
+    author: bamr87
+    labels:
+    - security
+    - tokens
+    - skip-evidence
+    - needs-amr
+    additions: 744
+    deletions: 64
+    files:
+    - .env.example
+    - .github/workflows/README.md
+    - .github/workflows/release-please.yml
+    - .github/workflows/token-rotation.yml
+    - _data/fleet.yml
+    - changelog.d/release-app-token.md
+    - docs/RELEASES.md
+    - docs/TOKEN-ROTATION.md
+    - features/features.yml
+    - templates/release-pipeline/RELEASING.md
+    - tools/README.md
+    - tools/SCHEMA.md
+    - tools/fleet-config.py
+    - tools/pm_review.py
+    - tools/test_fleet_config.py
+    - tools/test_release_please.py
+    ci_runs: []
+    body: '## Description
+
+
+      Release PRs across the fleet are opened with `RELEASE_PLEASE_TOKEN`, a fine-grained PAT that expires, is re-minted
+      by hand, and covers one owner, so the four repos under `bash-365`, `year-of-ai` and `ai-world-view` have never
+      had a working release credential (their release runs end green with versioning paused). This replaces it with
+      a GitHub App, the **release app**.
+
+
+      `release-please.yml` mints an installation token per job from two secrets, `RELEASE_APP_CLIENT_ID` and `RELEASE_APP_PRIVATE_KEY`,
+      and uses it to tag, to open the release PR and to push the lockfile commit. The token is for the caller''s
+      own repo, cut to contents + pull-requests write, and revoked when the job ends. Nothing expires and one app
+      serves every owner it is installed on.
+
+
+      - **Order:** the app, then `RELEASE_PLEASE_TOKEN`, then `GITHUB_TOKEN`. A repo that holds only the PAT releases
+      exactly as before, so merging this changes nothing until the app is provisioned.
+
+      - **The key arms the app.** The client ID alone is inert. The token contract declares the client ID first
+      and `dash secrets push` writes in contract order, so a fan-out never leaves a repo holding a key it cannot
+      use.
+
+      - **No silent fallback.** A key without a client ID, or an app that cannot mint (not installed on the repo,
+      a key that is not the app''s), fails the run and names the cause.
+
+      - **By-name callers.** Both secrets are declared under `workflow_call.secrets`, because `secrets: inherit`
+      does not cross owners.
+
+      - **`dash secrets push`:** reads a multi-line secret from `NAME_FILE=<path>` (a PEM key does not fit a dotenv
+      line), stops before writing anything if a value is not shaped like its credential (`value_pattern` catches
+      a key cut to its first line), and masks a multi-line value one line at a time in an Actions log (`::add-mask::`
+      reads one line; the rest of a PEM would have been printed).
+
+      - **Rotation:** `token-rotation.yml` carries both app secrets; `lifetime_days: 0` keeps the weekly loop from
+      ever asking for a re-mint.
+
+
+      `docs/RELEASES.md` "The release app" is the setup runbook.
+
+
+      ## Governance Trace
+
+
+      Governed by: FR3, FR6 (feature HUB-033). Handoff: requested by the maintainer in a local Claude Code session,
+      2026-11-19.
+
+
+      ## Type Of Change
+
+
+      - [x] New feature
+
+
+      ## Verification
+
+
+      - [x] Tests pass: `tools/test_release_please.py` (12, new; each property mutation-checked: 7 of 7 deliberate
+      breaks caught), `tools/test_fleet_config.py` (31, 7 new), `test_adopt_release.py`, `test_template_pins.py`,
+      `test_pm_review.py`, `templates/sdlc/test_sdlc_kit.py`, dash-gen `test_token_rotation.py`, `test_workflow_atlas.py`,
+      `test_harness.py`.
+
+      - [x] Lint/type checks pass: `tools/check-drift.sh` (no drift; check (l) sees both new secrets in `token-rotation.yml`),
+      `actionlint` on every workflow, `tools/dash workflows lint` (0 errors, nothing new on the two edited workflows),
+      `schema_lint`, `unwrap-prose --check`, `docs_index --check`, `governance_lint check`.
+
+      - [x] Documentation updated: `docs/RELEASES.md`, `docs/TOKEN-ROTATION.md`, `tools/README.md`, `.github/workflows/README.md`,
+      `tools/SCHEMA.md`, `.env.example`, `changelog.d/release-app-token.md`.
+
+      - [x] Manual verification: `dash secrets push` dry-run against throwaway env files with a stubbed `gh` and
+      fake values: a file-backed key plans both writes; a key pasted inline and cut to its first line is refused
+      with nothing written.
+
+
+      Not verified, because it cannot be before the app exists: a real mint and a release PR opened by the app.
+      The first repo''s release run after setup is that check (runbook step 7).
+
+
+      `skip-evidence`: no user-visible surface changes; this is a reusable workflow, the token contract and a CLI''s
+      write path.
+
+
+      ## Notes For Reviewers
+
+
+      - **`app-id` carries the client ID.** The token action renamed the input to `client-id` in v3.1.0 and reads
+      either into the same value, but actionlint 1.7.12 (the gate in `drift-check.yml`, no exemptions) does not
+      know the new name. The cost is a deprecation notice on release runs until actionlint ships; then both steps
+      are renamed.
+
+      - **Takes effect at the next `v2` cut.** Every caller pins `@v2`. `bamr87/*` callers inherit secrets and need
+      no change. The four callers under the organisations need to pass the two secrets by name, and may do so only
+      once `v2` declares them (an undeclared secret rejects the caller''s whole run), so they and the sdlc kit change
+      after the cut, not in this PR.
+
+      - **`RELEASE_PLEASE_TOKEN` is not removed.** It stays declared and propagated. Eleven callers carry a hand-added
+      `preflight` job that skips the release without the PAT; that job goes before the PAT does (listed in the runbook).
+
+      - **What only the maintainer can do:** register the app, install it on the four owners, generate the key,
+      run the push. The runbook has a pre-filled registration link.
+
+      - `bamr87/.github` carries a second copy of this workflow (three callers); its PR is separate.
+
+
+      🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+      '
+  expected:
+    review: true
+    major: true
+    frontend: false
+    event: REQUEST_CHANGES
+    lines:
+      tests: pass
+      ci: gap
+      visual: n/a
+      template: pass
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: bamr87-949
+  source: 'https://github.com/bamr87/bamr87/pull/949 — site builds: a 44-file frontend feature'
+  input:
+    author: bamr87
+    labels: []
+    additions: 2092
+    deletions: 71
+    files:
+    - .vscode/README.md
+    - .vscode/launch.json
+    - _data/profile.yml
+    - docs/CONSOLE-PAGES.md
+    - docs/DASH.md
+    - features/features.d/console-site-builds.yml
+    - test/evidence/site-front-door/README.md
+    - test/evidence/site-front-door/desktop-classic-console-home.png
+    - test/evidence/site-front-door/desktop-front-door.png
+    - test/evidence/site-front-door/desktop-palette.png
+    - test/evidence/site-front-door/desktop-profile.png
+    - test/evidence/site-front-door/desktop-repo-app-window.png
+    - test/evidence/site-front-door/desktop-site-app-window.png
+    - test/evidence/site-front-door/mobile-classic-console-home.png
+    - test/evidence/site-front-door/mobile-front-door.png
+    - test/evidence/site-front-door/mobile-palette.png
+    - test/evidence/site-front-door/mobile-profile.png
+    - test/evidence/site-front-door/mobile-repo-app-window.png
+    - test/evidence/site-front-door/mobile-site-app-window.png
+    - test/evidence/site-front-door/report.json
+    - tools/console/README.md
+    - tools/console/assist_eval_console.py
+    - tools/console/build-pages.sh
+    - tools/console/site_docs.py
+    - tools/console/snapshot.py
+    - tools/console/test_pages.py
+    - tools/console/web/README.md
+    - tools/console/web/SCHEMA.md
+    - tools/console/web/public/bash-365-mark.svg
+    - tools/console/web/src/api/backend.ts
+    - tools/console/web/src/api/hooks.ts
+    - tools/console/web/src/api/types.ts
+    - tools/console/web/src/components/CommandCenter.tsx
+    - tools/console/web/src/components/Shell.tsx
+    - tools/console/web/src/lib/links.ts
+    - tools/console/web/src/main.tsx
+    - tools/console/web/src/nav.ts
+    - tools/console/web/src/pages/Desktop.module.css
+    - tools/console/web/src/pages/Desktop.tsx
+    - tools/console/web/vite.config.ts
+    - tools/dash
+    - tools/test_vscode_launch.py
+    - verify/SCHEMA.md
+    - verify/sites/site-front-door.yml
+    ci_runs: []
+    body: '## Description
+
+
+      The console can now be published more than once. `_data/profile.yml` gets a `sites:` map beside `site:`, and
+      `CONSOLE_SITE=<key> tools/console/build-pages.sh` (or `CONSOLE_SITE=<key> tools/dash serve`) builds one of
+      them: the same app and documents with that entry laid over `site:`. A site''s title, who it is by, its link
+      card, its mark and its front door are settings, not code (ADR 0011).
+
+
+      `sites.bash-365` is the first: the front door of the bash-365 platform.
+
+
+      - `front_door: desktop`: `/` is the bashOS desktop under the site''s name and mark. The profile Home answers
+      at `/home`; `/desktop` still answers. The start menu, the palette (a search button in the menu bar), a Profile
+      icon and the classic console reach every other page.
+
+      - `desktop.icons: repos`: an icon for every repo in the registry, grouped in a dock that scrolls. Each opens
+      its own frontend framed where it has one, else the generated repo app (HUB-080). The pinned `bash-365.com`
+      comes first.
+
+      - A site build''s policy `<meta>` names the launcher''s origins in `frame-src` (`fleetcore.apps.target_origins`,
+      the list the console''s own policy sends; ADR 0005 decision 4). No wildcard. The default build keeps `frame-src
+      ''self''`.
+
+      - At phone widths the same groups are the desktop''s home screen (the reducer''s narrow mode), one app at
+      a time.
+
+
+      The vendored bashOS reducer (`vendor/bashos/shell.js`) is untouched.
+
+
+      **The live BASH site can be framed.** `https://www.bash-365.com/` sends neither `X-Frame-Options` nor `frame-ancestors`,
+      has no policy `<meta>`, and its `staticwebapp.config.json` sets no global headers. Nothing is owed in bash-365/bash-365.com.
+
+
+      **Not in this PR:** where the bash-365 build is served (`sites.bash-365.url` is a provisional `https://os.bash-365.com`),
+      DNS, Pages or Azure settings and any deploy change. Nothing deploys this build. BASH content rendered natively
+      in a window (link previews, glossary tooltips) is the next slice.
+
+
+      ## Governance Trace
+
+
+      Governed by: FR58, FR77, FR-NEW:console-site-builds (declared in `features/features.d/console-site-builds.yml`);
+      decisions in ADR 0005 (decisions 4 and 9) and ADR 0011 (decision 2). Handoff: none (requested in a local session
+      by the maintainer).
+
+
+      ## Related Issues
+
+
+      - None filed.
+
+
+      ## Type Of Change
+
+
+      - [ ] Bug fix
+
+      - [x] New feature
+
+      - [ ] Breaking change
+
+      - [x] Documentation update
+
+      - [ ] Maintenance or refactor
+
+      - [x] Test improvement
+
+
+      ## Verification
+
+
+      - [x] Tests pass: `tools/console/test_pages.py` (5 new tests: the default site is untouched by `sites:`, every
+      declared site is valid and bad ones are refused, the site build''s pages, and no site''s name in the page''s
+      source), `test_bashos_shell.py`, `test_console.py`, the other `tools/console/test_*.py`, `tools/test_fleetcore_apps.py`,
+      `tools/test_vscode_launch.py` (new `consoleSite` picker). `test_pages.py` and `test_console.py` also pass
+      with FastAPI installed. `test_mcp_layer.py` and `test_tui_bridge.py` skipped locally for missing dependencies.
+
+      - [x] Lint/type checks pass: `npm run typecheck`, `tools/check-drift.sh` (no drift), `schema_lint.py check
+      .`, `unwrap-prose.py --check`, `governance_lint.py check .`.
+
+      - [x] Documentation updated: `docs/CONSOLE-PAGES.md` "Site builds", `tools/console/README.md`, `tools/console/web/README.md`
+      and `SCHEMA.md`, `verify/SCHEMA.md`, `.vscode/README.md`, `docs/DASH.md` (regenerated).
+
+      - [x] Manual verification completed: the bash-365 build, served locally, in Chromium at 1440×900 and 375×812.
+      Opened `bash-365.com`, `kvlite` and Profile, tiled four windows, and opened the BASH site full-screen on the
+      phone. No console errors.
+
+
+      **User scenario:** `verify/sites/site-front-door.yml`, PASS at 1280×800 and 390×844, 42 steps each. Evidence:
+      `test/evidence/site-front-door/` (12 screenshots and `report.json`). It lives under `verify/sites/` because
+      only a site build can pass it; the default `tools/dash verify` run does not pick it up.
+
+
+      **The default build is unchanged.** I built the default site with `tools/console/build-pages.sh` from `origin/main`
+      (17cc5b24) and from this branch, then compared the trees:
+
+
+      - All 352 HTML pages are identical once the bundle hash is masked, and the policy `<meta>` is identical.
+
+      - All 102 snapshot documents match apart from build timestamps and the branch name.
+
+      - The one addition is `bash-365-mark.svg`, which Vite copies from `web/public/` and nothing references.
+
+
+      Every `verify/scenarios/` scenario ran against the branch''s default build: 28 of 29 passed. `desktop-context-menu`
+      lost its `focus_returned` step once at 1024 wide and passed on two reruns. The same step failed one of two
+      runs on `origin/main`, so the flake predates this change.
+
+
+      ## Notes For Reviewers
+
+
+      - **Risk to the live site:** low. Every new path sits behind `CONSOLE_SITE`, and `test_pages.py` holds the
+      build script''s defaults.
+
+      - **Frontend PR (constitution § 15):** screenshots at two viewports are in `test/evidence/site-front-door/`.
+
+      - **Choosing the address:** a subdomain is recommended over a path of `www.bash-365.com`. On the main domain
+      the BASH site would be same-origin with the shell and framed isolated, and ADR 0005 measured the zer0 theme
+      failing on `localStorage` in that state. Once the address is chosen, add its origin to `SHELL_ORIGINS` in
+      `tools/frontend_registry.py`.
+
+      - **Not fixed here:** the default public site''s `frame-src ''self''` means `bamr87.github.io/bamr87` cannot
+      frame its cross-origin apps (it-journey.dev, lifehacker.dev, zer0-mistakes.com, www.bash-365.com). I left
+      it because the default build had to stay unchanged, and did not watch it fail in a browser.
+
+      - **No ADR addendum:** I read this as within ADR 0005 and 0011, since the hosting decision is left open.
+
+
+      🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+      '
+  expected:
+    review: true
+    major: true
+    frontend: true
+    event: REQUEST_CHANGES
+    lines:
+      tests: pass
+      ci: gap
+      visual: pass
+      template: pass
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: bamr87-962
+  source: 'https://github.com/bamr87/bamr87/pull/962 — the AI review: frontend by a pages/ post, waived with a reason'
+  input:
+    author: bamr87
+    labels:
+    - feature
+    - skip-evidence
+    - needs-amr
+    additions: 1925
+    deletions: 18
+    files:
+    - .github/scripts/dash-gen/README.md
+    - .github/scripts/dash-gen/pr_ai_review.py
+    - .github/scripts/dash-gen/pr_readiness.py
+    - .github/scripts/dash-gen/pr_review.py
+    - .github/scripts/dash-gen/test_ai_budget.py
+    - .github/scripts/dash-gen/test_pr_ai_review.py
+    - .github/workflows/README.md
+    - .github/workflows/pr-ai-review.yml
+    - .github/workflows/pr-review.yml
+    - .vscode/README.md
+    - .vscode/launch.json
+    - AGENTS.md
+    - _data/agents.yml
+    - _data/fleet.yml
+    - changelog.d/ai-pr-review.md
+    - docs/DASH.md
+    - features/features.d/ai-pr-review.yml
+    - features/features.yml
+    - pages/posts/2026-11-23-an-ai-reviewer-that-cannot-touch-the-pull-request.md
+    - templates/pr-review/README.md
+    - tools/dash
+    ci_runs: []
+    body: '## Description
+
+
+      A pull request that is opened ready, marked ready, or given the `review` label now gets an AI review: one
+      comment-only review on its head commit that says what was found and who does what next, plus inline comments
+      on the lines the pull request adds. Asked for directly by the maintainer: "after every PR that''s marked for
+      review, there should be an AI agent that comments on performing the review accordingly, and then delegating/recommending
+      actions." This is the AI review that constitution § 19.7 and ADR 0012 (stage B) describe and that `templates/pr-review/README.md`
+      listed under "Not built yet".
+
+
+      **How it works**
+
+
+      | Step | Where | Holds | Does |
+
+      | --- | --- | --- | --- |
+
+      | `plan` | `pr-ai-review.yml` (new) | a read-only token | Decides whether the pull request gets a review now
+      and writes the brief: the diff with new-file line numbers, the description, what the PR queue already knows
+      |
+
+      | `review` | `pr-ai-review.yml` | the Claude credential, no GitHub credential | One session through `claude-run`:
+      `claude-sonnet-5-5`, 25 turns, $4 cap, Read / Grep / Glob only. Then the reply is held to a contract and saved
+      as two artifacts |
+
+      | post | `pr-review.yml` (existing `ci-failure` pass) | the token that writes on pull requests, no model |
+      Posts the findings inline through the `fleet-findings` channel, then the review. No step was added to the
+      workflow |
+
+
+      - **Triggers (§ 19.7):** opened ready, marked ready, or the `review` label. Never a push. Once per head commit.
+      A manual dispatch is a dry run: the review goes to the run''s summary and nothing is posted.
+
+      - **Who is reviewed:** a pull request whose author has write-level standing (`author_association`), or any
+      pull request a maintainer labels `review`. Dependabot, release and bot pull requests are skipped unless labelled
+      (§ 19.6).
+
+      - **Delegation:** the model names who moves each action from a fixed set (`agent`, `author`, `maintainer`);
+      the hand-off text is the code''s, never the model''s. For an agent it is one comment a maintainer posts, `@claude
+      address the AI review findings on this pull request`, which starts the existing mention handler. Nothing is
+      started without a person.
+
+      - **The pull request is never checked out.** Every checkout takes the event''s default ref, the base branch.
+      The reviewer''s working directory holds the hub''s tooling, the base branch and the diff as text, so no `.claude/`
+      settings, hook or `CLAUDE.md` from the pull request can load.
+
+      - **The reply is untrusted twice.** `collect` keeps only what fits the contract; the posting pass validates
+      the artifact again, believes it only from a `pull_request_target` run of `pr-ai-review.yml`, and escapes every
+      word. It posts a `COMMENT` review: it never approves or requests changes (§ 19.5).
+
+      - **The label is read by the script, never by a job condition**, and a pull request whose head moved after
+      the event is told so and not reviewed. This follows what code scanning reported on bamr87/bamr87#960 (`actions/untrusted-checkout-toctou`).
+
+      - **Always hears back:** past the day''s cap (30), after a head that moved, or on a diff of only generated
+      or binary files, the pull request gets one line saying so and how to ask again.
+
+      - **Switch (§ 17):** `vars.PR_AI_REVIEW_ENABLED` must be `true` (a new loop starts off). `PR_REVIEW_ENABLED=false`
+      stops it too.
+
+      - **Local entry (§ 10.9):** `tools/dash prs review --pr owner/repo#n`, a capped session through `dash-gen
+      ai-run --isolate` that prints the review and posts nothing.
+
+
+      **Also fixed:** with `PR_READINESS_ENABLED` on, `pr_readiness.py` replaced `pr_review.py` as the entry point
+      and never read the findings channel, so turning readiness on turned inline findings off. It posts them again.
+
+
+      <details><summary>What the review looks like: a made-up reply, rendered by the real code</summary>
+
+
+      ## AI review of `aaaaaaa`
+
+
+      Adds a widget. One bug before it merges.
+
+
+      **Findings:** 1 error, 1 warning, 1 note. 1 is inline on the line it names.
+
+
+      ### Findings not on a line this pull request adds
+
+
+      - **Warning** · `tests` · `src/x.py:40`: No test covers the empty list.
+
+      - **Note** · `design`: Consider one module.
+
+
+      ### Next actions
+
+
+      **An agent** (to hand these off, a maintainer comments `@claude address the AI review findings on this pull
+      request`):
+
+
+      - Guard the division.
+
+
+      **The author** (push the change to this branch):
+
+
+      - Say which caller needs this.
+
+
+      **The maintainer** (a decision, not work):
+
+
+      - Decide whether v1 stays.
+
+
+      ---
+
+      Automated review by `claude-sonnet-5-5`. It comments and never approves (§ 19.5), and its findings are advisory.
+      It read 2 of 3 changed file(s); 1 was left out as generated, binary or too large. For another review after
+      new commits, add the `review` label.
+
+
+      </details>
+
+
+      ## Governance Trace
+
+
+      Governed by: FR61 (HUB-065, the fleet PR review; constitution § 19.7, `docs/amendments/0017-fleet-pr-review.md`)
+      and FR137 (merge readiness; `docs/adr/0012-merge-readiness.md`, stage B). Handoff: direct maintainer request
+      in a Claude Code session (2026-11-23).
+
+
+      No constitution text changes: the rule and the design were already ratified and accepted. Per § 28.3 a Grok
+      direction review before merge is welcome.
+
+
+      ## Related Issues
+
+
+      - Completes the AI review item in the scope of bamr87/bamr87#564 (closed), and phase P2 of ADR 0012 (bamr87/bamr87#917).
+
+      - Sibling of bamr87/bamr87#960 (AI analysis of failed CI runs). See the notes on merge order below.
+
+
+      ## Type Of Change
+
+
+      - [x] Bug fix
+
+      - [x] New feature
+
+      - [ ] Breaking change
+
+      - [x] Documentation update
+
+      - [ ] Maintenance or refactor
+
+      - [x] Test improvement
+
+
+      ## Verification
+
+
+      - [x] Tests pass: `test_pr_ai_review.py` (32, new), `test_pr_review.py` (48), `test_pr_readiness.py` (14),
+      `test_ai_budget.py` (222 checks), `test_agent_inventory.py`, `test_harness_registry.py`, `test_workflow_atlas.py`,
+      `test_schedule.py`, `tools/test_loop_switches.py`, `tools/test_fleet_config.py`, `tools/test_vscode_launch.py`,
+      `tools/test_claude_run.py`, `tools/console/test_pages.py`
+
+      - [x] Lint/type checks pass: `tools/check-drift.sh` (no drift), `actionlint` and `shellcheck` on both workflows,
+      `tools/dash workflows lint` (nothing on the new file), `schema_lint`, `unwrap-prose --check`, `governance_lint
+      check`, `docs_index --check`, the generated-file guard
+
+      - [x] Documentation updated: `templates/pr-review/README.md` ("AI review"), the workflow and dash-gen READMEs,
+      AGENTS.md loop row, `.vscode` entry, `docs/DASH.md` regenerated
+
+      - [x] Harness standard: `pr-ai-review.yml` reads as route `claude-run`, pinned model, turn cap, budget cap,
+      kill switch, ordered auth, trusted-author gate, least privilege, no `pull_request_target` head checkout, timeout;
+      `tools/dash agents --check` is current with `ci:bamr87:pr-ai-review` registered
+
+      - [ ] Manual verification: not possible before merge (below)
+
+
+      `skip-evidence`: `pull_request_target` runs only the default branch''s file, so the workflow cannot run before
+      merge, and no model was called in building it. The sample above comes from the real rendering code. First
+      live evidence: `gh workflow run pr-ai-review.yml -f pr=<n>` (a dry run) after merge, then the first pull request
+      marked ready with the switch on.
+
+
+      `tools/run-all-tests.sh` here: 134 ran, four failed, none from this change. `test_remediation.py` fails one
+      check on `origin/main` too (a daily snapshot); `shellcheck tools/*.sh` fails on `origin/main` in this container
+      (style notes in scripts this does not touch; `tools/dash` has the same three notes before and after); `test_weekly.py`
+      has one file-permission test that cannot fail as root; `test_console.py` needs FastAPI, which this container
+      lacks.
+
+
+      ## Notes For Reviewers
+
+
+      - **Gated (`needs-amr`):** it adds a `budget.call_sites` entry, a kill switch and an AI workflow that runs
+      on `pull_request_target`.
+
+      - **To arm it after merge:** `gh variable set PR_AI_REVIEW_ENABLED -R bamr87/bamr87 --body true`. Try the
+      dry run first; it works with the switch off.
+
+      - **No eval set yet (§ 13.1).** The findings are advisory: they fail no build, and merge readiness does not
+      count them. An eval set of about 20 past pull requests is the next piece, and the condition for an `error`
+      finding to become a `todo` item as ADR 0012 describes. bamr87/bamr87#960 adds the `tools/evals.py` adapter
+      pattern to copy.
+
+      - **Hub only.** Fleet repos need a stub with the `pull_request_target` trigger and the credential passed to
+      a reusable form of this workflow, then a `v2` cut and one fan-out pull request per repo.
+
+      - **One deliberate difference from ADR 0012:** the ADR says stage B runs "once CI is green". This runs when
+      the pull request is marked ready and gives the reviewer the check state as context, because the ask was a
+      review after every pull request that is marked for review, and waiting for green needs state that survives
+      between events. Say if you want it to wait.
+
+      - **Merge order with bamr87/bamr87#960.** Both touch `pr-review.yml`, `_data/fleet.yml`, the two READMEs and
+      `_data/agents.yml`. This change was laid out to merge beside it: its settings sit under their own key (`pr_ai_review`,
+      not a second `pr_review:` block, which YAML would silently drop), the posting is a function call in the existing
+      pass (no new workflow step), and each insertion is at a different place. Two conflicts remain whichever merges
+      second: the "Not built yet" bullet in `templates/pr-review/README.md` (both rewrite it; keep both texts) and
+      `_data/agents.yml` (regenerate with `tools/dash agents`).
+
+      - **Cost:** capped at $4 a review, API-equivalent (estimate), and 30 reviews a day. Every `labeled` event
+      with the switch on starts the short `plan` job, because the label cannot be read in a job condition.
+
+      - **Residual risk:** the reviewer reads a diff with the Claude credential in its process environment. It has
+      no shell and no network tool, a deny list keeps it out of `/proc` and the runner''s credential directories,
+      token-shaped text is scrubbed twice, and only a trusted author''s or a maintainer-labelled pull request is
+      reviewed.
+
+      - CodeQL will scan the new workflow on this pull request; I am watching for alerts.
+
+
+      ---
+
+      _Generated by [Claude Code](https://claude.ai/code)_'
+  expected:
+    review: true
+    major: true
+    frontend: true
+    event: REQUEST_CHANGES
+    lines:
+      tests: pass
+      ci: gap
+      visual: pass
+      template: pass
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: githubai-151
+  source: 'https://github.com/bamr87/githubai/pull/151 — a fleet repo''s ADR-backed feature: major, docs but no
+    template completeness'
+  input:
+    author: bamr87
+    labels: []
+    additions: 1503
+    deletions: 9
+    files:
+    - .github/workflows/agent-handoff.yml
+    - .github/workflows/claude-auto-merge.yml
+    - .github/workflows/claude-implement.yml
+    - .github/workflows/claude-maintenance.yml
+    - .github/workflows/claude-release.yml
+    - .github/workflows/claude-review.yml
+    - .github/workflows/claude-triage.yml
+    - .github/workflows/claude.yml
+    - AGENTS.md
+    - README.md
+    - actions/agent-identity/action.yml
+    - app/README.md
+    - app/identity/README.md
+    - app/identity/agent_token.py
+    - app/identity/manifest.json
+    - app/identity/register.py
+    - docs/PRD.md
+    - docs/adr/0006-agent-identity-app.md
+    - docs/adr/README.md
+    - docs/reference/workflows.md
+    - docs/security.md
+    - docs/workflows.md
+    - features/features.yml
+    - setup/install.sh
+    - template/workflows/agent-handoff.yml
+    - tests/test_identity.py
+    ci_runs: []
+    body: "## What & why\n\nToday an agent writes to GitHub as whoever's credentials it holds: the job's `GITHUB_TOKEN`,\
+      \ the shared Claude App (`claude[bot]`, only reachable inside Actions), or, in the fleet hub, the maintainer's\
+      \ personal token. With the last, the maintainer is the author of the agent's work, so GitHub never asks them\
+      \ to review it and never lets them approve it (bamr87/bamr87#565: 77 of 173 audited automated comments carried\
+      \ the maintainer's login).\n\nThis PR adds an optional **agent identity App** that each maintainer registers\
+      \ and owns. With its two secrets set, every lane and every interactive session writes as the maintainer's\
+      \ own `<name>[bot]`. That makes the agent's work reviewable and approvable like any contributor's, and GitHub\
+      \ never lets an App approve its own PR. Without the secrets, every lane behaves exactly as before.\n\n**`app/identity/`**\n\
+      - **`manifest.json`** is a private App with no webhook and no events. It gets contents, pull requests and\
+      \ issues write, workflows write, actions and checks read, and metadata.\n- **`register.py`** registers it\
+      \ in one step through GitHub's manifest flow:\n  - it serves one page on `127.0.0.1` and checks the `state`\
+      \ on the callback;\n  - it keeps the key at `~/.config/githubai/<slug>.pem` with mode 0600, and throws away\
+      \ the client and webhook secrets;\n  - it prints the install link and the two `gh secret set` commands.\n\
+      - **`agent_token.py`** mints a one-hour token for one repository with an openssl-signed JWT, so it needs no\
+      \ Python packages. It runs a command as the bot (`-- gh …`, or `-- claude` for a whole session) without printing\
+      \ the token.\n\n**`actions/agent-identity`** resolves the bot's login, user id and noreply email. With no\
+      \ App it outputs `claude-code-action`'s own defaults (`claude[bot]`, id `41898282`), so a lane without the\
+      \ App commits exactly as it does today.\n\n**Every `claude*.yml` lane** declares optional `AGENT_APP_CLIENT_ID`\
+      \ and `AGENT_APP_PRIVATE_KEY` secrets. When both are set, the lane:\n- mints the App's token with `actions/create-github-app-token@v3`;\n\
+      - resolves the bot before the framework checkout is removed;\n- passes `github_token`, `bot_id` and `bot_name`\
+      \ to `claude-code-action`, and the token to its own `gh` steps.\n\nThe stubs already pass `secrets: inherit`,\
+      \ so no stub changes.\n\n**`agent-handoff.yml`** is a new workflow, with a stub the installer adds. When a\
+      \ *person* pushes a `claude/**` branch, it opens a draft PR as the bot and asks that person to review it.\
+      \ This is how a web or terminal Claude Code session's work becomes authored by the agent: the session only\
+      \ pushes. It does nothing (just leaves a notice) without the App, never runs commit messages through the shell,\
+      \ and can be switched off with `vars.AGENT_HANDOFF_ENABLED`.\n\n**Docs:**\n- `app/identity/README.md`: register,\
+      \ install, secrets, lanes, sessions, local use, rotate and revoke;\n- `app/README.md` and `README.md`;\n-\
+      \ `docs/workflows.md` and `docs/security.md` (this also corrects a stale line that still described the `ANTHROPIC_API_KEY`\
+      \ fallback);\n- an `AGENTS.md` sync duty;\n- ADR 0006 (proposed), and feature `GHAI-008` with the PRD block\
+      \ regenerated.\n\n## How verified\n\n- **CI is green on `de5d858`:** `tests`, `relay`, `shell`, `standard\
+      \ / ci`, `verify / Scenarios + evidence`, `conformance / UPS conformance` and `oneline`. The review and auto-merge\
+      \ evaluation lanes skipped, as they do on a draft.\n- `python3 -m pytest -q` passes, 88 tests. That includes\
+      \ the 23 new ones in `tests/test_identity.py`:\n  - the manifest's least privilege, with a cap on which permissions\
+      \ are allowed;\n  - the action's fallback defaults, and that the token is never printed;\n  - every lane's\
+      \ wiring (parametrized across all 7);\n  - the handoff's guards: people only, a kill switch, nothing interpolated\
+      \ into the script, and a read-only job token;\n  - `register.py` end to end against a real local HTTP callback,\
+      \ including the state check, HTML escaping and the key's 0600 mode;\n  - `agent_token.py` with a real RS256\
+      \ JWT, generated by openssl and verified against the public key, plus token scoping and the guarantee that\
+      \ no mode except `env` prints the token.\n- `(cd app/relay && npm test)` passes, 68 of 68.\n- `shellcheck\
+      \ setup/install.sh` is clean.\n- `tools/gen_reference.py --check` and `tools/docs_index.py --check` report\
+      \ both up to date.\n- The hub's `governance_lint.py check` is OK.\n- `actionlint` only reports `github.job_workflow_sha`\
+      \ as unknown. That's a gap in this actionlint version: all six automation lanes already use it on `main`,\
+      \ and `claude.yml` now uses the same pattern.\n- `unwrap-prose --check` flags only `ai-seed/seed/kernel/SCHEMA.md`,\
+      \ which already fails on `main` and is untouched here.\n- **Not verified: a live run.** The App doesn't exist\
+      \ yet. Registering it needs the maintainer's browser, and agents can't create Apps or secrets. Once it's registered,\
+      \ the dogfooding runs on this repo are the behavioral check.\n\n## Risk & compatibility\n\n- **Purely additive\
+      \ to the public API:** two new optional `workflow_call` secrets, a new workflow file and stub, and a new composite\
+      \ action. Nothing is renamed.\n- **No behavior change without the secrets.** `github_token` is empty, so `claude-code-action`\
+      \ still does its own token exchange, and `bot_id`/`bot_name` are its defaults. `gh` steps still use `github.token`.\n\
+      - **With the App, write scope is set by the App, not by `permissions:`.** An installation token is bounded\
+      \ by the App's permissions and the repos it's installed on, not by the job's `permissions:` block. The manifest\
+      \ is least-privilege, and the test caps it.\n- **In the auto-merge lane, the approval comes from the bot when\
+      \ the App is configured.** It still satisfies a one-approval rule for the PRs that lane exists for. It can\
+      \ never approve a PR the bot authored.\n- **Installed repos gain `agent-handoff.yml` on their next install.**\
+      \ It's a no-op without the App's secrets.\n\n## Definition of Done\n\n<!-- fleet-dod:start v1 -->\n- [x] **Title**\
+      \ is a Conventional Commit (`feat:`, `fix:`, `do"
+  expected:
+    review: true
+    major: true
+    frontend: false
+    event: REQUEST_CHANGES
+    lines:
+      tests: pass
+      ci: gap
+      visual: n/a
+      template: pass
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: zer0-mistakes-635
+  source: 'https://github.com/bamr87/zer0-mistakes/pull/635 — a theme CI change touching _config.yml and _includes/:
+    frontend without evidence'
+  input:
+    author: bamr87
+    labels:
+    - needs-amr
+    additions: 829
+    deletions: 223
+    files:
+    - .github/actions/README.md
+    - .github/config/content_review.yml
+    - .github/workflows/README.md
+    - .github/workflows/ai-content-review.yml
+    - .github/workflows/ci-self-repair.yml
+    - .github/workflows/claude.yml
+    - .github/workflows/deploy-chat-proxy.yml
+    - .github/workflows/issue-autopilot.yml
+    - .github/workflows/test-latest.yml
+    - .github/workflows/translate.yml
+    - .github/workflows/ui-audit.yml
+    - .github/workflows/visual-evidence-autogen.yml
+    - CHANGELOG.md
+    - _config.yml
+    - _data/features.yml
+    - _data/ui-text.yml
+    - _includes/core/footer.html
+    - docs/architecture/ui-components.md
+    - pages/_about/settings/_config.yml
+    - pages/_docs/quickstart/bare-minimum.md
+    - test/test_core.sh
+    - test/test_newsletter_gate.rb
+    - test/visual/core/accessibility.spec.js
+    - test/visual/core/footer-newsletter.spec.js
+    - test/visual/evidence/footer-newsletter/01-footer-before-after.png
+    - test/visual/evidence/footer-newsletter/02-subscribe-row-1280.png
+    - test/visual/evidence/footer-newsletter/CHANGELOG-snippet.txt
+    - test/visual/evidence/footer-newsletter/README.md
+    - test/visual/evidence/footer-newsletter/metrics.json
+    - test/visual/footer-newsletter-evidence.mjs
+    ci_runs:
+    - id: 43684710049
+      head_match: false
+      conclusion: failure
+    - id: 43745153232
+      head_match: false
+      conclusion: success
+    - id: 43805596177
+      head_match: false
+      conclusion: success
+    body: '## Description
+
+
+      `TEST (Latest Dependencies)` ran one linear pipeline across three runners (`build-latest` → `test` → `publish`)
+      and handed the Docker image between them as an artifact: saved and uploaded in the build job, then downloaded
+      and loaded again in the test job and in the publish job. bamr87/bamr87#552 measured about 2-3 billed minutes
+      a run spent moving that tarball, plus three per-job round-ups (11 billed minutes a scheduled run, 13 a push
+      run).
+
+
+      The hand-off was also the reason the canary has been red since 2026-11-11. The build job''s `docker compose
+      images -q jekyll` is always empty after `docker compose run --rm`, because that command lists the images of
+      existing containers only. The step then fell back to `docker images | head -1`, which on the current Docker
+      29 runners (containerd image store) returns an arbitrary image. In scheduled run [43684710049](https://github.com/bamr87/zer0-mistakes/actions/runs/43684710049)
+      the build job saved the compose `validate` service''s image (`bcd6bef6e203`), and the test job then tagged
+      a preinstalled runner image (`342cd624e1f1`) and ran validation in it.
+
+
+      This PR merges the three jobs into one, `build-test-publish` (`Build, Test & Publish (Latest Deps)`, `timeout-minutes:
+      25`), and keeps the step order:
+
+
+      - **No hand-off.** `Save Docker Image`, `Upload Docker Image Artifact` and both `Download`/`Load` pairs are
+      gone. The image stays in the runner''s Docker daemon from the build to the push.
+
+      - **The image is named, never guessed.** A new `Resolve Built Image` step takes `zer0-mistakes-jekyll:dev-test`
+      on push and dispatch runs (the `docker buildx build -t` name), and on the schedule the `jekyll` service''s
+      image as `docker compose build` named it (`docker compose ... config --images jekyll`, which is `zer0-mistakes-jekyll`
+      on the runner). If no image has that name, the run fails there. There is no `head -1` fallback. The step tags
+      the image `zer0-mistakes-jekyll-test:latest` for the unchanged test steps.
+
+      - **Same publish gate, at step level.** `Login to Docker Hub`, `Tag and Push Immutable Image`, `Save Latest
+      Tag Reference` and `Upload Tag Reference` each carry `if: github.ref == ''refs/heads/main'' || inputs.force_publish`.
+      A step `if:` without a status function also requires every earlier step to have succeeded, so nothing is pushed
+      unless the build and every test passed, as before. They read `steps.tag.outputs.tag` and `steps.image.outputs.id`
+      instead of the old job outputs.
+
+      - **`debug-failure`** now `needs: [build-test-publish]`. It still fires on a build or test failure. A job
+      output (`tests_outcome`, the last test step''s outcome) keeps it from firing on a failure in the publish steps,
+      which matches the old graph, where it did not depend on `publish`.
+
+      - Triggers, concurrency, `env`, the cached push build and the daily `--no-cache` scheduled build are unchanged.
+      `.github/workflows/README.md` gets one sentence on the single job.
+
+
+      Deviation from the triage plan: the plan suggested `docker compose ... images -q jekyll` for the scheduled
+      path. That command returned nothing in both runs I read (the scheduled run above and dispatch run [43745153232](https://github.com/bamr87/zer0-mistakes/actions/runs/43745153232)),
+      so the step uses `config --images jekyll`. That resolves the name compose builds under ("Image zer0-mistakes-jekyll
+      Built" in the scheduled run''s log) without needing a container.
+
+
+      Other behaviour changes, all small:
+
+
+      - The Actions UI shows one job, and on a non-`main` dispatch the four publish steps show as skipped instead
+      of a skipped `Publish Image` job. `test-latest.yml` does not run on `pull_request`, so no PR check depends
+      on the old job names.
+
+      - Scheduled runs now test and publish the `jekyll` service''s image. Before, they used whichever image `head
+      -1` returned (the `validate` image on 2026-11-15). Both are built from the same `dev-test` target.
+
+      - `Generate Test Summary` runs only once the image has resolved (`always() && steps.image.outcome == ''success''`).
+      Before, it ran in the test job, which started only after a successful build.
+
+      - `actions/cache@v6` saves only when its job succeeds (`post-if: success()`), and its job is now the whole
+      pipeline, so a run whose tests fail no longer saves the buildx layer cache. The key is the `docker/Dockerfile`
+      hash, so this matters only for the first run after a Dockerfile change.
+
+
+      **Relation to #619.** This branch starts from #619''s head (`fix/test-latest-image-load`), so its commit is
+      included. The restructure deletes the load steps #619 patches, and also the build job''s save step, whose
+      `head -1` fallback #619 does not touch, so it supersedes #619. If #619 merges first, `git rebase origin/main`
+      skips #619''s commit here (same patch) and replays this one cleanly; I simulated that squash-then-rebase locally
+      and the result is byte-identical. If this PR merges first, #619 has nothing left to fix.
+
+
+      Closes bamr87/bamr87#552
+
+
+      Handoff: bamr87/bamr87#552 (fleet-doctor report)
+
+
+      ## Type
+
+
+      - [ ] `feat` — new feature
+
+      - [ ] `fix` — bug fix
+
+      - [ ] `docs` — documentation only
+
+      - [ ] `refactor` / `perf` / `style`
+
+      - [ ] `test` — tests only
+
+      - [x] `chore` / `ci`
+
+
+      ## Checklist
+
+
+      - [x] Conventional-commit title (`type(scope): subject`)
+
+      - [ ] `CHANGELOG.md`: not applicable, CI only (release-please writes it)
+
+      - [ ] `./scripts/bin/test`: not run. The change is to a workflow that the theme suites do not exercise; the
+      dispatch run below runs the workflow itself.
+
+      - [ ] Theme/layout/include/sass change → Jekyll build validated: not applicable
+
+      - [x] No version bump
+
+      - [ ] Backlog task status: not applicable (no backlog task mirrors this issue)
+
+
+      ## Verification
+
+
+      Run locally:
+
+
+      - `actionlint -ignore SC2086 -ignore SC2129 -ignore SC2035` (what `lint-workflows.yml` runs, over every workflow):
+      exit 0. Plain `actionlint .github/workflows/test-latest.yml` reports 40 SC2086 info and 4 SC2129 style notes,
+      all in unchanged steps; `main`''s version of the file has 42 and 4.
+
+      - The YAML parses. No `docker save`, `docker load`, `downlo'
+  expected:
+    review: true
+    major: true
+    frontend: true
+    event: REQUEST_CHANGES
+    lines:
+      tests: pass
+      ci: gap
+      visual: gap
+      template: gap
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: rule-frontend-complete
+  source: 'WRITTEN FOR A RULE, to be replaced: § 15.2 + § 15.4 + § 15.7 — "a major PR lists the tests added or updated
+    and links the green CI run for its head commit"; "before/after screenshots ... at two or more viewports". No
+    fleet PR yet links a green run of its own head commit (§ 15 is new), so the known-good verdict has no real case;
+    the first real one replaces this.'
+  input:
+    author: bamr87
+    labels: []
+    additions: 120
+    deletions: 8
+    files:
+    - tools/console/web/src/pages/Overview.tsx
+    - tools/console/test_pages.py
+    - docs/CONSOLE-PAGES.md
+    - test/evidence/overview/desktop-overview.png
+    - test/evidence/overview/mobile-overview.png
+    - test/evidence/overview/README.md
+    ci_runs:
+    - id: 1
+      head_match: true
+      conclusion: success
+    body: '## Description
+
+
+      The Overview names each loop.
+
+
+      ## Test evidence
+
+
+      - tools/console/test_pages.py: the route renders
+
+      - CI: https://github.com/bamr87/bamr87/actions/runs/1
+
+
+      ## Visual evidence
+
+
+      test/evidence/overview/ at desktop and mobile.
+
+
+      Feature index: HUB-001 (no new feature).
+
+      '
+  expected:
+    review: true
+    major: false
+    frontend: true
+    event: COMMENT
+    lines:
+      tests: pass
+      ci: pass
+      visual: pass
+      template: pass
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too
+- id: rule-major-complete-skip-evidence
+  source: 'WRITTEN FOR A RULE, to be replaced: § 15.2 + docs/VERIFICATION.md — "`skip-evidence` waives UPS-QA-52
+    with a reason in the PR body" — a major, non-frontend change that carries every line. No real fleet PR carries
+    the CI link yet; the first real one replaces this.'
+  input:
+    author: bamr87
+    labels:
+    - major
+    - skip-evidence
+    additions: 60
+    deletions: 4
+    files:
+    - tools/conformance.py
+    - tools/test_conformance.py
+    - docs/CONFORMANCE.md
+    ci_runs:
+    - id: 2
+      head_match: true
+      conclusion: success
+    body: '## Description
+
+
+      A new conformance rule.
+
+
+      ## Test evidence
+
+
+      - tools/test_conformance.py
+
+      - https://github.com/bamr87/bamr87/actions/runs/2
+
+
+      skip-evidence: a gate script, nothing renders.
+
+
+      - [x] Documentation updated
+
+      '
+  expected:
+    review: true
+    major: true
+    frontend: false
+    event: COMMENT
+    lines:
+      tests: pass
+      ci: pass
+      visual: n/a
+      template: pass
+  pass: review, major and frontend equal expected; when reviewed, the event and every line's status too

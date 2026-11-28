@@ -7,11 +7,13 @@ The hub's agent eval sets (constitution § 13.1–13.2). Each directory is one a
 | [`console-assist/`](console-assist/cases.yml) | model | 24 | the console's assistant (the `assist` op): its shipped prompt, tool allowlist and the real MCP layer, against a recorded page |
 | [`jev-classify/`](jev-classify/cases.yml) | deterministic | 31 | `tools/jev/classify.py` `classify()` + `kind_of()`: JEV's conflict tier ladder |
 | [`pr-ai-analysis/`](pr-ai-analysis/cases.yml) | model | 20 | the CI failure analyst of `pr-review.yml` (§ 19.11): its shipped prompt and parser, against past failed PR runs |
+| [`qa-lead/`](qa-lead/cases.yml) | deterministic | 28 | QA Lead, the § 15 completeness reviewer (`.github/scripts/dash-gen/qa_lead.py` `decide()`): the gate, the four lines and the event, against real past pull requests |
 | [`t1-intake/`](t1-intake/cases.yml) | model | 14 | the issue pipeline's tier-1 intake prompt: the ready / blocked exit and the type label |
 
 ```bash
 python3 tools/evals.py list                              # roles with a set
 python3 tools/evals.py run jev-classify                  # offline, no model
+python3 tools/evals.py run qa-lead                       # offline, no model
 python3 tools/evals.py run t1-intake --dry-run           # schema only, no model
 python3 tools/evals.py run console-assist --dry-run      # recordings, sources and rules, no model
 python3 tools/evals.py run --all --dry-run --json        # every set offline, as JSON

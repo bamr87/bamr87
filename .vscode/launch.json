@@ -795,6 +795,17 @@
       "presentation": { "group": "4-generate", "order": 8 }
     },
     {
+      // QA Lead (constitution § 15.5, docs/qa-lead-prior-art.md): the completeness
+      // review it would post on one pull request, printed. Read-only, no model;
+      // the posted review is qa-lead.yml's, through pr-review.yml.
+      "name": "✅ QA Lead: one pull request's completeness review (posts nothing)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "python3 .github/scripts/dash-gen/qa_lead.py local --ref '${input:pullRequestRef}'",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 8 }
+    },
+    {
       "name": "🗺️ Workflow atlas: list / health (from the lake)",
       "type": "node-terminal",
       "request": "launch",

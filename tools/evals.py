@@ -13,7 +13,8 @@ Description: The eval runner (constitution § 13.1–13.2). Each agent role keep
 
              Two kinds of role:
                deterministic  the adapter calls the code under test directly —
-                              no network, no `claude` CLI (jev-classify).
+                              no network, no `claude` CLI (jev-classify,
+                              qa-lead).
                model          the adapter asks a pinned model; `--dry-run`
                               validates the set without calling one. A model
                               run uses only ids from _data/fleet.yml
@@ -51,6 +52,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import datetime as dt
+import importlib
 import json
 import os
 import re
@@ -919,12 +921,16 @@ ANALYSIS_VERDICTS = ("yes", "no", "unclear")
 ANALYSIS_MIN_CASES = 10
 
 
-def _analysis_module():
+def _dash_gen_module(name: str):
+    """A dash-gen module under test, imported where it is used (pr_ai_analysis, qa_lead)."""
     path = str(ROOT / ".github" / "scripts" / "dash-gen")
     if path not in sys.path:
         sys.path.insert(0, path)
-    import pr_ai_analysis  # noqa: PLC0415 - the module under test, imported where it is used
-    return pr_ai_analysis
+    return importlib.import_module(name)
+
+
+def _analysis_module():
+    return _dash_gen_module("pr_ai_analysis")
 
 
 def analysis_material(case: dict) -> dict:
@@ -1038,8 +1044,40 @@ def run_pr_ai_analysis(data: dict, res: RoleResult, *, cfg: dict, dry_run: bool,
         res.cases.append(CaseResult(case["id"], not problems, case["expected"], entry, "; ".join(problems)))
 
 
+# --------------------------------------------------------------------------- #
+# adapter: qa-lead — deterministic, imports QA Lead's decide() directly
+# --------------------------------------------------------------------------- #
+QA_STATUSES = ("pass", "gap", "n/a")
+
+
+def run_qa_lead(data: dict, res: RoleResult, **_) -> None:
+    qa_lead = _dash_gen_module("qa_lead")
+    cfg = qa_lead.config()
+    for case in data["cases"]:
+        exp = case["expected"]
+        bad = [k for k in ("review", "major", "frontend") if not isinstance(exp.get(k), bool)]
+        if exp.get("review"):
+            bad += ["event"] if exp.get("event") not in qa_lead.EVENTS else []
+            lines = exp.get("lines") or {}
+            bad += [f"lines.{k}" for k in qa_lead.LINES if lines.get(k) not in QA_STATUSES]
+        if bad:
+            res.cases.append(CaseResult(case["id"], False, exp, detail="malformed expectation: " + ", ".join(bad)))
+            continue
+        got = qa_lead.decide(case["input"], cfg)
+        actual = {"review": got["status"] != "skip", "major": got["classify"]["major"],
+                  "frontend": got["classify"]["frontend"], "event": got["event"],
+                  "lines": {x["key"]: x["status"] for x in got["lines"]}}
+        problems = [f"{k} {actual[k]} != expected {exp[k]}" for k in ("review", "major", "frontend") if actual[k] != exp[k]]
+        if exp["review"] and actual["review"]:
+            if actual["event"] != exp["event"]:
+                problems.append(f"event {actual['event']} != expected {exp['event']}")
+            problems += [f"{k} {actual['lines'].get(k)} != expected {v}" for k, v in exp["lines"].items()
+                         if actual["lines"].get(k) != v]
+        res.cases.append(CaseResult(case["id"], not problems, exp, actual, "; ".join(problems)))
+
+
 ADAPTERS = {"console-assist": run_console_assist, "jev-classify": run_jev_classify,
-            "pr-ai-analysis": run_pr_ai_analysis, "t1-intake": run_t1_intake}
+            "pr-ai-analysis": run_pr_ai_analysis, "qa-lead": run_qa_lead, "t1-intake": run_t1_intake}
 
 
 # --------------------------------------------------------------------------- #

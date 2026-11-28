@@ -46,6 +46,7 @@ JEV_SET = evals.EVALS_DIR / "jev-classify" / "cases.yml"
 T1_SET = evals.EVALS_DIR / "t1-intake" / "cases.yml"
 ASSIST_SET = evals.EVALS_DIR / "console-assist" / "cases.yml"
 ANALYSIS_SET = evals.EVALS_DIR / "pr-ai-analysis" / "cases.yml"
+QA_SET = evals.EVALS_DIR / "qa-lead" / "cases.yml"
 STANDIN = evals.CONSOLE_DIR / "assist_standin.py"
 
 
@@ -64,7 +65,7 @@ def write_set(data: dict) -> Path:
 
 class CommittedSets(unittest.TestCase):
     def test_roles_are_discovered(self):
-        self.assertEqual(evals.roles(), ["console-assist", "jev-classify", "pr-ai-analysis", "t1-intake"])
+        self.assertEqual(evals.roles(), ["console-assist", "jev-classify", "pr-ai-analysis", "qa-lead", "t1-intake"])
 
     def test_jev_classify_has_20_cases_and_passes_offline(self):
         data = evals.load_set(JEV_SET)
@@ -153,6 +154,40 @@ class TheGateFails(unittest.TestCase):
     def test_unknown_role_fails(self):
         code, _ = run_cli("run", "no-such-role")
         self.assertEqual(code, 1)
+
+
+class QaLeadSet(unittest.TestCase):
+    """QA Lead (§ 15.5): real past pull requests, graded offline; a regression fails this check."""
+
+    def test_has_18_real_cases_and_passes_offline(self):
+        data = evals.load_set(QA_SET)
+        real = [c for c in data["cases"] if "/pull/" in c["source"]]
+        self.assertGreaterEqual(len(real), 18)
+        self.assertTrue({c["expected"]["review"] for c in real} == {True, False}, "both reviewed and skipped PRs")
+        self.assertIn("COMMENT", {c["expected"].get("event") for c in data["cases"]})
+        self.assertIn("REQUEST_CHANGES", {c["expected"].get("event") for c in data["cases"]})
+        with mock.patch.object(evals.subprocess, "run", side_effect=AssertionError("no model in a deterministic set")):
+            code, out = run_cli("run", "qa-lead")
+        self.assertEqual(code, 0, out)
+        self.assertIn("0 failed", out)
+
+    def test_a_wrong_line_fails_the_run(self):
+        data = evals.load_set(QA_SET)
+        case = next(c for c in data["cases"] if c["id"] == "bamr87-899")
+        case["expected"]["lines"]["visual"] = "gap"   # wrong: skip-evidence with a reason waives it
+        code, out = run_cli("run", "qa-lead", "--cases", str(write_set(data)), "--json")
+        self.assertNotEqual(code, 0)
+        failed = [c for c in json.loads(out)["cases"] if not c["passed"]]
+        self.assertEqual([c["id"] for c in failed], ["bamr87-899"])
+        self.assertIn("visual pass != expected gap", failed[0]["detail"])
+
+    def test_an_approve_expectation_is_malformed(self):
+        data = evals.load_set(QA_SET)
+        case = next(c for c in data["cases"] if c["expected"].get("event") == "COMMENT")
+        case["expected"]["event"] = "APPROVE"
+        code, out = run_cli("run", "qa-lead", "--cases", str(write_set(data)))
+        self.assertNotEqual(code, 0)
+        self.assertIn("malformed expectation: event", out)
 
 
 class ModelRuns(unittest.TestCase):

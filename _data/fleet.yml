@@ -812,6 +812,45 @@ decisions:
     skip_branches: [chore/jev-ratify]                # the ratification-record branch is automation's (§ 12.3)
 
 # --------------------------------------------------------------------------- #
+# QA Lead — the completeness review of every major or frontend pull request
+# (constitution § 15.5; amendments 0010, 0012; docs/qa-lead-prior-art.md).
+#
+# .github/workflows/qa-lead.yml gates each pull request with no model: major (the
+# label or the § 15.1 interim heuristics below) or frontend (the § 15.3 globs plus
+# a repo's verify/verify.yml `frontend_paths:`). It grades four lines — tests
+# listed, a green CI link for the head commit, visual evidence at two or more
+# viewports, the template's docs and feature index — and pr-review.yml posts one
+# review: REQUEST_CHANGES on a gap, COMMENT otherwise, never APPROVE. A capped
+# model may add advisory notes that never change the verdict. Its eval set is
+# evals/qa-lead (deterministic, run in CI by tools/test_evals.py).
+#
+# Consumed by .github/scripts/dash-gen/qa_lead.py. `model` and `usd` are ALSO
+# literals in the workflow; test_qa_lead.py holds them equal, and test_ai_budget.py
+# holds usd to budget.call_sites `qa-lead.yml:review`. Kill switch: switches.loops
+# hub/qa-lead (vars.QA_LEAD_ENABLED, opt-in). Changing a rule here changes what
+# every major or frontend pull request must carry: a gated change (§ 12.3).
+# --------------------------------------------------------------------------- #
+qa_lead:
+  model: claude-sonnet-5-5        # an exact id in ai_models.allowed (§ 13.3)
+  usd: 1                          # per advisory read, API-equivalent (estimate)
+  major_label: major              # § 15.1: the label overrides the heuristics (created by Amr, not by an agent)
+  skip_evidence_label: skip-evidence   # verification.labels.skip_evidence: waives the visual line alone, with a reason
+  identities: ['github-actions[bot]']  # who QA Lead posts as: it never reviews their pull requests (§ 15.5)
+  # § 15.3 default frontend globs ("**/" also matches the root)
+  frontend_globs: ['_layouts/**', '_includes/**', '_sass/**', 'assets/**', 'pages/**', '_posts/**',
+                   '**/*.html', '**/*.css', '**/*.scss', '**/*.sass', '**/*.jsx', '**/*.tsx', '**/*.vue',
+                   '**/*.svelte', 'tools/console/web/**', '_config.yml']
+  # § 15.1 interim heuristics: any one flags a pull request as major ("when in doubt, major")
+  major_paths: ['docs/constitution.md', 'docs/amendments/**', 'docs/adr/**', 'specs/**',
+                'features/features.yml', 'features/features.d/**', '.github/actions/**', '_data/fleet.yml', 'tools/dash']
+  dependency_files: ['requirements*.txt', 'pyproject.toml', 'package.json', 'Gemfile', '*.gemspec', 'go.mod',
+                     'Cargo.toml', '.tool-versions', '.nvmrc', '.python-version']
+  max_lines: 400                  # additions + deletions
+  max_files: 25
+  max_top_dirs: 4                 # distinct top-level directories
+  viewports: [desktop, laptop, wide, tablet, mobile, phone]   # evidence file names start with one
+
+# --------------------------------------------------------------------------- #
 # PR AI review — the review a pull request gets when it is marked ready
 # (constitution § 19.7; ADR 0012, stage B; templates/pr-review/README.md "AI review").
 #
@@ -1124,6 +1163,11 @@ budget:
     # (~25k tokens): about $0.10 API-equivalent (estimate), so $1 is headroom,
     # not the expected cost. It fires once per failed run attempt, not per push.
     pr-review.yml:ai-analysis: 1
+    # QA Lead's advisory read (constitution § 15.5, qa_lead.py): one Sonnet call, no
+    # tools, ONE turn, on the asks only (opened, ready, a label; § 19.7), and only for a
+    # major or frontend pull request the deterministic gate let through. The prompt is
+    # capped near 45 KB (~12k tokens): about $0.05 API-equivalent (estimate).
+    qa-lead.yml:review: 1
 
   # JEV's conflict engine is deliberately NOT a `call_sites` entry. Those are
   # keyed `<workflow file>:<job id>` and test_ai_budget.py holds each one
@@ -1584,6 +1628,10 @@ harness:
   agents:
     ci:bamr87:fleet-pulse:
       reads: [actions-usage, fleet-triage]
+    ci:bamr87:qa-lead:
+      reads: [github-live, fleet-config]
+      local_entry: "python3 .github/scripts/dash-gen/qa_lead.py local --repo <owner/repo> --pr <n>"
+      note: the § 15 completeness review; a deterministic gate and verdict, an advisory one-turn read with no tools; pr-review.yml recomputes and posts it
     ci:bamr87:pr-ai-review:
       reads: [github-live, fleet-config]
       local_entry: "tools/dash prs review --pr <owner/repo#n>"
@@ -3601,6 +3649,22 @@ switches:
       verified: false
       note: merge readiness in the one PR comment (ADR 0012); what is left before a pull request merges, and one review when nothing is; no AI and no cron
       flip: 'tools/dash config sync --apply  # projects variables: PR_READINESS_ENABLED ("true" fleet-wide since 2026-11-23); to keep one repo off, add it to variable_overrides: and record the flip here in the same PR'
+    hub/qa-lead:
+      repo: bamr87/bamr87
+      workflow: .github/workflows/qa-lead.yml
+      group: hub-agents
+      owner: bamr87
+      scope: loop
+      gate:
+        kind: repo_variable
+        name: QA_LEAD_ENABLED
+        semantics: opt_in
+      default: 'off'
+      state: unverified
+      verified: false
+      dispatch_bypasses: true
+      note: QA Lead, the § 15.5 completeness review of major and frontend pull requests; event-driven, no cron; a manual dispatch is a dry run that posts nothing; also needs PR_REVIEW_ENABLED not 'false', because pr-review.yml posts it
+      flip: 'gh variable set QA_LEAD_ENABLED -R bamr87/bamr87 --body true  # enable; record the flip here in the same PR'
     hub/pr-ai-review:
       repo: bamr87/bamr87
       workflow: .github/workflows/pr-ai-review.yml

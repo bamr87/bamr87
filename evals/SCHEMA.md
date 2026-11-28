@@ -22,6 +22,7 @@ coverage: listed
 | `console-assist/` | dir | The console's assistant (`assist` op): a question, a recorded page and deterministic rules; validated offline, model-run by hand on a canary subset | required |
 | `jev-classify/` | dir | JEV's deterministic conflict classifier (`tools/jev/classify.py`), run fully offline | required |
 | `pr-ai-analysis/` | dir | The CI failure analyst of `pr-review.yml` (§ 19.11): past failed PR runs, the caused-by-PR verdict and the root cause; schema-checked offline, model-run locally | required |
+| `qa-lead/` | dir | QA Lead, the § 15 completeness reviewer (`.github/scripts/dash-gen/qa_lead.py`): real past pull requests and the gate, event and lines each must get; run fully offline | required |
 | `t1-intake/` | dir | Issue-pipeline tier 1 intake: ready / blocked and the type label; schema-checked offline, model-run locally | required |
 
 ## Placement

@@ -195,7 +195,8 @@ def report(gh: Gh, run_id: str, dry_run: bool, trigger: str, self_url: str, say=
     Then, as pr_review.report does, the AI review when that is the workflow that finished (§ 19.7)."""
     run = gh.get(f"actions/runs/{run_id}") or {}
     return "; ".join(x for x in (_report(gh, run, dry_run, trigger, self_url, say, row_of),
-                                 P.ai_review_of(gh, run, dry_run, trigger, self_url, say)) if x)
+                                 P.ai_review_of(gh, run, dry_run, trigger, self_url, say),
+                                 P.qa_lead_of(gh, run, dry_run, trigger, self_url, say)) if x)
 
 
 def _report(gh: Gh, run: dict, dry_run: bool, trigger: str, self_url: str, say, row_of) -> str:

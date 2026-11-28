@@ -47,6 +47,7 @@ MARKER = "<!-- fleet:pr-review -->"
 STATE_RX = re.compile(r"<!-- fleet:pr-review-state (\{.*?\}) -->")
 SELF_NAME = "PR review"
 AI_REVIEW_WORKFLOW = ".github/workflows/pr-ai-review.yml"   # § 19.7: its review is posted from here (ai_review_of)
+QA_LEAD_WORKFLOW = ".github/workflows/qa-lead.yml"          # § 15.5: QA Lead's review is posted from here (qa_lead_of)
 PR_EVENTS = ("pull_request", "pull_request_target")
 FAILED = ("failure", "timed_out", "startup_failure")
 HELD = ("action_required",)
@@ -755,11 +756,26 @@ def ai_review_of(gh: Gh, run: dict, dry_run: bool, trigger: str, self_url: str, 
         return f"AI review not posted: {scrub(str(e))[:160]}"
 
 
+def qa_lead_of(gh: Gh, run: dict, dry_run: bool, trigger: str, self_url: str, say=print) -> str:
+    """When the workflow that finished is QA Lead (§ 15.5, qa-lead.yml), post its review. QA Lead
+    recomputes the review here from live GitHub with this branch's rules (qa_lead.post), so a pull
+    request that edits its own copy of QA Lead cannot grade itself. Any other run costs nothing."""
+    if str(run.get("path") or "").split("@")[0] != QA_LEAD_WORKFLOW:
+        return ""
+    import qa_lead  # noqa: PLC0415 — it imports this module
+    try:
+        return qa_lead.post(gh, run, dry_run, trigger, self_url, say)
+    except RuntimeError as e:
+        # An API error: the marker keeps a re-run of this pass from posting it twice.
+        return f"QA Lead review not posted: {scrub(str(e))[:160]}"
+
+
 def report(gh: Gh, run_id: str, dry_run: bool, trigger: str, self_url: str, say=print) -> str:
     """Bring the PR's comment in line with its head commit. Returns what it did."""
     run = gh.get(f"actions/runs/{run_id}") or {}
     return "; ".join(x for x in (_report(gh, run, dry_run, trigger, self_url, say),
-                                 ai_review_of(gh, run, dry_run, trigger, self_url, say)) if x)
+                                 ai_review_of(gh, run, dry_run, trigger, self_url, say),
+                                 qa_lead_of(gh, run, dry_run, trigger, self_url, say)) if x)
 
 
 def _report(gh: Gh, run: dict, dry_run: bool, trigger: str, self_url: str, say) -> str:
