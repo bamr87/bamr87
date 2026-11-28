@@ -38,6 +38,7 @@ Usage: python3 tools/evals.py list
        python3 tools/evals.py run <role> [--json] [--dry-run] [--model ID]
        python3 tools/evals.py run --all [--json] [--dry-run]
        python3 tools/evals.py run <role> --cases <path>   # an alternate cases file
+       python3 tools/evals.py run <role> --model ID --record   # SPENDS; adds the run to _data/eval_runs.yml
        python3 tools/evals.py run console-assist --canary [--out DIR]   # SPENDS
        python3 tools/evals.py run console-assist --all-cases            # SPENDS
        python3 tools/evals.py run console-assist --case <id> [--case …] # SPENDS
@@ -67,6 +68,17 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 EVALS_DIR = ROOT / "evals"
 FLEET_YML = ROOT / "_data" / "fleet.yml"
+#: The recorded model runs: what `tools/dash ai switch` reads as proof that a role passes on a
+#: model (ADR 0019, docs/AI-MODELS.md). This runner is its only writer.
+RUNS_YML = ROOT / "_data" / "eval_runs.yml"
+RUNS_HEADER = """\
+# _data/eval_runs.yml — recorded eval runs (schema eval-runs/v1; ADR 0019, docs/AI-MODELS.md).
+# WRITTEN ONLY by `python3 tools/evals.py run <role> --model <id> --record`. Never edit a row by
+# hand: a row is the evidence that a role's eval set passed on a model, and `tools/dash ai switch`
+# reads a switch as safe only from it. One row per model run, oldest first; the latest row for a
+# role and a model decides. A row is proof only when `scope` is `all` (the whole set ran),
+# `failed` is 0 and `set` still matches the set in the tree. Cost is API-equivalent (estimate).
+"""
 SCHEMA = "evals/v1"
 #: constitution § 10.7: every AI dollar figure this runner prints carries it
 COST_LABEL = "API-equivalent (estimate)"
@@ -1076,6 +1088,43 @@ def run_role(role: str, *, cases_path: Path | None = None, dry_run: bool = False
     return res
 
 
+def record_runs(results: list[RoleResult], cfg: dict, *, path: Path | None = None, evals_dir: Path | None = None,
+                today: str | None = None) -> list[str]:
+    """Append one row per model run to _data/eval_runs.yml and say what was written. A dry run, a
+    deterministic role and a run that stopped on an error leave no row: none of them is a result
+    on a model. A run that took only some cases is recorded as a sample, which is never proof."""
+    from fleetcore import aimodels  # the reader of this file owns the shape of a row
+
+    path = RUNS_YML if path is None else path
+    evals_dir = EVALS_DIR if evals_dir is None else evals_dir
+    allowed = (cfg.get("ai_models") or {}).get("allowed") or {}
+    today = today or dt.date.today().isoformat()
+    rows, notes = [], []
+    for res in results:
+        if res.mode != "model" or res.dry_run or not res.model or res.errors or not res.cases:
+            notes.append(f"not recorded: {res.role} ({'dry run' if res.dry_run else 'no model run to record'})")
+            continue
+        cases = evals_dir / res.role / "cases.yml"
+        try:
+            total = len(load_set(cases).get("cases") or [])
+        except (OSError, ValueError, yaml.YAMLError):
+            total = 0
+        scope = aimodels.WHOLE_SET if total and len(res.cases) == total else f"{len(res.cases)} of {total} cases"
+        provider = next((str(p) for p, ids in allowed.items() if res.model in (ids or [])), None)
+        rows.append(aimodels.run_record(res.role, res.model, provider, res.passed, res.failed, scope,
+                                        aimodels.set_hash(cases), res.cost_usd, today))
+        notes.append(f"recorded: {res.role} on {res.model} ({scope}: {res.passed} passed, {res.failed} failed) → {path.name}")
+    if rows:
+        try:
+            doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except OSError:
+            doc = {}
+        runs = [r for r in doc.get("runs") or [] if isinstance(r, dict)] if isinstance(doc, dict) else []
+        body = yaml.safe_dump({"schema": aimodels.RUNS_SCHEMA, "runs": runs + rows}, sort_keys=False, allow_unicode=True, width=1000)
+        path.write_text(RUNS_HEADER + body, encoding="utf-8")
+    return notes
+
+
 def render_text(res: RoleResult) -> str:
     head = f"{res.role} ({res.mode}{', dry run' if res.dry_run else ''}"
     head += f", model {res.model}, ${res.cost_usd:.2f} {COST_LABEL}" if res.model else ""
@@ -1097,6 +1146,8 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--dry-run", action="store_true", help="validate model-backed sets without calling a model")
     run.add_argument("--model", help="override the set's model (must be in ai_models.allowed)")
     run.add_argument("--cases", type=Path, help="an alternate cases file for the role")
+    run.add_argument("--record", action="store_true",
+                     help="add each model run to _data/eval_runs.yml: the evidence `tools/dash ai switch` reads")
     spends = run.add_argument_group("console-assist model runs (each case is one capped session: this spends)")
     spends.add_argument("--canary", action="store_true", help="run the cases marked `canary: true` (about five)")
     spends.add_argument("--all-cases", action="store_true", help="run every case of the set")
@@ -1112,6 +1163,8 @@ def main(argv: list[str] | None = None) -> int:
         ap.error("name one role, or pass --all")
     if args.all and args.cases:
         ap.error("--cases needs a single role")
+    if args.record and (args.cases or args.dry_run):
+        ap.error("--record keeps a real run of the role's own set: drop --cases and --dry-run")
     if sum([args.canary, args.all_cases, bool(args.case)]) > 1:
         ap.error("--canary, --all-cases and --case choose the cases of one run: pass one of them")
     select = "canary" if args.canary else "all" if args.all_cases else (args.case or None)
@@ -1125,6 +1178,10 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(payload[0] if len(payload) == 1 and not args.all else payload, indent=2))
     else:
         print("\n".join(render_text(r) for r in results))
+    if args.record:
+        # After the result, and to stderr under --json so the JSON stays one document.
+        for line in record_runs(results, cfg):
+            print(f"  {line}", file=sys.stderr if args.json else sys.stdout)
     return 0 if all(r.ok for r in results) else 1
 
 

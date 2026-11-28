@@ -134,6 +134,10 @@ A 7-day key still has to be created by a person once a week. The documented way 
 
 The Harness Console has the same controls. The Auth tab has an *AI auth order* panel (resolve, sync dry run, confirm-gated sync), and the fleet-wide default is a choice on the Config tab.
 
+## Which model, and switching it
+
+Which model each kind of work runs on is one line per class in `_data/fleet.yml` `ai_models.classes`, and AI-agnostic means a provider can be switched there easily and without regression. [AI-MODELS.md](AI-MODELS.md) covers the classes, every other place that still names a model (`tools/dash ai models`), and the plan that says whether a switch is ready (`tools/dash ai switch`): one line to edit, and every agent it moves proven by a recorded eval run ([ADR 0019](adr/0019-ai-providers-switchable-without-regression.md)).
+
 ## Spend guardrails
 
 **`--max-turns` bounds iterations, not spend.** One turn against a large context can outspend thirty small ones, which is why a turn cap is not a budget: six scheduled loops ran for months turn-capped and dollar-uncapped (bamr87#128).

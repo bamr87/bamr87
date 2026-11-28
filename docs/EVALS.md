@@ -65,6 +65,10 @@ A failing case prints `FAIL <id>: <detail>`, for example `FAIL console-lockfile:
 
 Exit codes: `0` means every case passed (or validated, under `--dry-run`); `1` means a case failed or the set is malformed (bad schema, duplicate id, fewer than `min_cases`, unknown role, unpinned model, a model run of `console-assist` that names no cases); `2` is a usage error.
 
+## Keeping a run
+
+A model run can be kept as evidence. `python3 tools/evals.py run <role> --model <id> --record` appends one row to [`_data/eval_runs.yml`](../_data/eval_runs.yml): the role, the model and its provider, the date, how many cases ran, passed and failed, and the hash of the set. `tools/dash ai switch` reads those rows to say whether moving a class of work to another model is proven safe ([AI-MODELS.md](AI-MODELS.md#recorded-eval-runs), ADR 0019). The runner is the file's only writer. `--record` refuses `--dry-run` and `--cases`, and a deterministic role or a run that stopped on an error leaves no row. A run that took only some cases (`console-assist --canary`) is kept as a sample, which is never proof.
+
 ## The case format
 
 `evals/<role>/cases.yml`, `schema: evals/v1`:

@@ -1,0 +1,19 @@
+id: HUB-NEW
+slug: ai-model-switch
+title: "Switching an AI model or provider: how easy it is and whether it is proven safe"
+description: "AI-agnostic means a provider can be switched easily and nothing gets worse when it is, and `tools/dash ai` measures both. `_data/fleet.yml` `ai_models.classes` binds each kind of work (deep, standard, fast) to one exact allowed model, the one place a switch should edit. `tools/dash ai models` lists each class with every other place that still names its model, found by tools/fleetcore/aimodels.py with file and line: a setting elsewhere in the settings, a literal in a workflow, an action, a generator, a tool, a kit or a step spec, a literal in a fleet repo's workflows, and apart from those the model an eval set is pinned to and a table that holds a row per model; `bindings` filters them. `tools/evals.py run ROLE --model ID --record` keeps a model run as one row of `_data/eval_runs.yml` (the eval runner is its only writer), and a row is proof only when the whole set ran, nothing failed and the set is unchanged. `tools/dash ai switch CLASS --to MODEL` plans a switch: whether the target is allowed, the edits it still owes, and every agent on the current model as proven, partial, stale, failed, unproven or without evals (`ai_models.evals` says which agents a set covers and when it tests only part of one); it says READY only when the switch is one line and everything it moves is proven. The reader names no provider and no model (a test holds it). Read-only: no model call, no network. Phase P0 of ADR 0019 (docs/AI-MODELS.md)."
+implemented: true
+status: partial
+surface: infra
+link: tools/fleetcore/aimodels.py
+docs: docs/AI-MODELS.md
+tags: [ ai, models, providers, evals, switch, agnostic, portability ]
+date: 2026-11-28
+tests:
+  - tools/test_fleetcore_aimodels.py
+  - tools/test_evals.py
+prd: ["FR-NEW:ai-model-switch"]
+prd_new:
+  - key: ai-model-switch
+    kind: FR
+    text: "The product must let the model or provider behind a kind of AI work be switched easily and without regression: each kind of work is bound to one exact allowed model in one place; every other place that names a model is found and counted, so the count can be driven to zero; a model eval run can be recorded, and a switch is reported as ready only when it is one edit and every agent it moves has a recorded run of its whole eval set, with no failure, on the target model; an agent that no eval set covers, or that a set covers only in part, must never be reported as proven."
