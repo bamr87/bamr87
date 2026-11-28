@@ -213,6 +213,12 @@ class DeployScript(unittest.TestCase):
         self.assertNotRegex(before, r'"\$TOOL"[^\n]* apply\b', "nothing applies before the --apply branch")
         apply_branch, plan_branch = after.split("\nfi\n", 1)
         self.assertIn('apply -input=false "$PLAN"', apply_branch, "it applies the saved plan, never a fresh one")
+        # A saved plan carries its values; OpenTofu refuses it when the environment gives another.
+        self.assertNotIn("export TF_VAR_", before, "no variable is set before the apply branch")
+        self.assertNotIn("export TF_VAR_", apply_branch, "an apply passes no variable")
+        for name in ("project_id", "billing_account", "budget_usd", "instance"):
+            self.assertIn(f"-u TF_VAR_{name}", apply_branch, f"an apply drops {name} if the shell happens to hold it")
+        self.assertIn('export TF_VAR_project_id="$GCP_PROJECT_ID"', plan_branch, "planning is where the environment is read")
         self.assertIn("-newer \"$PLAN\"", apply_branch, "a change after the plan needs a new plan")
         self.assertNotRegex(plan_branch, r'"\$TOOL"[^\n]* apply\b')
         self.assertIn('plan -input=false -out="$PLAN"', plan_branch)

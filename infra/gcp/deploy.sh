@@ -21,6 +21,9 @@
 #   GCP_BILLING_ACCOUNT   foundation only: with it, a budget ALERT is created
 #   GCP_BUDGET_USD        foundation only: the alert's monthly amount (50)
 #
+# These are read when PLANNING. An apply uses the values saved in the plan and
+# passes none, so the same shell need not have them set.
+#
 # --apply applies the plan the last run saved, and refuses when that plan is
 # older than the module or _data/hosting.yml: a change after the plan needs a
 # new plan (constitution § 10.5). --destroy plans the removal of everything a
@@ -70,23 +73,32 @@ PLAN="$STATE_DIR/gcp-$MODULE.tfplan"
 mkdir -p "$STATE_DIR"
 export TF_DATA_DIR="$STATE_DIR/gcp-$MODULE/.terraform"
 export TF_IN_AUTOMATION=1
-export TF_VAR_project_id="$GCP_PROJECT_ID"
-if [[ "$MODULE" == foundation ]]; then
-  export TF_VAR_billing_account="${GCP_BILLING_ACCOUNT:-}"
-  [[ -z "${GCP_BUDGET_USD:-}" ]] || export TF_VAR_budget_usd="$GCP_BUDGET_USD"
-else
-  export TF_VAR_instance="$MODULE"
-fi
+# A person's own sign-in needs a project to count API use against; it is the same one.
+export GOOGLE_CLOUD_QUOTA_PROJECT="${GOOGLE_CLOUD_QUOTA_PROJECT:-$GCP_PROJECT_ID}"
 
 if [[ "$APPLY" -eq 1 ]]; then
   [[ -f "$PLAN" ]] || { echo "deploy: no saved plan; run '$0 $MODULE' first and read it" >&2; exit 1; }
   # A plan made before the last edit describes a change nobody has read.
   newer="$(find "$DIR" "$HOSTING" -type f -newer "$PLAN" -print -quit)"
   [[ -z "$newer" ]] || { echo "deploy: $newer changed after the plan was made; run '$0 $MODULE' again and read the new plan" >&2; exit 1; }
-  echo "deploy: applying the saved plan for $MODULE to project $GCP_PROJECT_ID"
-  "$TOOL" -chdir="$DIR" apply -input=false "$PLAN"
+  echo "deploy: applying the saved plan for $MODULE"
+  # A saved plan carries the values it was planned with, and OpenTofu refuses it
+  # when the environment gives a different one ("Mismatch between input and plan
+  # variable value"). So an apply passes no variable at all: whatever was set when
+  # the plan was made (the project, a billing account) is what gets applied.
+  env -u TF_VAR_project_id -u TF_VAR_billing_account -u TF_VAR_budget_usd -u TF_VAR_instance \
+    "$TOOL" -chdir="$DIR" apply -input=false "$PLAN"
   rm -f "$PLAN"
   exit 0
+fi
+
+# Planning: what must stay out of the repo comes from the environment.
+export TF_VAR_project_id="$GCP_PROJECT_ID"
+if [[ "$MODULE" == foundation ]]; then
+  export TF_VAR_billing_account="${GCP_BILLING_ACCOUNT:-}"
+  [[ -z "${GCP_BUDGET_USD:-}" ]] || export TF_VAR_budget_usd="$GCP_BUDGET_USD"
+else
+  export TF_VAR_instance="$MODULE"
 fi
 
 # -reconfigure: the node and the development instance share one module, each with its own state.
