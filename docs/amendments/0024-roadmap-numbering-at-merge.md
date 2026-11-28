@@ -1,6 +1,6 @@
 # 0024 — Roadmap entries are numbered at merge, like every other sequential id
 
-- **Status:** ratified (ratification pending — Amr ratifies by merging this PR)
+- **Status:** ratified
 - **Number:** 0024
 - **Date:** 2026-11-05
 - **Proposed by:** Grok Bot (agent), on Amr's instruction as owner

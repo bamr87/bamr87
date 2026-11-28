@@ -13,6 +13,7 @@ import type {
   WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint, RefineDoc, EvidenceDoc, TextFile, AssistDoc, AssistActivity, JobTail, PrQueue, NodesDoc, SprintsDoc, VoicesDoc,
   GhProjectsDoc, GhProjectItemsDoc, DecisionsDoc, StarsDoc,
 } from './types';
+import type { SwitchesDoc } from './switchTypes';
 
 const minute = 60_000;
 
@@ -263,6 +264,17 @@ export const useReviewFile = (runId: string | null, path: string | null) =>
   });
 // --- The fleet voice model (tools/voices.py; constitution § 23 rule 7) -------
 export const useVoices = () => useQuery({ queryKey: ['voices'], queryFn: () => api<VoicesDoc>('/api/voices'), staleTime: minute });
+// --- The loop switches (tools/console/switches.py; constitution § 17) ---------
+/** Every loop's switch against its live variable. The console caches the GitHub reads 30 s; a `reread`
+ *  above 0 asks it to read GitHub again. Read with the operator's token, so never on the public page. */
+export const useSwitches = (reread = 0, enabled = true) =>
+  useQuery({
+    queryKey: ['switches', reread],
+    enabled,
+    queryFn: () => api<SwitchesDoc>(`/api/switches${reread ? '?refresh=true' : ''}`),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+  });
 export const useAssist = () => useQuery({ queryKey: ['assist'], queryFn: () => api<AssistDoc>('/api/assist'), staleTime: minute });
 /** How the assistant is observed: its messages, the page audit, the fleet pages shared now, its inventory
  *  entry. `live` re-reads it while the Assist page is open (the console caches both files by version). */

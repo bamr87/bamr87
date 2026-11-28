@@ -204,6 +204,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`protect-branch.sh`](tools/protect-branch.sh) | Wrapper of `branch_policy.py protect` / `check` (wrapped by `dash protect`): plans the fleet ruleset on a repo's default branch, writes it with `--apply` |
 | [`render-diagrams.sh`](tools/render-diagrams.sh) | Validates every `diagrams/*.json` archify IR file and delivers the standalone HTML beside it |
 | [`run-all-tests.sh`](tools/run-all-tests.sh) | Aggregate verification — root lint, **the control plane's own `dash-gen` tests**, and each project's own checks (wrapped by `dash test`) |
+| [`runner_pins.py`](tools/runner_pins.py) | The runner half of the always-latest policy: finds versioned GitHub-hosted runner labels (`runs-on: ubuntu-24.04`, a matrix `os: macos-15`, an input default) that have a… |
 | [`sanctioned_lockfiles.py`](tools/sanctioned_lockfiles.py) | The one parser of the hub-only lockfile exception (UPS-QA-40/41, UPS-REPO-07) in `specs/QUALITY.contract.yml`: who counts as the hub (origin `bamr87/bamr87`), which lock… |
 | [`schema_lint.py`](tools/schema_lint.py) | Vendored Pyramid Schema linter (`check` + `init`) — provenance in [templates/schema/VERSION](../templates/schema/VERSION) |
 | [`scorecard_snapshot.py`](tools/scorecard_snapshot.py) | **The security-posture snapshot** (#513): `targets` lists the registry repos the weekly read-only `scorecard-sweep.yml` scans with the OpenSSF Scorecard CLI; `ingest DIR… |
@@ -241,6 +242,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_fleetcore_apps.py`](tools/test_fleetcore_apps.py) | Tests for tools/fleetcore/apps.py — the app portal's launcher: every registry frontend joined to its live address and its local dev stack's (ADR 0005). |
 | [`test_fleetcore_assist.py`](tools/test_fleetcore_assist.py) | Tests for tools/fleetcore/assist.py — the assistant baseline each repo's platform gets (ADR 0014): page (the kit's payload mounts through an adapter), context (no page:… |
 | [`test_fleetcore_assistlog.py`](tools/test_fleetcore_assistlog.py) | Tests for tools/fleetcore/assistlog.py — what the console's assistant did, read back from its two records: the page bridge's audit and its rows of the AI ledger. |
+| [`test_fleetcore_clouds.py`](tools/test_fleetcore_clouds.py) | Tests for tools/fleetcore/clouds.py — where each fleet repo's deliverable runs, read from the repos' own workflows and infrastructure files (ADR 0018). |
 | [`test_fleetcore_graph.py`](tools/test_fleetcore_graph.py) | Tests for tools/fleetcore/graph.py — the fleet graph: the model, the builders over a fixture checkout, the surface parsers, the checks, and the hub's own graph (no dangl… |
 | [`test_fleetcore_host.py`](tools/test_fleetcore_host.py) | Fixture tests for tools/fleetcore/host.py — live Docker inventory matched onto registry rows. |
 | [`test_fleetcore_learn.py`](tools/test_fleetcore_learn.py) | Tests for tools/fleetcore/learn.py — outcome learning in shadow: how an output is sorted into an outcome, the estimate and its decay, the Thompson plan, the replay skill… |
@@ -280,11 +282,13 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_pin_policy.py`](tools/test_pin_policy.py) | Fixture tests for the UPS-QA-40 pin policy in tools/conformance.py. |
 | [`test_pipeline_map.py`](tools/test_pipeline_map.py) | Offline tests for tools/pipeline_map.py (HUB-025, HUB-026): pipeline definition integrity, status derivation over the EXAMPLE fixture, drill-down, unavailable log, workf… |
 | [`test_pm_review.py`](tools/test_pm_review.py) | Offline tests for `pm_review.py`: the scope, the gather against a recording fake `gh` that would see a write, each lane's rules, the preview the § 11 service accepts, th… |
+| [`test_portal_azure.py`](tools/test_portal_azure.py) | The bash-365 portal's Azure deployment (infra/azure/portal/) |
 | [`test_projects_backfill.py`](tools/test_projects_backfill.py) | Offline tests for `projects_backfill.py` — decisions validation and compilation, the 50-op batching, the REST state reader and executor against a recording fake `gh`, th… |
 | [`test_projects_lint.py`](tools/test_projects_lint.py) | — |
 | [`test_python_tests_paths.py`](tools/test_python_tests_paths.py) | python-tests.yml skips docs-only changes in two places that must agree: the `changes` job's case statement (pull requests) and the push trigger's `paths:` filter (pushes… |
 | [`test_quality_contract.py`](tools/test_quality_contract.py) | Tests specs/QUALITY.contract.yml against _data/specs.yml and every tool that reads it. |
 | [`test_release_please.py`](tools/test_release_please.py) | The release credential: `.github/workflows/release-please.yml` and its contract. |
+| [`test_runner_pins.py`](tools/test_runner_pins.py) | Fixture tests for tools/runner_pins.py: the runner half of the always-latest policy (docs/DEPENDENCIES.md). |
 | [`test_scorecard_snapshot.py`](tools/test_scorecard_snapshot.py) | Offline fixture tests for tools/scorecard_snapshot.py (bamr87/bamr87#513): the OpenSSF Scorecard results → `security:` block of _data/conformance.yml, its --check gate,… |
 | [`test_sprint_record.py`](tools/test_sprint_record.py) | Tests for tools/sprint_record.py — the live expedite-sprint record (`sprint/v1`, constitution § 27.7). |
 | [`test_sprint_record_fixture.yml`](tools/test_sprint_record_fixture.yml) | Fixture records for tools/test_sprint_record.py and the /sprints page's evidence (test/evidence/sprints/). |
@@ -301,7 +305,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_weekly_harness.py`](tools/test_weekly_harness.py) | Offline tests for tools/weekly/harness.py: the Grok briefs and the direction issue, and the close-out agent's evidence, validation and refusals. |
 | [`test_weekly_stages.py`](tools/test_weekly_stages.py) | Offline tests for the weekend's other stages: Saturday's preflight (tools/weekly/prepare.py), Sunday's plan (tools/weekly/agenda.py), the dispatcher and command line (to… |
 | [`test_work_contract.py`](tools/test_work_contract.py) | Consistency tests for specs/WORK.contract.yml against the generated _data/specs.yml. |
-| [`unpin-deps.sh`](tools/unpin-deps.sh) | Converts one repo to the fleet's **always-latest** dependency policy — strips exact pins, deletes + gitignores lockfiles, adapts CI installs (idempotent; the `deps-lates… |
+| [`unpin-deps.sh`](tools/unpin-deps.sh) | Converts one repo to the fleet's **always-latest** dependency policy — strips exact pins, deletes + gitignores lockfiles, adapts CI installs, floats versioned `runs-on:`… |
 | [`unwrap-prose.py`](tools/unwrap-prose.py) | Liquid-safe one-paragraph-per-line unwrapper for markdown prose and list items (`--check`/`--diff`/`--write`); vendored into the fleet by the prose kit |
 | [`update-submodules.sh`](tools/update-submodules.sh) | Refresh `projects/` — bring each submodule onto its declared branch at the remote tip (safe by default) and record moved pointers |
 | [`uplift.py`](tools/uplift.py) | **Fleet uplift**, the hub's inbound arc (`dash uplift`; [docs/UPLIFT.md](../docs/UPLIFT.md)). |
@@ -492,6 +496,7 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`ARCHITECTURE.md`](docs/ARCHITECTURE.md) | How the hub's own code is laid out, the four structural rules it is held to, and the one command that names the checks a change owes. |
 | [`BACKLOG-FANOUT.md`](docs/BACKLOG-FANOUT.md) | Turns the hub's pending backlog into tracking PRs in each fleet repo an item applies to — dry run by default, PR-only and additive. |
 | [`BRANCHING.md`](docs/BRANCHING.md) | The fleet's branch model in one place: `main` is the only long-lived branch, every other branch is short-lived and named for what made it, every change lands by pull req… |
+| [`CLOUDS.md`](docs/CLOUDS.md) | Which fleet repo deploys to which platform, how it signs in there, and whether its resources are declared as code: read from the repos' own files, for any provider, with… |
 | [`COCKPIT.md`](docs/COCKPIT.md) | Decision record (2026-09-18): GitFactory (gitorio) as the one front door for designing, running and refining harnesses, with this hub as its runtime. |
 | [`CONSOLE-PAGES.md`](docs/CONSOLE-PAGES.md) | The public site is the Harness Console built static: the API snapshot it reads, connecting GitHub or a running console from the page, and what is never published. |
 | [`CONSOLIDATION.md`](docs/CONSOLIDATION.md) | The 2026-10-19 repository consolidation: which repositories merged into which, the zer0-CMS recipe, the hub's add and retire steps, and the decisions still open. |

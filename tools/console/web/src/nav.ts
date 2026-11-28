@@ -7,7 +7,7 @@ import {
   IconActivity, IconAppWindow, IconApps, IconBox, IconDeviceDesktop, IconBrandGithub, IconBrandDocker, IconBriefcase, IconCalendarTime, IconChartBar, IconCoin,
   IconFileText, IconGauge, IconGitBranch, IconGitPullRequest, IconHeartbeat, IconHome, IconInbox, IconKey, IconLayoutBoardSplit, IconLayoutGrid, IconLayoutKanban, IconListCheck, IconMicroscope, IconListDetails, IconLogs,
   IconMail, IconMicrophone, IconPencil, IconPlayerPlay, IconPlugConnected, IconReceipt, IconRepeat, IconRoute, IconRoadSign, IconSearch, IconServer2, IconSettings,
-  IconTerminal2, IconTool, IconTools, IconTopologyStar3, IconUser, IconFlask, IconSparkles, IconBolt, IconStar, type Icon,
+  IconTerminal2, IconToggleRight, IconTool, IconTools, IconTopologyStar3, IconUser, IconFlask, IconSparkles, IconBolt, IconStar, type Icon,
 } from '@tabler/icons-react';
 
 import { BASENAME } from './api/backend';
@@ -73,6 +73,7 @@ export const NAV: NavSection[] = [
       { label: 'Health', to: '/harnesses/health', icon: IconHeartbeat, hint: 'trip wires and the six-layer scorecard' },
       { label: 'Schedules', to: '/schedules', icon: IconCalendarTime, hint: 'crons, caps and collisions' },
       { label: 'Loops', to: '/loops', icon: IconRepeat, hint: 'the control-plane loops' },
+      { label: 'Switches', to: to.switches(), icon: IconToggleRight, hint: 'every loop’s kill switch, live vs _data/fleet.yml: drift, holds, and a flip previewed with a reason, then confirmed' },
       { label: 'Workflows', to: '/workflows', icon: IconGitBranch, hint: 'every hub workflow and action: standards, failures, retirement, design' },
       { label: 'Work board', to: '/work', icon: IconLayoutKanban, hint: 'every open item in the order the loops take it — drag to reprioritise' },
       { label: 'Sprints', to: '/sprints', icon: IconBolt, hint: 'the live expedite-sprint record: gates, phase, spend vs cap, trip wires, retro' },

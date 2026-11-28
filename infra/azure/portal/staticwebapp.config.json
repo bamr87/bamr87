@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json.schemastore.org/staticwebapp.config.json",
+  "responseOverrides": {
+    "404": {
+      "rewrite": "/404.html"
+    }
+  },
+  "globalHeaders": {
+    "Content-Security-Policy": "frame-ancestors 'self'",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Strict-Transport-Security": "max-age=31536000",
+    "X-Robots-Tag": "noindex"
+  },
+  "routes": [
+    {
+      "route": "/assets/*",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "route": "/snapshot/*",
+      "headers": {
+        "Cache-Control": "no-cache"
+      }
+    }
+  ]
+}

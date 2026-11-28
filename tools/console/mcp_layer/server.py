@@ -5,8 +5,10 @@ Read tools wrap the console's GET routes (fleet, harness health and scorecard,
 live snapshot, sessions, jobs with their status and logs, spend, the data lake's traces and
 workflow lines, observability, semantic code search, deep dive, work board,
 one work item, a work-board plan's preview, the fleet's decision queue, GitHub
-Projects (v2) across every owner and one project's items).
-Write tools (run an allowlisted op, cancel a job, flip a workflow kill switch)
+Projects (v2) across every owner and one project's items, the loop switches and
+a flip's preview).
+Write tools (run an allowlisted op, cancel a job, flip a workflow kill switch,
+apply a previewed loop-switch flip)
 are NOT registered unless HARNESS_MCP_ALLOW_WRITES=1, are annotated
 destructive, and every one also needs confirm=true per call; the console's own
 allowlist and confirm-before-GitHub-write gate still apply server-side.
@@ -70,7 +72,9 @@ INSTRUCTIONS = (
     "code_search, deep_dive. Past local sessions by keyword: lake_recall. What waits on the maintainer across "
     "every repo is ONE call: decision_queue (never a sweep of each repo); every open pull request with who moves "
     "it next is ONE call: pr_queue, and pr_queue_plan previews a bulk action the user then confirms on the "
-    "console. GitHub Projects (v2) of every owner is ONE call "
+    "console. Every loop's kill switch, live against the map, is ONE call: switches_list; switch_preview shows "
+    "what a flip would write (it writes nothing) and the user applies it on the console's Switches page. "
+    "GitHub Projects (v2) of every owner is ONE call "
     "too: gh_projects, then gh_project_items(project_id) for one board's items (read-only). To reprioritize open "
     "work: work_board, work_item, then work_preview(plan) — it writes "
     "nothing and returns a plan_id — then, only after the user approves that diff, work_apply(plan, plan_id, "
@@ -1377,6 +1381,36 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
         params = {k: v for k, v in (("note", note), ("reason", reason), ("task", task)) if v}
         return call(lambda: c.post("/api/prs/plan", {"action": action, "prs": list(prs)[:50], "params": params}))
 
+    # ------------------------------------------------------- loop switches
+    @mcp.tool(annotations=READ)
+    def switches_list(repo: str = "", drift_only: bool = False, refresh: bool = False) -> Any:
+        """Every loop's kill switch (constitution § 17): each `_data/fleet.yml` `switches.loops` record with its
+        repository variable read live (an unreadable one is never reported as off), the effective state (the most
+        restrictive of the global, group, repo and loop levels, then the variable and any code-level hold), the
+        map's own state, drift between the map and the variable, and whether the console could flip it. `repo`
+        (owner/name) keeps one repository; `drift_only` keeps the loops whose map and variable disagree; `refresh`
+        reads GitHub again instead of the console's 30 s cache. Read-only; no secret is read."""
+        def run():
+            doc = c.get("/api/switches", refresh="true" if refresh else None)
+            repos = [r for r in doc.get("repos") or [] if not repo or str(r.get("repo", "")).lower() == repo.lower()]
+            if drift_only:
+                repos = [{**r, "loops": [x for x in r.get("loops") or [] if x.get("drift")]} for r in repos]
+                repos = [r for r in repos if r["loops"]]
+            return {**doc, "repos": repos}
+        return call(run)
+
+    @mcp.tool(annotations=READ)
+    def switch_preview(scope: Literal["loop", "repo", "group", "all"], target: Literal["on", "off"], reason: str,
+                       key: str = "") -> Any:
+        """Preview a flip of loop kill switches (constitution § 17.3): one loop (`key` = its switches.loops key), every
+        loop of a repository (`key` = owner/name), a group (`key` = its name) or every loop (`all`), turned `target`,
+        with a REQUIRED `reason` (3–300 characters, recorded in the map and the activity log). Returns, per loop, the
+        variable's current → new value or why it is skipped (no variable gate, a repository the hub does not own, a
+        code-level hold, a canonical fleet variable), and the exact `_data/fleet.yml` diff the apply would write, under
+        a deterministic plan_id. Writes nothing (only the plan file on the console's machine). Show the user the
+        preview; only the user applies it — on the console's Switches page, or switch_apply when write tools are on."""
+        return call(lambda: c.post("/api/switches/preview", {"scope": scope, "key": key, "target": target, "reason": reason}))
+
     # ------------------------------------------------------------- resources
     # ------------------------------------- the `fleet` server's tools (merged)
     # tools/fleetcore/mcp_server.py's read tools work from the committed signals, with no console running;
@@ -1606,6 +1640,17 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
             need(confirm, f"{action} on {owner}/{repo} workflow {workflow_id}")
             return call(c.post, f"/api/github/repos/{owner}/{repo}/actions",
                         {"action": action, "params": {"workflow_id": workflow_id}, "confirm": True})
+
+        @mcp.tool(annotations=WRITE)
+        def switch_apply(plan_id: str, confirm: bool = False) -> Any:
+            """DESTRUCTIVE. Apply a loop-switch flip the user saw in switch_preview, by its plan_id: the console's
+            `switches-apply` operation plans it again from live state and refuses it if anything moved, then sets
+            each variable on a repository the hub owns, reads it back and records the map in _data/fleet.yml (the
+            user commits it). Needs confirm=true, given only after the user approved that preview, and GitHub
+            writes enabled in the console. Returns the job; read its log with job_log."""
+            need(confirm, f"applying loop-switch plan {plan_id}")
+            return call(c.post, "/api/jobs", {"op": "switches-apply", "params": {"plan_id": plan_id, "apply": True},
+                                              "confirm": True})
 
     if writes or compat:
         @mcp.tool(annotations=WRITE)

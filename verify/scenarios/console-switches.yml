@@ -1,0 +1,16 @@
+# The Switches page on the published site: it has a page, and it says the switches stay on a console.
+id: console-switches
+feature: HUB-057
+title: "The Switches page keeps every loop switch on a console and says so on the published site"
+description: "/switches on the public build answers 200, renders the page header and the 'Runs on a console' banner, publishes no switch, live variable or plan (the snapshot has no switches document: the variables are read with the operator's token), and does not scroll sideways. On a running console the page shows one table per repo — variable, semantics, live value, effective state, the map's state, drift and hold — and every lever opens a dialog that needs a reason, previews each variable's current → new value and the fleet.yml diff, and only then offers Apply behind the confirm — recorded by hand in the evidence README from a console on a spare port, with no apply made."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_"]
+steps:
+  - goto: /switches
+  - expect: { status: 200 }
+  - wait: { selector: "text=Runs on a console" }
+  - expect: { text: "Switches" }
+  - expect: { text: "Runs on a console" }
+  - expect: { count: { selector: "[data-switches-repo]", max: 0 } }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: switches-public

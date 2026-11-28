@@ -147,6 +147,22 @@
       "presentation": { "group": "0-fleet", "order": 8 }
     },
     {
+      "name": "☁️ Fleet: cloud (where every repo deploys, by provider)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash cloud",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "0-fleet", "order": 8 }
+    },
+    {
+      "name": "☁️ Fleet: cloud check (stored credentials, undeclared resources)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash cloud check",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "0-fleet", "order": 8 }
+    },
+    {
       "name": "📜 Fleet: dev logs (pick a project)",
       "type": "node-terminal",
       "request": "launch",
@@ -753,6 +769,16 @@
       "type": "node-terminal",
       "request": "launch",
       "command": "tools/dash prs queue --limit 200 && tools/dash prs actions",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 8 }
+    },
+    {
+      // The loop switches (constitution § 17): read-only. A flip is previewed with
+      // `tools/dash switches plan … --reason …` and applied on the console's /switches page.
+      "name": "🎚️ Loop switches: every kill switch, live vs the map (read-only)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash switches list",
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "4-generate", "order": 8 }
     },
@@ -1869,7 +1895,7 @@
       "id": "verifyScenario",
       "description": "Scenario id (verify/scenarios/)",
       "type": "pickString",
-      "options": ["home", "dashboard", "connect", "engagements", "features", "harnesses", "schedules", "monitor", "roadmap", "triage", "work", "workflows", "loop-run", "refine", "apps", "desktop", "repo-app", "desktop-pages", "console-shell", "console-nav", "desktop-context-menu", "nodes", "console-job-status", "gh-projects", "sprints", "voices", "pr-queue", "assist-dock", "overview-story", "stars"],
+      "options": ["home", "dashboard", "connect", "engagements", "features", "harnesses", "schedules", "monitor", "roadmap", "triage", "work", "workflows", "loop-run", "refine", "apps", "desktop", "repo-app", "desktop-pages", "console-shell", "console-nav", "desktop-context-menu", "nodes", "console-job-status", "gh-projects", "sprints", "voices", "pr-queue", "assist-dock", "overview-story", "stars", "console-switches"],
       "default": "home"
     },
     {
