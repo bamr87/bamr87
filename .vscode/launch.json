@@ -147,6 +147,22 @@
       "presentation": { "group": "0-fleet", "order": 8 }
     },
     {
+      "name": "☁️ Fleet: cloud (where every repo deploys, by provider)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash cloud",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "0-fleet", "order": 8 }
+    },
+    {
+      "name": "☁️ Fleet: cloud check (stored credentials, undeclared resources)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash cloud check",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "0-fleet", "order": 8 }
+    },
+    {
       "name": "📜 Fleet: dev logs (pick a project)",
       "type": "node-terminal",
       "request": "launch",

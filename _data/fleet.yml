@@ -2481,6 +2481,186 @@ nodes:
     state_dir: ~/.local/state/bamr87-infra
 
 # --------------------------------------------------------------------------- #
+# Clouds — WHERE a repo's deliverable runs when it is not on a fleet node
+# (ADR 0018, docs/CLOUDS.md).
+#
+# A provider is a platform the fleet deploys to and does not operate: GitHub
+# itself, Azure, AWS, Google Cloud, Cloudflare. What is declared here is the
+# PROVIDER: how a deployment to it is recognised in a repo's own files, how
+# the fleet is expected to sign in to it, and whether the hub may read it.
+# WHICH repo deploys WHERE is never declared. `tools/dash cloud` reads that
+# from each repo's workflows and infrastructure files
+# (tools/fleetcore/clouds.py), so the map cannot disagree with what the repos
+# do.
+#
+# Adding a provider or a service is an entry here and no code: the reader
+# names no vendor (tools/test_fleetcore_clouds.py holds that).
+#
+#   enabled   the READ switch. false: nothing calls the provider's API. Its
+#             deployments are mapped all the same, because that needs only the
+#             repos. Turning one on is a deploy step (constitution § 10.5) and
+#             arrives with the phase that reads the provider (ADR 0018, P3).
+#   identity  how a deployment is expected to sign in. `oidc`: GitHub's own
+#             token exchanged for a short-lived one, so no credential is
+#             stored. `platform`: the platform's own token. `secret`: a stored
+#             credential, which then belongs in `tokens:`. A deployment that
+#             signs in another way is a finding.
+#   login     the steps that sign a job in, and the inputs that tell a
+#             federated login (`oidc`) from a stored credential (`secret`).
+#   services  what can run there (`kind`: static, container, function, stack
+#             or cluster) and how each is recognised: `uses` (an action),
+#             `run` (text in a step's script), `hosts` (the registry's
+#             live_url, when no workflow deploys it) and `files` (a file at
+#             the repo root). `oidc` and `secret` name inputs, as under login.
+#   iac       the files that declare its resources as code: a file name and,
+#             optionally, text the file must contain.
+#
+# No value lives here. An id or a credential is a repo variable or secret; this
+# block only describes how a workflow is recognised.
+# --------------------------------------------------------------------------- #
+clouds:
+  providers:
+    github:
+      title: GitHub
+      enabled: true # the fleet already lives here; the hub reads it with its own token
+      identity: platform
+      services:
+        pages:
+          kind: static
+          uses: [actions/deploy-pages, peaceiris/actions-gh-pages, JamesIves/github-pages-deploy-action]
+          hosts: ['*.github.io'] # a branch build has no workflow: the address is the evidence
+          files: [CNAME]
+    azure:
+      title: Azure
+      enabled: false
+      identity: oidc
+      login:
+        - uses: azure/login
+          oidc: [client-id]
+          secret: [creds]
+      services:
+        static-web-apps:
+          kind: static
+          uses: [azure/static-web-apps-deploy]
+          run: ['swa deploy', 'az staticwebapp ']
+          secret: [azure_static_web_apps_api_token]
+        container-apps:
+          kind: container
+          uses: [azure/container-apps-deploy-action]
+          run: ['az containerapp ']
+        functions:
+          kind: function
+          uses: [azure/functions-action]
+          run: ['func azure functionapp publish']
+        app-service:
+          kind: container
+          uses: [azure/webapps-deploy]
+          run: ['az webapp deploy', 'az webapp up']
+      iac:
+        - { name: '*.bicep' }
+        - { name: azure.yaml }
+        - { name: '*.tf', contains: azurerm }
+        - { name: '*.tofu', contains: azurerm }
+    aws:
+      title: AWS
+      enabled: false
+      identity: oidc
+      login:
+        - uses: aws-actions/configure-aws-credentials
+          oidc: [role-to-assume]
+          secret: [aws-access-key-id]
+      services:
+        s3:
+          kind: static
+          run: ['aws s3 sync', 'aws s3 cp', 'aws cloudfront create-invalidation']
+        lambda:
+          kind: function
+          uses: [aws-actions/aws-lambda-deploy]
+          run: ['aws lambda update-function-code', 'serverless deploy', 'sls deploy']
+        ecs:
+          kind: container
+          uses: [aws-actions/amazon-ecs-deploy-task-definition]
+          run: ['aws ecs update-service']
+        app-runner:
+          kind: container
+          uses: [awslabs/amazon-app-runner-deploy]
+        cloudformation:
+          kind: stack
+          uses: [aws-actions/aws-cloudformation-github-deploy]
+          run: ['aws cloudformation deploy', 'cdk deploy', 'sam deploy']
+      iac:
+        - { name: '*.tf', contains: hashicorp/aws }
+        - { name: '*.tofu', contains: hashicorp/aws }
+        - { name: template.yaml, contains: 'AWS::' }
+        - { name: template.yml, contains: 'AWS::' }
+        - { name: cdk.json }
+        - { name: serverless.yml }
+        - { name: samconfig.toml }
+    gcp:
+      title: Google Cloud
+      enabled: false
+      identity: oidc
+      login:
+        - uses: google-github-actions/auth
+          oidc: [workload_identity_provider]
+          secret: [credentials_json]
+      services:
+        cloud-run:
+          kind: container
+          uses: [google-github-actions/deploy-cloudrun]
+          run: ['gcloud run deploy']
+        firebase-hosting:
+          kind: static
+          uses: [FirebaseExtended/action-hosting-deploy]
+          run: ['firebase deploy']
+          secret: [firebaseServiceAccount]
+        cloud-storage:
+          kind: static
+          uses: [google-github-actions/upload-cloud-storage]
+          run: ['gsutil rsync', 'gsutil -m rsync', 'gcloud storage rsync']
+        app-engine:
+          kind: container
+          uses: [google-github-actions/deploy-appengine]
+          run: ['gcloud app deploy']
+        cloud-functions:
+          kind: function
+          uses: [google-github-actions/deploy-cloud-functions]
+          run: ['gcloud functions deploy']
+        gke:
+          kind: cluster
+          uses: [google-github-actions/get-gke-credentials]
+      iac:
+        - { name: '*.tf', contains: hashicorp/google }
+        - { name: '*.tofu', contains: hashicorp/google }
+        - { name: firebase.json }
+        - { name: cloudbuild.yaml }
+    cloudflare:
+      title: Cloudflare
+      enabled: false
+      identity: secret # no federation for a Worker deploy: the API token is a stored credential
+      services:
+        workers:
+          kind: function
+          uses: [cloudflare/wrangler-action]
+          run: ['wrangler deploy', 'wrangler publish']
+          secret: [apiToken]
+        pages:
+          kind: static
+          uses: [cloudflare/pages-action]
+          run: ['wrangler pages deploy']
+          secret: [apiToken]
+      iac:
+        - { name: wrangler.toml }
+
+  # What the reader skips inside a repo: generated output, test fixtures and
+  # copied documentation are not that repo's infrastructure. `templates` is
+  # read on purpose: two sites keep the Worker they deploy under it.
+  scan:
+    skip_dirs: [node_modules, vendor, _site, dist, build, target, venv, site-packages, worktrees, examples, fixtures, tests, test, docs]
+    max_depth: 6 # directories below the repo root
+    max_files: 400 # infrastructure files read per repo, the largest first cut
+
+# --------------------------------------------------------------------------- #
 # Token contract — WHICH secret does WHAT, and where it must exist.
 #
 # `scope: hub` secrets live on bamr87/bamr87 only. `scope: fleet` secrets are
