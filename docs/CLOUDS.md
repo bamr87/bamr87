@@ -88,7 +88,7 @@ It reports what a repo **can** deploy, from its files. Read the map with these l
 | Key | Holds |
 | --- | --- |
 | `providers` | each declared provider: `id`, `title`, `enabled` and `state` (`on` or `off`), its sign-in rule, its services with their `kind`, and counts of deployments, repos and infrastructure files |
-| `deployments` | each deployment: `repo`, `provider`, `service`, `kind`, `evidence`, `workflow`, `jobs`, `environments`, `urls`, `identity` (how it signs in), `expected` (the provider's rule), and the `secrets` and `vars` names |
+| `deployments` | each deployment: `repo`, `provider`, `service`, `kind`, `evidence`, `workflow`, `jobs`, `environments`, `urls`, `identity` (how it signs in), `expected` (the provider's rule), and `credential_names` and `variable_names`: the names of the repo secrets and variables its steps refer to, never a value |
 | `iac` | per repo and provider, the files that declare resources (the first five and the count) |
 | `repos` | every repo that was read: its workflow count, any workflow file that could not be parsed, and the providers it deploys to |
 | `read` | how many checkouts were read, the repos that were not and why, and how many belong to another owner |

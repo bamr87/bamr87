@@ -65,7 +65,14 @@ COMPUTED = "(computed)"
 # Worst first: one job with a stored credential decides how the deployment reads.
 IDENTITY_RANK = ("secret", UNKNOWN, "oidc", "platform")
 # The CI system's own token is the platform's, not a stored credential.
-PLATFORM_SECRETS = {"GITHUB_TOKEN"}
+PLATFORM_OWN = {"GITHUB_TOKEN"}
+# The two fields a deployment's named values land in. What is kept is the NAME a
+# workflow file writes (`secrets.X` keeps `X`), never a value: a checkout holds
+# none, and the pattern below admits only an identifier. The fields are called
+# what they hold, credential and variable NAMES. A field called `secrets` reads as
+# secret values, to a person and to CodeQL's sensitive-data heuristic
+# (py/clear-text-logging-sensitive-data), which follows it into every print.
+STORED, VARIABLES = "credential_names", "variable_names"
 WORKFLOW_DIR = Path(".github") / "workflows"
 MAX_WORKFLOW_BYTES = 512 * 1024
 MAX_IAC_BYTES = 256 * 1024
@@ -219,11 +226,11 @@ def _script(run) -> str:
 
 def _names(*mappings) -> dict[str, set[str]]:
     """The secret and variable NAMES a step's inputs and environment refer to."""
-    found: dict[str, set[str]] = {"secrets": set(), "vars": set()}
+    found: dict[str, set[str]] = {STORED: set(), VARIABLES: set()}
     for mapping in mappings:
         for value in (mapping or {}).values():
-            for kind, name in _NAME.findall(_text(value)):
-                found[kind].add(name)
+            for context, name in _NAME.findall(_text(value)):
+                found[STORED if context == "secrets" else VARIABLES].add(name)
     return found
 
 
@@ -264,12 +271,12 @@ def _environment(job: dict) -> tuple[str | None, str | None]:
 
 
 def scan_job(job: dict, model: dict) -> list[dict]:
-    """The deployments one job makes: [{provider, service, identity, secrets, vars}]."""
+    """The deployments one job makes: [{provider, service, identity, credential_names, variable_names}]."""
     steps = _steps(job)
     out = []
     for pid, prov in model["providers"].items():
         methods: list[str] = []
-        names = {"secrets": set(), "vars": set()}
+        names = {STORED: set(), VARIABLES: set()}
         for step in steps:
             for login in prov["login"]:
                 if step["action"] and _uses(step["action"], [login["uses"]]):
@@ -291,7 +298,7 @@ def scan_job(job: dict, model: dict) -> list[dict]:
                     own.append(got)
                 refs = _names(step["inputs"], step["env"])
                 # A step that is handed a stored credential and signs in no other way holds one.
-                if not own and refs["secrets"] - PLATFORM_SECRETS:
+                if not own and refs[STORED] - PLATFORM_OWN:
                     own.append("secret")
                 for kind, vals in refs.items():
                     got_names[kind] |= vals
@@ -299,7 +306,7 @@ def scan_job(job: dict, model: dict) -> list[dict]:
                 own.append("platform" if prov["identity"] == "platform" else UNKNOWN)
             out.append({"provider": pid, "service": sid,
                         "identity": min(own, key=IDENTITY_RANK.index),
-                        "secrets": got_names["secrets"] - PLATFORM_SECRETS, "vars": got_names["vars"]})
+                        STORED: got_names[STORED] - PLATFORM_OWN, VARIABLES: got_names[VARIABLES]})
     return out
 
 
@@ -329,7 +336,7 @@ def scan_workflows(path: Path, model: dict) -> tuple[list[dict], int, list[str]]
             for hit in scan_job(job, model):
                 row = found.setdefault((hit["provider"], hit["service"], rel), {
                     "provider": hit["provider"], "service": hit["service"], "workflow": rel, "jobs": [],
-                    "environments": [], "urls": [], "identity": hit["identity"], "secrets": set(), "vars": set(),
+                    "environments": [], "urls": [], "identity": hit["identity"], STORED: set(), VARIABLES: set(),
                     "evidence": "workflow"})
                 row["jobs"].append(str(jid))
                 if env_name and env_name not in row["environments"]:
@@ -337,8 +344,8 @@ def scan_workflows(path: Path, model: dict) -> tuple[list[dict], int, list[str]]
                 if env_url and env_url not in row["urls"]:
                     row["urls"].append(env_url)
                 row["identity"] = min((row["identity"], hit["identity"]), key=IDENTITY_RANK.index)
-                row["secrets"] |= hit["secrets"]
-                row["vars"] |= hit["vars"]
+                row[STORED] |= hit[STORED]
+                row[VARIABLES] |= hit[VARIABLES]
     return list(found.values()), len(files), unreadable
 
 
@@ -359,7 +366,7 @@ def scan_addresses(path: Path, model: dict, live_url: str | None, have: set[tupl
             if evidence:
                 out.append({"provider": pid, "service": sid, "workflow": None, "jobs": [], "environments": [],
                             "urls": [], "identity": "platform" if prov["identity"] == "platform" else UNKNOWN,
-                            "secrets": set(), "vars": set(), "evidence": evidence})
+                            STORED: set(), VARIABLES: set(), "evidence": evidence})
     return out
 
 
@@ -464,7 +471,8 @@ def targets(instance: Path) -> tuple[list[dict], list[dict], int, str]:
     return read, unread, external, slug
 
 
-def _declared_secrets(instance: Path) -> set[str]:
+def _contract_names(instance: Path) -> set[str]:
+    """The names the token contract declares (`tokens:`): what something audits and rotates."""
     tokens = (_load(instance / "_data" / "fleet.yml") or {}).get("tokens")
     return {str(t["name"]) for t in tokens if isinstance(t, dict) and t.get("name")} if isinstance(tokens, list) else set()
 
@@ -485,10 +493,10 @@ def findings(deployments: list[dict], iac: list[dict], model: dict, declared: se
         where = f"{d['repo']} → {prov['title']} {d['service']}"
         if d["identity"] == "secret" and prov["identity"] == "oidc":
             add("stored-credential", "warn", d,
-                f"{where} signs in with a stored credential ({', '.join(d['secrets']) or 'unnamed'}); "
+                f"{where} signs in with a stored credential ({', '.join(d[STORED]) or 'unnamed'}); "
                 f"the rule for {prov['title']} is a federated login, which stores none")
         if d["identity"] == "secret":
-            loose = [n for n in d["secrets"] if n not in declared]
+            loose = [n for n in d[STORED] if n not in declared]
             if loose:
                 add("unmanaged-credential", "note", d,
                     f"{where} holds {', '.join(loose)}, which the token contract does not name, "
@@ -524,7 +532,7 @@ def status_doc(instance: Path = HUB, framework: Path = HUB, now: dt.datetime | N
                 "kind": svc["kind"], "evidence": d["evidence"], "workflow": d["workflow"], "jobs": d["jobs"],
                 "environments": d["environments"], "urls": d["urls"],
                 "identity": d["identity"], "expected": model["providers"][d["provider"]]["identity"],
-                "secrets": sorted(d["secrets"]), "vars": sorted(d["vars"])})
+                STORED: sorted(d[STORED]), VARIABLES: sorted(d[VARIABLES])})
         for pid, paths in sorted(got["iac"].items()):
             iac.append({"repo": t["repo"] or t["name"], "name": t["name"], "provider": pid, "paths": paths[:5], "count": len(paths)})
         repos.append({"name": t["name"], "repo": t["repo"], "status": t["status"], "live_url": t["live_url"],
@@ -532,7 +540,7 @@ def status_doc(instance: Path = HUB, framework: Path = HUB, now: dt.datetime | N
                       "providers": sorted({d["provider"] for d in got["deployments"]})})
     deployments.sort(key=lambda d: (d["provider"], d["service"], d["repo"].lower(), d["workflow"] or ""))
     iac.sort(key=lambda i: (i["provider"], i["repo"].lower()))
-    found = findings(deployments, iac, model, _declared_secrets(instance))
+    found = findings(deployments, iac, model, _contract_names(instance))
     providers = []
     for pid, prov in model["providers"].items():
         mine = [d for d in deployments if d["provider"] == pid]

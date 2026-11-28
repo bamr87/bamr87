@@ -109,7 +109,13 @@ class ScanJobTests(unittest.TestCase):
         got = self.hit(job({"uses": "Acme/Login@v3", "with": {"client-id": "${{ secrets.ACME_CLIENT_ID }}", "tenant": "${{ vars.ACME_TENANT }}"}},
                            {"run": "acme site push ./out"}))
         self.assertEqual(got["identity"], "oidc")
-        self.assertEqual((got["secrets"], got["vars"]), ({"ACME_CLIENT_ID"}, {"ACME_TENANT"}))
+        self.assertEqual((got["credential_names"], got["variable_names"]), ({"ACME_CLIENT_ID"}, {"ACME_TENANT"}))
+
+    def test_only_a_name_written_in_the_workflow_is_kept_never_a_value(self):
+        got = self.hit(job({"uses": "acme/sites-deploy@v1", "with": {"api_token": "a-value-typed-into-the-workflow"},
+                            "env": {"A": "${{ secrets.REAL_NAME }}", "B": "plain-value", "C": "${{ secrets['odd key'] }}"}}))
+        self.assertEqual((got["credential_names"], got["variable_names"]), ({"REAL_NAME"}, set()))
+        self.assertNotIn("a-value", json.dumps(sorted(got["credential_names"])))
 
     def test_a_stored_credential_wins_over_a_federated_input(self):
         got = self.hit(job({"uses": "acme/login@v3", "with": {"client-id": "x", "creds": "${{ secrets.ACME_CREDS }}"}},
@@ -118,7 +124,7 @@ class ScanJobTests(unittest.TestCase):
 
     def test_a_deploy_step_with_a_secret_input_and_no_login_is_secret(self):
         got = self.hit(job({"uses": "acme/sites-deploy@v1", "with": {"api_token": "${{ secrets.ACME_TOKEN }}"}}))
-        self.assertEqual((got["identity"], got["secrets"]), ("secret", {"ACME_TOKEN"}))
+        self.assertEqual((got["identity"], got["credential_names"]), ("secret", {"ACME_TOKEN"}))
 
     def test_a_step_handed_a_secret_in_its_environment_is_secret(self):
         got = self.hit(job({"run": "acme box deploy", "env": {"ACME_KEY": "${{ secrets.ACME_KEY }}"}}), "boxes")
@@ -126,7 +132,7 @@ class ScanJobTests(unittest.TestCase):
 
     def test_the_platform_token_is_not_a_stored_credential(self):
         got = self.hit(job({"run": "acme box deploy", "env": {"GH": "${{ secrets.GITHUB_TOKEN }}"}}), "boxes")
-        self.assertEqual((got["identity"], got["secrets"]), ("unknown", set()))
+        self.assertEqual((got["identity"], got["credential_names"]), ("unknown", set()))
 
     def test_a_deploy_with_no_sign_in_reads_unknown_never_a_guess(self):
         self.assertEqual(self.hit(job({"run": "acme box deploy"}), "boxes")["identity"], "unknown")
@@ -184,7 +190,7 @@ class ScanRepoTests(unittest.TestCase):
             "a": job({"uses": "acme/login@v1", "with": {"client-id": "x"}}, {"run": "acme site push"}),
             "b": job({"uses": "acme/sites-deploy@v1", "with": {"api_token": "${{ secrets.T }}"}})})
         (d,) = clouds.scan_repo(self.repo, MODEL)["deployments"]
-        self.assertEqual((d["identity"], d["secrets"]), ("secret", {"T"}))
+        self.assertEqual((d["identity"], d["credential_names"]), ("secret", {"T"}))
 
     def test_an_address_on_the_providers_host_is_a_deployment_no_workflow_makes(self):
         (d,) = clouds.scan_repo(self.repo, MODEL, "https://me.plat.test/site/")["deployments"]
@@ -277,7 +283,8 @@ class StatusDocTests(unittest.TestCase):
                                          "findings", "summary"})
         self.assertEqual(self.doc["hub"], "own/hub")
         self.assertEqual(set(self.doc["deployments"][0]), {"repo", "name", "provider", "service", "kind", "evidence", "workflow",
-                                                          "jobs", "environments", "urls", "identity", "expected", "secrets", "vars"})
+                                                          "jobs", "environments", "urls", "identity", "expected", "credential_names",
+                                                          "variable_names"})
         json.dumps(self.doc)  # every value is plain data
 
     def test_every_owned_checkout_is_read_the_hub_included(self):
