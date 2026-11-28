@@ -611,7 +611,7 @@ class DashTui(App):
         )
 
     def _node_cell(self, host: str) -> Text:
-        """The node a Docker host is (fleetcore.nodes.host_nodes): `mac`, `forge
+        """The node a Docker host is (fleetcore.nodes.host_nodes): `mac`, `x870e
         (off)` for a node that is not enabled, `—` for a host the model does not name."""
         node = self.host_nodes.get(host)
         if not node:

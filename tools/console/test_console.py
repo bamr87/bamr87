@@ -310,7 +310,7 @@ def test_decisions_route_serves_the_queue_and_never_the_token():
 def test_nodes_route_is_the_shared_status_document_and_never_probes_an_off_node():
     """Over HTTP: /api/nodes is fleetcore.nodes.status_doc — the same keys
     `tools/dash node status --json` prints and the MCP's fleet_nodes returns.
-    The committed model ships forge disabled, so no argv may name it (no ssh,
+    The committed model ships x870e disabled, so no argv may name it (no ssh,
     no docker -H); a node that does not answer is `unknown` with a 200, never a
     5xx; polls inside the TTL share one answer; the snapshot probes nothing."""
     try:

@@ -83,7 +83,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash serve${c_off}             build the public site (the console, static) and serve it on :4000; CONSOLE_SITE=<key> builds one of the other sites _data/profile.yml declares (docs/CONSOLE-PAGES.md)
   ${c_bold}dash tui [--docker]${c_off}    terminal command center — registry, health, triage inbox, harness wires + live Docker (DASH_DOCKER_HOST, default local,ssh://forge)
   ${c_bold}dash host [setup|ps|up|rebuild --wipe-all]${c_off}  forge Docker host — up a submodule, or the legacy whole-hub rebuild (deletes every container and volume on forge, so it needs --wipe-all)
-  ${c_bold}dash node [status|plan|gen|key]${c_off}  where hub workloads run — the Mac edge and the forge workload node, from _data/fleet.yml \`nodes:\` (docs/PLATFORM.md); read-only except gen, which writes .fleet/nodes/
+  ${c_bold}dash node [status|plan|gen|key]${c_off}  where hub workloads run — the Mac edge and the x870e workload node, from _data/fleet.yml \`nodes:\` (docs/PLATFORM.md); read-only except gen, which writes .fleet/nodes/
   ${c_bold}dash infra [plan|apply] [node]${c_off}  the IaC layer — OpenTofu plans a workload node's network and volumes (infra/); apply needs --yes and a saved plan of the current inputs
   ${c_bold}dash cloud [status|map|check|json]${c_off}  where each repo's deliverable runs when it is not on a fleet node — every deployment read from the repos' own workflows and infrastructure files, by provider (_data/fleet.yml \`clouds:\`; docs/CLOUDS.md): \`map [--provider P] [--repo R]\` the deployments, \`check [--strict]\` the findings (a stored credential where the rule is a federated login, a credential the token contract does not name, resources no file declares), \`--instance DIR\` another control plane's repos; read-only, no network, calls no provider
   ${c_bold}dash apps [list|url|open|check|plan|assist|json]${c_off}  the app portal's launcher — every fleet frontend with its live address and its local dev stack's (registry \`frontend:\` ⨝ _data/ports.yml; docs/FRONTEND-PLATFORM.md); \`open <app> [--target local]\` opens it in the console, \`check\` asks each address whether it answers and can be framed, \`plan\` lists every repo's frontend component and what it is owed, \`assist\` the assistant baseline each repo's platform gets (the page bridge and its adapter, or the agent context; ADR 0014), \`assist activity [--days N] [--json]\` what the console's assistant did (its messages from the AI ledger and its page audit; tools/fleetcore/assistlog.py); read-only
@@ -284,7 +284,7 @@ REMOTE
 }
 
 # Fleet nodes (ADR 0003, docs/PLATFORM.md): where each hub workload runs — the
-# Mac edge and the forge workload node — resolved from _data/fleet.yml
+# Mac edge and the x870e workload node — resolved from _data/fleet.yml
 # `nodes:` against docker-compose.yml (tools/fleetcore/nodes.py, the core the
 # console and MCP share). status/plan/key only read; gen writes .fleet/nodes/.
 cmd_node() { (cd "$TOOLS" && "$PY" -m fleetcore.nodes "$@"); }

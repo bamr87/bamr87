@@ -21,7 +21,7 @@ One event in the fleet activity store (HUB-072, FR66, FR69, NFR13). Every event 
 | `kind` | yes | `<source>.<what>`, e.g. `container.oom`, `hook.pre_tool_use`, `job.stalled`, `fleet_event.declined` |
 | `seq` | yes | Producer sequence, strictly increasing per (node, source) stream; a gap is a lost event |
 | `cursor` | store only | Global order assigned by the writer on insert; the replay and SSE resume cursor |
-| `node` | yes | `mac`, `forge` (`_data/fleet.yml` `nodes.hosts`) or `ci` |
+| `node` | yes | `mac`, `x870e` (`_data/fleet.yml` `nodes.hosts`) or `ci` |
 | `project`, `repo`, `container`, `service` | per source | Where it happened; a container event must name its container and its `com.bamr87.fleet.project` label |
 | `actor` | per source | The agent, loop or bot; a wrapped fleet_event's `bot_id` |
 | `run_id`, `trace_id`, `span_id` | `run_id` or `trace_id` | Correlation: the run (session, job, container instance, HUB-024 run) and the W3C trace and span that Phoenix and Elasticsearch carry |

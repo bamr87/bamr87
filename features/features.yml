@@ -1313,14 +1313,14 @@ features:
   - id: HUB-068
     title: Workloads placed across fleet nodes, with OpenTofu for node infrastructure
     description: 'Where every hub service runs is data: _data/fleet.yml `nodes:` places each compose service
-      on the Mac (the edge) or forge (a workload node), and tools/fleetcore/nodes.py resolves it against
+      on the Mac (the edge) or x870e (a workload node), and tools/fleetcore/nodes.py resolves it against
       docker-compose.yml, refusing an edge-bound service off the edge, a workload service that calls back
       to the edge, durable data on a node without a backup and a colliding link port. `tools/dash node status|plan|gen|key`
       show reachability, capacity and drift, preview the move (--assume-enabled), write each node''s compose
       overlay, its OpenTofu inputs and the Ansible inventory of the workload nodes, and print the forwarding-only
       link key; `tools/dash infra plan|apply` runs OpenTofu (infra/node) for the node''s network and data
       volumes, apply gated on --yes and a saved plan of the current inputs; .github/workflows/infra.yml
-      validates the HCL. forge ships disabled, so nothing moves until that flag is the deploy step (ADR
+      validates the HCL. x870e ships disabled, so nothing moves until that flag is the deploy step (ADR
       0003, docs/PLATFORM.md). The status is one document, fleetcore.nodes.status_doc, read on every surface
       (P11, bamr87/bamr87#605): `tools/dash node status --json`, the console''s GET /api/nodes and Nodes page
       (a card per node with its role, on/off state, reachability, capacity and placed services, the drift
@@ -1337,7 +1337,7 @@ features:
     tags:
     - platform
     - nodes
-    - forge
+    - x870e
     - opentofu
     - iac
     - docker
@@ -2820,9 +2820,10 @@ features:
     - FR131
   - id: HUB-116
     title: 'On-premise compute node: local LLMs and Claude Code sessions on Amr''s own machine (planned)'
-    description: 'Plan only: enrol Amr''s new on-premise machine (Ryzen 9 9950X3D2, 64 GB, Radeon RX 9070
-      XT 16 GB, picked up 2026-11-10) as a second workload node in _data/fleet.yml nodes:, disabled until
-      its deploy step. It serves local LLMs through Ollama on its loopback (Vulkan baseline, ROCm in a container
+    description: 'Plan only: Amr''s on-premise machine (Ryzen 9 9950X3D2, 64 GB, Radeon RX 9070 XT 16
+      GB, picked up 2026-11-10) is the workload node x870e in _data/fleet.yml nodes: (in forge''s place
+      since 2026-11-28), disabled until its deploy step. It serves local LLMs through Ollama on its
+      loopback (Vulkan baseline, ROCm in a container
       compared; no CUDA), hosts Claude Code sessions (ssh + tmux, bashOS''s oneos-remote, and the hub''s
       own headless entry points tools/dash loop | conflicts | weekly | refine under systemd user timers),
       cleans its own worktrees, clones and idle session state with the weekly classifier, and closes the

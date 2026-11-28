@@ -2411,9 +2411,11 @@ containers:
 # Nodes — WHERE the fleet's workloads run (ADR 0003, docs/PLATFORM.md)
 #
 # The Mac is the EDGE: the editor, Claude Code, the browser, the working tree
-# and every service that bind-mounts it. forge is the WORKLOAD node: the
-# always-on planes and the batch work the Mac's 7.7 GiB Docker VM should not
-# carry. Placement is declared once, here. `tools/dash node plan` resolves and
+# and every service that bind-mounts it. x870e is the WORKLOAD node: the
+# planes and the batch work the Mac's 7.7 GiB Docker VM should not carry. It
+# is the X870E desktop, bashOS's machine, and it took forge's place here on
+# 2026-11-28 (docs/ONPREM-COMPUTE.md is the plan for it); forge is no longer a
+# node. Placement is declared once, here. `tools/dash node plan` resolves and
 # validates it against docker-compose.yml, `dash node gen` writes each node's
 # compose overlay, OpenTofu inputs and the Ansible inventory (.fleet/nodes/,
 # gitignored), and `dash infra plan` shows what OpenTofu would create on the
@@ -2430,16 +2432,26 @@ nodes:
       role: edge
       runtime: compose # compose today; `kubernetes` (a cluster context) is the scale-out target, phase 10
       docker: local # a fleetcore.host endpoint (DASH_DOCKER_HOST vocabulary)
-    forge:
+    # The ASUS ROG Crosshair X870E Dark Hero desktop: a Ryzen 9 9950X3D2 (16
+    # cores, 32 threads), 64 GB and a Radeon RX 9070 XT (AMD, so no CUDA). Its
+    # facts are bashOS's: one-os/machines/x870e-dark-hero.yaml and docs/OS.md
+    # there. It boots SteamOS from its 2 TB NVMe, which is kept, and bashOS
+    # installs onto the 2 TB SATA SSD beside it: the firmware's boot menu picks
+    # the system, so it is this node only while it runs bashOS.
+    # `disk_gb` is that SATA SSD whole (2,000,398,934,016 bytes), not free
+    # space; the NVMe and the 8 TB hard disk are not counted. The 8 TB disk is
+    # in the same box, so it is not an off-box `backup:`.
+    # Not known for this machine, so not declared: its LAN (`lan_cidr`) and a
+    # Wake-on-LAN broadcast (`wol_broadcast`). Both are optional; the Ansible
+    # inventory carries them only when they are set.
+    x870e:
       role: workload
       runtime: compose
       enabled: false # the deploy switch — false: everything placed here stays on the edge
-      ssh: forge # ~/.ssh/config alias; SSH is the only API (docs/FORGE-HOST.md)
-      docker: ssh://forge
-      checkout: ~/dev/bamr87 # a git clone of the hub on the node; compose runs FROM it
-      capacity: { cpus: 8, mem_gb: 32, disk_gb: 464 } # i7-3820, 1 TB SSD (bashOS docs/FORGE.md)
-      lan_cidr: 192.168.4.0/22
-      wol_broadcast: 192.168.7.255 # the /22's broadcast — magic packets to .4.255 go nowhere
+      ssh: x870e # ~/.ssh/config alias for the hostname bashOS seeds (x870e.local); SSH is the only API
+      docker: ssh://x870e
+      checkout: ~/dev/bamr87 # a git clone of the hub on the node (bashOS's BASHOS_HUB_DIR); compose runs FROM it
+      capacity: { cpus: 32, mem_gb: 64, disk_gb: 2000 } # threads, RAM, the SATA SSD bashOS installs onto
       backup: null # an OFF-box restic target; durable volumes may not move here until set
 
   # How the edge reaches services placed elsewhere: one SSH connection with a
@@ -2455,15 +2467,15 @@ nodes:
   # of the host it runs on). Services that bind-mount the working tree or the
   # user's own state (devenv, console, tui, mcp) are edge-bound and refused here.
   services:
-    elasticsearch: forge
-    logstash: forge
-    kibana: forge
-    grafana: forge
-    prometheus: forge
-    otel-collector: forge
-    phoenix: forge
-    qdrant: forge
-    mkdocs: forge
+    elasticsearch: x870e
+    logstash: x870e
+    kibana: x870e
+    grafana: x870e
+    prometheus: x870e
+    otel-collector: x870e
+    phoenix: x870e
+    qdrant: x870e
+    mkdocs: x870e
     filebeat: every
 
   # Volumes whose loss is not recoverable by rebuilding (a reindex, a re-export

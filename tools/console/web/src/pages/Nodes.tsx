@@ -126,7 +126,7 @@ export function Nodes() {
     <>
       <PageHeader
         title="Nodes"
-        description="Where each hub service runs: the Mac is the edge, forge a workload node, and _data/fleet.yml nodes: places every compose service. A node that is not enabled is never probed. Nothing here changes a machine: placement changes by a reviewed pull request, and enabled: true is the deploy step."
+        description="Where each hub service runs: the Mac is the edge, x870e a workload node, and _data/fleet.yml nodes: places every compose service. A node that is not enabled is never probed. Nothing here changes a machine: placement changes by a reviewed pull request, and enabled: true is the deploy step."
         actions={<Group gap="sm"><Anchor component={Link} to={to.containers()} size="sm">Containers</Anchor><External href={DOC} size="sm">docs/PLATFORM.md</External></Group>}
       />
       <Load q={q}>
