@@ -1,0 +1,18 @@
+id: HUB-NEW
+slug: platform-hosting
+title: "The platform hosted on Google Cloud and entered through the main site, as code"
+description: "Where the platform runs in the cloud is one file and two OpenTofu modules, with nothing applied. `_data/hosting.yml` (hosting/v1) names the provider and region, the main site that is the way in (bash-365.com and its sign-in page), the machine (a virtual machine on Debian that is a fleet node, ADR 0003) and each hosted service with its host, its sign-in path and what it still needs; three switches ship off: `node.enabled` creates the machine, `node.public` opens ports 80 and 443, and a service's `enabled` lists it on the main site. `infra/gcp/foundation` is the landing zone (the APIs, a keyless sign-in for GitHub Actions through Workload Identity Federation, a pull-through of ghcr.io, an optional budget alert) and `infra/gcp/node` is the machine (a private network, SSH only from the provider's identity-aware tunnel, a fixed address, a data disk with daily snapshots and a backups bucket the machine cannot delete from); both read the file themselves and plan nothing that the switches leave off. `infra/gcp/deploy.sh` plans by default and applies only a saved plan, with the project id from the environment and state outside every checkout; `.github/workflows/infra.yml` formats and validates the modules and holds no credential. tools/test_hosting.py holds the switch order, no cloud identifier in the repo and the two ways in. Phase G0 of ADR 0020 (docs/HOSTING.md); every apply, the project, DNS and secrets are the maintainer's."
+implemented: true
+status: partial
+surface: infra
+link: infra/gcp/README.md
+docs: docs/HOSTING.md
+tags: [ hosting, gcp, google-cloud, platform, opentofu, iac, sign-in, zer0-cms, bashos ]
+date: 2026-11-28
+tests:
+  - tools/test_hosting.py
+prd: ["FR-NEW:platform-hosting"]
+prd_new:
+  - key: platform-hosting
+    kind: FR
+    text: "The product must describe where the platform is hosted in a cloud, and how a person enters it from the main site, in one file that the infrastructure is created from: the machine and each hosted service with its own host and sign-in path; nothing may exist, be reachable from the internet, or be offered on the main site until its own switch is turned on, in that order; a service may be offered only when it signs people in itself with sign-up closed; no cloud account identifier or credential may be written in the repository; and creating or changing anything in the cloud must be a plan the maintainer reads and applies."

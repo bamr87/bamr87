@@ -1,0 +1,101 @@
+# _data/hosting.yml — where the platform runs in the cloud, and how it is
+# entered (schema hosting/v1; ADR 0020, docs/HOSTING.md).
+#
+# The platform (bashOS, the Harness Console, zer0-CMS and each repo's app) is
+# hosted on Google Cloud and entered through the main site. This file is the
+# one place that says so. It is read by:
+#
+#   infra/gcp/foundation   the landing zone (OpenTofu reads this file itself)
+#   infra/gcp/node         the machine the platform runs on, and the
+#                          development instance beside it (`dev:`)
+#   tools/test_hosting.py  the rules below, on every pull request
+#
+# and the main site's sign-in page lists the services that are `enabled`.
+#
+# THREE SWITCHES, all shipped off. Flipping one is a deploy step the
+# maintainer takes (constitution § 10.5), in this order:
+#
+#   node.enabled      false: infra/gcp/node plans nothing; no machine exists
+#   node.public       false: no rule lets the internet reach ports 80 and 443
+#   services.*.enabled  false: the main site does not offer that service
+#
+# A fourth switch, `dev.enabled`, ships ON: the maintainer asked for a
+# development instance for review and validation on 2026-11-28. Like the
+# others it creates nothing by itself: the machine exists only after
+# `infra/gcp/deploy.sh dev --apply`, and `dev --destroy` removes it.
+#
+# No value that identifies the cloud account lives here: `_data/` is public
+# site data. The project id, the billing account and every credential come
+# from the environment at apply time (infra/gcp/deploy.sh).
+schema: hosting/v1
+
+provider: gcp # a provider id from _data/fleet.yml clouds.providers
+project: bash365 # the `project` label on every resource; NOT the cloud project id
+region: us-west1
+zone: us-west1-b
+
+# The main site: the one public way in. Its sign-in page links to each enabled
+# service's own sign-in. Nothing is framed: a service signs people in on its
+# own origin, so its cookies and its content policy stay its own.
+entry:
+  repo: bash-365.com # a registry name
+  url: https://www.bash-365.com/
+  path: /sign-in/
+
+# The machine. It is a fleet node in the cloud (ADR 0003): bashOS on Debian,
+# the same compose stacks as any node, reached over SSH. SSH comes in only
+# through the provider's identity-aware tunnel, never from the open internet.
+node:
+  name: gcp1
+  enabled: false
+  public: false
+  os: debian-13 # bashOS installs onto it (`bashos os install`)
+  machine_type: e2-standard-4 # 4 vCPUs, 16 GB: zer0-CMS's six processes, Postgres, Redis, the console
+  boot_disk_gb: 50
+  data_disk_gb: 200 # databases, media and the checkouts the platform writes to; survives the machine
+  snapshots:
+    daily_at: '09:00' # UTC; the provider takes whole hours only
+    keep_days: 14
+
+# A development instance, for review and validation. It is the same machine
+# module with its own state, and it differs from the node above in three ways
+# that tools/test_hosting.py holds:
+#
+#   never public    `public` stays false: it is reached only through the
+#                   identity-aware tunnel, on the operator's own loopback
+#   not durable     no data disk, no snapshots, no backups bucket and no
+#                   deletion protection, so one apply removes all of it
+#   no client data  it runs a service's DEVELOPMENT stack, with made-up content
+#
+# `enabled` is its create switch. Set it false and apply to remove the machine.
+dev:
+  name: gcp-dev
+  enabled: true
+  public: false
+  durable: false
+  os: debian-13
+  machine_type: e2-standard-2 # 2 vCPUs, 8 GB: one service's development stack
+  boot_disk_gb: 50
+
+# What runs on the node and is entered from the main site. A service is listed
+# on the sign-in page only when it is enabled, and it may be enabled only when
+# it has its own sign-in with sign-up closed. `needs` is what is still owed
+# before the switch may be flipped; it is read by people, and an entry with
+# anything left in it must stay off (tools/test_hosting.py holds that).
+services:
+  cms:
+    title: zer0-CMS
+    summary: Write, review and publish content for every site
+    repo: zer0-CMS # a registry name
+    host: cms.bash-365.com
+    sign_in: /studio/ # its sign-in screen; a signed-out visitor to any /studio/ path gets it
+    health: /readyz
+    port: 8000
+    enabled: false
+    needs:
+      - "the platform's image published to ghcr.io on a release tag (zer0-CMS PLAN H1; none is published today)"
+      - 'a production compose file for its six processes with Postgres (pgvector) and Redis (zer0-CMS PLAN H1)'
+      - 'ALLOWED_HOSTS, CSRF_TRUSTED_ORIGINS and WAGTAILADMIN_BASE_URL set for the host, and a real SECRET_KEY'
+      - 'an email sender: sign-in verifies an address by emailed code, so nobody can sign in without one'
+      - 'the DNS record for the host (Microsoft 365 admin center) and a certificate on the node'
+      - 'a backup of the database off the machine, restored once as a drill, before any client data'

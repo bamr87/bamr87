@@ -147,4 +147,4 @@ clouds:
 | `tools/fleetcore/clouds.py` | The reader and `status_doc()`; `python3 -m fleetcore.clouds` is `tools/dash cloud` |
 | `tools/test_fleetcore_clouds.py` | Fixture tests with two made-up providers, the committed model, and the rule that the reader names no vendor |
 | [ADR 0018](adr/0018-clouds-as-fleet-targets.md) | The decision, the prior art, the five contracts and the phases |
-| [`infra/`](../infra/README.md) | The infrastructure the hub itself declares: OpenTofu for nodes, Bicep for the portal on Azure |
+| [`infra/`](../infra/README.md) | The infrastructure the hub itself declares: OpenTofu for nodes and for the platform on Google Cloud ([HOSTING.md](HOSTING.md)), Bicep for the portal on Azure |
