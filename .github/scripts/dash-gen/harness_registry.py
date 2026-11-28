@@ -126,6 +126,10 @@ AI_ROUTES: list[tuple[str, re.Pattern]] = [
     ("claude-code-action", re.compile(r"uses:\s*['\"]?anthropics/claude-code-action@")),
     ("ai-lane", re.compile(r"uses:\s*['\"]?\S*\.github/workflows/ai-lane\.ya?ml\b")),
     ("claude-run", re.compile(r"uses:\s*['\"]?\S*\.github/actions/claude-run\b")),
+    # OpenAI on the ChatGPT OAuth login (openai_auth: in _data/fleet.yml): the
+    # codex-run action, or a caller of the reusable independent review.
+    ("codex-run", re.compile(
+        r"uses:\s*['\"]?\S*\.github/(?:actions/codex-run\b|workflows/independent-review\.ya?ml\b)")),
     ("claude-cli", re.compile(r"(?<![\w./-])claude\s+(?:-p|--print)\b")),
     ("ai-script", re.compile(r"scripts/ai/run\.sh\b")),
     ("other-provider", re.compile(
@@ -233,6 +237,8 @@ DEFAULT_STANDARD = {
         "claude-code-action": {"standard": True, "title": "a claude-code-action step"},
         "ai-lane": {"standard": True, "title": "the hub's reusable ai-lane.yml workflow"},
         "claude-run": {"standard": True, "title": "the hub's claude-run composite action"},
+        "codex-run": {"standard": True,
+                      "title": "the hub's codex-run action or independent-review.yml (OpenAI, ChatGPT OAuth)"},
         "claude-cli": {"standard": False, "title": "a bare `claude -p` in a run step"},
         "ai-script": {"standard": False, "title": "a vendored scripts/ai/run.sh"},
         "other-provider": {"standard": False, "title": "another provider's API key"},
@@ -499,7 +505,9 @@ def route_defaults() -> dict:
     global _ROUTE_DEFAULTS
     if _ROUTE_DEFAULTS is not None:
         return _ROUTE_DEFAULTS
-    out: dict = {"ai-lane": {}, "claude-run": {}}
+    # codex-run bounds its own call (`timeout-minutes`, default 15) and the
+    # reusable review sets a job timeout, so a caller passing nothing is bounded.
+    out: dict = {"ai-lane": {}, "claude-run": {}, "codex-run": {"timeout": True}}
 
     def number(value):
         try:
@@ -696,7 +704,7 @@ def classify_workflow(path: str, text: str) -> dict:
     info["switch"] = m.group(1) if m else None
     if info["ai"]:
         route = info["route"]
-        hub_route = route in ("ai-lane", "claude-run")
+        hub_route = route in ("ai-lane", "claude-run", "codex-run")
         defaults = route_defaults().get(route) or {}
         m = ACTION_REF_RX.search(code)
         info["action_ref"] = m.group(1) if m else None
@@ -709,6 +717,10 @@ def classify_workflow(path: str, text: str) -> dict:
             has_oauth = "claude_code_oauth_token" in code
             has_key = "anthropic_api_key" in code
             ordered = "claude-auth@" in code or "CLAUDE_AUTH_ORDER" in code
+        elif route == "codex-run":
+            # One credential, by design: the fleet's ChatGPT OAuth login
+            # (CODEX_AUTH_JSON); a metered key is refused, so there is no order.
+            has_oauth, has_key, ordered = True, False, False
         elif hub_route:
             has_oauth = has_key = ordered = True  # run.sh takes both, in the repo's order
         elif route == "other-provider":
@@ -718,7 +730,8 @@ def classify_workflow(path: str, text: str) -> dict:
             has_key = "ANTHROPIC_API_KEY" in code
             ordered = "CLAUDE_AUTH_ORDER" in code or "AI_AUTH_ORDER" in code
         info["auth"] = (
-            "ordered" if ordered and (has_oauth or has_key)
+            "chatgpt-oauth" if route == "codex-run"
+            else "ordered" if ordered and (has_oauth or has_key)
             else "oauth-first" if has_oauth and has_key
             else "oauth-only" if has_oauth
             else "api-key" if has_key
@@ -907,15 +920,22 @@ def _never(h: dict, fact: str):
     return None if value is None else not value
 
 
+def _openai_oauth(h: dict) -> bool:
+    """The codex-run route: ChatGPT plan usage, so there is no metered spend
+    for a dollar cap to bound and no turn flag on a single read-only call; the
+    plan's usage window and the timeout bound it (openai_auth:)."""
+    return h.get("route") == "codex-run"
+
+
 CONTROL_CHECKS = {
     "standard-route": lambda h, cfg: bool(
         (cfg["standard"]["routes"].get(h.get("route")) or {}).get("standard")),
     "model-pinned": _model_pinned,
-    "budget-cap": lambda h, cfg: _cap(h, "max_budget_usd"),
-    "turn-cap": lambda h, cfg: _cap(h, "max_turns"),
+    "budget-cap": lambda h, cfg: None if _openai_oauth(h) else _cap(h, "max_budget_usd"),
+    "turn-cap": lambda h, cfg: None if _openai_oauth(h) else _cap(h, "max_turns"),
     "kill-switch": lambda h, cfg: None if _started_by_hand(h) else bool(h.get("switch")),
     "auth-ordered": lambda h, cfg: (
-        None if h.get("route") == "other-provider" else h.get("auth") == "ordered"),
+        None if h.get("route") in ("other-provider", "codex-run") else h.get("auth") == "ordered"),
     "trusted-author": lambda h, cfg: h.get("author_gate"),
     "least-privilege": lambda h, cfg: (
         None if _called_only(h) else bool(h.get("least_privilege"))),
@@ -986,7 +1006,7 @@ def choose_lever(h: dict, repo: dict, cfg: dict) -> str | None:
         return "none"
     if h.get("kind") == "mention-handler":
         return "kit-adopt"
-    if h.get("route") in ("ai-lane", "claude-run"):
+    if h.get("route") in ("ai-lane", "claude-run", "codex-run"):
         return "fix-controls"
     return "lane-adopt"
 

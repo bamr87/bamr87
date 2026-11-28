@@ -1,0 +1,211 @@
+name: Independent review
+
+# The fleet's INDEPENDENT REVIEW of non-technical changes (openai_auth.review in
+# _data/fleet.yml, docs/OPENAI-AUTH.md): a second opinion from OpenAI, a
+# different model family than the Claude agents that write most fleet content,
+# on a change that touches prose, docs, posts or media and no code. It runs on
+# the ChatGPT subscription's OAuth login through .github/actions/codex-run,
+# never a metered API key.
+#
+# Each repo calls it from a small stub, `.github/workflows/openai-review.yml`
+# (the hub's own is the example). Constitution § 19 shapes everything it says:
+#   - it never comments itself (§ 19.1, § 19.2): its findings go out as the
+#     `fleet-findings` artifact, which pr-review.yml posts inline on the lines
+#     the change adds (§ 19.3), signed (§ 19.4), as github-actions[bot], never
+#     approving (§ 19.5); content and docs findings skip Dependabot and release
+#     PRs (§ 19.6);
+#   - AI review runs on `opened`, `ready_for_review` and the `label` (default
+#     `ai-review`), never on every push (§ 19.7), behind the § 17 switch
+#     `vars.OPENAI_REVIEW_ENABLED` (opt-out) and with an exact model (§ 13.3);
+#   - the verdict and every finding go to the job summary (§ 19.8).
+# It is advisory: a finding never fails the check. The check fails only when
+# the review was attempted and could not finish (attempted-and-failed is RED).
+#
+# A commit pushed straight to a branch is reviewed on demand: dispatch the
+# caller with `base` and `head` (§ 19.7 keeps it off every push).
+#
+# It reads untrusted text (the change and the pull request), so: `pull_request`
+# only, never `pull_request_target`; a fork's run gets no secret and idles; the
+# model runs read-only with no GitHub token in reach, and what it writes is
+# redacted and validated against the findings contract before it leaves.
+
+on:
+  workflow_call:
+    inputs:
+      hub-ref:
+        description: "bamr87/bamr87 ref to take the tooling from: pass the ref you call this workflow at"
+        type: string
+        default: "main"
+      scope:
+        description: "non-technical (content and no code) or content-files (the content files of any change); empty = openai_auth.review.scope"
+        type: string
+        default: ""
+      label:
+        description: "The label that asks for a review on demand (§ 19.7)"
+        type: string
+        default: "ai-review"
+      content-paths:
+        description: "Newline globs this repo counts as content whatever their type (e.g. pages/**/*.html)"
+        type: string
+        default: ""
+      technical-paths:
+        description: "Newline globs this repo counts as code whatever their type"
+        type: string
+        default: ""
+      model:
+        description: "Exact model id from ai_models.allowed.openai; empty = openai_auth.models.review"
+        type: string
+        default: ""
+      base:
+        description: "workflow_dispatch only: the commit to review from (exclusive)"
+        type: string
+        default: ""
+      head:
+        description: "workflow_dispatch only: the commit to review to"
+        type: string
+        default: ""
+      timeout-minutes:
+        description: "Job timeout"
+        type: number
+        default: 20
+    secrets:
+      CODEX_AUTH_JSON:
+        description: "The fleet's ChatGPT-login auth.json (docs/OPENAI-AUTH.md); without it the review idles"
+        required: false
+    outputs:
+      reviewed:
+        description: "'true' when the reviewer ran"
+        value: ${{ jobs.review.outputs.reviewed }}
+      verdict:
+        description: "clean | suggestions | concerns (empty when not reviewed)"
+        value: ${{ jobs.review.outputs.verdict }}
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    name: independent review (OpenAI)
+    # § 19.7: opened, ready_for_review and the label; never a draft, never a
+    # bot's synchronize. A manual dispatch bypasses the switch (§ 17).
+    if: >-
+      ${{ (github.event_name == 'workflow_dispatch' || vars.OPENAI_REVIEW_ENABLED != 'false') && (
+      github.event_name == 'workflow_dispatch'
+      || (github.event_name == 'pull_request' && !github.event.pull_request.draft && (
+          github.event.action == 'opened' || github.event.action == 'ready_for_review'
+          || (github.event.action == 'labeled' && github.event.label.name == inputs.label)))) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    permissions:
+      contents: read
+    concurrency:
+      group: independent-review-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
+    outputs:
+      reviewed: ${{ steps.classify.outputs.review }}
+      verdict: ${{ steps.report.outputs.verdict }}
+    steps:
+      - name: Check out the change
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || inputs.head || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check out the hub's tooling
+        uses: actions/checkout@v7
+        with:
+          repository: bamr87/bamr87
+          ref: ${{ inputs.hub-ref || 'main' }}
+          path: .fleet-hub
+          sparse-checkout: |
+            .github/actions/codex-run
+            .github/scripts/dash-gen
+            _data
+          persist-credentials: false
+
+      - name: Keep the tooling out of the change
+        run: echo ".fleet-hub/" >> .git/info/exclude
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install the tooling's one dependency
+        run: python -m pip install --quiet pyyaml
+
+      - name: Classify the change (content, data, code)
+        id: classify
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          IN_BASE: ${{ inputs.base }}
+          IN_HEAD: ${{ inputs.head }}
+          SCOPE: ${{ inputs.scope }}
+          CONTENT_PATHS: ${{ inputs.content-paths }}
+          TECHNICAL_PATHS: ${{ inputs.technical-paths }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "pull_request" ]; then base="$PR_BASE"; head="$PR_HEAD"
+          else base="${IN_BASE:-HEAD~1}"; head="${IN_HEAD:-HEAD}"; fi
+          python .fleet-hub/.github/scripts/dash-gen/independent_review.py classify \
+            --base "$base" --head "$head" --scope "$SCOPE" \
+            --content-paths "$CONTENT_PATHS" --technical-paths "$TECHNICAL_PATHS" \
+            --out-dir "$RUNNER_TEMP/review"
+
+      - name: Build the reviewer's instruction
+        if: steps.classify.outputs.review == 'true'
+        run: |
+          set -euo pipefail
+          tool=.fleet-hub/.github/scripts/dash-gen/independent_review.py
+          python "$tool" prompt --classification "$RUNNER_TEMP/review/classification.json" \
+            --out "$RUNNER_TEMP/review/prompt.md"
+          python "$tool" schema --out "$RUNNER_TEMP/review/schema.json"
+
+      # The one model call: read-only, ChatGPT OAuth, no GitHub token in its env.
+      - name: Review (OpenAI via Codex, ChatGPT OAuth)
+        id: codex
+        if: steps.classify.outputs.review == 'true'
+        uses: ./.fleet-hub/.github/actions/codex-run
+        env:
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
+        with:
+          mode: review
+          prompt-file: ${{ runner.temp }}/review/prompt.md
+          output-schema: ${{ runner.temp }}/review/schema.json
+          out: ${{ runner.temp }}/review/review.json
+          model: ${{ inputs.model }}
+          timeout-minutes: "15"
+
+      - name: Report (fleet-findings for pr-review.yml, the verdict to the job summary)
+        id: report
+        if: steps.codex.outputs.outcome == 'success'
+        env:
+          MODEL: ${{ inputs.model }}
+        run: |
+          python .fleet-hub/.github/scripts/dash-gen/independent_review.py report \
+            --classification "$RUNNER_TEMP/review/classification.json" \
+            --result "$RUNNER_TEMP/review/review.json" \
+            --findings-out fleet-findings.jsonl --model "$MODEL"
+
+      # pr-review.yml reads this when the caller's run finishes (§ 19.3).
+      - name: Hand the findings to pr-review.yml
+        if: steps.report.outcome == 'success' && hashFiles('fleet-findings.jsonl') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: fleet-findings
+          path: fleet-findings.jsonl
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Say why nothing was reviewed
+        if: steps.classify.outputs.review != 'true' || steps.codex.outputs.outcome != 'success'
+        env:
+          WHY: ${{ steps.classify.outputs.review != 'true' && steps.classify.outputs.reason || steps.codex.outputs.reason }}
+        run: |
+          {
+            echo "### 🔎 Independent review — not run"
+            echo ""
+            echo "${WHY:-the review step did not finish}"
+          } >> "$GITHUB_STEP_SUMMARY"

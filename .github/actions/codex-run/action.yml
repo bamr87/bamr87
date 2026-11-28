@@ -1,0 +1,113 @@
+# =============================================================================
+# codex-run — the fleet's OpenAI step: one call through the Codex CLI on the
+# ChatGPT subscription's OAuth login, never a metered API key.
+# -----------------------------------------------------------------------------
+# What it is for (openai_auth: in bamr87/bamr87 _data/fleet.yml):
+#   image   every AI-painted image: Codex's built-in `$imagegen` (gpt-image-2)
+#   review  the independent second opinion on non-technical changes
+#           (.github/workflows/independent-review.yml)
+#   setup   restore the login for the rest of the job and export
+#           FLEET_IMAGEGEN (ai-lane.yml, `images: true`)
+#   exec    any other read-only question; check proves the login and model
+#
+#   - uses: bamr87/bamr87/.github/actions/codex-run@v2
+#     env:
+#       CODEX_AUTH_JSON: <the CODEX_AUTH_JSON secret>
+#     with:
+#       mode: image
+#       prompt: "an oil-painted server room at dawn"
+#       out: assets/images/posts/my-post/hero.png
+#
+# A workflow whose workspace is another repo takes it from a sparse checkout of
+# the hub instead (`uses: ./.fleet-hub/.github/actions/codex-run`), as
+# independent-review.yml does.
+#
+# THE CREDENTIAL comes from the job env: CODEX_AUTH_JSON, an auth.json from a
+# dedicated ChatGPT `codex login` (docs/OPENAI-AUTH.md). It is refreshed in one
+# place, the hub's weekly token rotation; this action refuses a bundle older
+# than `max-seed-age-days` rather than let Codex refresh it (that would rotate
+# the fleet's one refresh token). No credential, or a stale one: a clean no-op
+# with the reason (outcome `skipped`). Attempted and failed: RED.
+#
+# Everything runs in run.sh beside this manifest, which tools/openai-auth.sh
+# also calls locally (§ 10.9). Defaults mirror openai_auth: and are held equal
+# by tools/test_codex_run.py.
+# =============================================================================
+name: codex-run
+description: Run one OpenAI call (image generation or a read-only review) through the Codex CLI on the fleet's ChatGPT OAuth login.
+inputs:
+  mode:
+    description: "review | exec | image | setup | check"
+    default: "exec"
+  prompt:
+    description: The instruction, or for `image` the image brief.
+    default: ""
+  prompt-file:
+    description: Read the instruction from this file instead (relative to the workspace).
+    default: ""
+  out:
+    description: "Where the result goes: the last message (review/exec) or the PNG (image, required)."
+    default: ""
+  model:
+    description: Exact model id from ai_models.allowed.openai. Empty = the fleet default for the mode (openai_auth.models).
+    default: ""
+  output-schema:
+    description: JSON Schema file the final message must match (review/exec).
+    default: ""
+  workdir:
+    description: Directory Codex works in (review/exec). Empty = the workspace.
+    default: ""
+  sandbox:
+    description: "exec only: read-only (default) or workspace-write. review is always read-only."
+    default: "read-only"
+  timeout-minutes:
+    description: Wall-clock cap for the Codex call.
+    default: "15"
+  max-seed-age-days:
+    description: Refuse a bundle last refreshed longer ago than this (openai_auth.max_seed_age_days).
+    default: "7.5"
+  min-ttl-minutes:
+    description: Refuse an access token that expires sooner than this (openai_auth.min_access_ttl_minutes).
+    default: "30"
+  codex-version:
+    description: "@openai/codex version to install. Leave it at latest (docs/DEPENDENCIES.md)."
+    default: "latest"
+  usage-limit:
+    description: "skip (default): a spent ChatGPT usage window is a warning, outcome `limited`. fail: it fails the step."
+    default: "skip"
+outputs:
+  ready:
+    description: "'true' when a usable credential was restored."
+    value: ${{ steps.run.outputs.ready }}
+  outcome:
+    description: "success | skipped | limited | failure"
+    value: ${{ steps.run.outputs.outcome }}
+  reason:
+    description: Why the step did what it did, in one line.
+    value: ${{ steps.run.outputs.reason }}
+  refreshed:
+    description: "'true' when Codex rotated the OAuth bundle during the call (the fleet's stored copy then needs re-seeding)."
+    value: ${{ steps.run.outputs.refreshed }}
+  image:
+    description: The PNG written (image mode).
+    value: ${{ steps.run.outputs.image }}
+runs:
+  using: composite
+  steps:
+    - id: run
+      shell: bash
+      env:
+        CODEX_MODE: ${{ inputs.mode }}
+        CODEX_PROMPT: ${{ inputs.prompt }}
+        CODEX_PROMPT_FILE: ${{ inputs.prompt-file }}
+        CODEX_OUT: ${{ inputs.out }}
+        CODEX_MODEL: ${{ inputs.model }}
+        CODEX_OUTPUT_SCHEMA: ${{ inputs.output-schema }}
+        CODEX_WORKDIR: ${{ inputs.workdir }}
+        CODEX_SANDBOX: ${{ inputs.sandbox }}
+        CODEX_TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
+        CODEX_MAX_SEED_AGE_DAYS: ${{ inputs.max-seed-age-days }}
+        CODEX_MIN_TTL_MINUTES: ${{ inputs.min-ttl-minutes }}
+        CODEX_VERSION: ${{ inputs.codex-version }}
+        CODEX_USAGE_LIMIT: ${{ inputs.usage-limit }}
+      run: bash "$GITHUB_ACTION_PATH/run.sh"

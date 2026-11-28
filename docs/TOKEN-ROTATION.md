@@ -176,7 +176,8 @@ The loop files **one** issue, updated in place each week rather than forked into
 | `needs-seed` | Repos are missing or stale, but no value was available this run | Check `CLAUDE_CODE_OAUTH_TOKEN` is still set on the hub |
 | `bad-value` | A candidate did not match the declared shape, so nothing was written | This is the guard working — check what got seeded |
 | `write-failures` | Some repos rejected the write | `FLEET_TOKEN` lost `secrets:write` on those repos |
-| `refresh-store-failed` | The new refresh token could not be stored | Re-seed `CLAUDE_CODE_OAUTH_REFRESH_TOKEN`; the old one is now spent |
+| `refresh-store-failed` | The new refresh token could not be stored | Re-seed `CLAUDE_CODE_OAUTH_REFRESH_TOKEN`; the old one is now spent. For `CODEX_AUTH_JSON`, the refreshed bundle never reached the hub: re-seed it with `tools/openai-auth.sh seed --apply` |
+| `needs-reseed` | The OpenAI `CODEX_AUTH_JSON` bundle could not be refreshed | `tools/openai-auth.sh seed --apply`, then dispatch with `only: CODEX_AUTH_JSON`, `source: env`, `force`; consumers idle once it is 7.5 days old ([OPENAI-AUTH.md](OPENAI-AUTH.md)) |
 
 There is a sixth shape the issue can take, and it is deliberately worded to be unmistakable: **the job broke before it could probe for secret access**. Nothing was audited and nothing was written, and — importantly — that is *not* evidence that `FLEET_TOKEN` is missing a scope. The probe's output is empty rather than `false`, and the report says so, because the first scheduled run conflated the two and filed an issue blaming a missing scope for what was actually a workflow that could not load one of its own composite actions. Read the run log and start at the first red step.
 

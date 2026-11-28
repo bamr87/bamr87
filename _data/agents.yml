@@ -15,23 +15,23 @@ contract:
     R5: its run records reach the reflector
     R6: a local entry point
 totals:
-  agents: 146
+  agents: 148
   by_category:
-    ci-agent-step: 131
+    ci-agent-step: 133
     local-loop-step: 5
     jev-tier: 3
     scheduled-local-job: 7
   by_kind:
     ci-scheduled: 51
-    ci-event: 38
+    ci-event: 40
     ci-mention: 42
     loop-step: 5
     jev-tier: 3
     local-job: 7
-  with_gaps: 137
+  with_gaps: 139
   gaps_by_rule:
     R1: 60
-    R2: 137
+    R2: 139
     R3: 0
     R4: 0
     R5: 5
@@ -379,6 +379,37 @@ agents:
   - R1:switch
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
+- id: ci:bamr87:independent-review
+  kind: ci-event
+  category: ci-agent-step
+  repo: bamr87/bamr87
+  where: .github/workflows/independent-review.yml
+  owner: bamr87
+  trigger: workflow_call
+  switch:
+    variable: OPENAI_REVIEW_ENABLED
+    loop: hub/independent-review
+  budget:
+    per_run_usd: 0.0
+  model: gpt-6.1-sol
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: tools/openai-auth.sh review
+  first_seen: '2026-11-25'
+  gaps:
+  - R2:missing:cost_source,tool_errors
+  note: 'the reusable OpenAI reviewer of non-technical changes (codex-run, ChatGPT OAuth); every repo''s openai-review.yml
+    calls it. Not free: it draws on the ChatGPT plan''s usage window, which has no per-run dollar figure to cap, so the budget
+    reads 0 metered and the job timeout bounds it'
 - id: ci:bamr87:issue-pipeline
   kind: ci-scheduled
   category: ci-agent-step
@@ -415,6 +446,35 @@ agents:
   gaps:
   - R2:missing:cost_source,tool_errors
   - R6:no-local-entry
+- id: ci:bamr87:openai-review
+  kind: ci-event
+  category: ci-agent-step
+  repo: bamr87/bamr87
+  where: .github/workflows/openai-review.yml
+  owner: bamr87
+  trigger: pull_request; workflow_dispatch
+  switch:
+    variable: OPENAI_REVIEW_ENABLED
+    loop: hub/openai-review
+  budget:
+    per_run_usd: 0.0
+  model: gpt-6.1-sol
+  kpis:
+    accepted_per_usd: 0.1
+    accepted_per_actions_min: 0.05
+    time_to_outcome_h: 24
+    false_signal_pct: 20
+    silent_failure_pct: 5
+  reads:
+    fleet-config: maintainer (reviewed PR)
+    github-live: GitHub
+  run_record: lake
+  feeds_reflector: true
+  local_entry: tools/openai-auth.sh review
+  first_seen: '2026-11-25'
+  gaps:
+  - R2:missing:cost_source,tool_errors
+  note: the hub's caller of independent-review.yml (same plan-usage caveat)
 - id: ci:bamr87:pr-ai-review
   kind: ci-event
   category: ci-agent-step

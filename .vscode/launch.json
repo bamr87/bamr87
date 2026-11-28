@@ -922,6 +922,14 @@
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "4-generate", "order": 20 }
     },
+    {
+      "name": "🔎 OpenAI: independent review of this branch (your Codex login, prints only)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "python3 .github/scripts/dash-gen/independent_review.py local --base origin/main",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 24 }
+    },
     // The weekly routine (docs/WEEKLY.md), one stage a day. Each of these reads
     // and reports: `close` saves to the local archive and changes no repo,
     // `confirm` is a dry run. The one external write is `confirm --apply`, typed.
