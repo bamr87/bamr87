@@ -85,6 +85,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash host [setup|ps|up|rebuild --wipe-all]${c_off}  forge Docker host — up a submodule, or the legacy whole-hub rebuild (deletes every container and volume on forge, so it needs --wipe-all)
   ${c_bold}dash node [status|plan|gen|key]${c_off}  where hub workloads run — the Mac edge and the forge workload node, from _data/fleet.yml \`nodes:\` (docs/PLATFORM.md); read-only except gen, which writes .fleet/nodes/
   ${c_bold}dash infra [plan|apply] [node]${c_off}  the IaC layer — OpenTofu plans a workload node's network and volumes (infra/); apply needs --yes and a saved plan of the current inputs
+  ${c_bold}dash cloud [status|map|check|json]${c_off}  where each repo's deliverable runs when it is not on a fleet node — every deployment read from the repos' own workflows and infrastructure files, by provider (_data/fleet.yml \`clouds:\`; docs/CLOUDS.md): \`map [--provider P] [--repo R]\` the deployments, \`check [--strict]\` the findings (a stored credential where the rule is a federated login, a credential the token contract does not name, resources no file declares), \`--instance DIR\` another control plane's repos; read-only, no network, calls no provider
   ${c_bold}dash apps [list|url|open|check|plan|assist|json]${c_off}  the app portal's launcher — every fleet frontend with its live address and its local dev stack's (registry \`frontend:\` ⨝ _data/ports.yml; docs/FRONTEND-PLATFORM.md); \`open <app> [--target local]\` opens it in the console, \`check\` asks each address whether it answers and can be framed, \`plan\` lists every repo's frontend component and what it is owed, \`assist\` the assistant baseline each repo's platform gets (the page bridge and its adapter, or the agent context; ADR 0014), \`assist activity [--days N] [--json]\` what the console's assistant did (its messages from the AI ledger and its page audit; tools/fleetcore/assistlog.py); read-only
   ${c_bold}dash console [--docker]${c_off} the Harness Console — local control plane UI on :4001 (native venv, or the compose service; docs/HARNESS-OPS.md)
   ${c_bold}dash mcp [--http|--tunnel]${c_off} the Harness Console as an MCP server for AI agents — stdio, streamable HTTP on 127.0.0.1:4002 with bearer auth, or a temporary cloudflared tunnel (tools/console/docs/mcp-layer.md)
@@ -292,6 +293,13 @@ cmd_node() { (cd "$TOOLS" && "$PY" -m fleetcore.nodes "$@"); }
 # `apply` changes the node, so it refuses without --yes and a saved plan of the
 # current inputs (constitution § 10.5).
 cmd_infra() { (cd "$TOOLS" && "$PY" -m fleetcore.nodes infra "$@"); }
+
+# Where each repo's deliverable runs when it is not on a fleet node (ADR 0018,
+# docs/CLOUDS.md): the deployments every owned repo makes, read from its own
+# workflows and infrastructure files and grouped by the providers declared in
+# _data/fleet.yml `clouds:` (tools/fleetcore/clouds.py). Read-only: it opens
+# files in checkouts already on disk and calls no provider.
+cmd_cloud() { (cd "$TOOLS" && "$PY" -m fleetcore.clouds "$@"); }
 
 # The app portal's launcher (ADR 0005, docs/FRONTEND-PLATFORM.md): every fleet
 # frontend and where it runs, from the registry `frontend:` blocks joined to
@@ -1092,6 +1100,7 @@ main() {
     host)    cmd_host "$@" ;;
     node)    cmd_node "$@" ;;
     infra)   cmd_infra "$@" ;;
+    cloud)   cmd_cloud "$@" ;;
     apps)    cmd_apps "$@" ;;
     console) cmd_console "$@" ;;
     mcp)     cmd_mcp "$@" ;;
