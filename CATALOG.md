@@ -242,6 +242,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_fleetcore_apps.py`](tools/test_fleetcore_apps.py) | Tests for tools/fleetcore/apps.py — the app portal's launcher: every registry frontend joined to its live address and its local dev stack's (ADR 0005). |
 | [`test_fleetcore_assist.py`](tools/test_fleetcore_assist.py) | Tests for tools/fleetcore/assist.py — the assistant baseline each repo's platform gets (ADR 0014): page (the kit's payload mounts through an adapter), context (no page:… |
 | [`test_fleetcore_assistlog.py`](tools/test_fleetcore_assistlog.py) | Tests for tools/fleetcore/assistlog.py — what the console's assistant did, read back from its two records: the page bridge's audit and its rows of the AI ledger. |
+| [`test_fleetcore_clouds.py`](tools/test_fleetcore_clouds.py) | Tests for tools/fleetcore/clouds.py — where each fleet repo's deliverable runs, read from the repos' own workflows and infrastructure files (ADR 0018). |
 | [`test_fleetcore_graph.py`](tools/test_fleetcore_graph.py) | Tests for tools/fleetcore/graph.py — the fleet graph: the model, the builders over a fixture checkout, the surface parsers, the checks, and the hub's own graph (no dangl… |
 | [`test_fleetcore_host.py`](tools/test_fleetcore_host.py) | Fixture tests for tools/fleetcore/host.py — live Docker inventory matched onto registry rows. |
 | [`test_fleetcore_learn.py`](tools/test_fleetcore_learn.py) | Tests for tools/fleetcore/learn.py — outcome learning in shadow: how an output is sorted into an outcome, the estimate and its decay, the Thompson plan, the replay skill… |
@@ -495,6 +496,7 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`ARCHITECTURE.md`](docs/ARCHITECTURE.md) | How the hub's own code is laid out, the four structural rules it is held to, and the one command that names the checks a change owes. |
 | [`BACKLOG-FANOUT.md`](docs/BACKLOG-FANOUT.md) | Turns the hub's pending backlog into tracking PRs in each fleet repo an item applies to — dry run by default, PR-only and additive. |
 | [`BRANCHING.md`](docs/BRANCHING.md) | The fleet's branch model in one place: `main` is the only long-lived branch, every other branch is short-lived and named for what made it, every change lands by pull req… |
+| [`CLOUDS.md`](docs/CLOUDS.md) | Which fleet repo deploys to which platform, how it signs in there, and whether its resources are declared as code: read from the repos' own files, for any provider, with… |
 | [`COCKPIT.md`](docs/COCKPIT.md) | Decision record (2026-09-18): GitFactory (gitorio) as the one front door for designing, running and refining harnesses, with this hub as its runtime. |
 | [`CONSOLE-PAGES.md`](docs/CONSOLE-PAGES.md) | The public site is the Harness Console built static: the API snapshot it reads, connecting GitHub or a running console from the page, and what is never published. |
 | [`CONSOLIDATION.md`](docs/CONSOLIDATION.md) | The 2026-10-19 repository consolidation: which repositories merged into which, the zer0-CMS recipe, the hub's add and retire steps, and the decisions still open. |

@@ -3536,3 +3536,40 @@ features:
     - FR148
     - FR149
     - FR150
+  - id: HUB-138
+    title: Where every repo deploys, by provider, read from the repos
+    description: '`tools/dash cloud` maps every deployment the fleet''s repos make when they do not run
+      on a fleet node: `_data/fleet.yml` `clouds:` declares each provider once (GitHub, Azure, AWS, Google
+      Cloud, Cloudflare: how a deployment to it is recognised, how the fleet is expected to sign in, which
+      files declare its resources, and a read switch that ships off), and tools/fleetcore/clouds.py reads
+      which repo deploys where from each owned checkout''s workflows, registry address and infrastructure
+      files, so the map cannot disagree with what the repos do. Each deployment carries its provider, service,
+      kind (static, container, function, stack or cluster, the same on every provider), its evidence, its
+      GitHub environments and how it signs in (oidc, platform, secret or unknown); `check` lists the findings
+      (a stored credential where the rule is a federated login, a credential the token contract does not
+      name, a sign-in that could not be read, resources no file declares, infrastructure no workflow deploys);
+      `--instance` reads another control plane''s repos. The reader names no vendor (a test holds it), so
+      a new provider or service is an entry in `clouds:` and no code. A repo that was not read is named
+      and never counted as clean. Read-only: files already on disk, no network, no credential, nothing written.
+      This is phase P0 of ADR 0018; the console page, what ran, what answers, inventory and cost follow
+      (docs/CLOUDS.md).'
+    implemented: true
+    status: partial
+    surface: infra
+    link: tools/fleetcore/clouds.py
+    docs: docs/CLOUDS.md
+    tags:
+    - clouds
+    - deployments
+    - azure
+    - aws
+    - gcp
+    - oidc
+    - iac
+    - platform
+    - portability
+    date: 2026-11-27
+    tests:
+    - tools/test_fleetcore_clouds.py
+    prd:
+    - FR151

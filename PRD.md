@@ -187,6 +187,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-135](features/features.yml) | Focus: the checks a change owes, in one pass | shipped | [`tools/focus.py`](tools/focus.py) · [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | FR146 |
 | [HUB-136](features/features.yml) | The branch model, declared once, and one ruleset per repo that allows only merge commits | shipped | [`tools/branch_policy.py`](tools/branch_policy.py) · [`docs/BRANCHING.md`](docs/BRANCHING.md) | FR147 |
 | [HUB-137](features/features.yml) | Stargazer: the open-source radar (stars, trending, like the fleet) | shipped | [`tools/console/web/src/pages/Stars.tsx`](tools/console/web/src/pages/Stars.tsx) · [`docs/STARGAZER.md`](docs/STARGAZER.md) | FR148, FR149, FR150 |
+| [HUB-138](features/features.yml) | Where every repo deploys, by provider, read from the repos | partial | [`tools/fleetcore/clouds.py`](tools/fleetcore/clouds.py) · [`docs/CLOUDS.md`](docs/CLOUDS.md) | FR151 |
 
 **Requirement → feature trace**
 
@@ -374,6 +375,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR148 | HUB-137 |
 | FR149 | HUB-137 |
 | FR150 | HUB-137 |
+| FR151 | HUB-138 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -518,6 +520,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR148: The hub must keep a public radar of the account's GitHub stars and of the repositories trending in, or most like, the fleet's projects — categorised, measured by star velocity, matched to each fleet project with the reason, with star-farmed repositories flagged and never recommended — and render it on the console and the published site, read-only on GitHub.
 - FR149: The radar must be enriched by a capped, tool-less AI pass that reviews each repository for the fleet (what it is, adopt, borrow, watch or skip, the project it serves and why) and groups the stars into themes; it runs only on a person's yes, records its cost in the AI ledger, holds the model's answer to a schema and treats repository text as data.
 - FR150: Every local Claude Code session must start with the starred repositories relevant to the project it works in, so a starred repository is considered before an equivalent is built; the brief treats third-party text as data and never names a suspect repository.
+- FR151: The product must show, for every fleet repo, where its deliverable is deployed when it does not run on a fleet node: the provider, the service and its kind, the evidence, and how the deployment signs in, read from the repo's own workflows and infrastructure files and not from a hand-kept field; a provider must be declared once as data, so that adding AWS, Google Cloud, Azure or any other platform needs no code; a repo that was not read must be named and never counted as clean; and no read of a provider's own API may happen while that provider's switch is off.
 
 **Non-functional**
 
