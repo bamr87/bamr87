@@ -441,6 +441,9 @@ def test_the_front_door_and_identity_are_settings_not_literals():
     # The public page frames another origin only in a site build, and then only the launcher's.
     vite = (HERE / "web" / "vite.config.ts").read_text()
     assert """["frame-src 'self'", ...FRAME_SRC].join(' ')""" in vite and "process.env.CONSOLE_FRAME_SRC ?? ''" in vite
+    # ...and of those, only https or http loopback (issue #978): the predicate is
+    # src/lib/frameOrigin.ts, which its Vitest case pins; the build warns on a drop.
+    assert "frameOrigins(process.env.CONSOLE_FRAME_SRC ?? '')" in vite and "console.warn(`frame-src: dropped" in vite
     script = (HERE / "build-pages.sh").read_text()
     assert "apps.target_origins(" in script and script.index("apps.target_origins(") > script.index('if [[ -n "$SITE" ]]; then')
     raw = site_docs._load(site_docs.DATA / "profile.yml")

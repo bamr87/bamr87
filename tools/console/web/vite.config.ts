@@ -17,12 +17,14 @@
 // frame). Unset, the build is what it was.
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import { frameOrigins } from './src/lib/frameOrigin';
 
 const CONSOLE = process.env.CONSOLE_URL ?? 'http://127.0.0.1:4001';
 const STATIC = process.env.VITE_STATIC === '1';
-// Only what an origin looks like reaches the policy: scheme, plain host, port.
-const ORIGIN = /^https?:\/\/[A-Za-z0-9.-]+(:\d{1,5})?$/;
-const FRAME_SRC = (process.env.CONSOLE_FRAME_SRC ?? '').split(/\s+/).filter((o) => ORIGIN.test(o));
+// Only an https origin, or http to loopback, reaches the policy: scheme, plain
+// host, port (src/lib/frameOrigin.ts). Anything else is dropped, out loud.
+const { kept: FRAME_SRC, dropped: FRAME_DROPPED } = frameOrigins(process.env.CONSOLE_FRAME_SRC ?? '');
+for (const o of FRAME_DROPPED) console.warn(`frame-src: dropped ${o} (not https or http loopback)`);
 // A plain file name of public/, as site_docs.py checked it.
 const MARK = /^[A-Za-z0-9][A-Za-z0-9._-]{0,80}\.(svg|png)$/.test(process.env.VITE_SITE_MARK ?? '') ? process.env.VITE_SITE_MARK! : '';
 
