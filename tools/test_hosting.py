@@ -33,6 +33,15 @@ def problems(doc: dict) -> list[str]:
         out.append("node.public needs node.enabled: there is no front door without a machine")
     if not re.fullmatch(r"([01]\d|2[0-3]):00", str((node.get("snapshots") or {}).get("daily_at"))):
         out.append("node.snapshots.daily_at must be a whole hour, HH:00 (the provider takes no other)")
+    dev = doc.get("dev") or {}
+    if not isinstance(dev.get("enabled"), bool):
+        out.append("dev.enabled must be true or false")
+    if dev.get("public") is not False:
+        out.append("dev.public must be false: a development instance is reached through the tunnel only")
+    if dev.get("durable") is not False:
+        out.append("dev.durable must be false: a development instance holds nothing that must outlive it")
+    if dev.get("name") == node.get("name"):
+        out.append("dev.name must differ from node.name: the two machines share a project")
     for name, svc in services.items():
         at = f"services.{name}"
         if not isinstance(svc.get("enabled"), bool):
@@ -59,6 +68,11 @@ class HostingFile(unittest.TestCase):
         self.assertEqual(problems(self.doc), [])
 
     def test_the_rules_catch_each_way_to_get_it_wrong(self):
+        doc = load(HOSTING)
+        doc["dev"].update(public=True, durable=True, name=doc["node"]["name"])
+        text = " | ".join(problems(doc))
+        for needle in ("dev.public must be false", "dev.durable must be false", "dev.name must differ"):
+            self.assertIn(needle, text)
         doc = load(HOSTING)
         doc["node"].update(enabled=False, public=True)
         doc["node"]["snapshots"]["daily_at"] = "09:37"
@@ -101,7 +115,8 @@ class NoIdentifierInTheRepo(unittest.TestCase):
         return [HOSTING, *sorted(p for p in GCP.rglob("*") if p.is_file())]
 
     def test_no_address_and_no_project_number(self):
-        allowed = {"0.0.0.0/0", "35.235.240.0/20", "10.10.0.0/24"}  # the internet, the provider's tunnel, the private subnet
+        # the internet, the provider's tunnel, the private subnet, and a machine's own loopback
+        allowed = {"0.0.0.0/0", "35.235.240.0/20", "10.10.0.0/24", "127.0.0.1"}
         for path in self.files():
             text = path.read_text(encoding="utf-8")
             for hit in re.findall(r"\b\d{1,3}(?:\.\d{1,3}){3}(?:/\d{1,2})?\b", text):
@@ -114,8 +129,8 @@ class NoIdentifierInTheRepo(unittest.TestCase):
         for module in ("foundation", "node"):
             text = (GCP / module / "versions.tf").read_text(encoding="utf-8")
             self.assertIn("project = var.project_id", text)
-            self.assertNotIn("default", (GCP / module / "variables.tf").read_text(encoding="utf-8").split('variable "env"')[0],
-                             f"infra/gcp/{module}: project_id has no default")
+            block = re.search(r'variable "project_id" \{\n(.*?)\n\}\n', (GCP / module / "variables.tf").read_text(encoding="utf-8"), re.S)
+            self.assertNotIn("default", block.group(1), f"infra/gcp/{module}: project_id has no default")
         self.assertIn('export TF_VAR_project_id="$GCP_PROJECT_ID"', (GCP / "deploy.sh").read_text(encoding="utf-8"))
 
 
@@ -143,8 +158,8 @@ class Modules(unittest.TestCase):
         self.assertGreaterEqual(len(resources), 10)
         for kind, name, body in resources:
             head = body.split("\n\n")[0]
-            self.assertRegex(head, r"^\s+(count|for_each) = local\.(create|public) \?",
-                             f"{kind}.{name} is gated by node.enabled (or node.public) on its first line")
+            self.assertRegex(head, r"^\s+(count|for_each) = local\.(create|public|durable) \?",
+                             f"{kind}.{name} is gated by the machine's switches on its first line")
 
     def test_ssh_comes_only_from_the_tunnel_and_the_front_door_has_its_own_switch(self):
         text = self.text("node")
@@ -164,8 +179,20 @@ class Modules(unittest.TestCase):
         for kind, name in (("google_compute_disk", "data"), ("google_storage_bucket", "backups")):
             body = re.search(rf'\nresource "{kind}" "{name}" \{{\n(.*?)\n\}}\n', text, re.S).group(1)
             self.assertIn("prevent_destroy = true", body, f"{kind}.{name}")
-        self.assertIn("deletion_protection       = true", text)
+        self.assertIn("deletion_protection       = local.durable", text)
         self.assertNotIn("objectAdmin", text, "the node may add and read a backup, never delete one")
+
+    def test_the_development_instance_is_the_same_module_with_nothing_durable(self):
+        text = self.text("node")
+        self.assertIn("node    = local.hosting[var.instance]", text)
+        self.assertIn('durable = local.node.enabled && try(local.node.durable, true)', text)
+        for kind, name in (("google_compute_disk", "data"), ("google_compute_resource_policy", "snapshots"),
+                           ("google_storage_bucket", "backups")):
+            body = re.search(rf'\nresource "{kind}" "{name}" \{{\n(.*?)\n\}}\n', text, re.S).group(1)
+            self.assertIn("count = local.durable ? 1 : 0", body, f"{kind}.{name} does not exist for a machine that is not durable")
+        self.assertIn("name                    = local.name", text, "each machine has its own network, so two fit in one project")
+        variables = (GCP / "node" / "variables.tf").read_text(encoding="utf-8")
+        self.assertIn('condition     = contains(["node", "dev"], var.instance)', variables)
 
     def test_no_key_is_created_and_a_deploy_identity_starts_with_no_role(self):
         for module in ("foundation", "node"):
@@ -189,6 +216,24 @@ class DeployScript(unittest.TestCase):
         self.assertIn("-newer \"$PLAN\"", apply_branch, "a change after the plan needs a new plan")
         self.assertNotRegex(plan_branch, r'"\$TOOL"[^\n]* apply\b')
         self.assertIn('plan -input=false -out="$PLAN"', plan_branch)
+
+    def test_only_the_development_instance_can_be_removed_by_the_script(self):
+        self.assertIn('if [[ "$DESTROY" -eq 1 && "$MODULE" != dev ]]; then', self.text)
+        self.assertEqual(self.text.count('plan -input=false -destroy -out="$PLAN"'), 1, "a removal is planned in one place, and applied like any plan")
+        self.assertNotIn(" destroy ", self.text.split("set -euo pipefail", 1)[1], "the script never runs a bare destroy")
+        self.assertIn('export TF_VAR_instance="$MODULE"', self.text)
+
+    def test_the_development_stack_is_reached_through_the_tunnel_only(self):
+        up = (GCP / "dev" / "up.sh").read_text(encoding="utf-8")
+        self.assertIn('--tunnel-through-iap "$@"', up, "every connection goes through the one function that uses the tunnel")
+        self.assertEqual(up.count("gcloud compute ssh"), 2, "named once in the header and once in that function")
+        self.assertIn("-L 8000:127.0.0.1:8000", up, "the app is forwarded to the operator's own loopback")
+        on_machine = (GCP / "dev" / "zer0-cms.sh").read_text(encoding="utf-8")
+        self.assertIn("docker compose --profile content up -d --build", on_machine, "the service's own development stack, unchanged")
+        self.assertIn("umask 077", on_machine, "what it generates is readable by the operator only")
+        for text in (up, on_machine):
+            self.assertNotIn("0.0.0.0", text)
+            self.assertNotIn("ports:", text, "it publishes no port of its own")
 
     def test_state_lives_outside_the_checkout(self):
         self.assertIn('STATE_DIR="${FLEET_INFRA_STATE:-$HOME/.local/state/bamr87-infra}"', self.text)

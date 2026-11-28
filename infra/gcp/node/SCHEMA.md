@@ -9,7 +9,8 @@ coverage: listed
 
 ## Conventions
 
-- Reads `_data/hosting.yml` `node:` for the machine's shape and its two switches. With `node.enabled: false` every resource has a count of zero.
+- Reads `_data/hosting.yml` for the machine's shape and its switches: `node:` by default, `dev:` when `instance` is `dev`. With the machine's `enabled: false` every resource has a count of zero.
+- A machine that is not `durable` (the development instance) gets no data disk, no snapshots, no backups bucket and no deletion protection, so it can be removed by a plan.
 - The data disk and the backups bucket carry `prevent_destroy`: a plan that would delete either fails.
 - SSH comes in only from the provider's identity-aware tunnel, and the operator signs in as themselves. No SSH key is created.
 
@@ -18,7 +19,7 @@ coverage: listed
 | entry | kind | purpose | rules |
 | --- | --- | --- | --- |
 | `versions.tf` | file | The OpenTofu and provider floors, the local backend and the provider | required |
-| `variables.tf` | file | What comes from the environment: the project and the environment label | required |
+| `variables.tf` | file | What comes from the environment: the project, and which machine of `_data/hosting.yml` this state describes (`node` or `dev`) | required |
 | `main.tf` | file | The network and its two firewall rules, the address, the machine's identity and its three roles, the data disk and its snapshot schedule, the backups bucket, and the machine | required |
 | `outputs.tf` | file | The machine's name and address, the backups bucket, and whether the front door is open | required |
 

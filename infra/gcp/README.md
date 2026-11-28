@@ -7,7 +7,8 @@ The decision is [ADR 0020](../../docs/adr/0020-platform-on-google-cloud.md) and 
 | Module | What it creates | Billed while idle? |
 | --- | --- | --- |
 | [`foundation/`](foundation/SCHEMA.md) | the APIs, a keyless sign-in for GitHub Actions, a pull-through of ghcr.io, an optional budget alert | No |
-| [`node/`](node/SCHEMA.md) | the machine, its network and address, a data disk with daily snapshots, a backups bucket | Yes, once `node.enabled` is true: the machine, its disks and its address |
+| [`node/`](node/SCHEMA.md) | the machine, its network and address, a data disk with daily snapshots, a backups bucket; as `dev`, a smaller machine with nothing durable | Yes, once its `enabled` is true: the machine, its disks and its address |
+| [`dev/`](dev/SCHEMA.md) | nothing in the cloud: the scripts that start a service's development stack on the development instance | — |
 
 ## Run it
 
@@ -20,6 +21,21 @@ infra/gcp/deploy.sh node                   # plans nothing while node.enabled is
 ```
 
 `deploy.sh` needs OpenTofu (`brew install opentofu`). It plans by default. `--apply` applies the plan the last run saved and refuses when the module or `_data/hosting.yml` changed after it. State lives outside every checkout, in `~/.local/state/bamr87-infra/`. Set `GCP_BILLING_ACCOUNT` (and `GCP_BUDGET_USD`, default 50) to have `foundation` create a budget alert; it warns and does not cap.
+
+## A development instance
+
+For review and validation, beside the platform's machine and before it: `_data/hosting.yml` `dev:` is the same machine module with its own state. It is never public, it has nothing durable, and one apply removes it.
+
+```bash
+infra/gcp/deploy.sh foundation && infra/gcp/deploy.sh foundation --apply   # once per project
+infra/gcp/deploy.sh dev                  # the plan: one machine, its network and address
+infra/gcp/deploy.sh dev --apply          # create it; it is billed from here
+infra/gcp/dev/up.sh                      # zer0-CMS's development stack on it
+infra/gcp/dev/up.sh --tunnel             # then open http://127.0.0.1:8000/studio/
+infra/gcp/dev/up.sh --account            # make the first account
+infra/gcp/dev/up.sh --codes              # the sign-in code the app logged
+infra/gcp/deploy.sh dev --destroy && infra/gcp/deploy.sh dev --apply       # remove it
+```
 
 ## The order, and what is yours
 

@@ -21,9 +21,10 @@ coverage: listed
 | entry | kind | purpose | rules |
 | --- | --- | --- | --- |
 | `README.md` | file | What this layer is, the order to apply it in, and what is yours to do | required |
-| `deploy.sh` | file | Plan one module, and with `--apply` apply the saved plan; state lives outside every checkout | required |
+| `deploy.sh` | file | Plan one target (`foundation`, `node` or `dev`), and with `--apply` apply the saved plan; `dev --destroy` plans the development instance's removal; state lives outside every checkout | required |
 | `foundation/` | dir | The landing zone: the APIs the platform uses, the keyless sign-in for GitHub Actions, the pull-through of ghcr.io and an optional budget alert | required |
-| `node/` | dir | The platform's machine: its network and the two ways into it, the machine and its address, a data disk with daily snapshots and a backups bucket; plans nothing while `_data/hosting.yml` `node.enabled` is false | required |
+| `node/` | dir | The platform's machine: its network and the two ways into it, the machine and its address, a data disk with daily snapshots and a backups bucket; plans nothing while `_data/hosting.yml` `node.enabled` is false. The same module is the development instance (`dev:`), with its own state and nothing durable | required |
+| `dev/` | dir | The scripts that bring a service's development stack up on the development instance and forward it to the operator's loopback; they create no cloud resource | required |
 
 ## Placement
 

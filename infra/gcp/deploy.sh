@@ -11,6 +11,8 @@
 #   infra/gcp/deploy.sh foundation --apply         # change it, from that plan
 #   infra/gcp/deploy.sh node                       # the machine (plans nothing
 #                                                  # while node.enabled is false)
+#   infra/gcp/deploy.sh dev                        # the development instance
+#   infra/gcp/deploy.sh dev --destroy              # plan removing it; then --apply
 #
 # What is created is decided by _data/hosting.yml, which each module reads
 # itself. This script only supplies what must stay out of the repo:
@@ -21,28 +23,40 @@
 #
 # --apply applies the plan the last run saved, and refuses when that plan is
 # older than the module or _data/hosting.yml: a change after the plan needs a
-# new plan (constitution § 10.5). State lives outside every checkout
+# new plan (constitution § 10.5). --destroy plans the removal of everything a
+# target created, and is accepted for `dev` only: the development instance is
+# the one thing here that is meant to be thrown away. State lives outside every checkout
 # (FLEET_INFRA_STATE, default ~/.local/state/bamr87-infra), as for the nodes.
 # ============================================================================
 set -euo pipefail
 
-usage() { echo "usage: $0 <foundation|node> [--apply]" >&2; exit 2; }
+usage() { echo "usage: $0 <foundation|node|dev> [--apply|--destroy]" >&2; exit 2; }
 
 MODULE="${1:-}"
 APPLY=0
+DESTROY=0
 case "${2:-}" in
   --apply) APPLY=1 ;;
+  --destroy) DESTROY=1 ;;
   "") ;;
   *) usage ;;
 esac
 case "$MODULE" in
-  foundation|node) ;;
+  foundation|node|dev) ;;
   *) usage ;;
 esac
+if [[ "$DESTROY" -eq 1 && "$MODULE" != dev ]]; then
+  echo "deploy: --destroy is for the development instance only; the landing zone and the node are not removed by this script" >&2
+  exit 2
+fi
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
-DIR="$HERE/$MODULE"
+# The development instance is the machine module with its own state.
+case "$MODULE" in
+  foundation) DIR="$HERE/foundation" ;;
+  *) DIR="$HERE/node" ;;
+esac
 HOSTING="$ROOT/_data/hosting.yml"
 TOOL="${TOFU:-tofu}"
 
@@ -60,6 +74,8 @@ export TF_VAR_project_id="$GCP_PROJECT_ID"
 if [[ "$MODULE" == foundation ]]; then
   export TF_VAR_billing_account="${GCP_BILLING_ACCOUNT:-}"
   [[ -z "${GCP_BUDGET_USD:-}" ]] || export TF_VAR_budget_usd="$GCP_BUDGET_USD"
+else
+  export TF_VAR_instance="$MODULE"
 fi
 
 if [[ "$APPLY" -eq 1 ]]; then
@@ -73,8 +89,15 @@ if [[ "$APPLY" -eq 1 ]]; then
   exit 0
 fi
 
-"$TOOL" -chdir="$DIR" init -input=false -upgrade -backend-config="path=$STATE" >/dev/null
-"$TOOL" -chdir="$DIR" plan -input=false -out="$PLAN"
-echo
-echo "deploy: nothing was changed. This is the plan for '$MODULE' in project $GCP_PROJECT_ID."
+# -reconfigure: the node and the development instance share one module, each with its own state.
+"$TOOL" -chdir="$DIR" init -input=false -upgrade -reconfigure -backend-config="path=$STATE" >/dev/null
+if [[ "$DESTROY" -eq 1 ]]; then
+  "$TOOL" -chdir="$DIR" plan -input=false -destroy -out="$PLAN"
+  echo
+  echo "deploy: nothing was changed. This plan REMOVES the development instance from project $GCP_PROJECT_ID."
+else
+  "$TOOL" -chdir="$DIR" plan -input=false -out="$PLAN"
+  echo
+  echo "deploy: nothing was changed. This is the plan for '$MODULE' in project $GCP_PROJECT_ID."
+fi
 echo "deploy: to apply exactly this plan: $0 $MODULE --apply"

@@ -6,7 +6,8 @@
 # one place that says so. It is read by:
 #
 #   infra/gcp/foundation   the landing zone (OpenTofu reads this file itself)
-#   infra/gcp/node         the machine the platform runs on
+#   infra/gcp/node         the machine the platform runs on, and the
+#                          development instance beside it (`dev:`)
 #   tools/test_hosting.py  the rules below, on every pull request
 #
 # and the main site's sign-in page lists the services that are `enabled`.
@@ -17,6 +18,11 @@
 #   node.enabled      false: infra/gcp/node plans nothing; no machine exists
 #   node.public       false: no rule lets the internet reach ports 80 and 443
 #   services.*.enabled  false: the main site does not offer that service
+#
+# A fourth switch, `dev.enabled`, ships ON: the maintainer asked for a
+# development instance for review and validation on 2026-11-28. Like the
+# others it creates nothing by itself: the machine exists only after
+# `infra/gcp/deploy.sh dev --apply`, and `dev --destroy` removes it.
 #
 # No value that identifies the cloud account lives here: `_data/` is public
 # site data. The project id, the billing account and every credential come
@@ -50,6 +56,26 @@ node:
   snapshots:
     daily_at: '09:00' # UTC; the provider takes whole hours only
     keep_days: 14
+
+# A development instance, for review and validation. It is the same machine
+# module with its own state, and it differs from the node above in three ways
+# that tools/test_hosting.py holds:
+#
+#   never public    `public` stays false: it is reached only through the
+#                   identity-aware tunnel, on the operator's own loopback
+#   not durable     no data disk, no snapshots, no backups bucket and no
+#                   deletion protection, so one apply removes all of it
+#   no client data  it runs a service's DEVELOPMENT stack, with made-up content
+#
+# `enabled` is its create switch. Set it false and apply to remove the machine.
+dev:
+  name: gcp-dev
+  enabled: true
+  public: false
+  durable: false
+  os: debian-13
+  machine_type: e2-standard-2 # 2 vCPUs, 8 GB: one service's development stack
+  boot_disk_gb: 50
 
 # What runs on the node and is entered from the main site. A service is listed
 # on the sign-in page only when it is enabled, and it may be enabled only when

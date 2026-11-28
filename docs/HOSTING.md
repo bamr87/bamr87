@@ -51,6 +51,22 @@ python3 tools/test_hosting.py              # the rules, offline
 
 `deploy.sh` needs OpenTofu (`brew install opentofu`). It never applies without `--apply`, and `--apply` uses the plan the last run saved and refuses if the module or `_data/hosting.yml` changed since. State lives in `~/.local/state/bamr87-infra/`, outside every checkout.
 
+## A development instance
+
+`_data/hosting.yml` `dev:` describes a second, smaller machine for review and validation. It is the same module as the platform's machine with its own state, and three rules that `tools/test_hosting.py` holds:
+
+- **Never public.** `dev.public` is always false. It is reached through the identity-aware tunnel and shows up on your own `127.0.0.1`.
+- **Nothing durable.** No data disk, no snapshots, no backups bucket and no deletion protection, so `infra/gcp/deploy.sh dev --destroy` and then `--apply` removes all of it.
+- **No client data.** It runs a service's development stack with made-up content. Sign-in codes are printed to the app's log because it has no email sender.
+
+```bash
+infra/gcp/deploy.sh dev              # plan, then: infra/gcp/deploy.sh dev --apply
+infra/gcp/dev/up.sh                  # zer0-CMS's own `docker compose --profile content`, on the machine
+infra/gcp/dev/up.sh --tunnel         # forward it, then open http://127.0.0.1:8000/studio/
+```
+
+It is billed for every hour it exists, like any machine. `dev.enabled: false` and an apply, or the `--destroy` plan, ends that.
+
 ## What is created
 
 | Module | Creates | Billed while idle |
@@ -110,7 +126,8 @@ Nothing is framed and no session is shared between the main site and a service. 
 | `_data/hosting.yml` | What is hosted: the provider and region, the main site, the machine, each service, and the three switches |
 | `infra/gcp/foundation/` | The landing zone in OpenTofu |
 | `infra/gcp/node/` | The machine in OpenTofu |
-| `infra/gcp/deploy.sh` | Plan a module, or apply its saved plan |
+| `infra/gcp/deploy.sh` | Plan a target (`foundation`, `node`, `dev`), apply its saved plan, or plan the development instance's removal |
+| `infra/gcp/dev/` | The scripts that start a service's development stack on the development instance and forward it to your loopback |
 | `tools/test_hosting.py` | The rules of `hosting.yml`, no identifier in the repo, the switches gating every resource, the two ways in, and the script planning by default |
 | `.github/workflows/infra.yml` | Formats and validates each module; holds no credential |
 | [ADR 0020](adr/0020-platform-on-google-cloud.md) | The decision, the prior art and the phases |

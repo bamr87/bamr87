@@ -9,23 +9,29 @@
 #   a data disk that survives the machine, snapshotted daily
 #   a bucket for backups taken off the machine
 #
-# While _data/hosting.yml node.enabled is false this module plans NOTHING.
+# While the machine's `enabled` in _data/hosting.yml is false this module plans
+# NOTHING. The same module describes the development instance (`dev:`), which
+# is never public and has nothing durable, so one apply removes it.
 
 locals {
   hosting = yamldecode(file("${path.module}/../../../_data/hosting.yml"))
-  node    = local.hosting.node
+  node    = local.hosting[var.instance]
+  env     = var.instance == "dev" ? "dev" : "prod"
 
   create = local.node.enabled
   public = local.node.enabled && local.node.public
-  name   = "${local.hosting.project}-${local.node.name}"
-  tag    = "platform-node"
+  # What must outlive the machine: a data disk, its snapshots, a backups bucket
+  # and deletion protection. The development instance has none of it.
+  durable = local.node.enabled && try(local.node.durable, true)
+  name    = "${local.hosting.project}-${local.node.name}"
+  tag     = local.name
 
   # Google Cloud labels hold lowercase letters, digits, hyphens and underscores
   # only, so `source` (ADR 0018: `<owner>/<repo> <path>`) is written with an
   # underscore for each slash and two hyphens for the space.
   labels = {
     project    = local.hosting.project
-    env        = var.env
+    env        = local.env
     managed-by = "opentofu"
     source     = "bamr87_bamr87--infra_gcp_node"
   }
@@ -40,14 +46,14 @@ locals {
 resource "google_compute_network" "platform" {
   count = local.create ? 1 : 0
 
-  name                    = "${local.hosting.project}-platform"
+  name                    = local.name
   auto_create_subnetworks = false
 }
 
 resource "google_compute_subnetwork" "platform" {
   count = local.create ? 1 : 0
 
-  name          = "${local.hosting.project}-platform"
+  name          = local.name
   region        = local.hosting.region
   network       = google_compute_network.platform[0].id
   ip_cidr_range = "10.10.0.0/24"
@@ -56,7 +62,7 @@ resource "google_compute_subnetwork" "platform" {
 resource "google_compute_firewall" "ssh_from_tunnel" {
   count = local.create ? 1 : 0
 
-  name          = "${local.hosting.project}-ssh-from-tunnel"
+  name          = "${local.name}-ssh-from-tunnel"
   description   = "SSH is the only API to a node (ADR 0003), and only through the identity-aware tunnel: nobody reaches port 22 from the internet."
   network       = google_compute_network.platform[0].id
   direction     = "INGRESS"
@@ -72,8 +78,8 @@ resource "google_compute_firewall" "ssh_from_tunnel" {
 resource "google_compute_firewall" "web" {
   count = local.public ? 1 : 0
 
-  name          = "${local.hosting.project}-web"
-  description   = "The front door: HTTP and HTTPS from the internet. Exists only while _data/hosting.yml node.public is true."
+  name          = "${local.name}-web"
+  description   = "The front door: HTTP and HTTPS from the internet. Exists only while the machine's `public` in _data/hosting.yml is true."
   network       = google_compute_network.platform[0].id
   direction     = "INGRESS"
   source_ranges = ["0.0.0.0/0"]
@@ -123,7 +129,7 @@ resource "google_project_iam_member" "node" {
 # backups that leave the machine. A plan that would delete either one fails.
 # ---------------------------------------------------------------------------
 resource "google_compute_disk" "data" {
-  count = local.create ? 1 : 0
+  count = local.durable ? 1 : 0
 
   name   = "${local.name}-data"
   type   = "pd-balanced"
@@ -137,7 +143,7 @@ resource "google_compute_disk" "data" {
 }
 
 resource "google_compute_resource_policy" "snapshots" {
-  count = local.create ? 1 : 0
+  count = local.durable ? 1 : 0
 
   name   = "${local.name}-daily"
   region = local.hosting.region
@@ -162,7 +168,7 @@ resource "google_compute_resource_policy" "snapshots" {
 }
 
 resource "google_compute_disk_resource_policy_attachment" "data" {
-  count = local.create ? 1 : 0
+  count = local.durable ? 1 : 0
 
   name = google_compute_resource_policy.snapshots[0].name
   disk = google_compute_disk.data[0].name
@@ -170,7 +176,7 @@ resource "google_compute_disk_resource_policy_attachment" "data" {
 }
 
 resource "google_storage_bucket" "backups" {
-  count = local.create ? 1 : 0
+  count = local.durable ? 1 : 0
 
   name                        = "${var.project_id}-platform-backups"
   location                    = local.hosting.region
@@ -200,7 +206,7 @@ resource "google_storage_bucket" "backups" {
 # The node may add a backup and read one back for a restore. It may not delete
 # one: a machine that is taken over cannot erase what was saved off it.
 resource "google_storage_bucket_iam_member" "node_backups" {
-  for_each = local.create ? toset(["roles/storage.objectCreator", "roles/storage.objectViewer"]) : toset([])
+  for_each = local.durable ? toset(["roles/storage.objectCreator", "roles/storage.objectViewer"]) : toset([])
 
   bucket = google_storage_bucket.backups[0].name
   role   = each.value
@@ -218,7 +224,7 @@ resource "google_compute_instance" "node" {
   zone                      = local.hosting.zone
   tags                      = [local.tag]
   labels                    = local.labels
-  deletion_protection       = true
+  deletion_protection       = local.durable
   allow_stopping_for_update = true
 
   boot_disk {
@@ -229,9 +235,13 @@ resource "google_compute_instance" "node" {
     }
   }
 
-  attached_disk {
-    source      = google_compute_disk.data[0].id
-    device_name = "data"
+  dynamic "attached_disk" {
+    for_each = local.durable ? [1] : []
+
+    content {
+      source      = google_compute_disk.data[0].id
+      device_name = "data"
+    }
   }
 
   network_interface {

@@ -11,8 +11,13 @@ variable "project_id" {
   }
 }
 
-variable "env" {
-  description = "The environment label every resource carries (ADR 0018, decision 6)."
+variable "instance" {
+  description = "Which machine of _data/hosting.yml this state describes: `node` (the platform's machine) or `dev` (the development instance). deploy.sh sets it."
   type        = string
-  default     = "prod"
+  default     = "node"
+
+  validation {
+    condition     = contains(["node", "dev"], var.instance)
+    error_message = "instance must be node or dev: the two machines _data/hosting.yml describes."
+  }
 }

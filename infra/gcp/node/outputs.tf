@@ -16,6 +16,11 @@ output "backups" {
 }
 
 output "open_to_the_internet" {
-  description = "Whether ports 80 and 443 are open (_data/hosting.yml node.public)."
+  description = "Whether ports 80 and 443 are open (the machine's `public` in _data/hosting.yml)."
   value       = local.public
+}
+
+output "zone" {
+  description = "The zone the machine is in: `gcloud compute ssh <name> --zone <zone> --tunnel-through-iap`."
+  value       = local.hosting.zone
 }
