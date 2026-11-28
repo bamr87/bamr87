@@ -2,7 +2,9 @@
 # formatting of infra/, then initialises every root module without a backend
 # and validates it: nothing is read from a node and no state exists here.
 # CI never holds an SSH key to a fleet node, so `plan` and `apply` stay local
-# (`tools/dash infra`); this job only proves the HCL is well-formed.
+# (`tools/dash infra`); this job only proves the HCL is well-formed. The same
+# holds for the Google Cloud modules under infra/gcp/ (ADR 0020): CI holds no
+# cloud credential, and the maintainer plans and applies with infra/gcp/deploy.sh.
 #
 # The Azure deployments under infra/azure/ are Bicep, as the fleet's other Azure
 # deployments are (bash-365.com, bashcrawl). The bicep job compiles and lints
@@ -37,8 +39,9 @@ jobs:
       - name: Initialise and validate each root module
         run: |
           set -euo pipefail
-          for dir in infra/*/; do
-            # A root module is a directory with .tf files (infra/azure/ is Bicep).
+          for dir in infra/*/ infra/*/*/; do
+            # A root module is a directory with .tf files: infra/node/, and one level
+            # down infra/gcp/<module>/ (infra/azure/ is Bicep and has none).
             compgen -G "${dir}*.tf" >/dev/null || continue
             echo "::group::${dir}"
             tofu -chdir="$dir" init -backend=false -input=false

@@ -6,6 +6,8 @@ Each kind of resource has one owner. **Ansible** bootstraps a node's operating s
 
 **Azure** is the exception: [`azure/`](azure/README.md) holds Bicep deployments, as the fleet's other Azure deployments do (bash-365.com, bashcrawl). The first is the bash-365 portal on Azure Static Web Apps. [ADR 0018](../docs/adr/0018-clouds-as-fleet-targets.md) is the record for it: Azure stays on Bicep, and AWS, Google Cloud and anything that spans providers use OpenTofu. Which fleet repo deploys to which provider is `tools/dash cloud` ([docs/CLOUDS.md](../docs/CLOUDS.md)).
 
+**Google Cloud** is where the platform is hosted ([ADR 0020](../docs/adr/0020-platform-on-google-cloud.md)): [`gcp/`](gcp/README.md) holds the landing zone and the machine the platform runs on, in OpenTofu, read from `_data/hosting.yml`. Nothing there is applied by CI.
+
 [OpenTofu](https://opentofu.org) is the MPL-2.0 fork of Terraform under the Linux Foundation. Terraform itself has been under the Business Source License since 1.6 (August 2023), which is not open source. The HCL is Terraform-compatible, and nothing here depends on an OpenTofu-only feature yet.
 
 ## Operate

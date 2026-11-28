@@ -42,3 +42,4 @@ Add an ADR in the same PR as the change it justifies.
 | 0016 | [The hub structure contract: declared layers and limits, a ledger that only shrinks, and one pass over the checks a change owes](0016-hub-structure-contract.md) | accepted |
 | 0017 | [ADR 0008 withdrawn: typed decisions go back to direction, and its cost levers join the Workflow Studio](0017-withdraw-typed-decision-gates.md) | accepted |
 | 0018 | [Clouds are fleet targets: providers declared once, deployments read from the repos, and one neutral contract each for identity, infrastructure, workload, telemetry and cost](0018-clouds-as-fleet-targets.md) | accepted |
+| 0020 | [The platform is hosted on Google Cloud and entered through the main site: one machine that is a fleet node, one file that says what is hosted, and a sign-in page that links to each service's own sign-in](0020-platform-on-google-cloud.md) | proposed |
