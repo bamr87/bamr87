@@ -30,7 +30,7 @@ Because triage and harness are committed, a fresh clone already shows red/amber 
 | 3 | **Attention** | Red/amber on _either_ signal (health or triage), worst first | Repo's items |
 | 4 | **Monitor** | The `/monitor/` health board | Repo's items |
 | 5 | **Harness** | Trip wires (tripped first), then the scorecard with its desired direction and threshold | — |
-| 6 | **Docker** | Containers on every host, attributed to their registry project, with the node each host is in `_data/fleet.yml` `nodes:` (`forge (off)` for a node that is not enabled; read from the model, never probed) | — (`o` opens the owning repo) |
+| 6 | **Docker** | Containers on every host, attributed to their registry project, with the node each host is in `_data/fleet.yml` `nodes:` (`x870e (off)` for a node that is not enabled; read from the model, never probed) | — (`o` opens the owning repo) |
 | 7 | **Jobs** | The console's jobs: the same list as the browser's Jobs tab, whichever surface started them. `:` (or `ctrl+p`) lists the console's operations; picking one submits it, and an operation the console says writes to GitHub asks first | Shows the job's log, tailing while it runs (`d` cancels) |
 
 ## Keys

@@ -2,9 +2,11 @@
 
 > Running the fleet's containers on the `forge` LAN host while the Mac runs the terminal dash.
 
+**forge is no longer a fleet node.** On 2026-11-28 the X870E desktop (`x870e`) took its place as the hub's workload node. The current model is `_data/fleet.yml` `nodes:`, described in [docs/PLATFORM.md](PLATFORM.md). This page is the legacy path: `tools/dash host`, the `compose/forge.yml` overlay and the `DASH_DOCKER_HOST` default still name forge, and none of them changed with the node.
+
 The Mac runs the terminal dash (`tools/dash tui`). **Forge runs the containers.** The registry is still `_data/projects.yml` — Docker is live state, not a second inventory.
 
-**Which services run on forge is now declared, not rebuilt.** `_data/fleet.yml` `nodes:` places each hub service on the Mac (the edge) or forge (a workload node); `tools/dash node plan` shows the move, OpenTofu (`tools/dash infra`) owns forge's network and data volumes, and an SSH link keeps every address the same. That is [docs/PLATFORM.md](PLATFORM.md) and [ADR 0003](adr/0003-fleet-platform-nodes-iac-and-scale-out.md). The whole-hub rebuild below is the legacy path, kept for an empty forge.
+**Where hub services run is declared, not rebuilt.** `_data/fleet.yml` `nodes:` places each hub service on the Mac (the edge) or the workload node, which is x870e and not forge; `tools/dash node plan` shows the move, OpenTofu (`tools/dash infra`) owns the node's network and data volumes, and an SSH link keeps every address the same. That is [docs/PLATFORM.md](PLATFORM.md) and [ADR 0003](adr/0003-fleet-platform-nodes-iac-and-scale-out.md). The whole-hub rebuild below is the legacy path, kept for an empty forge.
 
 ```
 Mac TUI  --ssh://forge-->  forge dockerd

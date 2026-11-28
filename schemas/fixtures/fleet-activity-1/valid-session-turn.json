@@ -6,7 +6,7 @@
   "kind": "session.turn",
   "seq": 12,
   "cursor": 912455,
-  "node": "forge",
+  "node": "x870e",
   "project": "zer0-mistakes",
   "repo": "bamr87/zer0-mistakes",
   "actor": "claude-code",

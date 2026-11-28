@@ -2,7 +2,7 @@
 
 > OpenTofu root modules for what outlives a container: each fleet node's network and data volumes today, clusters and other infrastructure later (ADR 0003).
 
-Each kind of resource has one owner. **Ansible** bootstraps a node's operating system and runs every ordered deploy step on it, and **Salt** then keeps that configuration steady (ADR 0003 § 5); **bashOS** owns forge's interactive layer (the console mirror, never-sleep, the harness unit). **OpenTofu**, here, owns the infrastructure a node's services stand on: the `fleet` Docker network and the named volumes that hold their data. **Compose** owns the containers, which are disposable; the overlay `tools/dash node gen` writes takes this directory's network and volumes as `external`, so `docker compose down -v` can never delete them.
+Each kind of resource has one owner. **Ansible** bootstraps a node's operating system and runs every ordered deploy step on it, and **Salt** then keeps that configuration steady (ADR 0003 § 5); **bashOS** owns the operating system and interactive layer of x870e, the workload node (the shared console, the harness unit, its updates). **OpenTofu**, here, owns the infrastructure a node's services stand on: the `fleet` Docker network and the named volumes that hold their data. **Compose** owns the containers, which are disposable; the overlay `tools/dash node gen` writes takes this directory's network and volumes as `external`, so `docker compose down -v` can never delete them.
 
 **Azure** is the exception: [`azure/`](azure/README.md) holds Bicep deployments, as the fleet's other Azure deployments do (bash-365.com, bashcrawl). The first is the bash-365 portal on Azure Static Web Apps. [ADR 0018](../docs/adr/0018-clouds-as-fleet-targets.md) is the record for it: Azure stays on Bicep, and AWS, Google Cloud and anything that spans providers use OpenTofu. Which fleet repo deploys to which provider is `tools/dash cloud` ([docs/CLOUDS.md](../docs/CLOUDS.md)).
 
@@ -12,11 +12,11 @@ Each kind of resource has one owner. **Ansible** bootstraps a node's operating s
 
 ```bash
 tools/dash node plan --assume-enabled   # what would run where, and what OpenTofu would hold
-tools/dash infra plan forge             # write .fleet/nodes/forge.tfvars.json, init, plan, save the plan
-tools/dash infra apply forge --yes      # apply that saved plan, only if its inputs are still current
+tools/dash infra plan x870e             # write .fleet/nodes/x870e.tfvars.json, init, plan, save the plan
+tools/dash infra apply x870e --yes      # apply that saved plan, only if its inputs are still current
 ```
 
-`plan` reads the node over SSH (`ssh://forge`) and changes nothing. `apply` changes the node, so it refuses without `--yes` and without a saved plan made from the current inputs (constitution § 10.5): a placement edit after the plan forces a new plan.
+`plan` reads the node over SSH (`ssh://x870e`) and changes nothing. `apply` changes the node, so it refuses without `--yes` and without a saved plan made from the current inputs (constitution § 10.5): a placement edit after the plan forces a new plan.
 
 ## Rules
 
@@ -29,10 +29,10 @@ tools/dash infra apply forge --yes      # apply that saved plan, only if its inp
 
 ## Adopting a node that already has the resources
 
-If forge already holds a `fleet` network or volumes from the old `dash host rebuild`, the first plan wants to create them and `apply` would fail on "already exists". Import them instead, one per resource, then plan again:
+If a node already holds a `fleet` network or volumes, the first plan wants to create them and `apply` would fail on "already exists". (The case this was written for is what the old `dash host rebuild` left on forge, the node before x870e.) Import them instead, one per resource, then plan again:
 
 ```bash
-export TF_DATA_DIR=~/.local/state/bamr87-infra/forge/.terraform
-tofu -chdir=infra/node import -var-file="$PWD/.fleet/nodes/forge.tfvars.json" docker_network.fleet "$(ssh forge docker network inspect -f '{{.Id}}' fleet)"
-tofu -chdir=infra/node import -var-file="$PWD/.fleet/nodes/forge.tfvars.json" 'docker_volume.rebuildable["fleet_es-data"]' fleet_es-data
+export TF_DATA_DIR=~/.local/state/bamr87-infra/x870e/.terraform
+tofu -chdir=infra/node import -var-file="$PWD/.fleet/nodes/x870e.tfvars.json" docker_network.fleet "$(ssh x870e docker network inspect -f '{{.Id}}' fleet)"
+tofu -chdir=infra/node import -var-file="$PWD/.fleet/nodes/x870e.tfvars.json" 'docker_volume.rebuildable["fleet_es-data"]' fleet_es-data
 ```

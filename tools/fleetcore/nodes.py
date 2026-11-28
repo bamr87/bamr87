@@ -2,7 +2,7 @@
 """Fleet nodes: WHERE each hub workload runs (ADR 0003, docs/PLATFORM.md).
 
 The model is `_data/fleet.yml` `nodes:`. The edge node (the Mac) holds the
-working tree and every service that bind-mounts it; workload nodes (forge)
+working tree and every service that bind-mounts it; workload nodes (x870e)
 carry the always-on planes and the batch work. This module is the one
 implementation the CLI, the console and the MCP server share:
 
@@ -64,7 +64,7 @@ EVERY = "every"
 # starts it unless someone names that profile on purpose.
 PARKED = "elsewhere"
 # A bind of these makes a service a node AGENT (it reads the host it runs on),
-# not an edge-bound one: Filebeat on forge ships forge's containers.
+# not an edge-bound one: Filebeat on x870e ships x870e's containers.
 AGENT_MOUNTS = ("/var/run/docker.sock", "/var/lib/docker/containers")
 # Repo paths whose files are scanned for `service:port` references. The
 # submodules' content is not hub configuration, and `.` is the whole tree.

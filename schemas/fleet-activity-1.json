@@ -44,7 +44,7 @@
       "minimum": 1
     },
     "node": {
-      "description": "Where it happened: a host key from `_data/fleet.yml` `nodes.hosts` (mac, forge), or `ci` for a GitHub-hosted runner.",
+      "description": "Where it happened: a host key from `_data/fleet.yml` `nodes.hosts` (mac, x870e), or `ci` for a GitHub-hosted runner.",
       "type": "string",
       "maxLength": 64,
       "pattern": "^[a-z0-9][a-z0-9-]*$"
