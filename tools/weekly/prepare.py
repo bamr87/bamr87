@@ -102,11 +102,12 @@ def variable_value(repo: str, name: str, runner: Callable = core.run) -> tuple[s
 
 def switch_state(entry: dict, switches: dict, fleet: dict, live: Callable[[str, str], tuple[str | None, str | None]] | None) -> dict:
     """One loop's switch, read the way the loop reads it: the most restrictive of the global, the
-    group and the loop itself (§ 17.2), then the gate. `live` reads a repository variable; without it
-    an `unverified` loop stays unverified and says so."""
+    group, the repo and the loop itself (§ 17.2), then the gate. `live` reads a repository variable;
+    without it an `unverified` loop stays unverified and says so."""
     gate = entry.get("gate") or {}
     for name, level in (("global", switches.get("global") or {}),
-                        (f"group {entry.get('group')}", (switches.get("groups") or {}).get(entry.get("group")) or {})):
+                        (f"group {entry.get('group')}", (switches.get("groups") or {}).get(entry.get("group")) or {}),
+                        (f"repo {entry.get('repo')}", (switches.get("repos") or {}).get(entry.get("repo")) or {})):
         if level.get("state") == "off":
             return {"on": False, "verified": True, "why": f"{name} is off" + (f": {level['reason']}" if level.get("reason") else "")}
     declared, default = str(entry.get("state") or "unverified"), str(entry.get("default") or "on")

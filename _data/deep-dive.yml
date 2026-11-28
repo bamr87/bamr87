@@ -8,7 +8,7 @@ label: deep-dive
 cycle: 1
 cycle_start: '2026-10-30'
 cycle_days: 42
-refreshed_at: '2026-11-26T12:26:57Z'
+refreshed_at: '2026-11-27T12:26:50Z'
 repos:
 - day: 1
   repo: it-journey
@@ -65,7 +65,7 @@ repos:
   - https://github.com/bamr87/bamr87/pull/579
   - https://github.com/bamr87/bamr87/pull/975
   open_issues: 9
-  open_prs: 1
+  open_prs: 0
   findings: 'Cycle 1 day 2, final. Outcomes: Amr merged #508 (docs_index --lint fix) and #509 (governance-records-lint feature); issues #500-#505 filed (dead amendment links + FR45/HUB-049 #500, amendment status/§ 13 ordering #501, NFR11 budget mismatch #502, ungated docs_index lint #503, console a11y #504, governance-records-lint #505). Previously known python-tests and v1/v2 tag items were already fixed. HUB-039 has no PRD requirement (warning).'
   score: 78.0
   next_focus: 'Amr: go-ahead on #500 and #501 status flips; budget decision in #502. Gate docs_index --lint in CI (#503); console a11y pass (#504) with § 15 evidence; land #494/#496 so § 15/§ 16 numbering is final.'
@@ -588,7 +588,7 @@ repos:
   - https://github.com/bamr87/fleet-infra/issues/21
   prs:
   - https://github.com/bamr87/fleet-infra/pull/22
-  open_issues: 0
+  open_issues: 8
   open_prs: 0
   findings: 'Cycle 1 day 28. Phase-1 foundation is solid and verified locally: terraform fmt/validate/test (6/6 plan-only runs) and helm lint/template pass; kube-linter default checks clean; workflows least-privilege with timeouts; secret scanning + push protection on. Chart fleet-base ignores the release (hard-coded .Values.namespace so -n is ignored, objects named by Chart.Name so two releases collide, no app.kubernetes.io labels, no values.schema.json) (#14). Placeholder image nginx-unprivileged:1.27-alpine is EOL, last rebuilt 2025-06-23, and the pod mounts the default SA token (#15). Needs Amr: main unprotected, no rulesets, private vulnerability reporting off while SECURITY.md points to it (#16). Governance: amendment 0002 merged in #12 but still proposed, FINFRA-008 planned (fixed in PR #22), constitution §7 gate list stale (needs amendment 0003), release-please declared but no release.yml/config (#17). No ADRs for GitOps controller, clusters/infrastructure/apps layout, or Terraform
     state/lockfile policy before FINFRA-003/004 (#18). Planned FINFRA-009/FR7 policy gate (#19), FINFRA-010/FR8 k3d smoke install (#20), FINFRA-011/FR9 PSA restricted + default-deny NetworkPolicy (#21) in PR #22. Draft evolve #13 already pins ai-lane@v2 and fixes the README workflow table, so not refiled. Created missing labels incl. agent:queued, which Dependabot #4 reported missing.'

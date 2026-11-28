@@ -7,6 +7,11 @@ name: 🛰️ Build & Deploy Dash
 # Python the console runs (docs/CONSOLE-PAGES.md). Live monitoring data is
 # regenerated at build time so the boards stay fresh without commits.
 # Replaced the Jekyll (zer0-mistakes remote theme) site in 2026-10.
+#
+# The same run also builds the console's bash-365 site build (docs/CONSOLE-PAGES.md
+# "Site builds") on every event, so a pull request proves it builds, and the
+# deploy-portal job publishes it to Azure Static Web Apps (infra/azure/portal/)
+# from main only, and only while vars.PORTAL_DEPLOY_ENABLED is 'true'.
 
 on:
   push:
@@ -21,6 +26,7 @@ on:
       - '.github/scripts/dash-gen/**'
       - '.github/actions/setup/dash-gen/**'
       - '.github/workflows/build-dash.yml'
+      - 'infra/azure/portal/staticwebapp.config.json'
   # Build (never deploy) on PRs touching the same paths. Without this the site
   # build was verified only AFTER merge, so a broken page reached main before
   # anything noticed — the same shape as the failure that froze the fleet's data
@@ -42,6 +48,7 @@ on:
       - '.github/scripts/dash-gen/**'
       - '.github/actions/setup/dash-gen/**'
       - '.github/workflows/build-dash.yml'
+      - 'infra/azure/portal/staticwebapp.config.json'
   schedule:
     # Daily, AFTER the last generated-data push of the morning (fleet-pulse
     # 05:37, issue-pipeline 07:37). Those commits carry `[skip ci]` so they wake
@@ -119,6 +126,48 @@ jobs:
         with:
           path: _site
 
+      # The bash-365 site build: the same page and the same freshly generated
+      # data, under that site's settings in _data/profile.yml (title, mark, the
+      # desktop as its front door). Its address, base path and frame origins
+      # come from those settings and the launcher; the response headers Azure
+      # sends come from infra/azure/portal/staticwebapp.config.json.
+      - name: Build the bash-365 site build
+        run: |
+          tools/console/build-pages.sh
+          cp infra/azure/portal/staticwebapp.config.json "$OUT/staticwebapp.config.json"
+        env:
+          CONSOLE_SITE: bash-365
+          CONSOLE_SKIP_INSTALL: '1'
+          OUT: ${{ github.workspace }}/_portal
+
+      - name: The bash-365 build opens on the desktop and fits its host
+        run: |
+          set -euo pipefail
+          test -f _portal/index.html && test -f _portal/home/index.html && test -f _portal/404.html
+          jq -e '.site == "bash-365"' _portal/snapshot/manifest.json >/dev/null \
+            || { echo "::error::the bash-365 build's manifest does not name its site"; exit 1; }
+          jq -e '.responseOverrides["404"].rewrite == "/404.html"' _portal/staticwebapp.config.json >/dev/null
+          # Whole sources, compared one by one: 'self', then exact origins only.
+          read -ra sources <<< "$(grep -o 'frame-src [^;]*' _portal/index.html)"
+          [ "${sources[1]:-}" = "'self'" ] && [ "${#sources[@]}" -gt 2 ] \
+            || { echo "::error::the bash-365 build frames no fleet origin: ${sources[*]}"; exit 1; }
+          for src in "${sources[@]:2}"; do
+            [[ "$src" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]+)?$ ]] \
+              || { echo "::error::the bash-365 build's frame-src admits more than an origin: $src"; exit 1; }
+          done
+          # Azure Static Web Apps Free holds 250 MB of content.
+          size="$(du -sm _portal | cut -f1)"
+          echo "bash-365 build: ${size} MB, $(find _portal -type f | wc -l) files"
+          [ "$size" -lt 240 ] || { echo "::error::the bash-365 build is ${size} MB; the Free plan holds 250"; exit 1; }
+
+      - name: Upload the bash-365 build
+        if: github.event_name != 'pull_request' && vars.PORTAL_DEPLOY_ENABLED == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: bash-365-portal
+          path: _portal
+          retention-days: 3
+
   deploy:
     needs: build
     # PRs verify the build and stop there. Deploying from a PR would publish
@@ -136,3 +185,81 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+
+  # The bash-365 portal on Azure Static Web Apps (infra/azure/portal/README.md).
+  # Off until the maintainer has run bootstrap.sh and deploy.sh and set
+  # PORTAL_DEPLOY_ENABLED to 'true' (_data/fleet.yml switches.loops
+  # "hub/bash-365-portal"). OIDC only: no secret is stored; the deployment
+  # token is read for this one run from the app itself, with a role scoped to
+  # that app, and masked.
+  deploy-portal:
+    needs: build
+    if: github.event_name != 'pull_request' && vars.PORTAL_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    # The federated credential trusts this environment's jobs and no others.
+    environment:
+      name: bash-365-portal
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: infra/azure/portal
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: bash-365-portal
+          path: _portal
+
+      - name: The Azure identity is configured
+        env:
+          CLIENT_ID: ${{ vars.PORTAL_AZURE_CLIENT_ID }}
+          TENANT_ID: ${{ vars.PORTAL_AZURE_TENANT_ID }}
+          SUBSCRIPTION_ID: ${{ vars.PORTAL_AZURE_SUBSCRIPTION_ID }}
+        run: |
+          for name in CLIENT_ID TENANT_ID SUBSCRIPTION_ID; do
+            [ -n "${!name}" ] || { echo "::error::PORTAL_AZURE_${name} is not set; infra/azure/portal/bootstrap.sh prints it"; exit 1; }
+          done
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.PORTAL_AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.PORTAL_AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.PORTAL_AZURE_SUBSCRIPTION_ID }}
+
+      # Names from infra/azure/portal/parameters.json, the file the Bicep deploys
+      # with, so the workflow and the resources cannot name different apps.
+      - name: Deploy the prebuilt site (no Oryx build)
+        id: deploy
+        run: |
+          set -euo pipefail
+          params=infra/azure/portal/parameters.json
+          rg="$(jq -r .parameters.resourceGroupName.value "$params")"
+          app="$(jq -r .parameters.staticWebAppName.value "$params")"
+          domain="$(jq -r .parameters.customDomain.value "$params")"
+          host="$(az staticwebapp show --name "$app" --resource-group "$rg" --query defaultHostname -o tsv)"
+          token="$(az staticwebapp secrets list --name "$app" --resource-group "$rg" --query properties.apiKey -o tsv)"
+          echo "::add-mask::$token"
+          (cd _portal && SWA_CLI_DEPLOYMENT_TOKEN="$token" npx --yes --package @azure/static-web-apps-cli swa deploy . --env production)
+          echo "host=$host" >> "$GITHUB_OUTPUT"
+          echo "url=https://${domain:-$host}" >> "$GITHUB_OUTPUT"
+
+      - name: The portal answers as the bash-365 build
+        env:
+          HOST: ${{ steps.deploy.outputs.host }}
+        run: |
+          set -euo pipefail
+          for _ in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -fsS "https://${HOST}/snapshot/manifest.json" | jq -e '.site == "bash-365"' >/dev/null \
+               && curl -fsS -o /dev/null "https://${HOST}/home/"; then
+              echo "https://${HOST}/ is the bash-365 build"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::https://${HOST}/ does not serve the bash-365 build after the deploy"
+          exit 1
